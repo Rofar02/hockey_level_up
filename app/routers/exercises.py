@@ -1,12 +1,14 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.exercise import EquipmentType, ExerciseCategory, TargetStat, TrainingPhase
-from app.schemas.exercise import ExerciseRead
+from app.models.user import User
+from app.routers.deps import require_admin
+from app.schemas.exercise import ExerciseCreate, ExerciseRead, ExerciseUpdate
 from app.services.exercise_service import ExerciseService
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
@@ -33,3 +35,31 @@ async def get_exercise(
     exercise_id: uuid.UUID, session: Annotated[AsyncSession, Depends(get_db)]
 ):
     return await ExerciseService(session).get_exercise(exercise_id)
+
+
+@router.post("", response_model=ExerciseRead, status_code=status.HTTP_201_CREATED)
+async def create_exercise(
+    body: ExerciseCreate,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).create_exercise(body)
+
+
+@router.patch("/{exercise_id}", response_model=ExerciseRead)
+async def update_exercise(
+    exercise_id: uuid.UUID,
+    body: ExerciseUpdate,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).update_exercise(exercise_id, body)
+
+
+@router.delete("/{exercise_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_exercise(
+    exercise_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    await ExerciseService(session).delete_exercise(exercise_id)

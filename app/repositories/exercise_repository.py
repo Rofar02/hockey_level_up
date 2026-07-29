@@ -4,6 +4,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.schemas.exercise import ExerciseCreate
 
 
 class ExerciseRepository:
@@ -32,6 +33,22 @@ class ExerciseRepository:
 
     async def get_by_id(self, exercise_id: uuid.UUID) -> Exercise | None:
         return await self._session.get(Exercise, exercise_id)
+
+    async def create(self, data: ExerciseCreate) -> Exercise:
+        exercise = Exercise(**data.model_dump())
+        self._session.add(exercise)
+        await self._session.flush()
+        return exercise
+
+    async def update(self, exercise: Exercise, updates: dict) -> Exercise:
+        for field, value in updates.items():
+            setattr(exercise, field, value)
+        await self._session.flush()
+        return exercise
+
+    async def delete(self, exercise: Exercise) -> None:
+        await self._session.delete(exercise)
+        await self._session.flush()
 
     async def list_for_assembly(
         self,

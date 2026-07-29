@@ -26,6 +26,7 @@ class UserRead(UserBase):
 
     id: uuid.UUID
     equipment_access: EquipmentType
+    is_admin: bool
     created_at: datetime
 
 

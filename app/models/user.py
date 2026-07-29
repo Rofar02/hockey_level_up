@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,6 +39,10 @@ class User(Base):
         enum_column(EquipmentType, "equipment_type"),
         nullable=False,
         server_default=EquipmentType.BODYWEIGHT.value,
+    )
+
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
     )
 
     created_at: Mapped[datetime] = mapped_column(
