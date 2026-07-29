@@ -18,7 +18,7 @@ class ExerciseService:
         equipment_type: EquipmentType | None = None,
         target_stat: TargetStat | None = None,
     ) -> list[Exercise]:
-        return await self._exercises.list(
+        return await self._exercises.list_exercises(
             category=category,
             phase=phase,
             equipment_type=equipment_type,

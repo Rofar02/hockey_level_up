@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
@@ -10,7 +10,7 @@ class ExerciseRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list(
+    async def list_exercises(
         self,
         category: ExerciseCategory | None = None,
         phase: TrainingPhase | None = None,
@@ -32,3 +32,28 @@ class ExerciseRepository:
 
     async def get_by_id(self, exercise_id: uuid.UUID) -> Exercise | None:
         return await self._session.get(Exercise, exercise_id)
+
+    async def list_for_assembly(
+        self,
+        phase: TrainingPhase,
+        equipment_access: EquipmentType,
+        category: ExerciseCategory | None = None,
+    ) -> list[Exercise]:
+        """Candidates for training-session assembly.
+
+        equipment_access only constrains off_ice exercises -- on the ice, the
+        player doesn't choose gym/home/bodyweight, so on_ice exercises are
+        never excluded by equipment.
+        """
+        query = select(Exercise).where(Exercise.phase == phase)
+        if category is not None:
+            query = query.where(Exercise.category == category)
+        query = query.where(
+            or_(
+                Exercise.category == ExerciseCategory.ON_ICE,
+                Exercise.equipment_type == equipment_access,
+            )
+        )
+
+        result = await self._session.execute(query.order_by(Exercise.name))
+        return list(result.scalars().all())

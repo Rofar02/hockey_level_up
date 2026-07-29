@@ -1,4 +1,3 @@
-import itertools
 import random
 from collections import defaultdict
 from datetime import date
@@ -77,7 +76,7 @@ class ScheduleService:
         category = _SESSION_TYPE_TO_CATEGORY[session_type]
         blocks: list[SessionBlock] = []
 
-        warmup = await self._pick_single(TrainingPhase.WARMUP, user)
+        warmup = await self._pick_single(TrainingPhase.WARMUP, category, user)
         if warmup is not None:
             blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=warmup.id, order=0))
 
@@ -85,7 +84,7 @@ class ScheduleService:
         for i, exercise in enumerate(main_exercises):
             blocks.append(SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=i))
 
-        cooldown = await self._pick_single(TrainingPhase.COOLDOWN, user)
+        cooldown = await self._pick_single(TrainingPhase.COOLDOWN, category, user)
         if cooldown is not None:
             blocks.append(
                 SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=cooldown.id, order=0)
@@ -93,17 +92,29 @@ class ScheduleService:
 
         return TrainingSession(blocks=blocks)
 
-    async def _pick_single(self, phase: TrainingPhase, user: User) -> Exercise | None:
-        """Warmup/cooldown: curated pool for the phase, filtered only by equipment -- no category filter."""
-        candidates = await self._exercises.list(phase=phase, equipment_type=user.equipment_access)
+    async def _pick_single(
+        self, phase: TrainingPhase, category: ExerciseCategory, user: User
+    ) -> Exercise | None:
+        """Warmup/cooldown: curated pool for the phase, filtered by the day's category.
+
+        equipment_access still narrows off_ice candidates but never excludes
+        on_ice ones (no equipment choice on the ice).
+        """
+        candidates = await self._exercises.list_for_assembly(
+            phase=phase, equipment_access=user.equipment_access, category=category
+        )
         if not candidates:
             return None
         return random.choice(candidates)
 
     async def _pick_main(self, category: ExerciseCategory, user: User) -> list[Exercise]:
-        """Main: 2-3 exercises for the day's category, round-robin across the 4 target stats."""
-        candidates = await self._exercises.list(
-            category=category, phase=TrainingPhase.MAIN, equipment_type=user.equipment_access
+        """Main: up to 2-3 exercises for the day's category, at most one per target stat.
+
+        If fewer than `count` stats have candidates, returns fewer exercises
+        rather than repeating a stat.
+        """
+        candidates = await self._exercises.list_for_assembly(
+            phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
         )
         if not candidates:
             return []
@@ -113,20 +124,14 @@ class ScheduleService:
         by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
         for exercise in candidates:
             by_stat[exercise.target_stat].append(exercise)
-        for pool in by_stat.values():
-            random.shuffle(pool)
 
         picked: list[Exercise] = []
-        empty_streak = 0
-        for stat in itertools.cycle(TargetStat):
-            if len(picked) >= count or empty_streak >= len(TargetStat):
+        for stat in TargetStat:
+            if len(picked) >= count:
                 break
             pool = by_stat.get(stat)
             if pool:
-                picked.append(pool.pop())
-                empty_streak = 0
-            else:
-                empty_streak += 1
+                picked.append(random.choice(pool))
         return picked
 
     @staticmethod
