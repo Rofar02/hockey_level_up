@@ -2,11 +2,13 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, Integer, String, func
+from sqlalchemy import DateTime, Float, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.enum_column import enum_column
+from app.models.exercise import EquipmentType
 
 
 class Position(enum.StrEnum):
@@ -29,15 +31,15 @@ class User(Base):
     weight: Mapped[float | None] = mapped_column(Float, nullable=True)
     age: Mapped[int | None] = mapped_column(Integer, nullable=True)
     position: Mapped[Position | None] = mapped_column(
-        Enum(
-            Position,
-            name="position",
-            native_enum=False,
-            values_callable=lambda enum_cls: [member.value for member in enum_cls],
-        ),
-        nullable=True,
+        enum_column(Position, "position"), nullable=True
     )
     years_of_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    equipment_access: Mapped[EquipmentType] = mapped_column(
+        enum_column(EquipmentType, "equipment_type"),
+        nullable=False,
+        server_default=EquipmentType.BODYWEIGHT.value,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

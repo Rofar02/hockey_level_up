@@ -1,11 +1,12 @@
 import enum
 import uuid
 
-from sqlalchemy import CheckConstraint, Enum, Integer, String
+from sqlalchemy import CheckConstraint, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.db.enum_column import enum_column
 
 
 class ExerciseCategory(enum.StrEnum):
@@ -32,15 +33,6 @@ class EquipmentType(enum.StrEnum):
     BODYWEIGHT = "bodyweight"
 
 
-def _enum_column(enum_cls: type[enum.StrEnum], name: str) -> Enum:
-    return Enum(
-        enum_cls,
-        name=name,
-        native_enum=False,
-        values_callable=lambda cls: [member.value for member in cls],
-    )
-
-
 class Exercise(Base):
     __tablename__ = "exercises"
     __table_args__ = (
@@ -55,17 +47,17 @@ class Exercise(Base):
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
 
     category: Mapped[ExerciseCategory] = mapped_column(
-        _enum_column(ExerciseCategory, "exercise_category"), nullable=False
+        enum_column(ExerciseCategory, "exercise_category"), nullable=False
     )
     phase: Mapped[TrainingPhase] = mapped_column(
-        _enum_column(TrainingPhase, "training_phase"), nullable=False
+        enum_column(TrainingPhase, "training_phase"), nullable=False
     )
     target_stat: Mapped[TargetStat] = mapped_column(
-        _enum_column(TargetStat, "target_stat"), nullable=False
+        enum_column(TargetStat, "target_stat"), nullable=False
     )
     difficulty_level: Mapped[int] = mapped_column(Integer, nullable=False)
     equipment_type: Mapped[EquipmentType] = mapped_column(
-        _enum_column(EquipmentType, "equipment_type"), nullable=False
+        enum_column(EquipmentType, "equipment_type"), nullable=False
     )
 
     video_source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)

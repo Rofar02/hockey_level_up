@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.models.exercise import EquipmentType
 from app.models.user import Position
 
 
@@ -24,4 +25,9 @@ class UserRead(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    equipment_access: EquipmentType
     created_at: datetime
+
+
+class UserUpdate(BaseModel):
+    equipment_access: EquipmentType
