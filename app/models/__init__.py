@@ -1,4 +1,6 @@
 from app.models.exercise import Exercise
+from app.models.outbox import OutboxEvent
+from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
 
@@ -6,8 +8,12 @@ __all__ = [
     "DayPlan",
     "DaySessionType",
     "Exercise",
+    "OutboxEvent",
     "SessionBlock",
+    "StatHistory",
     "TrainingSession",
+    "TrainingStreak",
     "User",
+    "UserStat",
     "WeeklyPlan",
 ]

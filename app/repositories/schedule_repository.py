@@ -7,6 +7,13 @@ from sqlalchemy.orm import selectinload
 
 from app.models.schedule import DayPlan, SessionBlock, TrainingSession, WeeklyPlan
 
+_SESSION_BLOCK_OWNERSHIP_OPTIONS = (
+    selectinload(SessionBlock.exercise),
+    selectinload(SessionBlock.session)
+    .selectinload(TrainingSession.day_plan)
+    .selectinload(DayPlan.weekly_plan),
+)
+
 _EAGER_LOAD_OPTIONS = (
     selectinload(WeeklyPlan.day_plans)
     .selectinload(DayPlan.training_session)
@@ -48,3 +55,12 @@ class ScheduleRepository:
         if today > candidate.week_start_date + timedelta(days=6):
             return None
         return candidate
+
+    async def get_session_block_with_owner(self, block_id: uuid.UUID) -> SessionBlock | None:
+        query = (
+            select(SessionBlock)
+            .where(SessionBlock.id == block_id)
+            .options(*_SESSION_BLOCK_OWNERSHIP_OPTIONS)
+        )
+        result = await self._session.execute(query)
+        return result.unique().scalar_one_or_none()

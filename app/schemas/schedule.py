@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,8 +20,10 @@ class WeeklyPlanCreate(BaseModel):
 class SessionBlockRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: uuid.UUID
     phase: TrainingPhase
     order: int
+    completed_at: datetime | None
     exercise: ExerciseRead
 
 

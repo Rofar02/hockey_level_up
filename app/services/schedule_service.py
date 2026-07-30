@@ -143,8 +143,10 @@ class ScheduleService:
                 category = _SESSION_TYPE_TO_CATEGORY[day.session_type]
                 blocks_read = [
                     SessionBlockRead(
+                        id=block.id,
                         phase=block.phase,
                         order=block.order,
+                        completed_at=block.completed_at,
                         exercise=ExerciseRead.model_validate(block.exercise),
                     )
                     for block in day.training_session.blocks

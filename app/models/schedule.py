@@ -1,8 +1,9 @@
 import enum
 import uuid
 from datetime import date as date_
+from datetime import datetime
 
-from sqlalchemy import Date, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -100,6 +101,7 @@ class SessionBlock(Base):
         UUID(as_uuid=True), ForeignKey("exercises.id"), nullable=False
     )
     order: Mapped[int] = mapped_column(Integer, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     session: Mapped["TrainingSession"] = relationship(back_populates="blocks")
     exercise: Mapped["Exercise"] = relationship()

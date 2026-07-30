@@ -45,6 +45,9 @@ class User(Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
 
+    xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    level: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
