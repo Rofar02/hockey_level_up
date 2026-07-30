@@ -32,3 +32,9 @@ class ProgressRepository:
             select(TrainingStreak).where(TrainingStreak.user_id == user_id)
         )
         return result.scalar_one_or_none()
+
+    async def get_user_stat(self, user_id: uuid.UUID, stat_type: TargetStat) -> UserStat | None:
+        result = await self._session.execute(
+            select(UserStat).where(UserStat.user_id == user_id, UserStat.stat_type == stat_type)
+        )
+        return result.scalar_one_or_none()

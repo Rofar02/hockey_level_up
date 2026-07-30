@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -10,6 +11,10 @@ class UserStatRead(BaseModel):
 
     stat_type: TargetStat
     current_value: float
+    effective_value: float
+    trend: Literal["up", "down"]
+    idle_days: float
+    decay_active: bool
     last_updated_at: datetime
 
 
