@@ -1,6 +1,8 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import TargetStat
@@ -38,3 +40,19 @@ class ProgressRepository:
             select(UserStat).where(UserStat.user_id == user_id, UserStat.stat_type == stat_type)
         )
         return result.scalar_one_or_none()
+
+    async def set_stat_value(
+        self, user_id: uuid.UUID, stat_type: TargetStat, value: float, now: datetime
+    ) -> None:
+        """Overwrite current_value (assessment baseline), unlike stat_consumer's additive upsert."""
+        stmt = pg_insert(UserStat).values(
+            user_id=user_id, stat_type=stat_type, current_value=value, last_updated_at=now
+        )
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_user_stats_user_stat_type",
+            set_={
+                "current_value": stmt.excluded.current_value,
+                "last_updated_at": stmt.excluded.last_updated_at,
+            },
+        )
+        await self._session.execute(stmt)

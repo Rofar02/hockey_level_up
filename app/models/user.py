@@ -17,6 +17,12 @@ class Position(enum.StrEnum):
     FORWARD = "forward"
 
 
+class FitnessTier(enum.StrEnum):
+    BEGINNER = "beginner"
+    INTERMEDIATE = "intermediate"
+    ADVANCED = "advanced"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -42,6 +48,13 @@ class User(Base):
     )
 
     is_admin: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+
+    fitness_tier: Mapped[FitnessTier | None] = mapped_column(
+        enum_column(FitnessTier, "fitness_tier"), nullable=True
+    )
+    has_assessment: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
 
