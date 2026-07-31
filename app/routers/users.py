@@ -8,8 +8,10 @@ from app.models.exercise import TargetStat
 from app.models.user import User
 from app.routers.deps import get_current_user
 from app.schemas.progress import StatHistoryRead, TrainingStreakRead, UserStatRead
+from app.schemas.skill import UserSkillPreferenceRead, UserSkillPreferencesReplace
 from app.schemas.user import UserRead, UserUpdate
 from app.services.progress_service import ProgressService
+from app.services.skill_service import SkillService
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -47,3 +49,20 @@ async def get_my_streak(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await ProgressService(session).get_streak(current_user.id)
+
+
+@router.get("/me/skill-preferences", response_model=list[UserSkillPreferenceRead])
+async def get_my_skill_preferences(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await SkillService(session).list_user_preferences(current_user.id)
+
+
+@router.put("/me/skill-preferences", response_model=list[UserSkillPreferenceRead])
+async def replace_my_skill_preferences(
+    body: UserSkillPreferencesReplace,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await SkillService(session).replace_user_preferences(current_user.id, body.skill_ids)

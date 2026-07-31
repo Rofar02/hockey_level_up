@@ -127,3 +127,18 @@ class SkillRepository:
     async def delete_milestone(self, milestone: SkillMilestone) -> None:
         await self._session.delete(milestone)
         await self._session.flush()
+
+    # -- assembly support --
+
+    async def list_tagged_exercise_ids(
+        self, exercise_ids: list[uuid.UUID], skill_ids: list[uuid.UUID]
+    ) -> set[uuid.UUID]:
+        """Exercise ids (subset of `exercise_ids`) tagged with any of `skill_ids`."""
+        if not exercise_ids or not skill_ids:
+            return set()
+        result = await self._session.execute(
+            select(SkillTag.exercise_id).where(
+                SkillTag.exercise_id.in_(exercise_ids), SkillTag.skill_id.in_(skill_ids)
+            )
+        )
+        return set(result.scalars().all())

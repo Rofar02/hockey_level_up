@@ -12,6 +12,8 @@ from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingS
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.schedule_repository import ScheduleRepository
+from app.repositories.skill_repository import SkillRepository
+from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
 from app.schemas.exercise import ExerciseRead
 from app.schemas.schedule import (
     DayPlanRead,
@@ -32,6 +34,8 @@ class ScheduleService:
         self._session = session
         self._exercises = ExerciseRepository(session)
         self._schedule = ScheduleRepository(session)
+        self._skills = SkillRepository(session)
+        self._user_skill_preferences = UserSkillPreferenceRepository(session)
 
     async def create_weekly_plan(self, user: User, payload: WeeklyPlanCreate) -> WeeklyPlanRead:
         dates = [day.date for day in payload.days]
@@ -111,7 +115,12 @@ class ScheduleService:
         """Main: up to 2-3 exercises for the day's category, at most one per target stat.
 
         If fewer than `count` stats have candidates, returns fewer exercises
-        rather than repeating a stat.
+        rather than repeating a stat. Exercises carrying a SkillTag on one of
+        the user's chosen skills (UserSkillPreference) are preferred over
+        untagged ones for the same stat -- but the one-per-stat rule and the
+        random pick within a pool are unchanged. A user with no preferences
+        at all sees plain round-robin, identical to before this priority was
+        added.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
@@ -121,15 +130,24 @@ class ScheduleService:
 
         count = random.randint(2, 3)
 
-        by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
+        preferred_skill_ids = await self._user_skill_preferences.list_skill_ids_for_user(user.id)
+        priority_exercise_ids = await self._skills.list_tagged_exercise_ids(
+            exercise_ids=[exercise.id for exercise in candidates], skill_ids=preferred_skill_ids
+        )
+
+        by_stat_priority: dict[TargetStat, list[Exercise]] = defaultdict(list)
+        by_stat_rest: dict[TargetStat, list[Exercise]] = defaultdict(list)
         for exercise in candidates:
-            by_stat[exercise.target_stat].append(exercise)
+            if exercise.id in priority_exercise_ids:
+                by_stat_priority[exercise.target_stat].append(exercise)
+            else:
+                by_stat_rest[exercise.target_stat].append(exercise)
 
         picked: list[Exercise] = []
         for stat in TargetStat:
             if len(picked) >= count:
                 break
-            pool = by_stat.get(stat)
+            pool = by_stat_priority.get(stat) or by_stat_rest.get(stat)
             if pool:
                 picked.append(random.choice(pool))
         return picked

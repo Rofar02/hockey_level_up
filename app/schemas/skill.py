@@ -113,3 +113,12 @@ class SkillDetailRead(BaseModel):
     value: float
     stat_breakdown: list[StatContributionRead]
     milestones: list[SkillMilestoneStatusRead]
+
+
+class UserSkillPreferenceRead(BaseModel):
+    skill_id: uuid.UUID
+    name: str
+
+
+class UserSkillPreferencesReplace(BaseModel):
+    skill_ids: list[uuid.UUID]

@@ -9,6 +9,7 @@ from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.skill_repository import SkillRepository
+from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
 from app.schemas.skill import (
     NextMilestoneRead,
     SkillCreate,
@@ -23,6 +24,7 @@ from app.schemas.skill import (
     SkillTagUpdate,
     SkillUpdate,
     StatContributionRead,
+    UserSkillPreferenceRead,
 )
 from app.services.stat_service import get_effective_value
 
@@ -35,6 +37,7 @@ class SkillService:
         self._skills = SkillRepository(session)
         self._progress = ProgressRepository(session)
         self._exercises = ExerciseRepository(session)
+        self._user_skill_preferences = UserSkillPreferenceRepository(session)
 
     # -- pure computed value (no writes) --
 
@@ -113,6 +116,23 @@ class SkillService:
             stat_breakdown=breakdown,
             milestones=milestone_reads,
         )
+
+    # -- UserSkillPreference (onboarding skill picker) --
+
+    async def list_user_preferences(self, user_id: uuid.UUID) -> list[UserSkillPreferenceRead]:
+        rows = await self._user_skill_preferences.list_with_skill_names(user_id)
+        return [UserSkillPreferenceRead(skill_id=skill_id, name=name) for skill_id, name in rows]
+
+    async def replace_user_preferences(
+        self, user_id: uuid.UUID, skill_ids: list[uuid.UUID]
+    ) -> list[UserSkillPreferenceRead]:
+        unique_skill_ids = list(dict.fromkeys(skill_ids))
+        for skill_id in unique_skill_ids:
+            await self._get_skill_or_404(skill_id)
+
+        await self._user_skill_preferences.replace_for_user(user_id, unique_skill_ids)
+        await self._session.commit()
+        return await self.list_user_preferences(user_id)
 
     # -- Skill admin CRUD --
 
