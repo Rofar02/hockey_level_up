@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -31,4 +31,15 @@ async def start_from_scratch(
 
 @router.get("/status", response_model=AssessmentStatusRead)
 async def get_assessment_status(current_user: Annotated[User, Depends(get_current_user)]):
-    return AssessmentStatusRead(has_assessment=current_user.has_assessment)
+    return AssessmentStatusRead(
+        has_assessment=current_user.has_assessment,
+        suggested_reassessment=current_user.suggested_reassessment,
+    )
+
+
+@router.post("/dismiss-reassessment-suggestion", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_reassessment_suggestion(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    await AssessmentService(session).dismiss_reassessment_suggestion(current_user)

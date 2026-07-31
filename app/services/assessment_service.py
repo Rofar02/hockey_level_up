@@ -89,6 +89,10 @@ class AssessmentService:
             fitness_tier=tier,
         )
 
+    async def dismiss_reassessment_suggestion(self, user: User) -> None:
+        user.suggested_reassessment = False
+        await self._session.commit()
+
     @staticmethod
     def _intellect_from_experience(user: User) -> float:
         years = user.years_of_experience or 0

@@ -17,6 +17,7 @@ import uuid
 
 import pytest
 
+from app.core.training_block import BlockPhase
 from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
 from app.models.skill import Skill, SkillTag, UserSkillPreference
 from app.models.user import User
@@ -74,7 +75,7 @@ async def test_no_preference_is_plain_round_robin(db_session) -> None:
     await db_session.flush()
 
     service = ScheduleService(db_session)
-    picked = await service._pick_main(ExerciseCategory.OFF_ICE, user)
+    picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     # No UserSkillPreference rows at all -> priority pool is always empty ->
     # falls back to the full per-stat pool every time, same as before.
@@ -110,7 +111,7 @@ async def test_preference_prioritizes_tagged_exercise_but_keeps_one_per_stat(
     await db_session.flush()
 
     service = ScheduleService(db_session)
-    picked = await service._pick_main(ExerciseCategory.OFF_ICE, user)
+    picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == [
         exercises["z_strength"].name,  # tagged -> prioritized over "A-strength"

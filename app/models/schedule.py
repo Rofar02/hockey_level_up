@@ -3,7 +3,7 @@ import uuid
 from datetime import date as date_
 from datetime import datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,9 +31,42 @@ class WeeklyPlan(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     week_start_date: Mapped[date_] = mapped_column(Date, nullable=False)
+    training_block_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("training_blocks.id", ondelete="SET NULL"), nullable=True
+    )
 
     day_plans: Mapped[list["DayPlan"]] = relationship(
         back_populates="weekly_plan", cascade="all, delete-orphan", order_by="DayPlan.date"
+    )
+
+
+class TrainingBlock(Base):
+    """Periodization state for a user, mutated in place week-to-week.
+
+    `week_in_block` is bumped on the same row while it's < 4; hitting 4
+    (a completed deload week) retires the row and a new one starts at
+    block_number + 1 / week_in_block=1. "Active" block for a user is simply
+    the row with the highest `block_number` -- no separate flag needed.
+    """
+
+    __tablename__ = "training_blocks"
+    __table_args__ = (
+        UniqueConstraint("user_id", "block_number", name="uq_training_blocks_user_block_number"),
+        CheckConstraint(
+            "week_in_block >= 1 AND week_in_block <= 4", name="ck_training_blocks_week_in_block_range"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    block_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    week_in_block: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 

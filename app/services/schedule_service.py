@@ -7,12 +7,26 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.session_templates import get_phase_split
+from app.core.training_block import (
+    DIFFICULTY_PRIORITY_PREDICATES,
+    MAIN_EXERCISE_COUNT_RANGE,
+    BlockPhase,
+    get_phase,
+)
 from app.models.exercise import Exercise, ExerciseCategory, TargetStat, TrainingPhase
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.skill_repository import SkillRepository
+from app.repositories.training_block_repository import TrainingBlockRepository
 from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
 from app.schemas.exercise import ExerciseRead
 from app.schemas.schedule import (
@@ -36,6 +50,7 @@ class ScheduleService:
         self._schedule = ScheduleRepository(session)
         self._skills = SkillRepository(session)
         self._user_skill_preferences = UserSkillPreferenceRepository(session)
+        self._training_blocks = TrainingBlockRepository(session)
 
     async def create_weekly_plan(self, user: User, payload: WeeklyPlanCreate) -> WeeklyPlanRead:
         dates = [day.date for day in payload.days]
@@ -44,12 +59,17 @@ class ScheduleService:
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate dates in weekly plan"
             )
 
-        weekly_plan = WeeklyPlan(user_id=user.id, week_start_date=min(dates))
+        training_block = await self._resolve_training_block(user)
+        block_phase = get_phase(training_block.week_in_block)
+
+        weekly_plan = WeeklyPlan(
+            user_id=user.id, week_start_date=min(dates), training_block_id=training_block.id
+        )
         for day_in in payload.days:
             day_plan = DayPlan(date=day_in.date, session_type=day_in.session_type)
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_training_session(
-                    day_in.session_type, user
+                    day_in.session_type, user, block_phase
                 )
             weekly_plan.day_plans.append(day_plan)
 
@@ -74,21 +94,45 @@ class ScheduleService:
             )
         return self._to_read_schema(weekly_plan)
 
+    async def _resolve_training_block(self, user: User) -> TrainingBlock:
+        """Advance (or start) the user's periodization block for this week's plan.
+
+        A block's `week_in_block` is mutated in place while it's < 4. Hitting
+        4 (a just-completed deload week) retires it and starts a new block
+        at block_number + 1 -- that specific transition is also what flags
+        the user for a norm-test retake (border of a mesocycle is where the
+        concept doc says a retest is "honest": not exhausted, not stale).
+        """
+        active = await self._training_blocks.get_active_for_user(user.id)
+        if active is None:
+            return await self._training_blocks.create(
+                TrainingBlock(user_id=user.id, block_number=1, week_in_block=1)
+            )
+
+        if active.week_in_block < 4:
+            active.week_in_block += 1
+            return active
+
+        user.suggested_reassessment = True
+        return await self._training_blocks.create(
+            TrainingBlock(user_id=user.id, block_number=active.block_number + 1, week_in_block=1)
+        )
+
     async def _build_training_session(
-        self, session_type: DaySessionType, user: User
+        self, session_type: DaySessionType, user: User, block_phase: BlockPhase
     ) -> TrainingSession:
         category = _SESSION_TYPE_TO_CATEGORY[session_type]
         blocks: list[SessionBlock] = []
 
-        warmup = await self._pick_single(TrainingPhase.WARMUP, category, user)
+        warmup = await self._pick_single(TrainingPhase.WARMUP, category, user, block_phase)
         if warmup is not None:
             blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=warmup.id, order=0))
 
-        main_exercises = await self._pick_main(category, user)
+        main_exercises = await self._pick_main(category, user, block_phase)
         for i, exercise in enumerate(main_exercises):
             blocks.append(SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=i))
 
-        cooldown = await self._pick_single(TrainingPhase.COOLDOWN, category, user)
+        cooldown = await self._pick_single(TrainingPhase.COOLDOWN, category, user, block_phase)
         if cooldown is not None:
             blocks.append(
                 SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=cooldown.id, order=0)
@@ -97,30 +141,59 @@ class ScheduleService:
         return TrainingSession(blocks=blocks)
 
     async def _pick_single(
-        self, phase: TrainingPhase, category: ExerciseCategory, user: User
+        self,
+        phase: TrainingPhase,
+        category: ExerciseCategory,
+        user: User,
+        block_phase: BlockPhase,
     ) -> Exercise | None:
         """Warmup/cooldown: curated pool for the phase, filtered by the day's category.
 
         equipment_access still narrows off_ice candidates but never excludes
-        on_ice ones (no equipment choice on the ice).
+        on_ice ones (no equipment choice on the ice). The active block's
+        phase biases difficulty (intensification prefers difficulty>=4,
+        deload prefers difficulty<=2), falling back to the full pool when
+        nothing matches that preference -- never an empty result just
+        because the preferred difficulty band is missing.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=phase, equipment_access=user.equipment_access, category=category
         )
         if not candidates:
             return None
+
+        difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
+        if difficulty_predicate is not None:
+            candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
+
         return random.choice(candidates)
 
-    async def _pick_main(self, category: ExerciseCategory, user: User) -> list[Exercise]:
-        """Main: up to 2-3 exercises for the day's category, at most one per target stat.
+    async def _pick_main(
+        self, category: ExerciseCategory, user: User, block_phase: BlockPhase
+    ) -> list[Exercise]:
+        """Main: up to 2-3 exercises (1-2 on a deload week) for the day's
+        category, at most one per target stat.
 
         If fewer than `count` stats have candidates, returns fewer exercises
-        rather than repeating a stat. Exercises carrying a SkillTag on one of
-        the user's chosen skills (UserSkillPreference) are preferred over
-        untagged ones for the same stat -- but the one-per-stat rule and the
-        random pick within a pool are unchanged. A user with no preferences
-        at all sees plain round-robin, identical to before this priority was
-        added.
+        rather than repeating a stat. Two priority layers apply *within*
+        each stat's candidate pool, in this order:
+
+          1. block-phase difficulty preference (intensification: >=4,
+             deload: <=2) -- narrows the pool for that stat, falling back to
+             the full stat pool if nothing matches;
+          2. SkillTag priority for the user's chosen skills (Phase 7) --
+             narrows *that* pool further, again falling back if nothing
+             matches.
+
+        Difficulty goes first because it's the block's physiological
+        constraint on the week (how hard this week should be, chosen by the
+        system); SkillTag is the user's personalization on top, and should
+        only pick among whatever difficulty envelope the block allows --
+        otherwise a user's skill choice could quietly cancel out
+        intensification/deload by always winning with an off-envelope
+        exercise. A user with no preferences and an accumulation-phase block
+        (no difficulty predicate) sees plain round-robin, identical to
+        before this and the Phase 7 priority were added.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
@@ -128,28 +201,32 @@ class ScheduleService:
         if not candidates:
             return []
 
-        count = random.randint(2, 3)
+        count_min, count_max = MAIN_EXERCISE_COUNT_RANGE[block_phase]
+        count = random.randint(count_min, count_max)
 
         preferred_skill_ids = await self._user_skill_preferences.list_skill_ids_for_user(user.id)
         priority_exercise_ids = await self._skills.list_tagged_exercise_ids(
             exercise_ids=[exercise.id for exercise in candidates], skill_ids=preferred_skill_ids
         )
+        difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
 
-        by_stat_priority: dict[TargetStat, list[Exercise]] = defaultdict(list)
-        by_stat_rest: dict[TargetStat, list[Exercise]] = defaultdict(list)
+        by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
         for exercise in candidates:
-            if exercise.id in priority_exercise_ids:
-                by_stat_priority[exercise.target_stat].append(exercise)
-            else:
-                by_stat_rest[exercise.target_stat].append(exercise)
+            by_stat[exercise.target_stat].append(exercise)
 
         picked: list[Exercise] = []
         for stat in TargetStat:
             if len(picked) >= count:
                 break
-            pool = by_stat_priority.get(stat) or by_stat_rest.get(stat)
-            if pool:
-                picked.append(random.choice(pool))
+            stat_pool = by_stat.get(stat)
+            if not stat_pool:
+                continue
+
+            if difficulty_predicate is not None:
+                stat_pool = [e for e in stat_pool if difficulty_predicate(e)] or stat_pool
+
+            skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
+            picked.append(random.choice(skill_pool))
         return picked
 
     @staticmethod

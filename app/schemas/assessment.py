@@ -25,3 +25,4 @@ class AssessmentStatusRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     has_assessment: bool
+    suggested_reassessment: bool
