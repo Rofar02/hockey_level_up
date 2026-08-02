@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
@@ -9,9 +9,19 @@ from app.db.session import AsyncSessionLocal
 from app.events.registry import register_handler
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, TrainingStreak, UserStat
+from app.models.skill import SkillStatWeight, SkillTag
 from app.models.user import User
 
 EVENT_TYPE = "block_completed"
+
+RELEVANCE_WEIGHT_THRESHOLD = 0.6
+RELEVANT_MULTIPLIER = 1.3
+BASE_MULTIPLIER = 1.0
+DIMINISHING_CAP = 120
+
+
+def xp_to_next_level(level: int) -> int:
+    return round(100 * 1.2 ** (level - 1))
 
 
 @register_handler(EVENT_TYPE)
@@ -20,9 +30,48 @@ async def stat_consumer(payload: dict) -> None:
     exercise_id = payload["exercise_id"]
     stat_type = TargetStat(payload["target_stat"])
     difficulty_level = payload["difficulty_level"]
-    gain = difficulty_level * 0.5
 
     async with AsyncSessionLocal() as session:
+        # Pre-increment value, used only to shape this event's gain. Reading
+        # it outside the atomic upsert below means two concurrent events for
+        # the same user/stat can compute their gain off the same starting
+        # value -- both gains still land (the upsert itself stays atomic),
+        # just without seeing each other's diminishing returns. Same
+        # accepted tradeoff as the non-atomic XP level-up below.
+        current_value = (
+            await session.execute(
+                select(UserStat.current_value).where(
+                    UserStat.user_id == user_id, UserStat.stat_type == stat_type
+                )
+            )
+        ).scalar_one_or_none() or 0.0
+        diminishing_factor = 1 - (current_value / DIMINISHING_CAP)
+
+        skill_ids = (
+            await session.execute(
+                select(SkillTag.skill_id).where(
+                    SkillTag.exercise_id == uuid.UUID(exercise_id)
+                )
+            )
+        ).scalars().all()
+
+        relevance_multiplier = BASE_MULTIPLIER
+        if skill_ids:
+            max_weight = (
+                await session.execute(
+                    select(func.max(SkillStatWeight.weight)).where(
+                        SkillStatWeight.skill_id.in_(skill_ids),
+                        SkillStatWeight.stat_type == stat_type,
+                    )
+                )
+            ).scalar()
+            if max_weight is not None and max_weight > RELEVANCE_WEIGHT_THRESHOLD:
+                relevance_multiplier = RELEVANT_MULTIPLIER
+
+        gain = round(
+            difficulty_level * 0.5 * diminishing_factor * relevance_multiplier, 2
+        )
+
         upsert = pg_insert(UserStat).values(
             user_id=user_id,
             stat_type=stat_type,
@@ -118,7 +167,7 @@ async def xp_consumer(payload: dict) -> None:
         # Level-up is a separate, non-atomic write: a concurrent xp increment
         # landing between the update above and this one could be overwritten.
         # Acceptable per spec -- only the increment itself needs to be atomic.
-        threshold = level * 100
+        threshold = xp_to_next_level(level)
         if xp >= threshold:
             level += 1
             xp -= threshold

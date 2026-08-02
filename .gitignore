@@ -11,3 +11,6 @@ venv/
 
 .idea/
 .vscode/
+
+# User-uploaded content -- not source, shouldn't be committed
+static/avatars/

@@ -81,95 +81,101 @@ export function HomePage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-3xl flex-col gap-6 px-4 py-8">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold">Привет, {user?.username}</h1>
-          {trainingBlock !== null && (
-            <span className="w-fit rounded-full border border-white/15 px-3 py-1 text-xs text-text-secondary">
-              Блок {trainingBlock.block_number} · неделя {trainingBlock.week_in_block}/4 ·{' '}
-              {BLOCK_PHASE_LABELS[trainingBlock.phase]}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {streak !== null && (
-            <div className="flex items-center gap-1.5 rounded-md border border-white/5 bg-dark-card px-3 py-2">
-              <i className="ti ti-flame text-accent-persimmon" aria-hidden="true" />
-              <span className="font-mono text-sm">{streak.current_streak}</span>
-            </div>
-          )}
-          <Link
-            to="/profile"
-            className="rounded border border-white/15 px-4 py-2.5 font-medium text-text-primary transition-colors hover:bg-white/5"
-          >
-            Профиль
-          </Link>
-          <Button variant="neutral" onClick={logout}>
-            Выйти
-          </Button>
-        </div>
-      </div>
-
-      {!isLoading && renderTodayAction()}
-
-      <FormError message={error} />
-
-      {isLoading && <p className="text-sm text-text-secondary">Загрузка...</p>}
-
-      {!isLoading && weeklyPlan === null && (
-        <Button onClick={() => navigate('/schedule/new')} className="self-start">
-          Спланировать неделю
-        </Button>
-      )}
-
-      {!isLoading && weeklyPlan !== null && (
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/schedule/new')}
-            className="self-end text-sm text-accent-ice hover:underline"
-          >
-            Изменить неделю
-          </button>
-          <div className="grid grid-cols-7 gap-2">
-            {weeklyPlan.day_plans.map((day) => {
-              const isToday = day.date === todayIso
-              const isClickable = day.session_type !== 'rest'
-              const dayDate = parseIsoDate(day.date)
-              const className = `flex flex-col rounded-md border p-3 text-left transition-colors ${
-                isToday ? 'border-accent-ice' : 'border-white/5'
-              } ${isClickable ? 'bg-dark-card hover:border-white/20' : 'bg-dark-card/50'}`
-
-              const content = (
-                <>
-                  <p className="text-xs text-text-secondary">{WEEKDAY_LABELS[(dayDate.getDay() + 6) % 7]}</p>
-                  <p className="font-mono text-xs text-text-secondary">{formatShortDate(dayDate)}</p>
-                  <p className="mt-2 text-sm font-medium">{DAY_SESSION_TYPE_LABELS[day.session_type]}</p>
-                </>
-              )
-
-              if (isClickable) {
-                return (
-                  <button
-                    key={day.id}
-                    type="button"
-                    onClick={() => navigate(`/training/${day.id}`)}
-                    className={className}
-                  >
-                    {content}
-                  </button>
-                )
-              }
-              return (
-                <div key={day.id} className={className}>
-                  {content}
-                </div>
-              )
-            })}
+    <div className="relative min-h-svh">
+      <div className="absolute inset-0 bg-[url('/images/arena-bg.webp')] bg-cover bg-center" />
+      {/* Lighter than LoginPage's bg-dark-bg/80 -- the dashboard should read
+          as "on the ice", with the arena clearly visible behind the UI. */}
+      <div className="absolute inset-0 bg-dark-bg/50" />
+      <div className="relative mx-auto flex min-h-svh max-w-3xl flex-col gap-6 px-4 py-8">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-semibold">Привет, {user?.username}</h1>
+            {trainingBlock !== null && (
+              <span className="w-fit rounded-full border border-white/15 px-3 py-1 text-xs text-text-secondary">
+                Блок {trainingBlock.block_number} · неделя {trainingBlock.week_in_block}/4 ·{' '}
+                {BLOCK_PHASE_LABELS[trainingBlock.phase]}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {streak !== null && (
+              <div className="flex items-center gap-1.5 rounded-md border border-white/5 bg-dark-card px-3 py-2">
+                <i className="ti ti-flame text-accent-persimmon" aria-hidden="true" />
+                <span className="font-mono text-sm">{streak.current_streak}</span>
+              </div>
+            )}
+            <Link
+              to="/profile"
+              className="rounded border border-white/15 px-4 py-2.5 font-medium text-text-primary transition-colors hover:bg-white/5"
+            >
+              Профиль
+            </Link>
+            <Button variant="neutral" onClick={logout}>
+              Выйти
+            </Button>
           </div>
         </div>
-      )}
+
+        {!isLoading && renderTodayAction()}
+
+        <FormError message={error} />
+
+        {isLoading && <p className="text-sm text-text-secondary">Загрузка...</p>}
+
+        {!isLoading && weeklyPlan === null && (
+          <Button onClick={() => navigate('/schedule/new')} className="self-start">
+            Спланировать неделю
+          </Button>
+        )}
+
+        {!isLoading && weeklyPlan !== null && (
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/schedule/new')}
+              className="self-end text-sm text-accent-ice hover:underline"
+            >
+              Изменить неделю
+            </button>
+            <div className="grid grid-cols-7 gap-2">
+              {weeklyPlan.day_plans.map((day) => {
+                const isToday = day.date === todayIso
+                const isClickable = day.session_type !== 'rest'
+                const dayDate = parseIsoDate(day.date)
+                const className = `flex flex-col rounded-md border p-3 text-left transition-colors ${
+                  isToday ? 'border-accent-ice' : 'border-white/5'
+                } ${isClickable ? 'bg-dark-card hover:border-white/20' : 'bg-dark-card/50'}`
+
+                const content = (
+                  <>
+                    <p className="text-xs text-text-secondary">{WEEKDAY_LABELS[(dayDate.getDay() + 6) % 7]}</p>
+                    <p className="font-mono text-xs text-text-secondary">{formatShortDate(dayDate)}</p>
+                    <p className="mt-2 text-sm font-medium">{DAY_SESSION_TYPE_LABELS[day.session_type]}</p>
+                  </>
+                )
+
+                if (isClickable) {
+                  return (
+                    <button
+                      key={day.id}
+                      type="button"
+                      onClick={() => navigate(`/training/${day.id}`)}
+                      className={className}
+                    >
+                      {content}
+                    </button>
+                  )
+                }
+                return (
+                  <div key={day.id} className={className}>
+                    {content}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

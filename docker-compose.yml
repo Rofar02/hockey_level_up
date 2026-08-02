@@ -33,5 +33,53 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hockey_level_up_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Inside the compose network services reach each other by service
+      # name, not localhost -- overrides whatever .env has for local (host)
+      # development.
+      DATABASE_URL: postgresql+asyncpg://hockey:hockey@postgres:5432/hockey_level_up
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    ports:
+      - "8000:8000"
+    volumes:
+      # Bind-mount the repo so --reload picks up code changes without a
+      # rebuild; dependencies live in the image's site-packages, so this
+      # doesn't clobber them.
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hockey_level_up_frontend
+    restart: unless-stopped
+    environment:
+      # Runs in the browser, not in the compose network -- must point at the
+      # host-published backend port, not the "backend" service name.
+      VITE_API_BASE_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      # Anonymous volume keeps the container's own Linux node_modules (with
+      # native binaries for esbuild/oxlint) from being shadowed by the host
+      # bind mount above.
+      - /app/node_modules
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:

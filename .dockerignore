@@ -1,0 +1,17 @@
+.git
+.gitignore
+.idea
+.vscode
+.pytest_cache
+.ruff_cache
+.mypy_cache
+__pycache__
+**/__pycache__
+*.pyc
+.env
+.venv
+venv
+frontend
+tests
+docs
+static/avatars

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.expected_baseline import intellect_baseline
 from app.config.norm_tables import score_from_value
 from app.models.exercise import TargetStat
 from app.models.user import FitnessTier, User
@@ -95,8 +96,7 @@ class AssessmentService:
 
     @staticmethod
     def _intellect_from_experience(user: User) -> float:
-        years = user.years_of_experience or 0
-        return float(30 + min(years * 2, 30))
+        return intellect_baseline(user.years_of_experience)
 
     @staticmethod
     def _tier_from_average(agility: float, strength: float, endurance: float) -> FitnessTier:

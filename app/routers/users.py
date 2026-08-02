@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -23,7 +23,16 @@ async def update_current_user(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await UserService(session).update_equipment_access(current_user, body.equipment_access)
+    return await UserService(session).update_profile(current_user, body)
+
+
+@router.post("/me/avatar", response_model=UserRead)
+async def upload_avatar(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    file: Annotated[UploadFile, File()],
+):
+    return await UserService(session).update_avatar(current_user, file)
 
 
 @router.get("/me/stats", response_model=list[UserStatRead])

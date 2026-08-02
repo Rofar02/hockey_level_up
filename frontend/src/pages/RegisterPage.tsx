@@ -25,6 +25,9 @@ export function RegisterPage() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [patronymic, setPatronymic] = useState('')
   const [height, setHeight] = useState('')
   const [weight, setWeight] = useState('')
   const [age, setAge] = useState('')
@@ -43,6 +46,9 @@ export function RegisterPage() {
         username,
         email,
         password,
+        last_name: lastName,
+        first_name: firstName,
+        patronymic: patronymic.trim() === '' ? undefined : patronymic,
         height: toOptionalNumber(height),
         weight: toOptionalNumber(weight),
         age: toOptionalNumber(age),
@@ -58,8 +64,10 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-md">
+    <div className="relative flex min-h-svh items-center justify-center overflow-hidden px-4 py-10">
+      <div className="absolute inset-0 bg-[url('/images/arena-bg.webp')] bg-cover bg-center" />
+      <div className="absolute inset-0 bg-dark-bg/80" />
+      <Card className="relative w-full max-w-md">
         <h1 className="mb-6 text-xl font-semibold">Регистрация</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <TextField
@@ -91,6 +99,35 @@ export function RegisterPage() {
             minLength={8}
             maxLength={128}
             required
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <TextField
+              label="Фамилия"
+              name="last_name"
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              maxLength={100}
+              required
+            />
+            <TextField
+              label="Имя"
+              name="first_name"
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              maxLength={100}
+              required
+            />
+          </div>
+          <TextField
+            label="Отчество (необязательно)"
+            name="patronymic"
+            autoComplete="additional-name"
+            value={patronymic}
+            onChange={(event) => setPatronymic(event.target.value)}
+            maxLength={100}
           />
 
           <div className="grid grid-cols-2 gap-4">
@@ -127,6 +164,7 @@ export function RegisterPage() {
               type="number"
               numeric
               min={0}
+              step="0.5"
               value={yearsOfExperience}
               onChange={(event) => setYearsOfExperience(event.target.value)}
             />

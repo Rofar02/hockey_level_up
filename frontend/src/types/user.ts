@@ -22,11 +22,16 @@ export interface UserRead {
   id: string
   username: string
   email: string
+  last_name: string
+  first_name: string
+  patronymic: string | null
   height: number | null
   weight: number | null
   age: number | null
   position: Position | null
   years_of_experience: number | null
+  jersey_number: number | null
+  avatar_url: string | null
   equipment_access: EquipmentAccess
   is_admin: boolean
   xp: number
@@ -38,6 +43,9 @@ export interface RegisterPayload {
   username: string
   email: string
   password: string
+  last_name: string
+  first_name: string
+  patronymic?: string | null
   height?: number | null
   weight?: number | null
   age?: number | null

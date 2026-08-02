@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { ChoiceCard } from '../components/ui/ChoiceCard'
 import { FormError } from '../components/ui/FormError'
 import { SkillChip } from '../components/ui/SkillChip'
+import { TextField } from '../components/ui/TextField'
 import { AssessmentTestForm } from './onboarding/AssessmentTestForm'
 import * as assessmentApi from '../api/assessment'
 import * as skillsApi from '../api/skills'
@@ -19,6 +21,16 @@ import type { EquipmentAccess } from '../types/user'
 export function SettingsPage() {
   const { user, accessToken, logout, updateUser } = useAuth()
   const navigate = useNavigate()
+
+  const [lastName, setLastName] = useState(user?.last_name ?? '')
+  const [firstName, setFirstName] = useState(user?.first_name ?? '')
+  const [patronymic, setPatronymic] = useState(user?.patronymic ?? '')
+  const [jerseyNumber, setJerseyNumber] = useState(
+    user?.jersey_number != null ? String(user.jersey_number) : '',
+  )
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [profileSaved, setProfileSaved] = useState(false)
 
   const [equipment, setEquipment] = useState<EquipmentAccess | null>(user?.equipment_access ?? null)
   const [isSavingEquipment, setIsSavingEquipment] = useState(false)
@@ -79,6 +91,57 @@ export function SettingsPage() {
       cancelled = true
     }
   }, [accessToken])
+
+  async function handleProfileSave(event: FormEvent) {
+    event.preventDefault()
+    if (accessToken === null || user === null) {
+      return
+    }
+    setProfileError(null)
+    setProfileSaved(false)
+
+    let jerseyValue: number | null = null
+    if (jerseyNumber.trim() !== '') {
+      const parsed = Number(jerseyNumber)
+      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 99) {
+        setProfileError('Номер должен быть целым числом от 0 до 99.')
+        return
+      }
+      jerseyValue = parsed
+    }
+    const patronymicValue = patronymic.trim() === '' ? null : patronymic
+
+    // Only PATCH fields that actually changed from the last-known user.
+    const updates: usersApi.UserProfileUpdate = {}
+    if (lastName !== user.last_name) {
+      updates.last_name = lastName
+    }
+    if (firstName !== user.first_name) {
+      updates.first_name = firstName
+    }
+    if (patronymicValue !== user.patronymic) {
+      updates.patronymic = patronymicValue
+    }
+    if (jerseyValue !== user.jersey_number) {
+      updates.jersey_number = jerseyValue
+    }
+
+    if (Object.keys(updates).length === 0) {
+      setProfileSaved(true)
+      return
+    }
+
+    setIsSavingProfile(true)
+    try {
+      const updated = await usersApi.updateProfile(updates, accessToken)
+      updateUser(updated)
+      setProfileSaved(true)
+    } catch (err) {
+      setProfileError(err instanceof ApiError ? err.message : 'Не удалось сохранить. Попробуйте ещё раз.')
+    } finally {
+      setIsSavingProfile(false)
+    }
+  }
 
   async function handleEquipmentSelect(value: EquipmentAccess) {
     if (accessToken === null || value === equipment) {
@@ -167,6 +230,52 @@ export function SettingsPage() {
         <BackLink />
         <h1 className="text-xl font-semibold">Настройки</h1>
       </div>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-medium text-text-secondary">Профиль</h2>
+        <form onSubmit={handleProfileSave} className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <TextField
+              label="Фамилия"
+              name="last_name"
+              value={lastName}
+              onChange={(event) => setLastName(event.target.value)}
+              maxLength={100}
+              required
+            />
+            <TextField
+              label="Имя"
+              name="first_name"
+              value={firstName}
+              onChange={(event) => setFirstName(event.target.value)}
+              maxLength={100}
+              required
+            />
+          </div>
+          <TextField
+            label="Отчество (необязательно)"
+            name="patronymic"
+            value={patronymic}
+            onChange={(event) => setPatronymic(event.target.value)}
+            maxLength={100}
+          />
+          <TextField
+            label="Номер (необязательно)"
+            name="jersey_number"
+            type="number"
+            numeric
+            min={0}
+            max={99}
+            value={jerseyNumber}
+            onChange={(event) => setJerseyNumber(event.target.value)}
+          />
+          <FormError message={profileError} />
+          {profileSaved && <p className="text-sm text-accent-ice">Сохранено.</p>}
+          <Button type="submit" isLoading={isSavingProfile} className="self-start">
+            Сохранить
+          </Button>
+        </form>
+      </section>
 
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-medium text-text-secondary">Оборудование</h2>

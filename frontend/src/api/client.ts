@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 interface FastApiValidationError {
   loc: (string | number)[]
@@ -49,6 +49,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 interface RequestOptions {
   body?: unknown
   form?: Record<string, string>
+  formData?: FormData
   accessToken?: string
 }
 
@@ -59,6 +60,10 @@ async function request<T>(path: string, method: string, options: RequestOptions 
   if (options.form !== undefined) {
     headers['Content-Type'] = 'application/x-www-form-urlencoded'
     requestBody = new URLSearchParams(options.form)
+  } else if (options.formData !== undefined) {
+    // No Content-Type here -- the browser sets multipart/form-data with the
+    // correct boundary itself, and overriding it manually breaks parsing.
+    requestBody = options.formData
   } else if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json'
     requestBody = JSON.stringify(options.body)
@@ -100,4 +105,12 @@ export function apiPatchAuth<T>(path: string, body: unknown, accessToken: string
 
 export function apiPutAuth<T>(path: string, body: unknown, accessToken: string): Promise<T> {
   return request<T>(path, 'PUT', { body, accessToken })
+}
+
+export function apiPostMultipartAuth<T>(
+  path: string,
+  formData: FormData,
+  accessToken: string,
+): Promise<T> {
+  return request<T>(path, 'POST', { formData, accessToken })
 }

@@ -1,13 +1,31 @@
 import uuid
 from datetime import datetime, timezone
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config.expected_baseline import get_expected_baseline
 from app.models.exercise import TargetStat
 from app.models.progress import TrainingStreak, UserStat
+from app.models.user import User
 from app.repositories.progress_repository import ProgressRepository
 from app.schemas.progress import StatHistoryRead, UserStatRead
 from app.services.stat_service import get_effective_value, get_idle_days, is_decay_active
+
+# All 4 stats are always included in rating_excess, even ones the user has
+# never trained (excess is then 0 - baseline, i.e. fully negative).
+RATED_STAT_TYPES = (
+    TargetStat.STRENGTH,
+    TargetStat.AGILITY,
+    TargetStat.ENDURANCE,
+    TargetStat.INTELLECT,
+)
+
+
+def _stat_excess(stat_type: TargetStat, user: User, stat: UserStat | None, now: datetime) -> float:
+    effective_value = get_effective_value(stat, now) if stat is not None else 0.0
+    baseline = get_expected_baseline(stat_type, user.age, user.years_of_experience)
+    return effective_value - baseline
 
 
 class ProgressService:
@@ -48,6 +66,30 @@ class ProgressService:
             )
         )
         return entries
+
+    async def get_stat_excess(self, stat_type: TargetStat, user: User) -> float:
+        if user.age is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="age is required to compute a competitive rating",
+            )
+        stat = await self._progress.get_user_stat(user.id, stat_type)
+        return _stat_excess(stat_type, user, stat, datetime.now(timezone.utc))
+
+    async def get_rating_excess(self, user: User) -> float:
+        if user.age is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="age is required to compute a competitive rating",
+            )
+        stats = await self._progress.list_user_stats(user.id)
+        stats_by_type = {stat.stat_type: stat for stat in stats}
+        now = datetime.now(timezone.utc)
+        excesses = [
+            _stat_excess(stat_type, user, stats_by_type.get(stat_type), now)
+            for stat_type in RATED_STAT_TYPES
+        ]
+        return round(sum(excesses) / len(excesses), 1)
 
     async def get_streak(self, user_id: uuid.UUID) -> TrainingStreak:
         streak = await self._progress.get_streak(user_id)

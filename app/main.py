@@ -1,9 +1,11 @@
 import asyncio
 import contextlib
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import get_settings
 from app.events.consumer import run_consumer
@@ -13,6 +15,7 @@ from app.routers import (
     assessment,
     auth,
     exercises,
+    leaderboard,
     reference_articles,
     schedule,
     session_blocks,
@@ -43,6 +46,9 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    # None (not "") disables allow_origin_regex outright -- an empty string
+    # would otherwise match as a regex against every origin.
+    allow_origin_regex=settings.cors_origin_regex or None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,6 +63,14 @@ app.include_router(assessment.router)
 app.include_router(skills.router)
 app.include_router(training_block.router)
 app.include_router(reference_articles.router)
+app.include_router(leaderboard.router)
+
+# Mounted at the parent of avatar_upload_dir so "/static/avatars/..." serves
+# uploaded avatars; the directory is created up front since StaticFiles
+# errors at mount time if it doesn't exist yet.
+static_root = Path(settings.avatar_upload_dir).parent
+static_root.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(static_root)), name="static")
 
 
 @app.get("/health", tags=["health"])

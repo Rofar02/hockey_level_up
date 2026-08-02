@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { HomePage } from './pages/HomePage'
+import { LeaderboardPage } from './pages/LeaderboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { NewSchedulePage } from './pages/NewSchedulePage'
 import { OnboardingPage } from './pages/OnboardingPage'
@@ -62,6 +63,14 @@ function App() {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/leaderboard"
+        element={
+          <ProtectedRoute>
+            <LeaderboardPage />
           </ProtectedRoute>
         }
       />

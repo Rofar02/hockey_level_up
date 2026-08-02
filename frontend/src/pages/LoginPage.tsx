@@ -32,8 +32,10 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
+    <div className="relative flex min-h-svh items-center justify-center overflow-hidden px-4">
+      <div className="absolute inset-0 bg-[url('/images/arena-bg.webp')] bg-cover bg-center" />
+      <div className="absolute inset-0 bg-dark-bg/80" />
+      <Card className="relative w-full max-w-sm">
         <h1 className="mb-6 text-xl font-semibold">Вход</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <TextField
