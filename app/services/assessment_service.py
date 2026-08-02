@@ -96,7 +96,7 @@ class AssessmentService:
     @staticmethod
     def _intellect_from_experience(user: User) -> float:
         years = user.years_of_experience or 0
-        return float(40 + min(years * 3, 40))
+        return float(30 + min(years * 2, 30))
 
     @staticmethod
     def _tier_from_average(agility: float, strength: float, endurance: float) -> FitnessTier:

@@ -1,6 +1,6 @@
 import random
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -31,9 +31,12 @@ from app.repositories.user_skill_preference_repository import UserSkillPreferenc
 from app.schemas.exercise import ExerciseRead
 from app.schemas.schedule import (
     DayPlanRead,
+    ScheduleConflictRead,
     SessionBlockRead,
     TrainingSessionRead,
     WeeklyPlanCreate,
+    WeeklyPlanPatch,
+    WeeklyPlanPatchResult,
     WeeklyPlanRead,
 )
 
@@ -93,6 +96,87 @@ class ScheduleService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="No current weekly plan"
             )
         return self._to_read_schema(weekly_plan)
+
+    async def patch_current_weekly_plan(
+        self, user: User, payload: WeeklyPlanPatch
+    ) -> WeeklyPlanPatchResult:
+        """Edit specific days of the already-declared current week in place.
+
+        Per-date, not all-or-nothing: a date whose day already has a
+        completed SessionBlock is left untouched and reported in
+        `conflicts` instead of failing the whole request -- the caller may
+        be trying to fix a typo on Wednesday in the same request that also
+        (accidentally) includes Monday, which is already underway.
+        """
+        dates = [day.date for day in payload.days]
+        if len(set(dates)) != len(dates):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate dates in patch"
+            )
+
+        weekly_plan = await self._schedule.get_current(user.id, date.today())
+        if weekly_plan is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="No current weekly plan"
+            )
+
+        week_end = weekly_plan.week_start_date + timedelta(days=6)
+        day_plans_by_date = {day_plan.date: day_plan for day_plan in weekly_plan.day_plans}
+        block_phase = await self._block_phase_for_weekly_plan(weekly_plan)
+
+        conflicts: list[ScheduleConflictRead] = []
+        for day_in in payload.days:
+            if not (weekly_plan.week_start_date <= day_in.date <= week_end):
+                conflicts.append(
+                    ScheduleConflictRead(date=day_in.date, detail="Дата вне текущей недели")
+                )
+                continue
+
+            day_plan = day_plans_by_date.get(day_in.date)
+            if day_plan is None or self._has_completed_block(day_plan):
+                conflicts.append(
+                    ScheduleConflictRead(
+                        date=day_in.date, detail="Этот день уже начат, нельзя изменить"
+                    )
+                )
+                continue
+
+            day_plan.session_type = day_in.session_type
+            if day_plan.training_session is not None:
+                # Explicit delete + flush *before* attaching a replacement --
+                # TrainingSession.day_plan_id is unique, and simply
+                # reassigning the relationship would rely on the ORM
+                # ordering this row's DELETE before the new row's INSERT
+                # within the same flush, which SQLAlchemy does not
+                # guarantee (inserts/updates are flushed before deletes).
+                await self._session.delete(day_plan.training_session)
+                await self._session.flush()
+                day_plan.training_session = None
+
+            if day_in.session_type != DaySessionType.REST:
+                day_plan.training_session = await self._build_training_session(
+                    day_in.session_type, user, block_phase
+                )
+
+        await self._session.commit()
+        saved = await self._schedule.get_by_id_with_details(weekly_plan.id)
+        return WeeklyPlanPatchResult(
+            weekly_plan=self._to_read_schema(saved), conflicts=conflicts
+        )
+
+    async def _block_phase_for_weekly_plan(self, weekly_plan: WeeklyPlan) -> BlockPhase:
+        block = None
+        if weekly_plan.training_block_id is not None:
+            block = await self._training_blocks.get_by_id(weekly_plan.training_block_id)
+        # No block on record (shouldn't happen via any current code path) --
+        # fall back to the same baseline a brand-new block starts at.
+        return get_phase(block.week_in_block) if block is not None else get_phase(1)
+
+    @staticmethod
+    def _has_completed_block(day_plan: DayPlan) -> bool:
+        if day_plan.training_session is None:
+            return False
+        return any(block.completed_at is not None for block in day_plan.training_session.blocks)
 
     async def _resolve_training_block(self, user: User) -> TrainingBlock:
         """Advance (or start) the user's periodization block for this week's plan.

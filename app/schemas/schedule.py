@@ -17,6 +17,11 @@ class WeeklyPlanCreate(BaseModel):
     days: list[DayPlanIn] = Field(min_length=7, max_length=7)
 
 
+class WeeklyPlanPatch(BaseModel):
+    # Partial, unlike creation: only the dates the caller wants to change.
+    days: list[DayPlanIn] = Field(min_length=1, max_length=7)
+
+
 class SessionBlockRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,3 +55,13 @@ class WeeklyPlanRead(BaseModel):
     id: uuid.UUID
     week_start_date: date
     day_plans: list[DayPlanRead]
+
+
+class ScheduleConflictRead(BaseModel):
+    date: date
+    detail: str
+
+
+class WeeklyPlanPatchResult(BaseModel):
+    weekly_plan: WeeklyPlanRead
+    conflicts: list[ScheduleConflictRead]

@@ -63,3 +63,7 @@ class Exercise(Base):
 
     video_source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     video_source_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    target_sets: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    target_reps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    target_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)

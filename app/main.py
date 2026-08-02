@@ -3,6 +3,7 @@ import contextlib
 from collections.abc import AsyncIterator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.events.consumer import run_consumer
@@ -12,6 +13,7 @@ from app.routers import (
     assessment,
     auth,
     exercises,
+    reference_articles,
     schedule,
     session_blocks,
     skills,
@@ -38,6 +40,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(auth.router)
 app.include_router(exercises.router)
 app.include_router(users.router)
@@ -46,6 +56,7 @@ app.include_router(session_blocks.router)
 app.include_router(assessment.router)
 app.include_router(skills.router)
 app.include_router(training_block.router)
+app.include_router(reference_articles.router)
 
 
 @app.get("/health", tags=["health"])

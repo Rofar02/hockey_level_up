@@ -18,6 +18,9 @@ class ExerciseRead(BaseModel):
     equipment_type: EquipmentType
     video_source_type: str | None
     video_source_id: str | None
+    target_sets: int | None
+    target_reps: int | None
+    target_duration_seconds: int | None
 
 
 class ExerciseCreate(BaseModel):
@@ -30,6 +33,9 @@ class ExerciseCreate(BaseModel):
     equipment_type: EquipmentType
     video_source_type: str | None = None
     video_source_id: str | None = None
+    target_sets: int | None = None
+    target_reps: int | None = None
+    target_duration_seconds: int | None = None
 
 
 class ExerciseUpdate(BaseModel):
@@ -42,3 +48,6 @@ class ExerciseUpdate(BaseModel):
     equipment_type: EquipmentType | None = None
     video_source_type: str | None = None
     video_source_id: str | None = None
+    target_sets: int | None = None
+    target_reps: int | None = None
+    target_duration_seconds: int | None = None

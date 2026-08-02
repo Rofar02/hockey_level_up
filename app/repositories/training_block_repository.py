@@ -24,3 +24,6 @@ class TrainingBlockRepository:
         self._session.add(block)
         await self._session.flush()
         return block
+
+    async def get_by_id(self, block_id: uuid.UUID) -> TrainingBlock | None:
+        return await self._session.get(TrainingBlock, block_id)
