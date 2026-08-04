@@ -39,3 +39,16 @@ export interface SetFeedbackIn {
 export interface SuggestedWeightRead {
   suggested_weight_kg: number | null
 }
+
+export interface SetCompletionSummary {
+  set_number: number
+  weight_kg: number | null
+  reps_completed: number | null
+  duration_seconds_completed: number | null
+  completed_at: string
+}
+
+export interface ExerciseSetsRead {
+  sets: SetCompletionSummary[]
+  feedback: SetFeedback | null
+}

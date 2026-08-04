@@ -15,6 +15,7 @@ import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as setCompletionsApi from '../api/setCompletions'
+import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { TARGET_STAT_LABELS } from '../types/exercise'
@@ -22,7 +23,7 @@ import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { TrainingStreakRead } from '../types/progress'
 import type { SessionBlockRead, TrainingPhase } from '../types/schedule'
 import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletion'
-import type { SetCompletionRead, SetFeedback } from '../types/setCompletion'
+import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
 import { toIsoDate } from '../utils/date'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -463,12 +464,11 @@ function ExerciseDetailModal({
 // drives stat/XP gain) are untouched by any of this, this is purely the
 // additional SetCompletion granularity.
 //
-// State is local to this component and does not survive the modal closing
-// and reopening -- there is no GET endpoint yet to list a session's already-
-// logged sets, only POST /set-completions and /set-completions/feedback, so
-// there's nothing to rehydrate from on remount. Sets are still saved
-// server-side each time, this only affects what the UI shows after a
-// close/reopen.
+// On mount, GET /training-sessions/{id}/exercises/{id}/sets rehydrates
+// already-logged sets (and any saved feedback) so reopening the exercise
+// modal doesn't lose progress -- the "current" set is the first set_number
+// with no record yet, not just count+1, in case sets were ever logged
+// out of order.
 function SetLogger({
   exercise,
   trainingSessionId,
@@ -481,7 +481,10 @@ function SetLogger({
   const targetSets = exercise.target_sets
   const [suggestedWeightKg, setSuggestedWeightKg] = useState<number | null>(null)
   const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(exercise.tracks_weight)
-  const [completedSets, setCompletedSets] = useState<Record<number, SetCompletionRead>>({})
+  const [isLoadingSets, setIsLoadingSets] = useState(true)
+  const [completedSets, setCompletedSets] = useState<
+    Record<number, Pick<SetCompletionSummary, 'weight_kg' | 'reps_completed'>>
+  >({})
   const [weightInput, setWeightInput] = useState('')
   const [repsInput, setRepsInput] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -491,40 +494,73 @@ function SetLogger({
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!exercise.tracks_weight) {
-      return
-    }
     let cancelled = false
-    exercisesApi
-      .getSuggestedWeight(exercise.id, accessToken)
+
+    if (exercise.tracks_weight) {
+      exercisesApi
+        .getSuggestedWeight(exercise.id, accessToken)
+        .then((result) => {
+          if (cancelled) {
+            return
+          }
+          setSuggestedWeightKg(result.suggested_weight_kg)
+          if (result.suggested_weight_kg !== null) {
+            setWeightInput(String(result.suggested_weight_kg))
+          }
+        })
+        .catch(() => {
+          // Best-effort -- the weight input just starts empty if this fails,
+          // the user can still type a value in manually.
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setIsLoadingSuggestion(false)
+          }
+        })
+    }
+
+    trainingSessionsApi
+      .getExerciseSets(trainingSessionId, exercise.id, accessToken)
       .then((result) => {
         if (cancelled) {
           return
         }
-        setSuggestedWeightKg(result.suggested_weight_kg)
-        if (result.suggested_weight_kg !== null) {
-          setWeightInput(String(result.suggested_weight_kg))
+        const bySetNumber: Record<number, Pick<SetCompletionSummary, 'weight_kg' | 'reps_completed'>> = {}
+        for (const set of result.sets) {
+          bySetNumber[set.set_number] = { weight_kg: set.weight_kg, reps_completed: set.reps_completed }
         }
+        setCompletedSets(bySetNumber)
+        setFeedback(result.feedback)
       })
       .catch(() => {
-        // Best-effort -- the weight input just starts empty if this fails,
-        // the user can still type a value in manually.
+        // Best-effort -- worst case the logger just starts from "no sets
+        // logged yet" instead of showing prior progress.
       })
       .finally(() => {
         if (!cancelled) {
-          setIsLoadingSuggestion(false)
+          setIsLoadingSets(false)
         }
       })
+
     return () => {
       cancelled = true
     }
-  }, [exercise.id, exercise.tracks_weight, accessToken])
+  }, [exercise.id, exercise.tracks_weight, trainingSessionId, accessToken])
 
   if (targetSets === null) {
     return null
   }
 
-  const currentSetNumber = Object.keys(completedSets).length + 1
+  // First set_number (1..targetSets) without a logged record -- not just
+  // Object.keys(completedSets).length + 1, in case rehydrated sets have a
+  // gap.
+  let currentSetNumber = targetSets + 1
+  for (let setNumber = 1; setNumber <= targetSets; setNumber += 1) {
+    if (completedSets[setNumber] === undefined) {
+      currentSetNumber = setNumber
+      break
+    }
+  }
   const allSetsDone = currentSetNumber > targetSets
 
   async function handleSaveSet() {
@@ -581,6 +617,9 @@ function SetLogger({
     <div className="flex flex-col gap-3 rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-bg/40 p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">Подходы</p>
 
+      {isLoadingSets && <p className="text-sm text-text-secondary">Загрузка...</p>}
+
+      {!isLoadingSets && (
       <div className="flex flex-col gap-2">
         {Array.from({ length: targetSets }, (_, index) => index + 1).map((setNumber) => {
           const completed = completedSets[setNumber]
@@ -662,29 +701,37 @@ function SetLogger({
           )
         })}
       </div>
+      )}
 
-      {allSetsDone && (
-        <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">Как ощущения?</p>
-          <div className="flex flex-wrap gap-2">
-            {SET_FEEDBACK_OPTIONS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                disabled={isSavingFeedback}
-                onClick={() => handleSaveFeedback(option)}
-                className={`rounded border px-3 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                  feedback === option
-                    ? 'border-accent-persimmon bg-accent-persimmon/10 text-accent-persimmon'
-                    : 'border-white/10 text-text-secondary hover:border-white/30'
-                }`}
-              >
-                {SET_FEEDBACK_LABELS[option]}
-              </button>
-            ))}
-          </div>
-          <FormError message={feedbackError} />
+      {feedback !== null ? (
+        <div className="flex items-center justify-between gap-2 border-t border-white/5 pt-3 text-sm">
+          <span className="text-text-secondary">Как ощущения?</span>
+          <span className="flex items-center gap-1.5 font-medium text-accent-persimmon">
+            <i className="ti ti-check" aria-hidden="true" />
+            {SET_FEEDBACK_LABELS[feedback]}
+          </span>
         </div>
+      ) : (
+        !isLoadingSets &&
+        allSetsDone && (
+          <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">Как ощущения?</p>
+            <div className="flex flex-wrap gap-2">
+              {SET_FEEDBACK_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  disabled={isSavingFeedback}
+                  onClick={() => handleSaveFeedback(option)}
+                  className="rounded border border-white/10 px-3 py-2 text-sm text-text-secondary transition-colors hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {SET_FEEDBACK_LABELS[option]}
+                </button>
+              ))}
+            </div>
+            <FormError message={feedbackError} />
+          </div>
+        )
       )}
     </div>
   )

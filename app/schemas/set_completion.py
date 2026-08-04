@@ -39,3 +39,21 @@ class SetFeedbackIn(BaseModel):
     exercise_id: uuid.UUID
     training_session_id: uuid.UUID
     feedback: SetFeedback
+
+
+class SetCompletionSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    set_number: int
+    weight_kg: float | None
+    reps_completed: int | None
+    duration_seconds_completed: int | None
+    completed_at: datetime
+
+
+class ExerciseSetsRead(BaseModel):
+    sets: list[SetCompletionSummary]
+    # feedback lives once per exercise-in-session (see SetCompletion.feedback
+    # docstring), not per set -- surfaced here separately from the list
+    # rather than repeated on every row.
+    feedback: SetFeedback | None

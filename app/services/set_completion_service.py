@@ -122,6 +122,12 @@ class SetCompletionService:
         await self._session.commit()
         return set_completion
 
+    async def list_sets(
+        self, user: User, exercise_id: uuid.UUID, training_session_id: uuid.UUID
+    ) -> list[SetCompletion]:
+        await self._get_owned_exercise_in_session(user, training_session_id, exercise_id)
+        return await self._sets.list_for_session_exercise(training_session_id, exercise_id)
+
     async def save_feedback(
         self,
         user: User,

@@ -311,3 +311,98 @@ async def test_save_feedback_without_any_sets_raises_404(db_session) -> None:
         )
 
     assert exc_info.value.status_code == 404
+
+
+# --- list_sets (GET /training-sessions/{id}/exercises/{id}/sets) ---
+
+
+@pytest.mark.asyncio
+async def test_list_sets_rejects_session_owned_by_another_user(db_session) -> None:
+    owner = _make_user()
+    intruder = _make_user()
+    exercise = _make_exercise()
+    db_session.add_all([owner, intruder, exercise])
+    await db_session.flush()
+    training_session = await _make_session_with_block(db_session, owner, exercise)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await SetCompletionService(db_session).list_sets(
+            user=intruder,
+            exercise_id=exercise.id,
+            training_session_id=training_session.id,
+        )
+
+    # Same ownership check as save_set/save_feedback -- 404, not 403, so an
+    # intruder can't distinguish "not yours" from "doesn't exist".
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_list_sets_returns_empty_list_when_none_logged(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise()
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    training_session = await _make_session_with_block(db_session, user, exercise)
+
+    result = await SetCompletionService(db_session).list_sets(
+        user=user,
+        exercise_id=exercise.id,
+        training_session_id=training_session.id,
+    )
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_list_sets_returns_sets_ordered_with_feedback_on_its_row(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise()
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    training_session = await _make_session_with_block(db_session, user, exercise)
+
+    service = SetCompletionService(db_session)
+    # Save out of order to prove the result comes back sorted by set_number,
+    # not insertion order.
+    await service.save_set(
+        user=user,
+        exercise_id=exercise.id,
+        training_session_id=training_session.id,
+        set_number=2,
+        weight_kg=42.5,
+        reps_completed=6,
+        duration_seconds_completed=None,
+    )
+    await service.save_set(
+        user=user,
+        exercise_id=exercise.id,
+        training_session_id=training_session.id,
+        set_number=1,
+        weight_kg=40.0,
+        reps_completed=8,
+        duration_seconds_completed=None,
+    )
+    await service.save_feedback(
+        user=user,
+        exercise_id=exercise.id,
+        training_session_id=training_session.id,
+        feedback=SetFeedback.NORMAL,
+    )
+
+    result = await service.list_sets(
+        user=user,
+        exercise_id=exercise.id,
+        training_session_id=training_session.id,
+    )
+
+    assert [s.set_number for s in result] == [1, 2]
+    assert result[0].weight_kg == 40.0
+    assert result[0].reps_completed == 8
+    assert result[1].weight_kg == 42.5
+    assert result[1].reps_completed == 6
+
+    # Feedback lands on set 2 -- it was the highest set_number logged at the
+    # time save_feedback ran (see get_last_in_session_for_exercise).
+    assert result[1].feedback == SetFeedback.NORMAL
+    assert result[0].feedback is None

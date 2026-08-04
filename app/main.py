@@ -22,6 +22,7 @@ from app.routers import (
     set_completions,
     skills,
     training_block,
+    training_sessions,
     users,
 )
 
@@ -64,6 +65,7 @@ app.include_router(set_completions.router)
 app.include_router(assessment.router)
 app.include_router(skills.router)
 app.include_router(training_block.router)
+app.include_router(training_sessions.router)
 app.include_router(reference_articles.router)
 app.include_router(leaderboard.router)
 

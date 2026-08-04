@@ -50,6 +50,19 @@ class SetCompletionRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_for_session_exercise(
+        self, training_session_id: uuid.UUID, exercise_id: uuid.UUID
+    ) -> list[SetCompletion]:
+        result = await self._session.execute(
+            select(SetCompletion)
+            .where(
+                SetCompletion.training_session_id == training_session_id,
+                SetCompletion.exercise_id == exercise_id,
+            )
+            .order_by(SetCompletion.set_number)
+        )
+        return list(result.scalars().all())
+
     async def save(self, set_completion: SetCompletion) -> SetCompletion:
         self._session.add(set_completion)
         await self._session.flush()
