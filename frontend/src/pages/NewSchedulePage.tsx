@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
+import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
 import { ExerciseTechnique } from '../components/ExerciseTechnique'
 import * as scheduleApi from '../api/schedule'
 import { ApiError } from '../api/client'
@@ -73,15 +74,40 @@ function datesForWeek(slot: WeekSlot): Date[] {
   return Array.from({ length: 7 }, (_, i) => addDays(start, i))
 }
 
+// 'in-progress' (some but not all blocks completed) vs 'done' (every block
+// completed) -- previously collapsed into one "locked" boolean, which is
+// exactly what made "уже начат" show on a fully-finished day too.
+type DayCompletionStatus = 'not-started' | 'in-progress' | 'done'
+
+function completionStatusFromBlocks(blocks: SessionBlockRead[] | undefined): DayCompletionStatus {
+  if (blocks === undefined || blocks.length === 0) {
+    return 'not-started'
+  }
+  const completedCount = blocks.filter((block) => block.completed_at !== null).length
+  if (completedCount === 0) {
+    return 'not-started'
+  }
+  return completedCount === blocks.length ? 'done' : 'in-progress'
+}
+
+const COMPLETION_BADGE_LABELS: Partial<Record<DayCompletionStatus, string>> = {
+  'in-progress': 'уже начат',
+  done: 'пройдено',
+}
+
 interface DayRow {
   isoDate: string
   date: Date
   sessionType: DaySessionType
-  // Informational only in view mode (there are no editing controls to gate
-  // by it anymore) -- true once at least one SessionBlock for this day is
-  // already completed.
-  locked: boolean
+  completionStatus: DayCompletionStatus
   trainingSession: TrainingSessionRead | null
+}
+
+// "Started" (in-progress or done) is what actually gates editing controls
+// and which click-behavior a row gets -- the 3-way status only matters for
+// which badge text to show.
+function isStarted(row: DayRow): boolean {
+  return row.completionStatus !== 'not-started'
 }
 
 function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
@@ -89,7 +115,7 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     isoDate: day.date,
     date: parseIsoDate(day.date),
     sessionType: day.session_type,
-    locked: day.training_session?.blocks.some((block) => block.completed_at !== null) ?? false,
+    completionStatus: completionStatusFromBlocks(day.training_session?.blocks),
     trainingSession: day.training_session,
   }))
 }
@@ -99,7 +125,7 @@ function rowsForWeek(dates: Date[]): DayRow[] {
     isoDate: toIsoDate(date),
     date,
     sessionType: 'rest',
-    locked: false,
+    completionStatus: 'not-started',
     trainingSession: null,
   }))
 }
@@ -129,6 +155,20 @@ export function NewSchedulePage() {
   // in edit mode is every changed day, since edit mode only exists for an
   // already-generated week. Holds the exact rows to submit if confirmed.
   const [pendingRegeneration, setPendingRegeneration] = useState<DayRow[] | null>(null)
+  // A started day expands inline (not a modal) to list its exercises --
+  // accordion, one day at a time. Not-started days keep using
+  // previewIsoDate/DayPreviewModal instead; the two are mutually exclusive
+  // since a row is either isPreviewable or isExpandable, never both.
+  const [expandedRowIsoDate, setExpandedRowIsoDate] = useState<string | null>(null)
+  // The real, full ExerciseDetailModal (Подходы/Техника, actual logged
+  // weights/reps via SetLogger) -- opened for an exercise inside a started
+  // day's expanded list. Deliberately a single top-level modal, not nested
+  // inside DayPreviewModal or an inline panel's own modal: this app has no
+  // precedent anywhere for one Modal opening from inside another.
+  const [selectedExercise, setSelectedExercise] = useState<{
+    exercise: ExerciseRead
+    trainingSessionId: string
+  } | null>(null)
 
   useEffect(() => {
     if (accessToken === null) {
@@ -139,6 +179,8 @@ export function NewSchedulePage() {
     setLoadError(null)
     setEditSnapshot(null)
     setPendingRegeneration(null)
+    setExpandedRowIsoDate(null)
+    setSelectedExercise(null)
     const weekStartIso = toIsoDate(WEEK_START_DATES[selectedWeek])
     loadOptional(scheduleApi.getWeeklyPlan(weekStartIso, accessToken))
       .then((plan) => {
@@ -198,6 +240,7 @@ export function NewSchedulePage() {
 
   function handleStartEditing() {
     setSubmitError(null)
+    setExpandedRowIsoDate(null)
     setEditSnapshot(new Map(rows.map((row) => [row.isoDate, row.sessionType])))
   }
 
@@ -216,10 +259,10 @@ export function NewSchedulePage() {
     if (editSnapshot === null) {
       return
     }
-    // Locked (already-started) rows never show a type selector in edit
-    // mode (see the EditableDayRow render below), so this filter is
-    // belt-and-suspenders, not the primary guard.
-    const changed = rows.filter((row) => !row.locked && row.sessionType !== editSnapshot.get(row.isoDate))
+    // Started rows never show a type selector in edit mode (see the
+    // EditableDayRow render below), so this filter is belt-and-suspenders,
+    // not the primary guard.
+    const changed = rows.filter((row) => !isStarted(row) && row.sessionType !== editSnapshot.get(row.isoDate))
     if (changed.length === 0) {
       setEditSnapshot(null)
       return
@@ -327,42 +370,78 @@ export function NewSchedulePage() {
           <>
             <div className="flex flex-col gap-3">
               {rows.map((row, index) => {
-                const isPreviewable = row.trainingSession !== null
+                const trainingSession = row.trainingSession
+                const started = isStarted(row)
+                // Not-started days with a plan open the read-only
+                // DayPreviewModal (technique-only, no logging); started
+                // days expand inline instead, listing exercises that open
+                // the real ExerciseDetailModal -- see the state comments
+                // above for why these stay mutually exclusive.
+                const isPreviewable = !started && trainingSession !== null
+                const isExpandable = started && trainingSession !== null
+                const isExpanded = isExpandable && expandedRowIsoDate === row.isoDate
+                const badgeLabel = COMPLETION_BADGE_LABELS[row.completionStatus]
+
                 return (
-                  <div
-                    key={row.isoDate}
-                    role={isPreviewable ? 'button' : undefined}
-                    tabIndex={isPreviewable ? 0 : undefined}
-                    onClick={isPreviewable ? () => setPreviewIsoDate(row.isoDate) : undefined}
-                    onKeyDown={
-                      isPreviewable
-                        ? (event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                              event.preventDefault()
-                              setPreviewIsoDate(row.isoDate)
+                  <div key={row.isoDate} className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3`}>
+                    <div
+                      role={isPreviewable || isExpandable ? 'button' : undefined}
+                      tabIndex={isPreviewable || isExpandable ? 0 : undefined}
+                      onClick={
+                        isPreviewable
+                          ? () => setPreviewIsoDate(row.isoDate)
+                          : isExpandable
+                            ? () => setExpandedRowIsoDate(isExpanded ? null : row.isoDate)
+                            : undefined
+                      }
+                      onKeyDown={
+                        isPreviewable || isExpandable
+                          ? (event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                if (isPreviewable) {
+                                  setPreviewIsoDate(row.isoDate)
+                                } else {
+                                  setExpandedRowIsoDate(isExpanded ? null : row.isoDate)
+                                }
+                              }
                             }
-                          }
-                        : undefined
-                    }
-                    className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
-                      isPreviewable ? 'cursor-pointer transition-colors hover:border-white/20' : ''
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-3">
+                          : undefined
+                      }
+                      className={`flex flex-wrap items-center justify-between gap-3 ${
+                        isPreviewable || isExpandable ? 'cursor-pointer' : ''
+                      }`}
+                    >
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
                         <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-[#8A94A6]">{DAY_SESSION_TYPE_LABELS[row.sessionType]}</span>
-                        {row.locked && (
+                        {badgeLabel !== undefined && (
                           <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
-                            уже начат
+                            {badgeLabel}
                           </span>
+                        )}
+                        {isExpandable && (
+                          <i
+                            className={`ti ti-chevron-down text-xs text-[#8A94A6] transition-transform ${
+                              isExpanded ? 'rotate-180' : ''
+                            }`}
+                            aria-hidden="true"
+                          />
                         )}
                       </div>
                     </div>
                     <DaySummary row={row} />
+                    {isExpanded && trainingSession !== null && (
+                      <StartedDayExerciseList
+                        trainingSession={trainingSession}
+                        onSelectExercise={(exercise) =>
+                          setSelectedExercise({ exercise, trainingSessionId: trainingSession.id })
+                        }
+                      />
+                    )}
                   </div>
                 )
               })}
@@ -432,6 +511,15 @@ export function NewSchedulePage() {
             onClose={() => setPreviewIsoDate(null)}
           />
         )}
+
+        {selectedExercise !== null && accessToken !== null && (
+          <ExerciseDetailModal
+            exercise={selectedExercise.exercise}
+            trainingSessionId={selectedExercise.trainingSessionId}
+            accessToken={accessToken}
+            onClose={() => setSelectedExercise(null)}
+          />
+        )}
       </div>
     </div>
   )
@@ -453,10 +541,12 @@ function EditableDayRow({
           <span className="text-sm font-medium text-[#F5F7FA]">{weekdayLabel}</span>
           <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
         </div>
-        {row.locked ? (
+        {isStarted(row) ? (
           <div className="flex items-center gap-2">
             <span className="text-sm text-[#8A94A6]">{DAY_SESSION_TYPE_LABELS[row.sessionType]}</span>
-            <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">уже начат</span>
+            <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
+              {COMPLETION_BADGE_LABELS[row.completionStatus]}
+            </span>
           </div>
         ) : (
           <div className="flex gap-2">
@@ -476,6 +566,75 @@ function EditableDayRow({
             ))}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// Inline exercise list for a started day (in-progress or done) -- not a
+// modal. Each exercise opens the real ExerciseDetailModal (Подходы/
+// Техника, actual logged weight/reps), which is the whole point: a started
+// day has real results worth seeing, not just the plan.
+function StartedDayExerciseList({
+  trainingSession,
+  onSelectExercise,
+}: {
+  trainingSession: TrainingSessionRead
+  onSelectExercise: (exercise: ExerciseRead) => void
+}) {
+  const warmup = trainingSession.blocks.filter((block) => block.phase === 'warmup')
+  const main = trainingSession.blocks.filter((block) => block.phase === 'main')
+  const cooldown = trainingSession.blocks.filter((block) => block.phase === 'cooldown')
+
+  return (
+    <div className="mt-1 flex flex-col gap-3 border-t border-white/5 pt-3">
+      {warmup.length > 0 && (
+        <StartedDayPhaseSection title={PHASE_LABELS.warmup} blocks={warmup} onSelectExercise={onSelectExercise} />
+      )}
+      {main.length > 0 && (
+        <StartedDayPhaseSection title={PHASE_LABELS.main} blocks={main} onSelectExercise={onSelectExercise} />
+      )}
+      {cooldown.length > 0 && (
+        <StartedDayPhaseSection title={PHASE_LABELS.cooldown} blocks={cooldown} onSelectExercise={onSelectExercise} />
+      )}
+    </div>
+  )
+}
+
+function StartedDayPhaseSection({
+  title,
+  blocks,
+  onSelectExercise,
+}: {
+  title: string
+  blocks: SessionBlockRead[]
+  onSelectExercise: (exercise: ExerciseRead) => void
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{title}</p>
+      <div className="flex flex-col gap-1.5">
+        {blocks.map((block) => {
+          const volume = formatTargetVolume(block.exercise)
+          return (
+            <button
+              key={block.id}
+              type="button"
+              onClick={() => onSelectExercise(block.exercise)}
+              className="-mx-2 flex items-center justify-between gap-3 rounded px-2 py-1 text-left transition-colors hover:bg-white/5"
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                {block.completed_at !== null && (
+                  <i className="ti ti-check shrink-0 text-xs text-accent-ice" aria-hidden="true" />
+                )}
+                <span className="min-w-0 truncate text-sm text-[#F5F7FA]">{block.exercise.name}</span>
+              </span>
+              {volume !== null && (
+                <span className="shrink-0 whitespace-nowrap font-mono text-xs text-[#8A94A6]">{volume}</span>
+              )}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
