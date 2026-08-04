@@ -673,7 +673,11 @@ function ExerciseDetailModal({
     (exercise.video_source_type === 'youtube' || exercise.video_source_type === 'vk') &&
     exercise.video_source_id !== null
   const hasSets = exercise.target_sets !== null
-  const hasTechnique = hasRealVideo || exercise.description !== null
+  // description !== null alone doesn't guard against an empty string ("" is
+  // not null) -- trim() so a blank/whitespace-only description can't open a
+  // "Техника" tab with nothing in it.
+  const hasDescription = exercise.description !== null && exercise.description.trim() !== ''
+  const hasTechnique = hasRealVideo || hasDescription
   // Tabs only make sense when there's genuinely something to switch between
   // -- an exercise with only sets (no video/description) or only
   // video/description (no target_sets) just shows that one thing directly,
@@ -711,7 +715,7 @@ function ExerciseDetailModal({
 
         {hasTechnique && (!showTabs || activeTab === 'technique') && (
           <div className="flex flex-col gap-3">
-            {exercise.description !== null && (
+            {hasDescription && (
               <p className="text-sm text-text-secondary">{exercise.description}</p>
             )}
             {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null && (
