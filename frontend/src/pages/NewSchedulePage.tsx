@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
+import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import * as scheduleApi from '../api/schedule'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -12,6 +13,9 @@ import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parse
 import { loadOptional } from '../utils/loadOptional'
 
 const SESSION_TYPE_OPTIONS: DaySessionType[] = ['on_ice', 'off_ice', 'rest']
+
+// Same icy top-border card convention as Home/TrainingSession/Profile.
+const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
 const monday = getMondayOfCurrentWeek()
 const NEW_WEEK_DATES = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
@@ -150,15 +154,20 @@ export function NewSchedulePage() {
 
   if (mode === 'loading') {
     return (
-      <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-6 px-4 py-10">
-        <BackLink />
-        <p className="text-sm text-text-secondary">Загрузка...</p>
+      <div className="relative min-h-svh overflow-hidden">
+        <IceGlowBackground />
+        <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
+          <BackLink />
+          <p className="text-sm text-[#8A94A6]">Загрузка...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-6 px-4 py-10">
+    <div className="relative min-h-svh overflow-hidden">
+      <IceGlowBackground />
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
       <div className="flex flex-col gap-2">
         <BackLink />
         <h1 className="text-xl font-semibold">
@@ -174,18 +183,18 @@ export function NewSchedulePage() {
             {rows.map((row, index) => (
               <div
                 key={row.isoDate}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-white/5 bg-dark-card p-3"
+                className={`flex flex-wrap items-center justify-between gap-3 rounded-md ${CARD_BORDER} bg-dark-card p-3`}
               >
                 <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-medium text-text-primary">{WEEKDAY_LABELS[index]}</span>
-                  <span className="font-mono text-sm text-text-secondary">{formatShortDate(row.date)}</span>
+                  <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
+                  <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
                 </div>
                 {row.locked ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-text-secondary">
+                    <span className="text-sm text-[#8A94A6]">
                       {DAY_SESSION_TYPE_LABELS[row.sessionType]}
                     </span>
-                    <span className="rounded border border-white/10 px-2 py-1 text-xs text-text-secondary">
+                    <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
                       уже начат
                     </span>
                   </div>
@@ -199,7 +208,7 @@ export function NewSchedulePage() {
                         className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
                           row.sessionType === option
                             ? 'border-accent-ice bg-accent-ice/10 text-accent-ice'
-                            : 'border-white/15 text-text-secondary hover:border-white/30 hover:text-text-primary'
+                            : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
                         }`}
                       >
                         {DAY_SESSION_TYPE_LABELS[option]}
@@ -220,6 +229,7 @@ export function NewSchedulePage() {
           </Button>
         </>
       )}
+      </div>
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
+import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import * as referenceArticlesApi from '../api/referenceArticles'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -37,31 +38,34 @@ export function ReferenceArticleDetailPage() {
   }, [accessToken, articleId])
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-6 px-4 py-8">
+    <div className="relative min-h-svh overflow-hidden">
+      <IceGlowBackground />
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
       <BackLink to="/reference" />
 
       <FormError message={loadError} />
       {article === null && loadError === null && (
-        <p className="text-sm text-text-secondary">Загрузка...</p>
+        <p className="text-sm text-[#8A94A6]">Загрузка...</p>
       )}
 
       {article !== null && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <span className="w-fit rounded-full border border-white/15 px-3 py-1 text-xs text-text-secondary">
+            <span className="w-fit rounded-full border border-white/15 px-3 py-1 text-xs text-[#8A94A6]">
               {article.category}
             </span>
             <h1 className="text-xl font-semibold">{article.title}</h1>
           </div>
           <div className="flex flex-col gap-4">
             {article.body.split('\n\n').map((paragraph, index) => (
-              <p key={index} className="text-sm leading-relaxed text-text-secondary">
+              <p key={index} className="text-sm leading-relaxed text-[#8A94A6]">
                 {paragraph}
               </p>
             ))}
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

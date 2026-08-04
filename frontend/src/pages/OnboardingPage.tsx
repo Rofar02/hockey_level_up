@@ -11,8 +11,10 @@ export function OnboardingPage() {
   const [step, setStep] = useState(1)
 
   return (
-    <div className="flex min-h-svh items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-2xl">
+    <div className="relative flex min-h-svh items-center justify-center overflow-hidden px-4 py-10">
+      <div className="absolute inset-0 bg-[url('/images/arena-bg.webp')] bg-cover bg-center" />
+      <div className="absolute inset-0 bg-dark-bg/80" />
+      <Card className="relative w-full max-w-2xl">
         <div className="mb-8">
           <p className="mb-2 text-sm text-text-secondary">
             Шаг {step} из {TOTAL_STEPS} — {STEP_LABELS[step - 1]}

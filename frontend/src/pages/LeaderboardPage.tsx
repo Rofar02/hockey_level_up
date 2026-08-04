@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
+import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import * as leaderboardApi from '../api/leaderboard'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { LeaderboardEntryRead, LeaderboardMeRead } from '../types/leaderboard'
 import { POSITION_LABELS } from '../types/user'
+
+// Same icy top-border card convention as Home/TrainingSession/Profile.
+const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
 function formatRatingExcess(value: number): string {
   const sign = value > 0 ? '+' : ''
@@ -14,7 +18,7 @@ function formatRatingExcess(value: number): string {
 
 function RatingExcess({ value }: { value: number }) {
   return (
-    <span className={`font-mono text-base font-bold ${value > 0 ? 'text-accent-ice' : 'text-text-secondary'}`}>
+    <span className={`font-mono text-base font-bold ${value > 0 ? 'text-accent-ice' : 'text-[#8A94A6]'}`}>
       {formatRatingExcess(value)}
     </span>
   )
@@ -76,18 +80,20 @@ export function LeaderboardPage() {
   const pinnedMe = myIndex === -1 ? me : null
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-6 px-4 py-8">
+    <div className="relative min-h-svh overflow-hidden">
+      <IceGlowBackground />
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
       <div className="flex flex-col gap-2">
         <BackLink to="/profile" />
         <h1 className="text-xl font-semibold">Рейтинг</h1>
-        <p className="text-sm text-text-secondary">
+        <p className="text-sm text-[#8A94A6]">
           Превышение над ожидаемым уровнем для вашего возраста и стажа — не сырые характеристики.
         </p>
       </div>
 
       <FormError message={loadError} />
       {entries === null && loadError === null && (
-        <p className="text-sm text-text-secondary">Загрузка...</p>
+        <p className="text-sm text-[#8A94A6]">Загрузка...</p>
       )}
 
       {entries !== null && (
@@ -119,12 +125,13 @@ export function LeaderboardPage() {
           ))}
 
           {entries.length === 0 && (
-            <p className="text-sm text-text-secondary">Пока никто не в рейтинге.</p>
+            <p className="text-sm text-[#8A94A6]">Пока никто не в рейтинге.</p>
           )}
         </div>
       )}
 
       <FormError message={meError} />
+      </div>
     </div>
   )
 }
@@ -146,18 +153,18 @@ function LeaderboardRow({
 }) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-md border p-3 ${
+      className={`flex items-center gap-3 rounded-md p-3 ${
         highlighted
-          ? 'border-accent-ice/40 bg-accent-ice/10'
-          : 'border-white/5 bg-dark-card'
+          ? 'border border-accent-ice/40 bg-accent-ice/10'
+          : `${CARD_BORDER} bg-dark-card`
       }`}
     >
-      <span className="w-8 shrink-0 text-center font-mono text-sm text-text-secondary">{rank}</span>
+      <span className="w-8 shrink-0 text-center font-mono text-sm text-[#8A94A6]">{rank}</span>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className={`truncate font-medium ${highlighted ? 'text-accent-ice' : 'text-text-primary'}`}>
+        <span className={`truncate font-medium ${highlighted ? 'text-accent-ice' : 'text-[#F5F7FA]'}`}>
           {username}
         </span>
-        <span className="text-xs text-text-secondary">
+        <span className="text-xs text-[#8A94A6]">
           {[position !== null ? POSITION_LABELS[position] : null, jerseyNumber !== null ? `№${jerseyNumber}` : null]
             .filter(Boolean)
             .join(' · ')}

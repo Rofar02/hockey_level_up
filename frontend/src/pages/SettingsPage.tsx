@@ -5,6 +5,7 @@ import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { ChoiceCard } from '../components/ui/ChoiceCard'
 import { FormError } from '../components/ui/FormError'
+import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { SkillChip } from '../components/ui/SkillChip'
 import { TextField } from '../components/ui/TextField'
 import { AssessmentTestForm } from './onboarding/AssessmentTestForm'
@@ -225,14 +226,16 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-8 px-4 py-8">
+    <div className="relative min-h-svh overflow-hidden">
+      <IceGlowBackground />
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-8 px-4 py-8">
       <div className="flex flex-col gap-2">
         <BackLink />
         <h1 className="text-xl font-semibold">Настройки</h1>
       </div>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-text-secondary">Профиль</h2>
+        <h2 className="text-sm font-medium text-[#8A94A6]">Профиль</h2>
         <form onSubmit={handleProfileSave} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <TextField
@@ -278,7 +281,7 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-text-secondary">Оборудование</h2>
+        <h2 className="text-sm font-medium text-[#8A94A6]">Оборудование</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {EQUIPMENT_CHOICES.map((option) => (
             <ChoiceCard
@@ -295,9 +298,9 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-text-secondary">Навыки для развития</h2>
+        <h2 className="text-sm font-medium text-[#8A94A6]">Навыки для развития</h2>
         {skills === null && skillsLoadError === null && (
-          <p className="text-sm text-text-secondary">Загрузка...</p>
+          <p className="text-sm text-[#8A94A6]">Загрузка...</p>
         )}
         <FormError message={skillsLoadError} />
         {skills !== null && (
@@ -316,15 +319,15 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-text-secondary">Оценка физподготовки</h2>
+        <h2 className="text-sm font-medium text-[#8A94A6]">Оценка физподготовки</h2>
         {assessmentStatus === null && statusError === null && (
-          <p className="text-sm text-text-secondary">Загрузка...</p>
+          <p className="text-sm text-[#8A94A6]">Загрузка...</p>
         )}
         <FormError message={statusError} />
 
         {assessmentStatus?.suggested_reassessment === true && (
           <div className="flex flex-col gap-3 rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-4">
-            <p className="text-sm text-text-primary">
+            <p className="text-sm text-[#F5F7FA]">
               Похоже, ваш уровень подготовки изменился. Стоит пройти тест заново, чтобы точнее
               откалибровать характеристики.
             </p>
@@ -355,6 +358,7 @@ export function SettingsPage() {
       <Button variant="neutral" onClick={handleLogout} className="mt-4 self-start">
         Выйти из аккаунта
       </Button>
+      </div>
     </div>
   )
 }

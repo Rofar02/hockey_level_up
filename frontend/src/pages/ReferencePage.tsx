@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
+import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import * as referenceArticlesApi from '../api/referenceArticles'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -15,6 +16,9 @@ const CATEGORY_ICONS: Record<string, string> = {
   основы: 'ti-flag',
 }
 const DEFAULT_CATEGORY_ICON = 'ti-book-2'
+
+// Same icy top-border card convention as Home/TrainingSession/Profile.
+const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
 function groupByCategory(
   articles: ReferenceArticleSummary[],
@@ -63,7 +67,9 @@ export function ReferencePage() {
   const groups = articles !== null ? groupByCategory(articles) : null
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-6 px-4 py-8">
+    <div className="relative min-h-svh overflow-hidden">
+      <IceGlowBackground />
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
       <div className="flex flex-col gap-2">
         <BackLink />
         <h1 className="text-xl font-semibold">Справочник</h1>
@@ -71,27 +77,27 @@ export function ReferencePage() {
 
       <FormError message={loadError} />
       {articles === null && loadError === null && (
-        <p className="text-sm text-text-secondary">Загрузка...</p>
+        <p className="text-sm text-[#8A94A6]">Загрузка...</p>
       )}
 
       {groups !== null && (
         <div className="flex flex-col gap-6">
           {groups.map((group) => (
             <div key={group.category} className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-text-secondary">{group.category}</h2>
+              <h2 className="text-sm font-medium text-[#8A94A6]">{group.category}</h2>
               <div className="flex flex-col gap-2">
                 {group.articles.map((article) => (
                   <button
                     key={article.id}
                     type="button"
                     onClick={() => navigate(`/reference/${article.id}`)}
-                    className="flex items-center gap-3 rounded-md border border-white/5 bg-dark-card p-4 text-left transition-colors hover:border-white/20"
+                    className={`flex items-center gap-3 rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left transition-colors hover:border-white/20`}
                   >
                     <i
                       className={`ti ${CATEGORY_ICONS[article.category] ?? DEFAULT_CATEGORY_ICON} text-xl text-accent-ice`}
                       aria-hidden="true"
                     />
-                    <span className="font-medium text-text-primary">{article.title}</span>
+                    <span className="font-medium text-[#F5F7FA]">{article.title}</span>
                   </button>
                 ))}
               </div>
@@ -99,6 +105,7 @@ export function ReferencePage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   )
 }
