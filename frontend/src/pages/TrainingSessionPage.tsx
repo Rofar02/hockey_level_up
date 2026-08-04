@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
@@ -625,6 +626,30 @@ function ExerciseRow({
   )
 }
 
+type ExerciseModalTab = 'sets' | 'technique'
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+        active ? 'border-accent-persimmon text-text-primary' : 'border-transparent text-[#8A94A6] hover:text-text-primary'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
 function ExerciseDetailModal({
   exercise,
   trainingSessionId,
@@ -636,6 +661,8 @@ function ExerciseDetailModal({
   accessToken: string
   onClose: () => void
 }) {
+  const [activeTab, setActiveTab] = useState<ExerciseModalTab>('sets')
+
   const targetVolume = formatTargetVolume(exercise)
   // The set-by-set logger already shows/asks for reps per set (via the reps
   // field's placeholder, see SetLogger) -- repeating the same "3 × 8" as a
@@ -645,12 +672,26 @@ function ExerciseDetailModal({
   const hasRealVideo =
     (exercise.video_source_type === 'youtube' || exercise.video_source_type === 'vk') &&
     exercise.video_source_id !== null
+  const hasSets = exercise.target_sets !== null
+  const hasTechnique = hasRealVideo || exercise.description !== null
+  // Tabs only make sense when there's genuinely something to switch between
+  // -- an exercise with only sets (no video/description) or only
+  // video/description (no target_sets) just shows that one thing directly,
+  // no tab bar, per "без пустого таба".
+  const showTabs = hasSets && hasTechnique
 
   return (
     <Modal title={exercise.name} onClose={onClose}>
       <div className="flex flex-col gap-3">
-        {exercise.description !== null && (
-          <p className="text-sm text-text-secondary">{exercise.description}</p>
+        {showTabs && (
+          <div className="-mx-6 -mt-6 flex border-b border-white/5 bg-dark-card">
+            <TabButton active={activeTab === 'sets'} onClick={() => setActiveTab('sets')}>
+              Подходы
+            </TabButton>
+            <TabButton active={activeTab === 'technique'} onClick={() => setActiveTab('technique')}>
+              Техника
+            </TabButton>
+          </div>
         )}
 
         {showVolumeSummary && (
@@ -660,7 +701,7 @@ function ExerciseDetailModal({
           </div>
         )}
 
-        {exercise.target_sets !== null && (
+        {hasSets && (!showTabs || activeTab === 'sets') && (
           <SetLogger
             exercise={exercise}
             trainingSessionId={trainingSessionId}
@@ -668,23 +709,32 @@ function ExerciseDetailModal({
           />
         )}
 
-        {/* No "video coming soon" placeholder -- an empty promise of future
-            content is just clutter in an already content-heavy modal. */}
-        {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null && (
-          <div className="aspect-video overflow-hidden rounded-md">
-            <iframe
-              src={`https://www.youtube.com/embed/${exercise.video_source_id}`}
-              title={exercise.name}
-              className="h-full w-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
+        {hasTechnique && (!showTabs || activeTab === 'technique') && (
+          <div className="flex flex-col gap-3">
+            {exercise.description !== null && (
+              <p className="text-sm text-text-secondary">{exercise.description}</p>
+            )}
+            {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null && (
+              <div className="aspect-video overflow-hidden rounded-md">
+                <iframe
+                  src={`https://www.youtube.com/embed/${exercise.video_source_id}`}
+                  title={exercise.name}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            )}
+            {exercise.video_source_type === 'vk' && exercise.video_source_id !== null && (
+              <p className="text-sm text-text-secondary">Embed для VK будет добавлен отдельно</p>
+            )}
           </div>
         )}
-        {exercise.video_source_type === 'vk' && exercise.video_source_id !== null && (
-          <p className="text-sm text-text-secondary">Embed для VK будет добавлен отдельно</p>
-        )}
-        {!hasRealVideo && exercise.target_sets === null && (
+
+        {/* No "video coming soon" placeholder when there's nothing else on
+            this exercise either -- an empty promise of future content is
+            just clutter. Unchanged from before this tab split. */}
+        {!hasSets && !hasTechnique && (
           <p className="text-sm text-text-secondary">Видео скоро появится</p>
         )}
       </div>
