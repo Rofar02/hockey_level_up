@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
+import { ExerciseTechnique } from '../components/ExerciseTechnique'
 import * as scheduleApi from '../api/schedule'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -18,6 +19,7 @@ import type {
   WeeklyPlanRead,
 } from '../types/schedule'
 import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
+import { hasExerciseTechnique } from '../utils/exerciseTechnique'
 import { loadOptional } from '../utils/loadOptional'
 
 const SESSION_TYPE_OPTIONS: DaySessionType[] = ['on_ice', 'off_ice', 'rest']
@@ -534,32 +536,105 @@ function DayPreviewModal({
   const main = trainingSession.blocks.filter((block) => block.phase === 'main')
   const cooldown = trainingSession.blocks.filter((block) => block.phase === 'cooldown')
 
+  // Accordion (at most one exercise's technique open at a time) rather than
+  // independent expand state per row -- keeps this already-scrollable modal
+  // from growing unbounded if every exercise in the day got expanded at
+  // once. Lives here, not per-phase-section, so opening one exercise in
+  // "Основная часть" collapses one that was open in "Разминка".
+  const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null)
+
   return (
     <Modal
       title={`${weekdayLabel}, ${formatShortDate(date)} — ${DAY_SESSION_TYPE_LABELS[sessionType]}`}
       onClose={onClose}
     >
       <div className="flex flex-col gap-4">
-        {warmup.length > 0 && <DayPreviewPhaseSection title={PHASE_LABELS.warmup} blocks={warmup} />}
-        {main.length > 0 && <DayPreviewPhaseSection title={PHASE_LABELS.main} blocks={main} />}
-        {cooldown.length > 0 && <DayPreviewPhaseSection title={PHASE_LABELS.cooldown} blocks={cooldown} />}
+        {warmup.length > 0 && (
+          <DayPreviewPhaseSection
+            title={PHASE_LABELS.warmup}
+            blocks={warmup}
+            expandedBlockId={expandedBlockId}
+            onToggle={setExpandedBlockId}
+          />
+        )}
+        {main.length > 0 && (
+          <DayPreviewPhaseSection
+            title={PHASE_LABELS.main}
+            blocks={main}
+            expandedBlockId={expandedBlockId}
+            onToggle={setExpandedBlockId}
+          />
+        )}
+        {cooldown.length > 0 && (
+          <DayPreviewPhaseSection
+            title={PHASE_LABELS.cooldown}
+            blocks={cooldown}
+            expandedBlockId={expandedBlockId}
+            onToggle={setExpandedBlockId}
+          />
+        )}
       </div>
     </Modal>
   )
 }
 
-function DayPreviewPhaseSection({ title, blocks }: { title: string; blocks: SessionBlockRead[] }) {
+function DayPreviewPhaseSection({
+  title,
+  blocks,
+  expandedBlockId,
+  onToggle,
+}: {
+  title: string
+  blocks: SessionBlockRead[]
+  expandedBlockId: string | null
+  onToggle: (blockId: string | null) => void
+}) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{title}</p>
       <div className="flex flex-col gap-1.5">
         {blocks.map((block) => {
           const volume = formatTargetVolume(block.exercise)
+          // Only exercises with real technique content (video or
+          // description) become clickable -- one with neither stays plain,
+          // unclickable text, same as before this change, rather than
+          // opening an empty detail panel.
+          const clickable = hasExerciseTechnique(block.exercise)
+          const expanded = clickable && expandedBlockId === block.id
+
           return (
-            <div key={block.id} className="flex items-center justify-between gap-3 text-sm">
-              <span className="min-w-0 truncate text-[#F5F7FA]">{block.exercise.name}</span>
-              {volume !== null && (
-                <span className="shrink-0 whitespace-nowrap font-mono text-xs text-[#8A94A6]">{volume}</span>
+            <div key={block.id}>
+              {clickable ? (
+                <button
+                  type="button"
+                  onClick={() => onToggle(expanded ? null : block.id)}
+                  className="-mx-2 flex w-full items-center justify-between gap-3 rounded px-2 py-1 text-left transition-colors hover:bg-white/5"
+                >
+                  <span className="min-w-0 truncate text-sm text-[#F5F7FA]">{block.exercise.name}</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {volume !== null && (
+                      <span className="whitespace-nowrap font-mono text-xs text-[#8A94A6]">{volume}</span>
+                    )}
+                    <i
+                      className={`ti ti-chevron-down text-xs text-[#8A94A6] transition-transform ${
+                        expanded ? 'rotate-180' : ''
+                      }`}
+                      aria-hidden="true"
+                    />
+                  </div>
+                </button>
+              ) : (
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate text-[#F5F7FA]">{block.exercise.name}</span>
+                  {volume !== null && (
+                    <span className="shrink-0 whitespace-nowrap font-mono text-xs text-[#8A94A6]">{volume}</span>
+                  )}
+                </div>
+              )}
+              {expanded && (
+                <div className={`mt-2 rounded-md ${CARD_BORDER} bg-dark-bg/40 p-3`}>
+                  <ExerciseTechnique exercise={block.exercise} />
+                </div>
               )}
             </div>
           )

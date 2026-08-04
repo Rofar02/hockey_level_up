@@ -7,6 +7,7 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
+import { ExerciseTechnique } from '../components/ExerciseTechnique'
 import * as authApi from '../api/auth'
 import * as exercisesApi from '../api/exercises'
 import * as progressApi from '../api/progress'
@@ -27,6 +28,7 @@ import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
 import { WEEKDAY_LABELS, parseIsoDate, toIsoDate } from '../utils/date'
+import { hasExerciseTechnique } from '../utils/exerciseTechnique'
 import { loadOptional } from '../utils/loadOptional'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -664,15 +666,8 @@ function ExerciseDetailModal({
   const [activeTab, setActiveTab] = useState<ExerciseModalTab>('sets')
 
   const targetVolume = formatTargetVolume(exercise)
-  const hasRealVideo =
-    (exercise.video_source_type === 'youtube' || exercise.video_source_type === 'vk') &&
-    exercise.video_source_id !== null
   const hasSets = exercise.target_sets !== null
-  // description !== null alone doesn't guard against an empty string ("" is
-  // not null) -- trim() so a blank/whitespace-only description doesn't
-  // count as real content.
-  const hasDescription = exercise.description !== null && exercise.description.trim() !== ''
-  const hasTechnique = hasRealVideo || hasDescription
+  const hasTechnique = hasExerciseTechnique(exercise)
 
   // Both tabs always show, on every exercise -- this is the app's standard
   // exercise-modal shape now, not conditional on which exercises happen to
@@ -712,25 +707,7 @@ function ExerciseDetailModal({
 
         {activeTab === 'technique' &&
           (hasTechnique ? (
-            <div className="flex flex-col gap-3">
-              {hasDescription && (
-                <p className="text-sm text-text-secondary">{exercise.description}</p>
-              )}
-              {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null && (
-                <div className="aspect-video overflow-hidden rounded-md">
-                  <iframe
-                    src={`https://www.youtube.com/embed/${exercise.video_source_id}`}
-                    title={exercise.name}
-                    className="h-full w-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                </div>
-              )}
-              {exercise.video_source_type === 'vk' && exercise.video_source_id !== null && (
-                <p className="text-sm text-text-secondary">Embed для VK будет добавлен отдельно</p>
-              )}
-            </div>
+            <ExerciseTechnique exercise={exercise} />
           ) : (
             <p className="text-sm text-text-secondary">Описание техники пока не добавлено.</p>
           ))}
