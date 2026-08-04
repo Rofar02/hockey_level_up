@@ -56,25 +56,29 @@ function formatTargetVolume(exercise: ExerciseRead): string | null {
   return null
 }
 
-const monday = getMondayOfCurrentWeek()
-const NEW_WEEK_DATES = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
+type WeekSlot = 'current' | 'next'
+type WeekStatus = 'loading' | 'view' | 'plan'
+
+// Computed once at module load (same as the pre-existing behavior this
+// replaces) -- doesn't track a real midnight rollover while the page stays
+// open, which was already true before this change.
+const THIS_MONDAY = getMondayOfCurrentWeek()
+const NEXT_MONDAY = addDays(THIS_MONDAY, 7)
+const WEEK_START_DATES: Record<WeekSlot, Date> = { current: THIS_MONDAY, next: NEXT_MONDAY }
+
+function datesForWeek(slot: WeekSlot): Date[] {
+  const start = WEEK_START_DATES[slot]
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i))
+}
 
 interface DayRow {
   isoDate: string
   date: Date
   sessionType: DaySessionType
-  // Unused (always equal to sessionType) in create mode -- lets the same
-  // row shape drive both the "what changed" diff for PATCH and the create
-  // flow's plain "send everything" payload.
-  originalSessionType: DaySessionType
-  // True once the day already has a completed SessionBlock -- edit mode
-  // only, always false while creating a brand new week.
+  // Informational only in view mode (there are no editing controls to gate
+  // by it anymore) -- true once at least one SessionBlock for this day is
+  // already completed.
   locked: boolean
-  // What's actually generated for this day as of the last load/save --
-  // null for a genuinely ungenerated day (create mode, or a rest day).
-  // Once sessionType diverges from originalSessionType this is stale (the
-  // real content will be regenerated on save), so callers must check that
-  // before trusting it -- see DaySummary below.
   trainingSession: TrainingSessionRead | null
 }
 
@@ -83,18 +87,16 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     isoDate: day.date,
     date: parseIsoDate(day.date),
     sessionType: day.session_type,
-    originalSessionType: day.session_type,
     locked: day.training_session?.blocks.some((block) => block.completed_at !== null) ?? false,
     trainingSession: day.training_session,
   }))
 }
 
-function rowsForNewWeek(): DayRow[] {
-  return NEW_WEEK_DATES.map((date) => ({
+function rowsForWeek(dates: Date[]): DayRow[] {
+  return dates.map((date) => ({
     isoDate: toIsoDate(date),
     date,
     sessionType: 'rest',
-    originalSessionType: 'rest',
     locked: false,
     trainingSession: null,
   }))
@@ -104,19 +106,16 @@ export function NewSchedulePage() {
   const { accessToken } = useAuth()
   const navigate = useNavigate()
 
-  const [mode, setMode] = useState<'loading' | 'create' | 'edit'>('loading')
+  const [selectedWeek, setSelectedWeek] = useState<WeekSlot>('current')
+  const [weekStatus, setWeekStatus] = useState<WeekStatus>('loading')
   const [rows, setRows] = useState<DayRow[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  // Set only when handleSaveChanges finds a changed row that already has a
-  // generated plan -- rendering the confirm modal and holding the exact
-  // rows to submit if the user confirms. null the rest of the time.
-  const [pendingRegeneration, setPendingRegeneration] = useState<DayRow[] | null>(null)
   // Read-only day-plan preview modal -- stores the isoDate (not an index)
-  // so it stays correct even if `rows` gets replaced (e.g. after a PATCH
-  // response), matching how ProfilePage tracks selectedSkillId by id
-  // rather than by array position.
+  // so it stays correct even if `rows` gets replaced (e.g. after
+  // generating a plan), matching how ProfilePage tracks selectedSkillId by
+  // id rather than by array position.
   const [previewIsoDate, setPreviewIsoDate] = useState<string | null>(null)
 
   useEffect(() => {
@@ -124,16 +123,19 @@ export function NewSchedulePage() {
       return
     }
     let cancelled = false
-    loadOptional(scheduleApi.getCurrentWeeklyPlan(accessToken))
+    setWeekStatus('loading')
+    setLoadError(null)
+    const weekStartIso = toIsoDate(WEEK_START_DATES[selectedWeek])
+    loadOptional(scheduleApi.getWeeklyPlan(weekStartIso, accessToken))
       .then((plan) => {
         if (cancelled) {
           return
         }
         if (plan === null) {
-          setMode('create')
-          setRows(rowsForNewWeek())
+          setWeekStatus('plan')
+          setRows(rowsForWeek(datesForWeek(selectedWeek)))
         } else {
-          setMode('edit')
+          setWeekStatus('view')
           setRows(rowsFromPlan(plan))
         }
       })
@@ -145,24 +147,32 @@ export function NewSchedulePage() {
     return () => {
       cancelled = true
     }
-  }, [accessToken])
+  }, [accessToken, selectedWeek])
 
   function setDayType(index: number, type: DaySessionType) {
     setRows((previous) => previous.map((row, i) => (i === index ? { ...row, sessionType: type } : row)))
   }
 
-  async function handleCreate() {
+  async function handleGeneratePlan() {
     if (accessToken === null) {
       return
     }
     setSubmitError(null)
     setIsSubmitting(true)
     try {
-      await scheduleApi.createWeeklyPlan(
+      const created = await scheduleApi.createWeeklyPlan(
         { days: rows.map((row) => ({ date: row.isoDate, session_type: row.sessionType })) },
         accessToken,
       )
-      navigate('/', { replace: true })
+      if (selectedWeek === 'current') {
+        navigate('/', { replace: true })
+        return
+      }
+      // Planning ahead: stay on this page and show what was just
+      // generated instead of navigating to Home, which only ever shows
+      // the current week and couldn't display next week's plan at all.
+      setRows(rowsFromPlan(created))
+      setWeekStatus('view')
     } catch (err) {
       setSubmitError(
         err instanceof ApiError ? err.message : 'Не удалось сохранить план недели. Попробуйте ещё раз.',
@@ -172,71 +182,6 @@ export function NewSchedulePage() {
     }
   }
 
-  function handleSaveChanges() {
-    const changed = rows.filter((row) => !row.locked && row.sessionType !== row.originalSessionType)
-    if (changed.length === 0) {
-      navigate('/', { replace: true })
-      return
-    }
-
-    // A locked (already-started) row can never reach here -- its type
-    // selector is replaced by a static badge, so the UI itself blocks
-    // picking a different type for it. The real, reachable risk this
-    // guards is quieter: a day that's already generated (has a
-    // trainingSession) but not yet started gets silently regenerated,
-    // discarding whatever exercises were picked for it, with no warning
-    // today. That's what triggers the confirmation.
-    const hasGeneratedContent = changed.some((row) => row.trainingSession !== null)
-    if (hasGeneratedContent) {
-      setPendingRegeneration(changed)
-      return
-    }
-    performSaveChanges(changed)
-  }
-
-  async function performSaveChanges(changed: DayRow[]) {
-    if (accessToken === null) {
-      return
-    }
-    setPendingRegeneration(null)
-    setSubmitError(null)
-    setIsSubmitting(true)
-    try {
-      const result = await scheduleApi.patchCurrentWeeklyPlan(
-        { days: changed.map((row) => ({ date: row.isoDate, session_type: row.sessionType })) },
-        accessToken,
-      )
-      if (result.conflicts.length > 0) {
-        setRows(rowsFromPlan(result.weekly_plan))
-        setSubmitError(
-          result.conflicts
-            .map((conflict) => `${formatShortDate(parseIsoDate(conflict.date))}: ${conflict.detail}`)
-            .join('; '),
-        )
-        return
-      }
-      navigate('/', { replace: true })
-    } catch (err) {
-      setSubmitError(
-        err instanceof ApiError ? err.message : 'Не удалось сохранить изменения. Попробуйте ещё раз.',
-      )
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  if (mode === 'loading') {
-    return (
-      <div className="relative min-h-svh overflow-hidden">
-        <IceGlowBackground />
-        <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
-          <BackLink />
-          <p className="text-sm text-[#8A94A6]">Загрузка...</p>
-        </div>
-      </div>
-    )
-  }
-
   const previewIndex = previewIsoDate !== null ? rows.findIndex((row) => row.isoDate === previewIsoDate) : -1
   const previewRow = previewIndex !== -1 ? rows[previewIndex] : null
 
@@ -244,17 +189,68 @@ export function NewSchedulePage() {
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
-      <div className="flex flex-col gap-2">
-        <BackLink />
-        <h1 className="text-xl font-semibold">
-          {mode === 'edit' ? 'Изменить неделю' : 'Спланировать неделю'}
-        </h1>
-      </div>
+        <div className="flex flex-col gap-2">
+          <BackLink />
+          <h1 className="text-xl font-semibold">Неделя</h1>
+        </div>
 
-      <FormError message={loadError} />
+        <div className={`flex overflow-hidden rounded-md ${CARD_BORDER} bg-dark-card`}>
+          <WeekTabButton active={selectedWeek === 'current'} onClick={() => setSelectedWeek('current')}>
+            Текущая неделя
+          </WeekTabButton>
+          <WeekTabButton active={selectedWeek === 'next'} onClick={() => setSelectedWeek('next')}>
+            Следующая неделя
+          </WeekTabButton>
+        </div>
 
-      {loadError === null && (
-        <>
+        <FormError message={loadError} />
+
+        {weekStatus === 'loading' && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+
+        {weekStatus === 'plan' && loadError === null && (
+          <>
+            <p className="text-sm text-[#8A94A6]">
+              Планируете неделю с {formatShortDate(WEEK_START_DATES[selectedWeek])}
+            </p>
+            <div className="flex flex-col gap-3">
+              {rows.map((row, index) => (
+                <div
+                  key={row.isoDate}
+                  className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
+                      <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      {SESSION_TYPE_OPTIONS.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => setDayType(index, option)}
+                          className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
+                            row.sessionType === option
+                              ? 'border-accent-ice bg-accent-ice/10 text-accent-ice'
+                              : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
+                          }`}
+                        >
+                          {DAY_SESSION_TYPE_LABELS[option]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <FormError message={submitError} />
+            <Button onClick={handleGeneratePlan} isLoading={isSubmitting} className="self-end">
+              Сгенерировать план
+            </Button>
+          </>
+        )}
+
+        {weekStatus === 'view' && loadError === null && (
           <div className="flex flex-col gap-3">
             {rows.map((row, index) => {
               const isPreviewable = row.trainingSession !== null
@@ -283,126 +279,74 @@ export function NewSchedulePage() {
                       <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
                       <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
                     </div>
-                    {row.locked ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-[#8A94A6]">
-                          {DAY_SESSION_TYPE_LABELS[row.sessionType]}
-                        </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-[#8A94A6]">{DAY_SESSION_TYPE_LABELS[row.sessionType]}</span>
+                      {row.locked && (
                         <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
                           уже начат
                         </span>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        {SESSION_TYPE_OPTIONS.map((option) => (
-                          <button
-                            key={option}
-                            type="button"
-                            // stopPropagation keeps picking a type from also
-                            // opening the read-only preview modal -- same
-                            // pattern as TrainingSessionPage's ExerciseRow
-                            // Checkbox inside its own clickable row.
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              setDayType(index, option)
-                            }}
-                            className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
-                              row.sessionType === option
-                                ? 'border-accent-ice bg-accent-ice/10 text-accent-ice'
-                                : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
-                            }`}
-                          >
-                            {DAY_SESSION_TYPE_LABELS[option]}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                   <DaySummary row={row} />
                 </div>
               )
             })}
           </div>
-          <FormError message={submitError} />
-          <Button
-            onClick={mode === 'edit' ? handleSaveChanges : handleCreate}
-            isLoading={isSubmitting}
-            className="self-end"
-          >
-            {mode === 'edit' ? 'Сохранить изменения' : 'Сгенерировать план'}
-          </Button>
-        </>
-      )}
+        )}
 
-      {pendingRegeneration !== null && (
-        <Modal title="Пересобрать план на эти дни?" onClose={() => setPendingRegeneration(null)}>
-          <div className="flex flex-col gap-4">
-            <p className="text-sm text-[#8A94A6]">
-              Для этих дней уже подобраны упражнения. При смене типа план будет собран заново, а
-              текущий набор упражнений — заменён:
-            </p>
-            <ul className="flex flex-col gap-1 text-sm text-[#F5F7FA]">
-              {pendingRegeneration.map((row) => (
-                <li key={row.isoDate}>
-                  {formatShortDate(row.date)} — {DAY_SESSION_TYPE_LABELS[row.sessionType]}
-                </li>
-              ))}
-            </ul>
-            <div className="flex gap-3">
-              <Button onClick={() => performSaveChanges(pendingRegeneration)} isLoading={isSubmitting}>
-                Пересобрать
-              </Button>
-              <Button variant="neutral" onClick={() => setPendingRegeneration(null)}>
-                Отмена
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {previewRow !== null && previewRow.trainingSession !== null && (
-        <DayPreviewModal
-          weekdayLabel={WEEKDAY_LABELS[previewIndex]}
-          date={previewRow.date}
-          sessionType={previewRow.sessionType}
-          trainingSession={previewRow.trainingSession}
-          onClose={() => setPreviewIsoDate(null)}
-        />
-      )}
+        {previewRow !== null && previewRow.trainingSession !== null && (
+          <DayPreviewModal
+            weekdayLabel={WEEKDAY_LABELS[previewIndex]}
+            date={previewRow.date}
+            sessionType={previewRow.sessionType}
+            trainingSession={previewRow.trainingSession}
+            onClose={() => setPreviewIsoDate(null)}
+          />
+        )}
       </div>
     </div>
   )
 }
 
+function WeekTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+        active
+          ? 'border-accent-persimmon text-[#F5F7FA]'
+          : 'border-transparent text-[#8A94A6] hover:text-[#F5F7FA]'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+// Only ever rendered in view mode, where trainingSession is guaranteed
+// non-null for every non-rest day (the whole plan already exists) -- the
+// null check is a defensive no-op, not a real branch.
 function DaySummary({ row }: { row: DayRow }) {
-  if (row.sessionType === 'rest') {
+  if (row.sessionType === 'rest' || row.trainingSession === null) {
     return null
   }
-
-  const typeChanged = row.sessionType !== row.originalSessionType
-
-  // Only worth calling out as "will be replaced" if there's actually
-  // existing content at risk -- in create mode (or any day that was rest
-  // before) trainingSession is already null, so a type change there has
-  // nothing to lose and just falls through to the plain "not generated
-  // yet" message below instead of implying something's being discarded.
-  if (typeChanged && row.trainingSession !== null) {
-    return <p className="text-xs text-[#8A94A6]">Текущий план будет заменён после сохранения.</p>
-  }
-
-  if (row.trainingSession === null) {
-    return <p className="text-xs text-[#8A94A6]">План ещё не сгенерирован.</p>
-  }
-
-  return (
-    <p className="text-xs text-[#8A94A6] opacity-55">{formatPhaseCounts(row.trainingSession)}</p>
-  )
+  return <p className="text-xs text-[#8A94A6] opacity-55">{formatPhaseCounts(row.trainingSession)}</p>
 }
 
 // Read-only preview of what's actually generated for a day -- no checkbox,
 // no "Начать", no SetLogger, nothing that mutates SessionBlock state. Fully
 // independent of TrainingSessionPage/SetLogger; only reads data this page
-// already has from GET /schedule/weekly/current.
+// already has from GET /schedule/weekly.
 function DayPreviewModal({
   weekdayLabel,
   date,
