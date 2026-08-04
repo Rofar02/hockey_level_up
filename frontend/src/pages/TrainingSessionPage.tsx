@@ -6,7 +6,6 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
-import { TextField } from '../components/ui/TextField'
 import * as authApi from '../api/auth'
 import * as exercisesApi from '../api/exercises'
 import * as progressApi from '../api/progress'
@@ -693,6 +692,46 @@ function ExerciseDetailModal({
   )
 }
 
+// Compact label+input+unit field for weight/reps -- stacked one-per-line in
+// the current-set row rather than side by side, so neither the label nor
+// the input ever has to shrink to fit a narrow modal (see the width budget
+// in SetLogger's current-set row comment below).
+function CompactNumberField({
+  label,
+  unit,
+  value,
+  placeholder,
+  disabled,
+  onChange,
+}: {
+  label: string
+  unit?: string
+  value: string
+  placeholder?: string
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {/* Natural content width, not a fixed one -- a fixed width tight
+          enough to matter (e.g. w-14) risks "Повторы" visually overflowing
+          its own box on narrow screens; letting it size to its text is both
+          simpler and safer. */}
+      <span className="shrink-0 whitespace-nowrap text-xs text-text-secondary">{label}</span>
+      <input
+        type="number"
+        inputMode={unit !== undefined ? 'decimal' : 'numeric'}
+        className="w-16 shrink-0 rounded border border-white/10 bg-dark-bg px-2 py-1.5 font-mono text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none disabled:opacity-50"
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {unit !== undefined && <span className="shrink-0 text-xs text-text-secondary">{unit}</span>}
+    </div>
+  )
+}
+
 // Per-set logging layered on top of the exercise-level Checkbox in
 // ExerciseRow: SessionBlock.completed_at (and the block_completed event that
 // drives stat/XP gain) are untouched by any of this, this is purely the
@@ -862,41 +901,57 @@ function SetLogger({
             return (
               <div
                 key={setNumber}
-                className="flex items-center justify-between rounded border border-white/5 bg-dark-card px-3 py-2 text-sm"
+                className="flex min-w-0 items-center gap-2 rounded border border-white/5 bg-dark-card px-3 py-2 text-sm"
               >
-                <span className="text-text-secondary">Подход {setNumber}</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-text-primary">
-                    {exercise.tracks_weight && completed.weight_kg !== null
-                      ? `${completed.weight_kg}×${completed.reps_completed ?? '—'}`
-                      : (completed.reps_completed ?? '—')}
-                  </span>
-                  <i className="ti ti-check text-accent-ice" aria-hidden="true" />
-                </div>
+                <i className="ti ti-check shrink-0 text-accent-ice" aria-hidden="true" />
+                <span className="min-w-0 truncate text-text-secondary">Подход {setNumber}</span>
+                <span className="ml-auto shrink-0 whitespace-nowrap font-mono text-text-primary">
+                  {exercise.tracks_weight && completed.weight_kg !== null
+                    ? `${completed.weight_kg}кг × ${completed.reps_completed ?? '—'}`
+                    : (completed.reps_completed ?? '—')}
+                </span>
               </div>
             )
           }
 
+          // Current set: a plain 2px persimmon outline around the row (dark
+          // fill unchanged) plus a text "Сейчас" label -- no filled/colored
+          // block. Width budget at the narrowest supported viewport (320px):
+          //   320 backdrop(-32, p-4×2) -> 288 card
+          //   288 border(-2)           -> 286 modal body
+          //   286 body p-6(-48)        -> 238 SetLogger p-4(-32) -> 206
+          //   206 this row border-2(-4) + px-3×2(-24) -> 178px content
+          // Each CompactNumberField (label ~30px + gap 8 + w-16 input 64px +
+          // gap 8 + optional unit ~16px) tops out around 126px -- comfortably
+          // under 178px stacked one per line. Side-by-side would need
+          // ~126 + 12(gap) + ~96 =~ 234px, which does NOT fit -- that's why
+          // weight and reps are stacked instead of in a row.
           if (setNumber === currentSetNumber && !allSetsDone) {
             return (
               <div
                 key={setNumber}
-                className="flex flex-col gap-3 rounded border border-accent-persimmon bg-dark-card px-3 py-3"
+                className="flex min-w-0 flex-col gap-3 rounded border-2 border-accent-persimmon bg-dark-card px-3 py-3"
               >
-                <span className="text-sm font-medium text-text-primary">Подход {setNumber}</span>
-                <div className="flex gap-3">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-sm font-medium text-text-primary">
+                    Подход {setNumber}
+                  </span>
+                  <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-accent-persimmon">
+                    Сейчас
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-2">
                   {exercise.tracks_weight && (
-                    <div className="flex-1">
-                      <TextField
-                        label="Вес, кг"
-                        numeric
-                        type="number"
-                        inputMode="decimal"
+                    <div className="flex flex-col gap-1">
+                      <CompactNumberField
+                        label="Вес"
+                        unit="кг"
                         value={weightInput}
                         disabled={isLoadingSuggestion || isSaving}
-                        onChange={(event) => setWeightInput(event.target.value)}
+                        onChange={setWeightInput}
                       />
-                      <span className="mt-1 block text-xs text-text-secondary">
+                      <span className="text-xs text-text-secondary">
                         {isLoadingSuggestion
                           ? 'Загрузка предложения...'
                           : suggestedWeightKg !== null
@@ -905,19 +960,15 @@ function SetLogger({
                       </span>
                     </div>
                   )}
-                  <div className="flex-1">
-                    <TextField
-                      label="Повторы"
-                      numeric
-                      type="number"
-                      inputMode="numeric"
-                      placeholder={exercise.target_reps !== null ? String(exercise.target_reps) : undefined}
-                      value={repsInput}
-                      disabled={isSaving}
-                      onChange={(event) => setRepsInput(event.target.value)}
-                    />
-                  </div>
+                  <CompactNumberField
+                    label="Повторы"
+                    value={repsInput}
+                    placeholder={exercise.target_reps !== null ? String(exercise.target_reps) : undefined}
+                    disabled={isSaving}
+                    onChange={setRepsInput}
+                  />
                 </div>
+
                 <FormError message={saveError} />
                 <Button onClick={handleSaveSet} isLoading={isSaving} className="self-start">
                   Готово
@@ -929,9 +980,9 @@ function SetLogger({
           return (
             <div
               key={setNumber}
-              className="flex items-center justify-between rounded border border-white/5 px-3 py-2 text-sm text-text-secondary/50"
+              className="flex min-w-0 items-center rounded border border-white/5 px-3 py-2 text-sm text-text-secondary/50"
             >
-              <span>Подход {setNumber}</span>
+              <span className="min-w-0 truncate">Подход {setNumber}</span>
             </div>
           )
         })}
