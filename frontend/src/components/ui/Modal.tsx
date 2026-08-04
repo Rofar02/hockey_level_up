@@ -8,8 +8,14 @@ interface ModalProps {
 
 // Backdrop click and the close button both call onClose; stopPropagation on
 // the card itself keeps a click inside the modal from bubbling up to the
-// backdrop and closing it. max-h + overflow-y-auto on the card means long
-// content scrolls within the card, not the page behind it.
+// backdrop and closing it.
+//
+// The card is a column with a sticky title bar and a separately scrolling
+// body -- long content (e.g. TrainingSessionPage's per-set logger) scrolls
+// under a close button that's always reachable, instead of the whole card
+// (title included) scrolling as one block. `dvh` (not `vh`) for the max
+// height so it tracks the *actual* visible viewport on mobile as the
+// address bar/keyboard show or hide, rather than the largest-ever one.
 export function Modal({ title, onClose, children }: ModalProps) {
   return (
     <div
@@ -17,10 +23,10 @@ export function Modal({ title, onClose, children }: ModalProps) {
       onClick={onClose}
     >
       <div
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-md border border-white/10 bg-dark-card p-6"
+        className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-md border border-white/10 bg-dark-card"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between gap-4">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/5 px-6 py-4">
           <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
           <button
             type="button"
@@ -31,7 +37,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
             <i className="ti ti-x text-xl" aria-hidden="true" />
           </button>
         </div>
-        {children}
+        <div className="overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   )

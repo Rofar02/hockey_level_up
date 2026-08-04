@@ -638,15 +638,23 @@ function ExerciseDetailModal({
   onClose: () => void
 }) {
   const targetVolume = formatTargetVolume(exercise)
+  // The set-by-set logger already shows/asks for reps per set (via the reps
+  // field's placeholder, see SetLogger) -- repeating the same "3 × 8" as a
+  // separate summary line above it is pure redundancy, so it's only shown
+  // when there's no logger to carry that context instead.
+  const showVolumeSummary = targetVolume !== null && exercise.target_sets === null
+  const hasRealVideo =
+    (exercise.video_source_type === 'youtube' || exercise.video_source_type === 'vk') &&
+    exercise.video_source_id !== null
 
   return (
     <Modal title={exercise.name} onClose={onClose}>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         {exercise.description !== null && (
           <p className="text-sm text-text-secondary">{exercise.description}</p>
         )}
 
-        {targetVolume !== null && (
+        {showVolumeSummary && (
           <div className="flex items-center justify-between text-sm">
             <span className="text-text-secondary">Объём</span>
             <span className="font-mono text-text-primary">{targetVolume}</span>
@@ -661,7 +669,9 @@ function ExerciseDetailModal({
           />
         )}
 
-        {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null ? (
+        {/* No "video coming soon" placeholder -- an empty promise of future
+            content is just clutter in an already content-heavy modal. */}
+        {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null && (
           <div className="aspect-video overflow-hidden rounded-md">
             <iframe
               src={`https://www.youtube.com/embed/${exercise.video_source_id}`}
@@ -671,9 +681,11 @@ function ExerciseDetailModal({
               allowFullScreen
             />
           </div>
-        ) : exercise.video_source_type === 'vk' ? (
+        )}
+        {exercise.video_source_type === 'vk' && exercise.video_source_id !== null && (
           <p className="text-sm text-text-secondary">Embed для VK будет добавлен отдельно</p>
-        ) : (
+        )}
+        {!hasRealVideo && exercise.target_sets === null && (
           <p className="text-sm text-text-secondary">Видео скоро появится</p>
         )}
       </div>
@@ -899,6 +911,7 @@ function SetLogger({
                       numeric
                       type="number"
                       inputMode="numeric"
+                      placeholder={exercise.target_reps !== null ? String(exercise.target_reps) : undefined}
                       value={repsInput}
                       disabled={isSaving}
                       onChange={(event) => setRepsInput(event.target.value)}
