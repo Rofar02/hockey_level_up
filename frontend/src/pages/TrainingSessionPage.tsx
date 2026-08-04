@@ -664,83 +664,76 @@ function ExerciseDetailModal({
   const [activeTab, setActiveTab] = useState<ExerciseModalTab>('sets')
 
   const targetVolume = formatTargetVolume(exercise)
-  // The set-by-set logger already shows/asks for reps per set (via the reps
-  // field's placeholder, see SetLogger) -- repeating the same "3 × 8" as a
-  // separate summary line above it is pure redundancy, so it's only shown
-  // when there's no logger to carry that context instead.
-  const showVolumeSummary = targetVolume !== null && exercise.target_sets === null
   const hasRealVideo =
     (exercise.video_source_type === 'youtube' || exercise.video_source_type === 'vk') &&
     exercise.video_source_id !== null
   const hasSets = exercise.target_sets !== null
   // description !== null alone doesn't guard against an empty string ("" is
-  // not null) -- trim() so a blank/whitespace-only description can't open a
-  // "Техника" tab with nothing in it.
+  // not null) -- trim() so a blank/whitespace-only description doesn't
+  // count as real content.
   const hasDescription = exercise.description !== null && exercise.description.trim() !== ''
   const hasTechnique = hasRealVideo || hasDescription
-  // Tabs only make sense when there's genuinely something to switch between
-  // -- an exercise with only sets (no video/description) or only
-  // video/description (no target_sets) just shows that one thing directly,
-  // no tab bar, per "без пустого таба".
-  const showTabs = hasSets && hasTechnique
 
+  // Both tabs always show, on every exercise -- this is the app's standard
+  // exercise-modal shape now, not conditional on which exercises happen to
+  // have content filled in yet. Each tab falls back to an honest "not set
+  // up yet" line instead of hiding itself when its exercise is missing
+  // data (e.g. target_sets or description) -- catalog content gets filled
+  // in separately (exercise admin edit), not invented here.
   return (
     <Modal title={exercise.name} onClose={onClose}>
       <div className="flex flex-col gap-3">
-        {showTabs && (
-          <div className="-mx-6 -mt-6 flex border-b border-white/5 bg-dark-card">
-            <TabButton active={activeTab === 'sets'} onClick={() => setActiveTab('sets')}>
-              Подходы
-            </TabButton>
-            <TabButton active={activeTab === 'technique'} onClick={() => setActiveTab('technique')}>
-              Техника
-            </TabButton>
-          </div>
-        )}
+        <div className="-mx-6 -mt-6 flex border-b border-white/5 bg-dark-card">
+          <TabButton active={activeTab === 'sets'} onClick={() => setActiveTab('sets')}>
+            Подходы
+          </TabButton>
+          <TabButton active={activeTab === 'technique'} onClick={() => setActiveTab('technique')}>
+            Техника
+          </TabButton>
+        </div>
 
-        {showVolumeSummary && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-text-secondary">Объём</span>
-            <span className="font-mono text-text-primary">{targetVolume}</span>
-          </div>
-        )}
+        {activeTab === 'sets' &&
+          (hasSets ? (
+            <SetLogger
+              exercise={exercise}
+              trainingSessionId={trainingSessionId}
+              accessToken={accessToken}
+            />
+          ) : targetVolume !== null ? (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-secondary">Объём</span>
+              <span className="font-mono text-text-primary">{targetVolume}</span>
+            </div>
+          ) : (
+            <p className="text-sm text-text-secondary">
+              Количество подходов для этого упражнения ещё не задано.
+            </p>
+          ))}
 
-        {hasSets && (!showTabs || activeTab === 'sets') && (
-          <SetLogger
-            exercise={exercise}
-            trainingSessionId={trainingSessionId}
-            accessToken={accessToken}
-          />
-        )}
-
-        {hasTechnique && (!showTabs || activeTab === 'technique') && (
-          <div className="flex flex-col gap-3">
-            {hasDescription && (
-              <p className="text-sm text-text-secondary">{exercise.description}</p>
-            )}
-            {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null && (
-              <div className="aspect-video overflow-hidden rounded-md">
-                <iframe
-                  src={`https://www.youtube.com/embed/${exercise.video_source_id}`}
-                  title={exercise.name}
-                  className="h-full w-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-            )}
-            {exercise.video_source_type === 'vk' && exercise.video_source_id !== null && (
-              <p className="text-sm text-text-secondary">Embed для VK будет добавлен отдельно</p>
-            )}
-          </div>
-        )}
-
-        {/* No "video coming soon" placeholder when there's nothing else on
-            this exercise either -- an empty promise of future content is
-            just clutter. Unchanged from before this tab split. */}
-        {!hasSets && !hasTechnique && (
-          <p className="text-sm text-text-secondary">Видео скоро появится</p>
-        )}
+        {activeTab === 'technique' &&
+          (hasTechnique ? (
+            <div className="flex flex-col gap-3">
+              {hasDescription && (
+                <p className="text-sm text-text-secondary">{exercise.description}</p>
+              )}
+              {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null && (
+                <div className="aspect-video overflow-hidden rounded-md">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${exercise.video_source_id}`}
+                    title={exercise.name}
+                    className="h-full w-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              )}
+              {exercise.video_source_type === 'vk' && exercise.video_source_id !== null && (
+                <p className="text-sm text-text-secondary">Embed для VK будет добавлен отдельно</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-text-secondary">Описание техники пока не добавлено.</p>
+          ))}
       </div>
     </Modal>
   )
