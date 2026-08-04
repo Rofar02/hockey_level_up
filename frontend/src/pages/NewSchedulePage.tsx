@@ -8,8 +8,15 @@ import { Modal } from '../components/ui/Modal'
 import * as scheduleApi from '../api/schedule'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import type { ExerciseRead } from '../types/exercise'
 import { DAY_SESSION_TYPE_LABELS, TRAINING_PHASES } from '../types/schedule'
-import type { DaySessionType, TrainingPhase, TrainingSessionRead, WeeklyPlanRead } from '../types/schedule'
+import type {
+  DaySessionType,
+  SessionBlockRead,
+  TrainingPhase,
+  TrainingSessionRead,
+  WeeklyPlanRead,
+} from '../types/schedule'
 import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
@@ -34,6 +41,19 @@ function formatPhaseCounts(trainingSession: TrainingSessionRead): string {
     counts[block.phase] += 1
   }
   return TRAINING_PHASES.map((phase) => `${PHASE_LABELS[phase]}: ${counts[phase]}`).join(' · ')
+}
+
+// Same volume formatting as TrainingSessionPage's own (unexported, page-
+// local there too) formatTargetVolume -- duplicated rather than imported
+// for the same reason PHASE_LABELS is.
+function formatTargetVolume(exercise: ExerciseRead): string | null {
+  if (exercise.target_sets !== null && exercise.target_reps !== null) {
+    return `${exercise.target_sets} × ${exercise.target_reps}`
+  }
+  if (exercise.target_duration_seconds !== null) {
+    return `${exercise.target_duration_seconds} сек`
+  }
+  return null
 }
 
 const monday = getMondayOfCurrentWeek()
@@ -93,6 +113,11 @@ export function NewSchedulePage() {
   // generated plan -- rendering the confirm modal and holding the exact
   // rows to submit if the user confirms. null the rest of the time.
   const [pendingRegeneration, setPendingRegeneration] = useState<DayRow[] | null>(null)
+  // Read-only day-plan preview modal -- stores the isoDate (not an index)
+  // so it stays correct even if `rows` gets replaced (e.g. after a PATCH
+  // response), matching how ProfilePage tracks selectedSkillId by id
+  // rather than by array position.
+  const [previewIsoDate, setPreviewIsoDate] = useState<string | null>(null)
 
   useEffect(() => {
     if (accessToken === null) {
@@ -212,6 +237,9 @@ export function NewSchedulePage() {
     )
   }
 
+  const previewIndex = previewIsoDate !== null ? rows.findIndex((row) => row.isoDate === previewIsoDate) : -1
+  const previewRow = previewIndex !== -1 ? rows[previewIndex] : null
+
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
@@ -228,47 +256,72 @@ export function NewSchedulePage() {
       {loadError === null && (
         <>
           <div className="flex flex-col gap-3">
-            {rows.map((row, index) => (
-              <div
-                key={row.isoDate}
-                className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
-                    <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
+            {rows.map((row, index) => {
+              const isPreviewable = row.trainingSession !== null
+              return (
+                <div
+                  key={row.isoDate}
+                  role={isPreviewable ? 'button' : undefined}
+                  tabIndex={isPreviewable ? 0 : undefined}
+                  onClick={isPreviewable ? () => setPreviewIsoDate(row.isoDate) : undefined}
+                  onKeyDown={
+                    isPreviewable
+                      ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setPreviewIsoDate(row.isoDate)
+                          }
+                        }
+                      : undefined
+                  }
+                  className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
+                    isPreviewable ? 'cursor-pointer transition-colors hover:border-white/20' : ''
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
+                      <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
+                    </div>
+                    {row.locked ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-[#8A94A6]">
+                          {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+                        </span>
+                        <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
+                          уже начат
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        {SESSION_TYPE_OPTIONS.map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            // stopPropagation keeps picking a type from also
+                            // opening the read-only preview modal -- same
+                            // pattern as TrainingSessionPage's ExerciseRow
+                            // Checkbox inside its own clickable row.
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setDayType(index, option)
+                            }}
+                            className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
+                              row.sessionType === option
+                                ? 'border-accent-ice bg-accent-ice/10 text-accent-ice'
+                                : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
+                            }`}
+                          >
+                            {DAY_SESSION_TYPE_LABELS[option]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {row.locked ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-[#8A94A6]">
-                        {DAY_SESSION_TYPE_LABELS[row.sessionType]}
-                      </span>
-                      <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
-                        уже начат
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      {SESSION_TYPE_OPTIONS.map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setDayType(index, option)}
-                          className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
-                            row.sessionType === option
-                              ? 'border-accent-ice bg-accent-ice/10 text-accent-ice'
-                              : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
-                          }`}
-                        >
-                          {DAY_SESSION_TYPE_LABELS[option]}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <DaySummary row={row} />
                 </div>
-                <DaySummary row={row} />
-              </div>
-            ))}
+              )
+            })}
           </div>
           <FormError message={submitError} />
           <Button
@@ -306,6 +359,16 @@ export function NewSchedulePage() {
           </div>
         </Modal>
       )}
+
+      {previewRow !== null && previewRow.trainingSession !== null && (
+        <DayPreviewModal
+          weekdayLabel={WEEKDAY_LABELS[previewIndex]}
+          date={previewRow.date}
+          sessionType={previewRow.sessionType}
+          trainingSession={previewRow.trainingSession}
+          onClose={() => setPreviewIsoDate(null)}
+        />
+      )}
       </div>
     </div>
   )
@@ -333,5 +396,61 @@ function DaySummary({ row }: { row: DayRow }) {
 
   return (
     <p className="text-xs text-[#8A94A6] opacity-55">{formatPhaseCounts(row.trainingSession)}</p>
+  )
+}
+
+// Read-only preview of what's actually generated for a day -- no checkbox,
+// no "Начать", no SetLogger, nothing that mutates SessionBlock state. Fully
+// independent of TrainingSessionPage/SetLogger; only reads data this page
+// already has from GET /schedule/weekly/current.
+function DayPreviewModal({
+  weekdayLabel,
+  date,
+  sessionType,
+  trainingSession,
+  onClose,
+}: {
+  weekdayLabel: string
+  date: Date
+  sessionType: DaySessionType
+  trainingSession: TrainingSessionRead
+  onClose: () => void
+}) {
+  const warmup = trainingSession.blocks.filter((block) => block.phase === 'warmup')
+  const main = trainingSession.blocks.filter((block) => block.phase === 'main')
+  const cooldown = trainingSession.blocks.filter((block) => block.phase === 'cooldown')
+
+  return (
+    <Modal
+      title={`${weekdayLabel}, ${formatShortDate(date)} — ${DAY_SESSION_TYPE_LABELS[sessionType]}`}
+      onClose={onClose}
+    >
+      <div className="flex flex-col gap-4">
+        {warmup.length > 0 && <DayPreviewPhaseSection title={PHASE_LABELS.warmup} blocks={warmup} />}
+        {main.length > 0 && <DayPreviewPhaseSection title={PHASE_LABELS.main} blocks={main} />}
+        {cooldown.length > 0 && <DayPreviewPhaseSection title={PHASE_LABELS.cooldown} blocks={cooldown} />}
+      </div>
+    </Modal>
+  )
+}
+
+function DayPreviewPhaseSection({ title, blocks }: { title: string; blocks: SessionBlockRead[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{title}</p>
+      <div className="flex flex-col gap-1.5">
+        {blocks.map((block) => {
+          const volume = formatTargetVolume(block.exercise)
+          return (
+            <div key={block.id} className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0 truncate text-[#F5F7FA]">{block.exercise.name}</span>
+              {volume !== null && (
+                <span className="shrink-0 whitespace-nowrap font-mono text-xs text-[#8A94A6]">{volume}</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
