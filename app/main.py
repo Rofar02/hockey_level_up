@@ -19,6 +19,7 @@ from app.routers import (
     reference_articles,
     schedule,
     session_blocks,
+    set_completions,
     skills,
     training_block,
     users,
@@ -59,6 +60,7 @@ app.include_router(exercises.router)
 app.include_router(users.router)
 app.include_router(schedule.router)
 app.include_router(session_blocks.router)
+app.include_router(set_completions.router)
 app.include_router(assessment.router)
 app.include_router(skills.router)
 app.include_router(training_block.router)

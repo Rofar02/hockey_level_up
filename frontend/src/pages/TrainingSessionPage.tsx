@@ -6,17 +6,23 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
+import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
+import { TextField } from '../components/ui/TextField'
 import * as authApi from '../api/auth'
+import * as exercisesApi from '../api/exercises'
 import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
+import * as setCompletionsApi from '../api/setCompletions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { TrainingStreakRead } from '../types/progress'
 import type { SessionBlockRead, TrainingPhase } from '../types/schedule'
+import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletion'
+import type { SetCompletionRead, SetFeedback } from '../types/setCompletion'
 import { toIsoDate } from '../utils/date'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -72,6 +78,7 @@ export function TrainingSessionPage() {
   const { accessToken } = useAuth()
 
   const [blocks, setBlocks] = useState<SessionBlockRead[] | null>(null)
+  const [trainingSessionId, setTrainingSessionId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
@@ -106,6 +113,7 @@ export function TrainingSessionPage() {
           return
         }
         setBlocks(day.training_session.blocks)
+        setTrainingSessionId(day.training_session.id)
       })
       .catch(() => {
         if (!cancelled) {
@@ -198,18 +206,24 @@ export function TrainingSessionPage() {
 
   if (loadError !== null) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
-        <BackLink />
-        <FormError message={loadError} />
+      <div className="relative min-h-svh overflow-hidden">
+        <IceGlowBackground />
+        <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
+          <BackLink />
+          <FormError message={loadError} />
+        </div>
       </div>
     )
   }
 
   if (blocks === null) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
-        <BackLink />
-        <p className="text-sm text-text-secondary">Загрузка...</p>
+      <div className="relative min-h-svh overflow-hidden">
+        <IceGlowBackground />
+        <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
+          <BackLink />
+          <p className="text-sm text-text-secondary">Загрузка...</p>
+        </div>
       </div>
     )
   }
@@ -219,7 +233,9 @@ export function TrainingSessionPage() {
   const cooldown = blocks.filter((block) => block.phase === 'cooldown')
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
+    <div className="relative min-h-svh overflow-hidden">
+      <IceGlowBackground />
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
       <div className="flex flex-col gap-2">
         <BackLink />
         <h1 className="text-xl font-semibold">Тренировка дня</h1>
@@ -284,8 +300,13 @@ export function TrainingSessionPage() {
         </CollapsibleSection>
       )}
 
-      {selectedExercise !== null && (
-        <ExerciseDetailModal exercise={selectedExercise} onClose={() => setSelectedExercise(null)} />
+      {selectedExercise !== null && trainingSessionId !== null && accessToken !== null && (
+        <ExerciseDetailModal
+          exercise={selectedExercise}
+          trainingSessionId={trainingSessionId}
+          accessToken={accessToken}
+          onClose={() => setSelectedExercise(null)}
+        />
       )}
 
       {sessionComplete !== null && accessToken !== null && (
@@ -296,6 +317,7 @@ export function TrainingSessionPage() {
           accessToken={accessToken}
         />
       )}
+      </div>
     </div>
   )
 }
@@ -381,7 +403,17 @@ function ExerciseRow({
   )
 }
 
-function ExerciseDetailModal({ exercise, onClose }: { exercise: ExerciseRead; onClose: () => void }) {
+function ExerciseDetailModal({
+  exercise,
+  trainingSessionId,
+  accessToken,
+  onClose,
+}: {
+  exercise: ExerciseRead
+  trainingSessionId: string
+  accessToken: string
+  onClose: () => void
+}) {
   const targetVolume = formatTargetVolume(exercise)
 
   return (
@@ -396,6 +428,14 @@ function ExerciseDetailModal({ exercise, onClose }: { exercise: ExerciseRead; on
             <span className="text-text-secondary">Объём</span>
             <span className="font-mono text-text-primary">{targetVolume}</span>
           </div>
+        )}
+
+        {exercise.target_sets !== null && (
+          <SetLogger
+            exercise={exercise}
+            trainingSessionId={trainingSessionId}
+            accessToken={accessToken}
+          />
         )}
 
         {exercise.video_source_type === 'youtube' && exercise.video_source_id !== null ? (
@@ -415,6 +455,238 @@ function ExerciseDetailModal({ exercise, onClose }: { exercise: ExerciseRead; on
         )}
       </div>
     </Modal>
+  )
+}
+
+// Per-set logging layered on top of the exercise-level Checkbox in
+// ExerciseRow: SessionBlock.completed_at (and the block_completed event that
+// drives stat/XP gain) are untouched by any of this, this is purely the
+// additional SetCompletion granularity.
+//
+// State is local to this component and does not survive the modal closing
+// and reopening -- there is no GET endpoint yet to list a session's already-
+// logged sets, only POST /set-completions and /set-completions/feedback, so
+// there's nothing to rehydrate from on remount. Sets are still saved
+// server-side each time, this only affects what the UI shows after a
+// close/reopen.
+function SetLogger({
+  exercise,
+  trainingSessionId,
+  accessToken,
+}: {
+  exercise: ExerciseRead
+  trainingSessionId: string
+  accessToken: string
+}) {
+  const targetSets = exercise.target_sets
+  const [suggestedWeightKg, setSuggestedWeightKg] = useState<number | null>(null)
+  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(exercise.tracks_weight)
+  const [completedSets, setCompletedSets] = useState<Record<number, SetCompletionRead>>({})
+  const [weightInput, setWeightInput] = useState('')
+  const [repsInput, setRepsInput] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<SetFeedback | null>(null)
+  const [isSavingFeedback, setIsSavingFeedback] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!exercise.tracks_weight) {
+      return
+    }
+    let cancelled = false
+    exercisesApi
+      .getSuggestedWeight(exercise.id, accessToken)
+      .then((result) => {
+        if (cancelled) {
+          return
+        }
+        setSuggestedWeightKg(result.suggested_weight_kg)
+        if (result.suggested_weight_kg !== null) {
+          setWeightInput(String(result.suggested_weight_kg))
+        }
+      })
+      .catch(() => {
+        // Best-effort -- the weight input just starts empty if this fails,
+        // the user can still type a value in manually.
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingSuggestion(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exercise.id, exercise.tracks_weight, accessToken])
+
+  if (targetSets === null) {
+    return null
+  }
+
+  const currentSetNumber = Object.keys(completedSets).length + 1
+  const allSetsDone = currentSetNumber > targetSets
+
+  async function handleSaveSet() {
+    const reps = repsInput.trim() === '' ? null : Number(repsInput)
+    const weight = exercise.tracks_weight ? (weightInput.trim() === '' ? null : Number(weightInput)) : null
+
+    setSaveError(null)
+    setIsSaving(true)
+    try {
+      const result = await setCompletionsApi.saveSet(
+        {
+          exercise_id: exercise.id,
+          training_session_id: trainingSessionId,
+          set_number: currentSetNumber,
+          weight_kg: weight,
+          reps_completed: reps,
+        },
+        accessToken,
+      )
+      setCompletedSets((previous) => ({ ...previous, [currentSetNumber]: result }))
+      setWeightInput(result.suggested_weight_kg !== null ? String(result.suggested_weight_kg) : '')
+      setRepsInput('')
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 400) {
+        // The specific case the backend's >3x sanity check guards against --
+        // a typo like 500 instead of 50 -- gets this friendlier copy instead
+        // of the raw server message.
+        setSaveError('Проверьте вес — сильно отличается от обычного.')
+      } else {
+        setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить подход.')
+      }
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleSaveFeedback(value: SetFeedback) {
+    setFeedbackError(null)
+    setIsSavingFeedback(true)
+    try {
+      await setCompletionsApi.saveFeedback(
+        { exercise_id: exercise.id, training_session_id: trainingSessionId, feedback: value },
+        accessToken,
+      )
+      setFeedback(value)
+    } catch (err) {
+      setFeedbackError(err instanceof ApiError ? err.message : 'Не удалось сохранить оценку.')
+    } finally {
+      setIsSavingFeedback(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-bg/40 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">Подходы</p>
+
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: targetSets }, (_, index) => index + 1).map((setNumber) => {
+          const completed = completedSets[setNumber]
+
+          if (completed !== undefined) {
+            return (
+              <div
+                key={setNumber}
+                className="flex items-center justify-between rounded border border-white/5 bg-dark-card px-3 py-2 text-sm"
+              >
+                <span className="text-text-secondary">Подход {setNumber}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-text-primary">
+                    {exercise.tracks_weight && completed.weight_kg !== null
+                      ? `${completed.weight_kg}×${completed.reps_completed ?? '—'}`
+                      : (completed.reps_completed ?? '—')}
+                  </span>
+                  <i className="ti ti-check text-accent-ice" aria-hidden="true" />
+                </div>
+              </div>
+            )
+          }
+
+          if (setNumber === currentSetNumber && !allSetsDone) {
+            return (
+              <div
+                key={setNumber}
+                className="flex flex-col gap-3 rounded border border-accent-persimmon bg-dark-card px-3 py-3"
+              >
+                <span className="text-sm font-medium text-text-primary">Подход {setNumber}</span>
+                <div className="flex gap-3">
+                  {exercise.tracks_weight && (
+                    <div className="flex-1">
+                      <TextField
+                        label="Вес, кг"
+                        numeric
+                        type="number"
+                        inputMode="decimal"
+                        value={weightInput}
+                        disabled={isLoadingSuggestion || isSaving}
+                        onChange={(event) => setWeightInput(event.target.value)}
+                      />
+                      <span className="mt-1 block text-xs text-text-secondary">
+                        {isLoadingSuggestion
+                          ? 'Загрузка предложения...'
+                          : suggestedWeightKg !== null
+                            ? `Предложено системой: ${suggestedWeightKg} кг`
+                            : 'Нет предложения — введите вес вручную'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <TextField
+                      label="Повторы"
+                      numeric
+                      type="number"
+                      inputMode="numeric"
+                      value={repsInput}
+                      disabled={isSaving}
+                      onChange={(event) => setRepsInput(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <FormError message={saveError} />
+                <Button onClick={handleSaveSet} isLoading={isSaving} className="self-start">
+                  Готово
+                </Button>
+              </div>
+            )
+          }
+
+          return (
+            <div
+              key={setNumber}
+              className="flex items-center justify-between rounded border border-white/5 px-3 py-2 text-sm text-text-secondary/50"
+            >
+              <span>Подход {setNumber}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {allSetsDone && (
+        <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">Как ощущения?</p>
+          <div className="flex flex-wrap gap-2">
+            {SET_FEEDBACK_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                disabled={isSavingFeedback}
+                onClick={() => handleSaveFeedback(option)}
+                className={`rounded border px-3 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  feedback === option
+                    ? 'border-accent-persimmon bg-accent-persimmon/10 text-accent-persimmon'
+                    : 'border-white/10 text-text-secondary hover:border-white/30'
+                }`}
+              >
+                {SET_FEEDBACK_LABELS[option]}
+              </button>
+            ))}
+          </div>
+          <FormError message={feedbackError} />
+        </div>
+      )}
+    </div>
   )
 }
 

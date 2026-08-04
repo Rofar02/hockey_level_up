@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.exercise import EquipmentType, ExerciseCategory, TargetStat, TrainingPhase
 from app.models.user import User
-from app.routers.deps import require_admin
-from app.schemas.exercise import ExerciseCreate, ExerciseRead, ExerciseUpdate
+from app.routers.deps import get_current_user, require_admin
+from app.schemas.exercise import ExerciseCreate, ExerciseRead, ExerciseUpdate, SuggestedWeightRead
 from app.services.exercise_service import ExerciseService
+from app.services.weight_suggestion_service import WeightSuggestionService
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
 
@@ -35,6 +36,17 @@ async def get_exercise(
     exercise_id: uuid.UUID, session: Annotated[AsyncSession, Depends(get_db)]
 ):
     return await ExerciseService(session).get_exercise(exercise_id)
+
+
+@router.get("/{exercise_id}/suggested-weight", response_model=SuggestedWeightRead)
+async def get_suggested_weight(
+    exercise_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    exercise = await ExerciseService(session).get_exercise(exercise_id)
+    suggested = await WeightSuggestionService(session).suggest_weight(current_user, exercise)
+    return SuggestedWeightRead(suggested_weight_kg=suggested)
 
 
 @router.post("", response_model=ExerciseRead, status_code=status.HTTP_201_CREATED)

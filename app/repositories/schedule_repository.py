@@ -14,6 +14,11 @@ _SESSION_BLOCK_OWNERSHIP_OPTIONS = (
     .selectinload(DayPlan.weekly_plan),
 )
 
+_TRAINING_SESSION_OWNERSHIP_OPTIONS = (
+    selectinload(TrainingSession.day_plan).selectinload(DayPlan.weekly_plan),
+    selectinload(TrainingSession.blocks),
+)
+
 _EAGER_LOAD_OPTIONS = (
     selectinload(WeeklyPlan.day_plans)
     .selectinload(DayPlan.training_session)
@@ -61,6 +66,17 @@ class ScheduleRepository:
             select(SessionBlock)
             .where(SessionBlock.id == block_id)
             .options(*_SESSION_BLOCK_OWNERSHIP_OPTIONS)
+        )
+        result = await self._session.execute(query)
+        return result.unique().scalar_one_or_none()
+
+    async def get_training_session_with_owner(
+        self, training_session_id: uuid.UUID
+    ) -> TrainingSession | None:
+        query = (
+            select(TrainingSession)
+            .where(TrainingSession.id == training_session_id)
+            .options(*_TRAINING_SESSION_OWNERSHIP_OPTIONS)
         )
         result = await self._session.execute(query)
         return result.unique().scalar_one_or_none()

@@ -10,6 +10,7 @@ from app.models.schedule import (
     TrainingSession,
     WeeklyPlan,
 )
+from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag, UserSkillPreference
 from app.models.user import User
 
@@ -20,6 +21,8 @@ __all__ = [
     "OutboxEvent",
     "ReferenceArticle",
     "SessionBlock",
+    "SetCompletion",
+    "SetFeedback",
     "Skill",
     "SkillMilestone",
     "SkillStatWeight",

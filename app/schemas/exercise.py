@@ -21,6 +21,8 @@ class ExerciseRead(BaseModel):
     target_sets: int | None
     target_reps: int | None
     target_duration_seconds: int | None
+    tracks_weight: bool
+    bodyweight_ratio: float | None
 
 
 class ExerciseCreate(BaseModel):
@@ -36,6 +38,8 @@ class ExerciseCreate(BaseModel):
     target_sets: int | None = None
     target_reps: int | None = None
     target_duration_seconds: int | None = None
+    tracks_weight: bool = False
+    bodyweight_ratio: float | None = Field(default=None, gt=0)
 
 
 class ExerciseUpdate(BaseModel):
@@ -51,3 +55,12 @@ class ExerciseUpdate(BaseModel):
     target_sets: int | None = None
     target_reps: int | None = None
     target_duration_seconds: int | None = None
+    tracks_weight: bool | None = None
+    bodyweight_ratio: float | None = Field(default=None, gt=0)
+
+
+class SuggestedWeightRead(BaseModel):
+    # None whenever a suggestion can't be computed: the exercise doesn't
+    # track weight, the user hasn't set a body weight, or bodyweight_ratio
+    # isn't configured for this exercise yet -- see WeightSuggestionService.
+    suggested_weight_kg: float | None

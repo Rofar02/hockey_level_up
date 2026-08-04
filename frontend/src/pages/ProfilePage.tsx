@@ -6,29 +6,17 @@ import { FormError } from '../components/ui/FormError'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { ShieldBadge } from '../components/ui/ShieldBadge'
+import { SkillDetailModal } from '../components/SkillDetailModal'
 import * as progressApi from '../api/progress'
 import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import { TARGET_STATS, TARGET_STAT_LABELS } from '../types/exercise'
+import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { TargetStat } from '../types/exercise'
 import type { UserStatRead } from '../types/progress'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { POSITION_LABELS } from '../types/user'
-
-// Static, curated copy -- not content that grows or changes per-user, so no
-// need to route it through the backend.
-const STAT_DESCRIPTIONS: Record<TargetStat, string> = {
-  strength:
-    'Базовая мышечная мощность корпуса и ног. Даёт основу для взрывных движений — старт, бросок — и устойчивость в силовых единоборствах.',
-  agility:
-    'Скорость реакции, координация и контроль тела в движении. Определяет качество катания, смены направления и работы с шайбой.',
-  intellect:
-    'Понимание игры: чтение ситуаций, принятие решений, позиционирование. Растёт медленнее физических характеристик и во многом опирается на игровой опыт.',
-  endurance:
-    'Способность поддерживать интенсивность на протяжении всей игры без потери скорости и силы действий.',
-}
 
 const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
   strength: 'СИЛ',
@@ -351,73 +339,6 @@ export function ProfilePage() {
   )
 }
 
-function SkillDetailModal({
-  skillName,
-  detail,
-  isLoading,
-  error,
-  onClose,
-}: {
-  skillName: string
-  detail: SkillDetailRead | undefined
-  isLoading: boolean
-  error: string | null
-  onClose: () => void
-}) {
-  return (
-    <Modal title={skillName} onClose={onClose}>
-      {isLoading && <p className="text-sm text-text-secondary">Загрузка...</p>}
-      <FormError message={error} />
-
-      {detail !== undefined && (
-        <div className="flex flex-col gap-4">
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
-              Вклад характеристик
-            </p>
-            <div className="flex flex-col gap-1.5">
-              {detail.stat_breakdown.map((item) => (
-                <div key={item.stat_type} className="flex items-center justify-between text-sm">
-                  <span>{TARGET_STAT_LABELS[item.stat_type]}</span>
-                  <span className="font-mono text-text-secondary">+{item.contribution.toFixed(1)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
-              Пороги
-            </p>
-            <div className="flex flex-col gap-2.5">
-              {detail.milestones.map((milestone) => (
-                <div key={milestone.id} className="flex items-start gap-2">
-                  <i
-                    className={`ti mt-0.5 ${
-                      milestone.achieved ? 'ti-lock-open text-accent-ice' : 'ti-lock text-text-secondary'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <div>
-                    <p
-                      className={`text-sm ${
-                        milestone.achieved ? 'text-text-primary' : 'text-text-secondary'
-                      }`}
-                    >
-                      {milestone.threshold} — {milestone.title}
-                    </p>
-                    <p className="text-xs text-text-secondary">{milestone.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </Modal>
-  )
-}
-
 function StatDetailModal({
   statType,
   stat,
@@ -430,7 +351,7 @@ function StatDetailModal({
   return (
     <Modal title={TARGET_STAT_LABELS[statType]} onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-text-secondary">{STAT_DESCRIPTIONS[statType]}</p>
+        <p className="text-sm text-text-secondary">{TARGET_STAT_DESCRIPTIONS[statType]}</p>
         <div>
           <p className="font-mono text-3xl font-bold leading-none text-text-primary">
             {Math.round(stat.effective_value)}

@@ -1,7 +1,7 @@
 import enum
 import uuid
 
-from sqlalchemy import CheckConstraint, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, Float, Integer, String, Text, false
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -67,3 +67,15 @@ class Exercise(Base):
     target_sets: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_reps: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Whether this exercise has a working weight at all (barbell/dumbbell/
+    # machine work) -- gates both the weight-suggestion service and whether
+    # SetCompletion rows for it are expected to carry weight_kg.
+    tracks_weight: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    # Working weight as a multiple of bodyweight (e.g. 0.5 for a goblet squat
+    # around half bodyweight) -- only meaningful, and only ever populated,
+    # when tracks_weight is true. Used by WeightSuggestionService for the
+    # first-ever suggestion before any SetCompletion history exists.
+    bodyweight_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
