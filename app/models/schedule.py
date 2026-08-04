@@ -65,6 +65,15 @@ class TrainingBlock(Base):
     )
     block_number: Mapped[int] = mapped_column(Integer, nullable=False)
     week_in_block: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Which real calendar week (WeeklyPlan.week_start_date) week_in_block
+    # currently reflects. Lets _resolve_training_block tell "another
+    # create_weekly_plan call for the same week" apart from "a real week
+    # actually elapsed" -- advancing week_in_block is driven by calendar
+    # weeks between anchor and the newly-declared week, not by call count.
+    # Nullable for rows created before this column existed; see the
+    # backfill in the migration that adds it, and the None-handling in
+    # _resolve_training_block for rows backfill couldn't populate.
+    anchor_week_start_date: Mapped[date_ | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

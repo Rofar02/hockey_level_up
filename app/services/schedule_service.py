@@ -1,3 +1,4 @@
+import logging
 import random
 from collections import defaultdict
 from datetime import date, timedelta
@@ -40,6 +41,8 @@ from app.schemas.schedule import (
     WeeklyPlanRead,
 )
 
+logger = logging.getLogger(__name__)
+
 _SESSION_TYPE_TO_CATEGORY = {
     DaySessionType.ON_ICE: ExerciseCategory.ON_ICE,
     DaySessionType.OFF_ICE: ExerciseCategory.OFF_ICE,
@@ -62,11 +65,12 @@ class ScheduleService:
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate dates in weekly plan"
             )
 
-        training_block = await self._resolve_training_block(user)
+        target_week_start_date = min(dates)
+        training_block = await self._resolve_training_block(user, target_week_start_date)
         block_phase = get_phase(training_block.week_in_block)
 
         weekly_plan = WeeklyPlan(
-            user_id=user.id, week_start_date=min(dates), training_block_id=training_block.id
+            user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
         )
         for day_in in payload.days:
             day_plan = DayPlan(date=day_in.date, session_type=day_in.session_type)
@@ -178,21 +182,85 @@ class ScheduleService:
             return False
         return any(block.completed_at is not None for block in day_plan.training_session.blocks)
 
-    async def _resolve_training_block(self, user: User) -> TrainingBlock:
-        """Advance (or start) the user's periodization block for this week's plan.
+    async def _resolve_training_block(
+        self, user: User, target_week_start_date: date
+    ) -> TrainingBlock:
+        """Resolve the user's periodization block for the week being declared,
+        advancing it only for calendar weeks that actually elapsed.
 
-        A block's `week_in_block` is mutated in place while it's < 4. Hitting
-        4 (a just-completed deload week) retires it and starts a new block
-        at block_number + 1 -- that specific transition is also what flags
-        the user for a norm-test retake (border of a mesocycle is where the
-        concept doc says a retest is "honest": not exhausted, not stale).
+        `anchor_week_start_date` is the real calendar week the block's
+        current `week_in_block` corresponds to. Advancing is driven by the
+        gap between that anchor and `target_week_start_date` -- in whole
+        weeks -- not by how many times this method gets called. Declaring
+        the same week twice (e.g. regenerating it) or declaring several
+        real weeks ahead in one call are both handled correctly; calling
+        this N times for N consecutive real weeks (the common case) still
+        advances by exactly 1 each time, same as before this method learned
+        about dates at all.
         """
         active = await self._training_blocks.get_active_for_user(user.id)
         if active is None:
             return await self._training_blocks.create(
-                TrainingBlock(user_id=user.id, block_number=1, week_in_block=1)
+                TrainingBlock(
+                    user_id=user.id,
+                    block_number=1,
+                    week_in_block=1,
+                    anchor_week_start_date=target_week_start_date,
+                )
             )
 
+        if active.anchor_week_start_date is None:
+            # Backfilled row with no WeeklyPlan on record (block existed
+            # before this column did, and was never actually used to plan a
+            # week) -- nothing to compute a gap from, so treat this call as
+            # the first real planning under it rather than guessing.
+            active.anchor_week_start_date = target_week_start_date
+            return active
+
+        if target_week_start_date == active.anchor_week_start_date:
+            # Re-declaring the already-known week (e.g. the user regenerates
+            # it) -- not a new calendar week, so nothing advances.
+            return active
+
+        if target_week_start_date < active.anchor_week_start_date:
+            # Declaring a week earlier than the block's known anchor. Not
+            # reachable through the normal UI flow (weeks are always
+            # declared forward), but a client could still send it. Known
+            # simplification: rewinding week_in_block would require knowing
+            # what it *was* at that earlier point, which this table doesn't
+            # keep -- so instead of guessing, leave the block untouched.
+            # That earlier week ends up assembled under the block's
+            # *current* phase, which may not be historically accurate, but
+            # is safe: nothing gets corrupted or double-advanced.
+            logger.warning(
+                "create_weekly_plan target_week_start_date=%s is before block %s's "
+                "anchor_week_start_date=%s -- leaving week_in_block unchanged, week will "
+                "use the block's current phase",
+                target_week_start_date,
+                active.id,
+                active.anchor_week_start_date,
+            )
+            return active
+
+        weeks_diff = (target_week_start_date - active.anchor_week_start_date).days // 7
+        for _ in range(weeks_diff):
+            active = await self._advance_one_week(user, active)
+
+        active.anchor_week_start_date = target_week_start_date
+        return active
+
+    async def _advance_one_week(self, user: User, active: TrainingBlock) -> TrainingBlock:
+        """Single step of the block-progression rule: bump week_in_block, or
+        roll over to a new block at week 4 -- unchanged from the original
+        one-call-one-step logic, just factored out so _resolve_training_block
+        can apply it exactly `weeks_diff` times instead of exactly once.
+
+        Hitting 4 (a just-completed deload week) retires the block and
+        starts a new one at block_number + 1 -- that specific transition is
+        also what flags the user for a norm-test retake (border of a
+        mesocycle is where the concept doc says a retest is "honest": not
+        exhausted, not stale).
+        """
         if active.week_in_block < 4:
             active.week_in_block += 1
             return active
