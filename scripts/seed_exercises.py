@@ -556,6 +556,81 @@ EXERCISES: list[dict] = [
         "difficulty_level": 1,
         "equipment_type": "bodyweight",
     },
+    # -- SetCompletion end-to-end test content: weight suggestion, per-set
+    # logging, feedback, and state recovery all need at least one
+    # tracks_weight main exercise plus a non-weighted warmup/cooldown pair.
+    {
+        "name": "Жим гантелей лёжа",
+        "category": "off_ice",
+        "phase": "main",
+        "target_stat": "strength",
+        "difficulty_level": 3,
+        "equipment_type": "gym",
+        "tracks_weight": True,
+        "bodyweight_ratio": 0.35,
+        "target_sets": 3,
+        "target_reps": 10,
+    },
+    {
+        "name": "Планка",
+        "category": "off_ice",
+        "phase": "warmup",
+        # target_stat=strength -- the request offered intellect/endurance as
+        # options, but the one existing plank/core exercise in this catalog
+        # ("Планка на нестабильной поверхности") uses strength, so matching
+        # that rather than either suggested option.
+        "target_stat": "strength",
+        "difficulty_level": 1,
+        "equipment_type": "bodyweight",
+        "tracks_weight": False,
+        "target_duration_seconds": 45,
+    },
+    {
+        "name": "Растяжка",
+        "category": "off_ice",
+        "phase": "cooldown",
+        # target_stat wasn't specified in the request -- every existing
+        # cooldown stretch exercise in this catalog uses agility.
+        "target_stat": "agility",
+        "difficulty_level": 1,
+        "equipment_type": "bodyweight",
+        "tracks_weight": False,
+        "target_duration_seconds": 300,
+    },
+    {
+        "name": "Румынская тяга",
+        "category": "off_ice",
+        "phase": "main",
+        "target_stat": "strength",
+        "difficulty_level": 4,
+        "equipment_type": "gym",
+        "tracks_weight": True,
+        "bodyweight_ratio": 1.0,
+        "target_sets": 3,
+        "target_reps": 10,
+    },
+]
+
+# "Приседания со штангой" was already seeded in Phase 1, before
+# tracks_weight/bodyweight_ratio/target_sets/target_reps existed on Exercise
+# -- Exercise.name is unique, so it can't be re-created under the same name
+# with the new fields the request asked for. Filled in here instead of
+# inserting a near-duplicate row. difficulty_level is deliberately left at
+# its existing seeded value (4, not the requested 3): changing it would
+# retroactively change periodization-phase exercise selection
+# (app/core/training_block.py) and any past session's display for an
+# exercise that may already be in use, which is a bigger change than
+# "add test content".
+FIELD_UPDATES: list[tuple[str, dict]] = [
+    (
+        "Приседания со штангой",
+        {
+            "tracks_weight": True,
+            "bodyweight_ratio": 0.75,
+            "target_sets": 3,
+            "target_reps": 8,
+        },
+    ),
 ]
 
 
@@ -572,8 +647,23 @@ async def seed() -> None:
             session.add(Exercise(**data))
             created += 1
 
+        updated = 0
+        for name, fields in FIELD_UPDATES:
+            exercise = (
+                await session.execute(select(Exercise).where(Exercise.name == name))
+            ).scalar_one_or_none()
+            if exercise is None:
+                continue
+            changed = any(getattr(exercise, field) != value for field, value in fields.items())
+            if not changed:
+                continue
+            for field, value in fields.items():
+                setattr(exercise, field, value)
+            updated += 1
+
         await session.commit()
         print(f"Seeded {created} new exercise(s), skipped {len(EXERCISES) - created} existing.")
+        print(f"Updated {updated} existing exercise(s) with new fields.")
 
 
 if __name__ == "__main__":

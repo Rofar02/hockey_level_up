@@ -227,6 +227,27 @@ TAGS: list[tuple[str, str, str]] = [
         "Игра в меньшинстве состава заставляет постоянно принимать решения "
         "по расстановке и открываниям — прямая тренировка игрового чтения.",
     ),
+    # -- SetCompletion end-to-end test exercises --
+    # "Приседания со штангой" already has a SkillTag from Phase 1 (-> "Взрывной
+    # старт") -- reused the existing row (see seed_exercises.py FIELD_UPDATES)
+    # so that tag is still valid, nothing to add for it here.
+    # "Планка" (warmup) and "Растяжка" (cooldown) are intentionally left
+    # untagged, per this file's own rule above: SkillTag only matters for
+    # main-phase assembly priority.
+    (
+        "Жим гантелей лёжа",
+        "Силовая борьба",
+        "Жим лёжа строит силу груди и плеч в горизонтальном упоре — тот же "
+        "вклад в верхнюю силу тела, что и жим гантелей от груди, другой "
+        "вариант того же движения.",
+    ),
+    (
+        "Румынская тяга",
+        "Взрывной старт",
+        "Тазобедренный шарнир в румынской тяге строит силу задней "
+        "поверхности бедра и ягодиц — то самое разгибание бедра, которое "
+        "даёт мощность первого шага при разгоне на коньках.",
+    ),
 ]
 
 
