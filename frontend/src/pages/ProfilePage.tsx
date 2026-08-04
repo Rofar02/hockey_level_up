@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
+import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { ShieldBadge } from '../components/ui/ShieldBadge'
@@ -24,6 +25,9 @@ const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
   intellect: 'ИНТ',
   endurance: 'ВЫН',
 }
+
+// Same icy top-border card convention as HomePage/TrainingSessionPage.
+const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
 // Skills with a still-open next milestone sort first, closest (smallest
 // points_remaining) at the very top -- "almost there" is the motivating
@@ -142,7 +146,9 @@ export function ProfilePage() {
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-2xl flex-col gap-6 px-4 py-8">
+    <div className="relative min-h-svh overflow-hidden">
+      <IceGlowBackground />
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <BackLink />
@@ -150,14 +156,14 @@ export function ProfilePage() {
             <Link
               to="/leaderboard"
               aria-label="Рейтинг"
-              className="text-text-secondary transition-colors hover:text-text-primary"
+              className="text-[#8A94A6] transition-colors hover:text-[#F5F7FA]"
             >
               <i className="ti ti-trophy text-xl" aria-hidden="true" />
             </Link>
             <Link
               to="/settings"
               aria-label="Настройки"
-              className="text-text-secondary transition-colors hover:text-text-primary"
+              className="text-[#8A94A6] transition-colors hover:text-[#F5F7FA]"
             >
               <i className="ti ti-settings text-xl" aria-hidden="true" />
             </Link>
@@ -167,11 +173,16 @@ export function ProfilePage() {
       </div>
 
       <FormError message={loadError} />
-      {isLoading && <p className="text-sm text-text-secondary">Загрузка...</p>}
+      {isLoading && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
 
       {!isLoading && stats !== null && (
         <div className="mx-auto flex w-[310px] flex-col">
-          <div className="relative overflow-hidden rounded-md border border-white/10">
+          {/* Keeps its rink-pattern.webp background image + dark overlay --
+              flagged separately as a different card-assembly pattern from
+              the rest of the app, not silently flattened to bg-dark-card
+              here. Only the border (full -> icy top-only) and text tokens
+              changed. */}
+          <div className={`relative overflow-hidden rounded-md ${CARD_BORDER}`}>
             <div className="absolute inset-0 bg-[url('/images/rink-pattern.webp')] bg-cover bg-center" />
             <div className="absolute inset-0 bg-dark-bg/[0.85]" />
 
@@ -180,7 +191,7 @@ export function ProfilePage() {
                 <div className="flex flex-col items-center gap-2">
                   <ShieldBadge value={overallRating ?? '—'} label="Рейтинг" accentColor="ice" />
                   {user?.position != null && (
-                    <span className="inline-block rounded border border-white/15 px-2 py-1 text-xs uppercase tracking-wide text-text-secondary">
+                    <span className="inline-block rounded border border-white/15 px-2 py-1 text-xs uppercase tracking-wide text-[#8A94A6]">
                       {POSITION_LABELS[user.position]}
                     </span>
                   )}
@@ -208,11 +219,11 @@ export function ProfilePage() {
                     {avatarUrl !== null ? (
                       <img src={avatarUrl} alt="Аватар" className="h-full w-full object-cover" />
                     ) : (
-                      <i className="ti ti-user text-5xl text-text-secondary" aria-hidden="true" />
+                      <i className="ti ti-user text-5xl text-[#8A94A6]" aria-hidden="true" />
                     )}
                     {isUploadingAvatar && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                        <i className="ti ti-loader-2 animate-spin text-3xl text-text-primary" aria-hidden="true" />
+                        <i className="ti ti-loader-2 animate-spin text-3xl text-[#F5F7FA]" aria-hidden="true" />
                       </div>
                     )}
                   </button>
@@ -237,11 +248,11 @@ export function ProfilePage() {
               </div>
 
               <div className="rounded bg-dark-bg/60 px-3 py-3 text-center">
-                <p className="text-base font-bold uppercase tracking-wide text-text-primary">
+                <p className="text-base font-bold uppercase tracking-wide text-[#F5F7FA]">
                   {displayName}
                 </p>
                 {ageExperienceParts.length > 0 && (
-                  <p className="mt-1 text-sm text-text-secondary">{ageExperienceParts.join(' · ')}</p>
+                  <p className="mt-1 text-sm text-[#8A94A6]">{ageExperienceParts.join(' · ')}</p>
                 )}
               </div>
 
@@ -258,8 +269,11 @@ export function ProfilePage() {
                       onClick={() => setSelectedStatType(statType)}
                       className="flex flex-col items-center rounded py-1.5 text-center transition-colors hover:bg-white/5"
                     >
-                      <span className="text-xs text-text-secondary">{STAT_ABBREVIATIONS[statType]}</span>
-                      <span className="font-mono text-2xl font-bold text-text-primary">
+                      <span className="text-xs text-[#8A94A6]">{STAT_ABBREVIATIONS[statType]}</span>
+                      {/* Numbers use the ice accent, not primary text --
+                          matches the "#D7EFFF for numbers" rule already
+                          applied on Home/TrainingSession. */}
+                      <span className="font-mono text-2xl font-bold text-accent-ice">
                         {Math.round(stat.effective_value)}
                       </span>
                     </button>
@@ -273,15 +287,15 @@ export function ProfilePage() {
       )}
 
       {!isLoading && sortedSkills !== null && (
-        <div className="overflow-hidden rounded-md border border-white/5 bg-dark-card">
+        <div className={`overflow-hidden rounded-md ${CARD_BORDER} bg-dark-card`}>
           <button
             type="button"
             onClick={() => setSkillsExpanded((value) => !value)}
             className="flex w-full items-center justify-between p-4 text-left"
           >
-            <span className="font-medium text-text-primary">Навыки</span>
+            <span className="font-medium text-[#F5F7FA]">Навыки</span>
             <i
-              className={`ti ${skillsExpanded ? 'ti-chevron-down' : 'ti-chevron-right'} text-text-secondary`}
+              className={`ti ${skillsExpanded ? 'ti-chevron-down' : 'ti-chevron-right'} text-[#8A94A6]`}
               aria-hidden="true"
             />
           </button>
@@ -295,11 +309,16 @@ export function ProfilePage() {
                     key={skill.id}
                     type="button"
                     onClick={() => openSkillModal(skill.id)}
-                    className="flex w-full flex-col gap-2 rounded-md border border-white/5 bg-dark-bg p-5 text-left transition-colors hover:border-white/20"
+                    // bg-dark-bg (not -card) on purpose here -- see the
+                    // flagged note in the final summary: these tiles sit
+                    // *inside* an already bg-dark-card panel, using the
+                    // darker page-bg token as an "inset" look for contrast.
+                    // Matching -card here would flatten that depth cue.
+                    className={`flex w-full flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-bg p-5 text-left transition-colors hover:border-white/20`}
                   >
-                    <p className="font-medium text-text-primary">{skill.name}</p>
+                    <p className="font-medium text-[#F5F7FA]">{skill.name}</p>
                     <ProgressBar value={skill.value} max={barMax} />
-                    <p className="text-xs text-text-secondary">
+                    <p className="text-xs text-[#8A94A6]">
                       {skill.next_milestone !== null
                         ? `${Math.round(skill.next_milestone.points_remaining)} до «${skill.next_milestone.title}»`
                         : 'Все пороги пройдены'}
@@ -335,6 +354,7 @@ export function ProfilePage() {
           <img src={avatarUrl} alt="Аватар" className="w-full rounded" />
         </Modal>
       )}
+      </div>
     </div>
   )
 }
@@ -351,13 +371,17 @@ function StatDetailModal({
   return (
     <Modal title={TARGET_STAT_LABELS[statType]} onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-text-secondary">{TARGET_STAT_DESCRIPTIONS[statType]}</p>
+        <p className="text-sm text-[#8A94A6]">{TARGET_STAT_DESCRIPTIONS[statType]}</p>
         <div>
-          <p className="font-mono text-3xl font-bold leading-none text-text-primary">
+          {/* Matches HomePage's own StatDetailModal: a large "hero" number
+              in a modal reads as primary text, not the ice accent -- ice is
+              reserved for compact numbers in card grids (see the 4-tile
+              row above). */}
+          <p className="font-mono text-3xl font-bold leading-none text-[#F5F7FA]">
             {Math.round(stat.effective_value)}
           </p>
           {stat.decay_active && (
-            <p className="mt-2 flex items-center gap-1 text-xs text-text-secondary">
+            <p className="mt-2 flex items-center gap-1 text-xs text-[#8A94A6]">
               <i className="ti ti-trending-down" aria-hidden="true" />
               затухает, {Math.round(stat.idle_days)} дней без нагрузки
             </p>
