@@ -101,6 +101,27 @@ class ScheduleService:
             )
         return self._to_read_schema(weekly_plan)
 
+    async def get_weekly_plan(self, user: User, week_start_date: date | None) -> WeeklyPlanRead:
+        """GET /schedule/weekly -- week_start_date is optional and aliases to
+        get_current_weekly_plan when absent, so callers who don't care which
+        week (the common case) see byte-identical behavior to
+        /schedule/weekly/current. When given, this is a direct
+        (user, week_start_date) lookup, not a "which week is today inside"
+        range check -- a 404 here means that specific week was never
+        declared, which is a different fact than "no current plan" and gets
+        a distinct detail message so the two aren't confused on the client.
+        """
+        if week_start_date is None:
+            return await self.get_current_weekly_plan(user)
+
+        weekly_plan = await self._schedule.get_by_week_start_date(user.id, week_start_date)
+        if weekly_plan is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No weekly plan for week starting {week_start_date.isoformat()}",
+            )
+        return self._to_read_schema(weekly_plan)
+
     async def patch_current_weekly_plan(
         self, user: User, payload: WeeklyPlanPatch
     ) -> WeeklyPlanPatchResult:
@@ -112,17 +133,35 @@ class ScheduleService:
         be trying to fix a typo on Wednesday in the same request that also
         (accidentally) includes Monday, which is already underway.
         """
+        return await self._patch_weekly_plan(user, payload, week_start_date=None)
+
+    async def patch_weekly_plan(
+        self, user: User, payload: WeeklyPlanPatch, week_start_date: date | None
+    ) -> WeeklyPlanPatchResult:
+        """PATCH /schedule/weekly -- same optional-week_start_date aliasing as
+        get_weekly_plan; None behaves exactly like patch_current_weekly_plan
+        (which now delegates here too, so there's exactly one place this
+        logic lives)."""
+        return await self._patch_weekly_plan(user, payload, week_start_date)
+
+    async def _patch_weekly_plan(
+        self, user: User, payload: WeeklyPlanPatch, week_start_date: date | None
+    ) -> WeeklyPlanPatchResult:
         dates = [day.date for day in payload.days]
         if len(set(dates)) != len(dates):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate dates in patch"
             )
 
-        weekly_plan = await self._schedule.get_current(user.id, date.today())
+        if week_start_date is None:
+            weekly_plan = await self._schedule.get_current(user.id, date.today())
+            not_found_detail = "No current weekly plan"
+        else:
+            weekly_plan = await self._schedule.get_by_week_start_date(user.id, week_start_date)
+            not_found_detail = f"No weekly plan for week starting {week_start_date.isoformat()}"
+
         if weekly_plan is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="No current weekly plan"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found_detail)
 
         week_end = weekly_plan.week_start_date + timedelta(days=6)
         day_plans_by_date = {day_plan.date: day_plan for day_plan in weekly_plan.day_plans}
@@ -131,8 +170,11 @@ class ScheduleService:
         conflicts: list[ScheduleConflictRead] = []
         for day_in in payload.days:
             if not (weekly_plan.week_start_date <= day_in.date <= week_end):
+                # Wording deliberately generic ("plan's week", not "current
+                # week") -- this method now also serves patch_weekly_plan for
+                # an arbitrary week, where "текущей" would be wrong.
                 conflicts.append(
-                    ScheduleConflictRead(date=day_in.date, detail="Дата вне текущей недели")
+                    ScheduleConflictRead(date=day_in.date, detail="Дата вне недели плана")
                 )
                 continue
 

@@ -61,6 +61,22 @@ class ScheduleRepository:
             return None
         return candidate
 
+    async def get_by_week_start_date(
+        self, user_id: uuid.UUID, week_start_date: date
+    ) -> WeeklyPlan | None:
+        """Direct (user_id, week_start_date) lookup -- no "today" range logic,
+        unlike get_current. Callers who already know which week they want
+        (e.g. "next week") don't need get_current's is-today-still-inside-
+        this-week check; they just need the exact row, or None if that week
+        was never declared."""
+        query = (
+            select(WeeklyPlan)
+            .where(WeeklyPlan.user_id == user_id, WeeklyPlan.week_start_date == week_start_date)
+            .options(*_EAGER_LOAD_OPTIONS)
+        )
+        result = await self._session.execute(query)
+        return result.unique().scalar_one_or_none()
+
     async def get_session_block_with_owner(self, block_id: uuid.UUID) -> SessionBlock | None:
         query = (
             select(SessionBlock)
