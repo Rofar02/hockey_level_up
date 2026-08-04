@@ -721,7 +721,7 @@ function CompactNumberField({
       <input
         type="number"
         inputMode={unit !== undefined ? 'decimal' : 'numeric'}
-        className="w-16 shrink-0 rounded border border-white/10 bg-dark-bg px-2 py-1.5 font-mono text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none disabled:opacity-50"
+        className="w-20 shrink-0 rounded border border-white/10 bg-dark-bg px-2 py-1.5 font-mono text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none disabled:opacity-50"
         value={value}
         placeholder={placeholder}
         disabled={disabled}
@@ -914,17 +914,18 @@ function SetLogger({
             )
           }
 
-          // Current set: a plain 2px persimmon outline around the row (dark
-          // fill unchanged) plus a text "Сейчас" label -- no filled/colored
-          // block. Width budget at the narrowest supported viewport (320px):
+          // Current set: identified purely by a plain 2px persimmon outline
+          // around the row (dark fill unchanged) -- no extra "Сейчас" label,
+          // no filled/colored block. Width budget at the narrowest supported
+          // viewport (320px):
           //   320 backdrop(-32, p-4×2) -> 288 card
           //   288 border(-2)           -> 286 modal body
           //   286 body p-6(-48)        -> 238 SetLogger p-4(-32) -> 206
           //   206 this row border-2(-4) + px-3×2(-24) -> 178px content
-          // Each CompactNumberField (label ~30px + gap 8 + w-16 input 64px +
-          // gap 8 + optional unit ~16px) tops out around 126px -- comfortably
+          // Each CompactNumberField (label ~30px + gap 8 + w-20 input 80px +
+          // gap 8 + optional unit ~16px) tops out around 142px -- still
           // under 178px stacked one per line. Side-by-side would need
-          // ~126 + 12(gap) + ~96 =~ 234px, which does NOT fit -- that's why
+          // ~142 + 12(gap) + ~112 =~ 266px, which does NOT fit -- that's why
           // weight and reps are stacked instead of in a row.
           if (setNumber === currentSetNumber && !allSetsDone) {
             return (
@@ -932,14 +933,9 @@ function SetLogger({
                 key={setNumber}
                 className="flex min-w-0 flex-col gap-3 rounded border-2 border-accent-persimmon bg-dark-card px-3 py-3"
               >
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-sm font-medium text-text-primary">
-                    Подход {setNumber}
-                  </span>
-                  <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-accent-persimmon">
-                    Сейчас
-                  </span>
-                </div>
+                <span className="min-w-0 truncate text-sm font-medium text-text-primary">
+                  Подход {setNumber}
+                </span>
 
                 <div className="flex flex-col gap-2">
                   {exercise.tracks_weight && (
