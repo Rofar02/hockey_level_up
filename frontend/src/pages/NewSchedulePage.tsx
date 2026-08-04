@@ -117,6 +117,16 @@ export function NewSchedulePage() {
   // generating a plan), matching how ProfilePage tracks selectedSkillId by
   // id rather than by array position.
   const [previewIsoDate, setPreviewIsoDate] = useState<string | null>(null)
+  // null = view mode (read-only); non-null = editing, holding the
+  // session_type each day had when editing started, so handleSaveChanges
+  // can diff against it (rather than a per-row originalSessionType field
+  // that view/plan mode would carry around for no reason) and
+  // handleCancelEditing can revert to it exactly.
+  const [editSnapshot, setEditSnapshot] = useState<Map<string, DaySessionType> | null>(null)
+  // Set only when handleSaveChanges finds a changed, unlocked day -- which
+  // in edit mode is every changed day, since edit mode only exists for an
+  // already-generated week. Holds the exact rows to submit if confirmed.
+  const [pendingRegeneration, setPendingRegeneration] = useState<DayRow[] | null>(null)
 
   useEffect(() => {
     if (accessToken === null) {
@@ -125,6 +135,8 @@ export function NewSchedulePage() {
     let cancelled = false
     setWeekStatus('loading')
     setLoadError(null)
+    setEditSnapshot(null)
+    setPendingRegeneration(null)
     const weekStartIso = toIsoDate(WEEK_START_DATES[selectedWeek])
     loadOptional(scheduleApi.getWeeklyPlan(weekStartIso, accessToken))
       .then((plan) => {
@@ -182,6 +194,86 @@ export function NewSchedulePage() {
     }
   }
 
+  function handleStartEditing() {
+    setSubmitError(null)
+    setEditSnapshot(new Map(rows.map((row) => [row.isoDate, row.sessionType])))
+  }
+
+  function handleCancelEditing() {
+    if (editSnapshot === null) {
+      return
+    }
+    setRows((previous) =>
+      previous.map((row) => ({ ...row, sessionType: editSnapshot.get(row.isoDate) ?? row.sessionType })),
+    )
+    setEditSnapshot(null)
+    setSubmitError(null)
+  }
+
+  function handleSaveChanges() {
+    if (editSnapshot === null) {
+      return
+    }
+    // Locked (already-started) rows never show a type selector in edit
+    // mode (see the EditableDayRow render below), so this filter is
+    // belt-and-suspenders, not the primary guard.
+    const changed = rows.filter((row) => !row.locked && row.sessionType !== editSnapshot.get(row.isoDate))
+    if (changed.length === 0) {
+      setEditSnapshot(null)
+      return
+    }
+    // Edit mode only exists for an already-generated week (weekStatus ===
+    // 'view'), so every changed row necessarily already has a
+    // trainingSession -- unlike the pre-tabs version of this page, there's
+    // no "just-generated, nothing to lose" case to skip the confirmation
+    // for here.
+    setPendingRegeneration(changed)
+  }
+
+  async function performSaveChanges(changed: DayRow[]) {
+    if (accessToken === null) {
+      return
+    }
+    setPendingRegeneration(null)
+    setSubmitError(null)
+    setIsSubmitting(true)
+    try {
+      const payload = { days: changed.map((row) => ({ date: row.isoDate, session_type: row.sessionType })) }
+      // Explicit week_start_date only for next week -- current week keeps
+      // using the plain /current endpoint, per the existing, already-
+      // tested split on the backend.
+      const result =
+        selectedWeek === 'current'
+          ? await scheduleApi.patchCurrentWeeklyPlan(payload, accessToken)
+          : await scheduleApi.patchWeeklyPlan(toIsoDate(WEEK_START_DATES.next), payload, accessToken)
+
+      const refreshedRows = rowsFromPlan(result.weekly_plan)
+      if (result.conflicts.length > 0) {
+        // Stay in edit mode so the user can see what happened and retry
+        // other days -- re-baseline the snapshot to the just-fetched
+        // truth so the failed day (now reverted server-side) doesn't keep
+        // showing as "changed".
+        setRows(refreshedRows)
+        setEditSnapshot(new Map(refreshedRows.map((row) => [row.isoDate, row.sessionType])))
+        setSubmitError(
+          result.conflicts
+            .map((conflict) => `${formatShortDate(parseIsoDate(conflict.date))}: ${conflict.detail}`)
+            .join('; '),
+        )
+        return
+      }
+
+      setRows(refreshedRows)
+      setEditSnapshot(null)
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError ? err.message : 'Не удалось сохранить изменения. Попробуйте ещё раз.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   const previewIndex = previewIsoDate !== null ? rows.findIndex((row) => row.isoDate === previewIsoDate) : -1
   const previewRow = previewIndex !== -1 ? rows[previewIndex] : null
 
@@ -214,33 +306,12 @@ export function NewSchedulePage() {
             </p>
             <div className="flex flex-col gap-3">
               {rows.map((row, index) => (
-                <div
+                <EditableDayRow
                   key={row.isoDate}
-                  className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
-                      <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      {SESSION_TYPE_OPTIONS.map((option) => (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setDayType(index, option)}
-                          className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
-                            row.sessionType === option
-                              ? 'border-accent-ice bg-accent-ice/10 text-accent-ice'
-                              : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
-                          }`}
-                        >
-                          {DAY_SESSION_TYPE_LABELS[option]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                  row={row}
+                  weekdayLabel={WEEKDAY_LABELS[index]}
+                  onSelectType={(type) => setDayType(index, type)}
+                />
               ))}
             </div>
             <FormError message={submitError} />
@@ -250,49 +321,104 @@ export function NewSchedulePage() {
           </>
         )}
 
-        {weekStatus === 'view' && loadError === null && (
-          <div className="flex flex-col gap-3">
-            {rows.map((row, index) => {
-              const isPreviewable = row.trainingSession !== null
-              return (
-                <div
-                  key={row.isoDate}
-                  role={isPreviewable ? 'button' : undefined}
-                  tabIndex={isPreviewable ? 0 : undefined}
-                  onClick={isPreviewable ? () => setPreviewIsoDate(row.isoDate) : undefined}
-                  onKeyDown={
-                    isPreviewable
-                      ? (event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault()
-                            setPreviewIsoDate(row.isoDate)
+        {weekStatus === 'view' && loadError === null && editSnapshot === null && (
+          <>
+            <div className="flex flex-col gap-3">
+              {rows.map((row, index) => {
+                const isPreviewable = row.trainingSession !== null
+                return (
+                  <div
+                    key={row.isoDate}
+                    role={isPreviewable ? 'button' : undefined}
+                    tabIndex={isPreviewable ? 0 : undefined}
+                    onClick={isPreviewable ? () => setPreviewIsoDate(row.isoDate) : undefined}
+                    onKeyDown={
+                      isPreviewable
+                        ? (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              setPreviewIsoDate(row.isoDate)
+                            }
                           }
-                        }
-                      : undefined
-                  }
-                  className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
-                    isPreviewable ? 'cursor-pointer transition-colors hover:border-white/20' : ''
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
-                      <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
+                        : undefined
+                    }
+                    className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
+                      isPreviewable ? 'cursor-pointer transition-colors hover:border-white/20' : ''
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
+                        <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-[#8A94A6]">{DAY_SESSION_TYPE_LABELS[row.sessionType]}</span>
+                        {row.locked && (
+                          <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
+                            уже начат
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-[#8A94A6]">{DAY_SESSION_TYPE_LABELS[row.sessionType]}</span>
-                      {row.locked && (
-                        <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
-                          уже начат
-                        </span>
-                      )}
-                    </div>
+                    <DaySummary row={row} />
                   </div>
-                  <DaySummary row={row} />
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+            <Button variant="neutral" onClick={handleStartEditing} className="self-end">
+              Изменить план
+            </Button>
+          </>
+        )}
+
+        {weekStatus === 'view' && loadError === null && editSnapshot !== null && (
+          <>
+            <div className="flex flex-col gap-3">
+              {rows.map((row, index) => (
+                <EditableDayRow
+                  key={row.isoDate}
+                  row={row}
+                  weekdayLabel={WEEKDAY_LABELS[index]}
+                  onSelectType={(type) => setDayType(index, type)}
+                />
+              ))}
+            </div>
+            <FormError message={submitError} />
+            <div className="flex justify-end gap-3">
+              <Button variant="neutral" onClick={handleCancelEditing}>
+                Отмена
+              </Button>
+              <Button onClick={handleSaveChanges} isLoading={isSubmitting}>
+                Сохранить изменения
+              </Button>
+            </div>
+          </>
+        )}
+
+        {pendingRegeneration !== null && (
+          <Modal title="Пересобрать план на эти дни?" onClose={() => setPendingRegeneration(null)}>
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-[#8A94A6]">
+                Для этих дней уже подобраны упражнения. При смене типа план будет собран заново, а
+                текущий набор упражнений — заменён:
+              </p>
+              <ul className="flex flex-col gap-1 text-sm text-[#F5F7FA]">
+                {pendingRegeneration.map((row) => (
+                  <li key={row.isoDate}>
+                    {formatShortDate(row.date)} — {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-3">
+                <Button onClick={() => performSaveChanges(pendingRegeneration)} isLoading={isSubmitting}>
+                  Пересобрать
+                </Button>
+                <Button variant="neutral" onClick={() => setPendingRegeneration(null)}>
+                  Отмена
+                </Button>
+              </div>
+            </div>
+          </Modal>
         )}
 
         {previewRow !== null && previewRow.trainingSession !== null && (
@@ -303,6 +429,50 @@ export function NewSchedulePage() {
             trainingSession={previewRow.trainingSession}
             onClose={() => setPreviewIsoDate(null)}
           />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EditableDayRow({
+  row,
+  weekdayLabel,
+  onSelectType,
+}: {
+  row: DayRow
+  weekdayLabel: string
+  onSelectType: (type: DaySessionType) => void
+}) {
+  return (
+    <div className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-medium text-[#F5F7FA]">{weekdayLabel}</span>
+          <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
+        </div>
+        {row.locked ? (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-[#8A94A6]">{DAY_SESSION_TYPE_LABELS[row.sessionType]}</span>
+            <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">уже начат</span>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            {SESSION_TYPE_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onSelectType(option)}
+                className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  row.sessionType === option
+                    ? 'border-accent-ice bg-accent-ice/10 text-accent-ice'
+                    : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
+                }`}
+              >
+                {DAY_SESSION_TYPE_LABELS[option]}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>

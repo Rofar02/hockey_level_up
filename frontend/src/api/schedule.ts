@@ -31,3 +31,18 @@ export function patchCurrentWeeklyPlan(
 ): Promise<WeeklyPlanPatchResult> {
   return apiPatchAuth<WeeklyPlanPatchResult>('/schedule/weekly/current', payload, accessToken)
 }
+
+// weekStartDate is an ISO date -- same explicit-week addressing as
+// getWeeklyPlan, for editing a plan that isn't necessarily "current"
+// (e.g. next week's).
+export function patchWeeklyPlan(
+  weekStartDate: string,
+  payload: WeeklyPlanPatch,
+  accessToken: string,
+): Promise<WeeklyPlanPatchResult> {
+  return apiPatchAuth<WeeklyPlanPatchResult>(
+    `/schedule/weekly?week_start_date=${weekStartDate}`,
+    payload,
+    accessToken,
+  )
+}
