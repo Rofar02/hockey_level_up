@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
 import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -15,21 +13,56 @@ import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as setCompletionsApi from '../api/setCompletions'
+import * as trainingBlockApi from '../api/trainingBlock'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { TrainingStreakRead } from '../types/progress'
-import type { SessionBlockRead, TrainingPhase } from '../types/schedule'
+import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
+import type { DayPlanRead, SessionBlockRead, TrainingPhase } from '../types/schedule'
 import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletion'
 import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
-import { toIsoDate } from '../utils/date'
+import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
+import type { TrainingBlockRead } from '../types/trainingBlock'
+import { WEEKDAY_LABELS, parseIsoDate, toIsoDate } from '../utils/date'
+import { loadOptional } from '../utils/loadOptional'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
   warmup: 'Разминка',
   main: 'Основная часть',
   cooldown: 'Заминка',
+}
+
+// Rough estimate only -- nothing in the schema tracks actual elapsed time
+// (no started_at/duration fields anywhere), so "time remaining" can't be
+// measured. Duration-based exercises use their own target directly;
+// set/rep exercises assume a flat per-rep tempo; anything with neither
+// falls back to a flat guess rather than counting as zero.
+const SECONDS_PER_REP_ESTIMATE = 4
+const DEFAULT_EXERCISE_SECONDS_ESTIMATE = 60
+
+function estimateExerciseSeconds(exercise: ExerciseRead): number {
+  if (exercise.target_duration_seconds !== null) {
+    return exercise.target_duration_seconds
+  }
+  if (exercise.target_sets !== null && exercise.target_reps !== null) {
+    return exercise.target_sets * exercise.target_reps * SECONDS_PER_REP_ESTIMATE
+  }
+  return DEFAULT_EXERCISE_SECONDS_ESTIMATE
+}
+
+// A target_sets exercise counts as done once every set is logged (matches
+// what SetLogger itself considers "all sets done") -- independent of
+// SessionBlock.completed_at, which still separately drives block_completed
+// and stays exactly as it was. An exercise with no target_sets has no other
+// completion signal, so it falls back to completed_at.
+function isExerciseDone(block: SessionBlockRead, setCounts: Record<string, number>): boolean {
+  if (block.exercise.target_sets !== null) {
+    return (setCounts[block.exercise.id] ?? 0) >= block.exercise.target_sets
+  }
+  return block.completed_at !== null
 }
 
 // How long the "+stat +XP" toast stays fully visible before it starts
@@ -78,13 +111,18 @@ export function TrainingSessionPage() {
   const { dayPlanId } = useParams<{ dayPlanId: string }>()
   const { accessToken } = useAuth()
 
+  const [day, setDay] = useState<DayPlanRead | null>(null)
   const [blocks, setBlocks] = useState<SessionBlockRead[] | null>(null)
   const [trainingSessionId, setTrainingSessionId] = useState<string | null>(null)
+  const [trainingBlock, setTrainingBlock] = useState<TrainingBlockRead | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
-  const [warmupExpanded, setWarmupExpanded] = useState(false)
-  const [cooldownExpanded, setCooldownExpanded] = useState(false)
+  // Keyed by exercise id -- how many SetCompletion rows are logged for that
+  // exercise in this session, used by isExerciseDone for target_sets
+  // exercises. Populated in bulk once blocks load, then refreshed for a
+  // single exercise when its detail modal (with SetLogger) closes.
+  const [setCompletionCounts, setSetCompletionCounts] = useState<Record<string, number>>({})
   const [feedbackByBlockId, setFeedbackByBlockId] = useState<Record<string, string>>({})
   const [selectedExercise, setSelectedExercise] = useState<ExerciseRead | null>(null)
   const [sessionComplete, setSessionComplete] = useState<{
@@ -102,19 +140,25 @@ export function TrainingSessionPage() {
       return
     }
     let cancelled = false
-    scheduleApi
-      .getCurrentWeeklyPlan(accessToken)
-      .then((plan) => {
+    Promise.all([
+      scheduleApi.getCurrentWeeklyPlan(accessToken),
+      // Same "optional, 404 means not declared yet" handling as HomePage --
+      // a session can be viewed without an active periodization block.
+      loadOptional(trainingBlockApi.getCurrentTrainingBlock(accessToken)),
+    ])
+      .then(([plan, block]) => {
         if (cancelled) {
           return
         }
-        const day = plan.day_plans.find((candidate) => candidate.id === dayPlanId)
-        if (day?.training_session == null) {
+        const foundDay = plan.day_plans.find((candidate) => candidate.id === dayPlanId)
+        if (foundDay?.training_session == null) {
           setLoadError('Тренировка не найдена.')
           return
         }
-        setBlocks(day.training_session.blocks)
-        setTrainingSessionId(day.training_session.id)
+        setDay(foundDay)
+        setBlocks(foundDay.training_session.blocks)
+        setTrainingSessionId(foundDay.training_session.id)
+        setTrainingBlock(block)
       })
       .catch(() => {
         if (!cancelled) {
@@ -125,6 +169,54 @@ export function TrainingSessionPage() {
       cancelled = true
     }
   }, [accessToken, dayPlanId])
+
+  async function refreshSetCount(exerciseId: string) {
+    if (accessToken === null || trainingSessionId === null) {
+      return
+    }
+    try {
+      const result = await trainingSessionsApi.getExerciseSets(trainingSessionId, exerciseId, accessToken)
+      setSetCompletionCounts((previous) => ({ ...previous, [exerciseId]: result.sets.length }))
+    } catch {
+      // Best-effort -- progress display just keeps its last known count.
+    }
+  }
+
+  useEffect(() => {
+    if (accessToken === null || trainingSessionId === null || blocks === null) {
+      return
+    }
+    let cancelled = false
+    const targetSetsExerciseIds = [
+      ...new Set(
+        blocks.filter((block) => block.exercise.target_sets !== null).map((block) => block.exercise.id),
+      ),
+    ]
+    Promise.all(
+      targetSetsExerciseIds.map((exerciseId) =>
+        trainingSessionsApi
+          .getExerciseSets(trainingSessionId, exerciseId, accessToken)
+          .then((result) => [exerciseId, result.sets.length] as const),
+      ),
+    )
+      .then((entries) => {
+        if (!cancelled) {
+          setSetCompletionCounts(Object.fromEntries(entries))
+        }
+      })
+      .catch(() => {
+        // Best-effort -- worst case target_sets exercises show as "not
+        // started" in the progress/block-grouping until a manual refresh.
+      })
+    return () => {
+      cancelled = true
+    }
+    // Deliberately keyed on [accessToken, trainingSessionId], not `blocks`
+    // -- this should run once when the session loads, not on every local
+    // blocks update from handleComplete. refreshSetCount handles updating a
+    // single exercise's count after its SetLogger session closes instead.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken, trainingSessionId])
 
   useEffect(() => {
     if (accessToken === null) {
@@ -232,6 +324,36 @@ export function TrainingSessionPage() {
   const warmup = blocks.filter((block) => block.phase === 'warmup')
   const main = blocks.filter((block) => block.phase === 'main')
   const cooldown = blocks.filter((block) => block.phase === 'cooldown')
+  // Fixed workout-flow order regardless of the raw `order` column's exact
+  // numbering -- warm up, then main, then cool down -- used to find the
+  // single "current" exercise across the whole session.
+  const orderedBlocks = [...warmup, ...main, ...cooldown]
+
+  const doneCount = blocks.filter((block) => isExerciseDone(block, setCompletionCounts)).length
+  const totalCount = blocks.length
+  const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
+  const remainingSeconds = orderedBlocks
+    .filter((block) => !isExerciseDone(block, setCompletionCounts))
+    .reduce((sum, block) => sum + estimateExerciseSeconds(block.exercise), 0)
+  const remainingMinutes = Math.max(1, Math.round(remainingSeconds / 60))
+
+  const currentExerciseId =
+    orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))?.id ?? null
+
+  const weekdayLabel = day !== null ? WEEKDAY_LABELS[(parseIsoDate(day.date).getDay() + 6) % 7] : null
+  const eyebrow = [weekdayLabel, trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null]
+    .filter(Boolean)
+    .join(' · ')
+
+  function handleCloseExerciseDetail() {
+    // SetLogger tracks its own set counts internally -- this just tells the
+    // page-level progress bar/block grouping to catch up after the fact,
+    // without reaching into SetLogger's state at all.
+    if (selectedExercise !== null && selectedExercise.target_sets !== null) {
+      refreshSetCount(selectedExercise.id)
+    }
+    setSelectedExercise(null)
+  }
 
   return (
     <div className="relative min-h-svh overflow-hidden">
@@ -239,66 +361,75 @@ export function TrainingSessionPage() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
       <div className="flex flex-col gap-2">
         <BackLink />
-        <h1 className="text-xl font-semibold">Тренировка дня</h1>
+        <div className="flex flex-col gap-1">
+          {eyebrow !== '' && <p className="text-xs uppercase tracking-wide text-text-secondary">{eyebrow}</p>}
+          <h1 className="text-xl font-semibold">
+            {day !== null ? DAY_SESSION_TYPE_LABELS[day.session_type] : 'Тренировка дня'}
+          </h1>
+        </div>
       </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-text-secondary">{progressPercent}% тренировки</span>
+          <span className="text-text-secondary">
+            {doneCount < totalCount ? `~${remainingMinutes} мин осталось` : 'Готово'}
+          </span>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-accent-persimmon transition-[width]"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
       <FormError message={actionError} />
 
       {warmup.length > 0 && (
-        <CollapsibleSection
+        <PhaseBlock
           title={PHASE_LABELS.warmup}
-          expanded={warmupExpanded}
-          onToggle={() => setWarmupExpanded((value) => !value)}
-        >
-          {warmup.map((block) => (
-            <ExerciseRow
-              key={block.id}
-              block={block}
-              pending={pendingIds.has(block.id)}
-              onComplete={() => handleComplete(block)}
-              feedback={feedbackByBlockId[block.id]}
-              onFeedbackDone={() => removeFeedback(block.id)}
-              onOpenDetail={() => setSelectedExercise(block.exercise)}
-            />
-          ))}
-        </CollapsibleSection>
+          blocks={warmup}
+          isActive={warmup.some((block) => block.id === currentExerciseId)}
+          currentExerciseId={currentExerciseId}
+          setCompletionCounts={setCompletionCounts}
+          pendingIds={pendingIds}
+          onComplete={handleComplete}
+          feedbackByBlockId={feedbackByBlockId}
+          onFeedbackDone={removeFeedback}
+          onOpenDetail={setSelectedExercise}
+        />
       )}
 
-      <Card>
-        <h2 className="mb-4 text-sm font-medium text-text-secondary">{PHASE_LABELS.main}</h2>
-        <div className="flex flex-col gap-3">
-          {main.map((block) => (
-            <ExerciseRow
-              key={block.id}
-              block={block}
-              pending={pendingIds.has(block.id)}
-              onComplete={() => handleComplete(block)}
-              feedback={feedbackByBlockId[block.id]}
-              onFeedbackDone={() => removeFeedback(block.id)}
-              onOpenDetail={() => setSelectedExercise(block.exercise)}
-              showTargetStat
-            />
-          ))}
-        </div>
-      </Card>
+      {main.length > 0 && (
+        <PhaseBlock
+          title={PHASE_LABELS.main}
+          blocks={main}
+          isActive={main.some((block) => block.id === currentExerciseId)}
+          currentExerciseId={currentExerciseId}
+          setCompletionCounts={setCompletionCounts}
+          pendingIds={pendingIds}
+          onComplete={handleComplete}
+          feedbackByBlockId={feedbackByBlockId}
+          onFeedbackDone={removeFeedback}
+          onOpenDetail={setSelectedExercise}
+          showTargetStat
+        />
+      )}
 
       {cooldown.length > 0 && (
-        <CollapsibleSection
+        <PhaseBlock
           title={PHASE_LABELS.cooldown}
-          expanded={cooldownExpanded}
-          onToggle={() => setCooldownExpanded((value) => !value)}
-        >
-          {cooldown.map((block) => (
-            <ExerciseRow
-              key={block.id}
-              block={block}
-              pending={pendingIds.has(block.id)}
-              onComplete={() => handleComplete(block)}
-              feedback={feedbackByBlockId[block.id]}
-              onFeedbackDone={() => removeFeedback(block.id)}
-              onOpenDetail={() => setSelectedExercise(block.exercise)}
-            />
-          ))}
-        </CollapsibleSection>
+          blocks={cooldown}
+          isActive={cooldown.some((block) => block.id === currentExerciseId)}
+          currentExerciseId={currentExerciseId}
+          setCompletionCounts={setCompletionCounts}
+          pendingIds={pendingIds}
+          onComplete={handleComplete}
+          feedbackByBlockId={feedbackByBlockId}
+          onFeedbackDone={removeFeedback}
+          onOpenDetail={setSelectedExercise}
+        />
       )}
 
       {selectedExercise !== null && trainingSessionId !== null && accessToken !== null && (
@@ -306,7 +437,7 @@ export function TrainingSessionPage() {
           exercise={selectedExercise}
           trainingSessionId={trainingSessionId}
           accessToken={accessToken}
-          onClose={() => setSelectedExercise(null)}
+          onClose={handleCloseExerciseDetail}
         />
       )}
 
@@ -323,30 +454,107 @@ export function TrainingSessionPage() {
   )
 }
 
-function CollapsibleSection({
+// Card surface shared by the three phase blocks below -- dark-card fill with
+// a thin icy top border, matching the convention already established on
+// Home/Profile.
+const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
+
+function PhaseBlock({
   title,
-  expanded,
-  onToggle,
-  children,
+  blocks,
+  isActive,
+  currentExerciseId,
+  setCompletionCounts,
+  pendingIds,
+  onComplete,
+  feedbackByBlockId,
+  onFeedbackDone,
+  onOpenDetail,
+  showTargetStat = false,
 }: {
   title: string
-  expanded: boolean
-  onToggle: () => void
-  children: ReactNode
+  blocks: SessionBlockRead[]
+  isActive: boolean
+  currentExerciseId: string | null
+  setCompletionCounts: Record<string, number>
+  pendingIds: Set<string>
+  onComplete: (block: SessionBlockRead) => void
+  feedbackByBlockId: Record<string, string>
+  onFeedbackDone: (blockId: string) => void
+  onOpenDetail: (exercise: ExerciseRead) => void
+  showTargetStat?: boolean
 }) {
+  // Starts collapsed regardless of done/not-started state -- only the
+  // active block forces itself open (see `expanded` below).
+  const [manualExpanded, setManualExpanded] = useState(false)
+  const expanded = isActive || manualExpanded
+
+  const doneCount = blocks.filter((block) => isExerciseDone(block, setCompletionCounts)).length
+  const total = blocks.length
+  const fullyDone = total > 0 && doneCount === total
+
   return (
-    <Card>
-      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between text-left">
-        <h2 className="text-sm font-medium text-text-secondary">{title}</h2>
-        <span className="text-text-secondary">{expanded ? '−' : '+'}</span>
+    <div className={CARD_CLASS}>
+      <button
+        type="button"
+        onClick={() => {
+          if (!isActive) {
+            setManualExpanded((value) => !value)
+          }
+        }}
+        disabled={isActive}
+        className={`flex w-full items-center justify-between gap-3 p-4 text-left ${
+          isActive ? 'cursor-default' : ''
+        }`}
+      >
+        <span className="text-sm font-medium text-text-primary">{title}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-xs text-text-secondary">
+            {doneCount}/{total}
+          </span>
+          {!isActive && (
+            <i
+              className={`ti ti-chevron-down text-text-secondary transition-transform duration-200 ${
+                expanded ? 'rotate-180' : ''
+              }`}
+              aria-hidden="true"
+            />
+          )}
+        </div>
       </button>
-      {expanded && <div className="mt-4 flex flex-col gap-3">{children}</div>}
-    </Card>
+
+      {!expanded && fullyDone && (
+        <p className="px-4 pb-4 text-xs text-text-secondary opacity-55">
+          {blocks.map((block) => block.exercise.name).join(', ')}
+        </p>
+      )}
+
+      {expanded && (
+        <div className="flex flex-col gap-3 px-4 pb-4">
+          {blocks.map((block) => (
+            <ExerciseRow
+              key={block.id}
+              block={block}
+              isCurrent={block.id === currentExerciseId}
+              isDone={isExerciseDone(block, setCompletionCounts)}
+              pending={pendingIds.has(block.id)}
+              onComplete={() => onComplete(block)}
+              feedback={feedbackByBlockId[block.id]}
+              onFeedbackDone={() => onFeedbackDone(block.id)}
+              onOpenDetail={() => onOpenDetail(block.exercise)}
+              showTargetStat={showTargetStat}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
 function ExerciseRow({
   block,
+  isCurrent,
+  isDone,
   pending,
   onComplete,
   feedback,
@@ -355,6 +563,8 @@ function ExerciseRow({
   showTargetStat = false,
 }: {
   block: SessionBlockRead
+  isCurrent: boolean
+  isDone: boolean
   pending: boolean
   onComplete: () => void
   feedback?: string
@@ -376,7 +586,9 @@ function ExerciseRow({
           onOpenDetail()
         }
       }}
-      className="-mx-2 flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-1 transition-colors hover:bg-white/5"
+      className={`-mx-2 flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-1.5 transition-colors hover:bg-white/5 ${
+        isCurrent ? 'border-2 border-accent-persimmon' : 'border-2 border-transparent'
+      } ${isDone && !isCurrent ? 'opacity-55' : ''}`}
     >
       <div className="flex items-center gap-3">
         {/* stopPropagation keeps ticking the checkbox from also opening the detail modal */}
@@ -384,6 +596,16 @@ function ExerciseRow({
           <Checkbox checked={isCompleted} disabled={isCompleted || pending} onClick={onComplete} />
         </span>
         <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            {isCurrent && (
+              <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-persimmon">
+                Сейчас
+              </span>
+            )}
+            {isDone && !isCompleted && (
+              <i className="ti ti-check text-xs text-accent-ice" aria-hidden="true" />
+            )}
+          </div>
           <span className={`text-sm ${isCompleted ? 'text-text-secondary line-through' : 'text-text-primary'}`}>
             {block.exercise.name}
           </span>
