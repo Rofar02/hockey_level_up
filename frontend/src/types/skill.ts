@@ -47,3 +47,50 @@ export interface SkillDetailRead {
   stat_breakdown: StatContributionRead[]
   milestones: SkillMilestoneStatusRead[]
 }
+
+// -- admin CRUD (raw records, no computed value/progress) --
+
+export interface SkillWrite {
+  name: string
+  required_level: number
+}
+
+export interface SkillStatWeightRead {
+  id: string
+  skill_id: string
+  stat_type: TargetStat
+  weight: number
+}
+
+export interface SkillStatWeightWrite {
+  stat_type: TargetStat
+  weight: number
+}
+
+export interface SkillTagRead {
+  id: string
+  skill_id: string
+  exercise_id: string
+  transfer_note: string
+}
+
+export interface SkillTagWrite {
+  exercise_id: string
+  transfer_note: string
+}
+
+// Distinct from SkillMilestoneStatusRead above -- that one is the
+// user-progress view (with `achieved`), this is the raw admin record.
+export interface SkillMilestoneRead {
+  id: string
+  skill_id: string
+  threshold: number
+  title: string
+  description: string
+}
+
+export interface SkillMilestoneWrite {
+  threshold: number
+  title: string
+  description: string
+}
