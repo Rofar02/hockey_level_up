@@ -1,8 +1,15 @@
 // Reusable icy backdrop: dark base + a handful of radial "glare" gradients
 // plus thin scratch lines. Coordinates live in a 0-100 percentage space
-// (preserveAspectRatio="none") so the same markup fills any container --
-// full-bleed behind HomePage today, ProfilePage next -- without needing to
-// know its pixel size. Meant to sit at z-0 behind page content, e.g.:
+// (preserveAspectRatio="none") so the same markup fills any container.
+// Pinned to the viewport via `fixed inset-0` rather than `absolute inset-0`
+// -- an absolute backdrop stretches to match its `relative` parent's height,
+// so it visibly re-stretches/shifts whenever page content grows (a modal
+// opening, a skills/week block expanding). `fixed` sizes it to the viewport
+// once and leaves it alone regardless of content height; page content still
+// scrolls over it because the content wrapper sits in a later stacking
+// context (z-[1]). pointer-events-none so this purely-decorative layer (also
+// aria-hidden) never intercepts clicks/scroll from the content above it.
+// Meant to sit at z-0 behind page content, e.g.:
 //
 //   <div className="relative min-h-svh overflow-hidden">
 //     <IceGlowBackground />
@@ -13,7 +20,7 @@ export function IceGlowBackground() {
     <svg
       viewBox="0 0 100 100"
       preserveAspectRatio="none"
-      className="absolute inset-0 z-0 h-full w-full"
+      className="fixed inset-0 z-0 h-screen w-screen pointer-events-none"
       aria-hidden="true"
     >
       <defs>
