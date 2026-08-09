@@ -16,6 +16,14 @@ class Skill(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    # User.level gate for picking this skill as a priority (see
+    # SkillService.replace_user_preferences) -- content configuration, not
+    # a code constant, so it's editable from the admin panel per-skill
+    # rather than a hardcoded tier table like skill_preferences.py's slot
+    # count cap.
+    required_level: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
 
 
 class SkillStatWeight(Base):

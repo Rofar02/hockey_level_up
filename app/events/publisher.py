@@ -1,5 +1,6 @@
 import asyncio
 import json
+import uuid
 
 import aio_pika
 
@@ -28,9 +29,11 @@ async def _get_channel() -> aio_pika.abc.AbstractChannel:
         return _channel
 
 
-async def publish_event(event_type: str, payload: dict) -> None:
+async def publish_event(event_id: uuid.UUID, event_type: str, payload: dict) -> None:
     channel = await _get_channel()
-    body = json.dumps({"event_type": event_type, "payload": payload}).encode()
+    body = json.dumps(
+        {"event_id": str(event_id), "event_type": event_type, "payload": payload}
+    ).encode()
     message = aio_pika.Message(
         body=body,
         content_type="application/json",

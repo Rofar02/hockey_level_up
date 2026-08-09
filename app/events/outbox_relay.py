@@ -24,7 +24,7 @@ async def _relay_batch() -> int:
 
             for event in events:
                 try:
-                    await publish_event(event.event_type, event.payload)
+                    await publish_event(event.id, event.event_type, event.payload)
                 except Exception:
                     logger.exception(
                         "Outbox relay failed to publish outbox_event_id=%s event_type=%s; "
