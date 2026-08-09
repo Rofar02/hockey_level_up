@@ -7,6 +7,7 @@ import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { JerseyBadge } from '../components/ui/JerseyBadge'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { LockedSkillChip } from '../components/ui/SkillChip'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import * as progressApi from '../api/progress'
 import * as skillsApi from '../api/skills'
@@ -50,15 +51,25 @@ export function ProfilePage() {
 
   const [stats, setStats] = useState<UserStatRead[] | null>(null)
   const [skills, setSkills] = useState<SkillSummaryRead[] | null>(null)
+  // Skills the user picked as priorities (UserSkillPreference) -- highlighted
+  // in the overview modal below, same idea as HomePage's "почти порог"
+  // persimmon treatment, just for a different signal.
+  const [preferredSkillIds, setPreferredSkillIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [skillsExpanded, setSkillsExpanded] = useState(false)
+  const [isSkillsOverviewOpen, setIsSkillsOverviewOpen] = useState(false)
 
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null)
   const [skillDetails, setSkillDetails] = useState<Record<string, SkillDetailRead>>({})
   const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
+  // Whether the open SkillDetailModal was reached via the overview list --
+  // closing it should feel like "back" (reopen the overview) in that case,
+  // not "exit everything". Any future direct-open path that never routes
+  // through selectSkillFromOverview leaves this false, so it keeps the
+  // plain close-and-done behavior.
+  const [detailOpenedFromOverview, setDetailOpenedFromOverview] = useState(false)
 
   const [selectedStatType, setSelectedStatType] = useState<TargetStat | null>(null)
 
@@ -72,13 +83,18 @@ export function ProfilePage() {
       return
     }
     let cancelled = false
-    Promise.all([progressApi.getMyStats(accessToken), skillsApi.listSkills(accessToken)])
-      .then(([statsResult, skillsResult]) => {
+    Promise.all([
+      progressApi.getMyStats(accessToken),
+      skillsApi.listSkills(accessToken),
+      usersApi.getSkillPreferences(accessToken),
+    ])
+      .then(([statsResult, skillsResult, preferencesResult]) => {
         if (cancelled) {
           return
         }
         setStats(statsResult)
         setSkills(skillsResult)
+        setPreferredSkillIds(new Set(preferencesResult.map((preference) => preference.skill_id)))
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -94,6 +110,24 @@ export function ProfilePage() {
       cancelled = true
     }
   }, [accessToken])
+
+  // Stacking Modal on top of Modal (two dimmed backdrops, two centered
+  // cards) reads as broken rather than "drilling down" -- so the overview
+  // closes itself the instant a row is picked, then the detail modal takes
+  // its place instead of layering above it.
+  function selectSkillFromOverview(skillId: string) {
+    setIsSkillsOverviewOpen(false)
+    setDetailOpenedFromOverview(true)
+    void openSkillModal(skillId)
+  }
+
+  function closeSkillDetailModal() {
+    setSelectedSkillId(null)
+    if (detailOpenedFromOverview) {
+      setDetailOpenedFromOverview(false)
+      setIsSkillsOverviewOpen(true)
+    }
+  }
 
   async function openSkillModal(skillId: string) {
     setSelectedSkillId(skillId)
@@ -136,8 +170,22 @@ export function ProfilePage() {
     stats !== null && stats.length > 0
       ? Math.round(stats.reduce((sum, stat) => sum + stat.effective_value, 0) / stats.length)
       : null
-  const sortedSkills = skills !== null ? sortByClosestMilestone(skills) : null
-  const selectedSkill = sortedSkills?.find((skill) => skill.id === selectedSkillId)
+  // Split by required_level, same gate SettingsPage's skill picker already
+  // applies (see LockedSkillChip there) -- locked skills are still shown
+  // (the overview is a preview of the whole catalog, not just what's
+  // reachable now), just not clickable and rendered with the same
+  // locked-chip treatment instead of a progress row.
+  const unlockedSkills =
+    skills !== null
+      ? sortByClosestMilestone(skills.filter((skill) => skill.required_level <= (user?.level ?? 1)))
+      : null
+  const lockedSkills =
+    skills !== null
+      ? [...skills.filter((skill) => skill.required_level > (user?.level ?? 1))].sort(
+          (a, b) => a.required_level - b.required_level,
+        )
+      : null
+  const selectedSkill = skills?.find((skill) => skill.id === selectedSkillId)
   const selectedStat = selectedStatType !== null ? statsByType.get(selectedStatType) : undefined
 
   const displayName = user !== null ? getDisplayName(user).toUpperCase() : ''
@@ -300,49 +348,25 @@ export function ProfilePage() {
         </div>
       )}
 
-      {!isLoading && sortedSkills !== null && (
-        <div className={`overflow-hidden rounded-md ${CARD_BORDER} bg-dark-card`}>
-          <button
-            type="button"
-            onClick={() => setSkillsExpanded((value) => !value)}
-            className="flex w-full items-center justify-between p-4 text-left"
-          >
-            <span className="font-medium text-[#F5F7FA]">Навыки</span>
-            <i
-              className={`ti ${skillsExpanded ? 'ti-chevron-down' : 'ti-chevron-right'} text-[#8A94A6]`}
-              aria-hidden="true"
-            />
-          </button>
+      {!isLoading && skills !== null && (
+        <button
+          type="button"
+          onClick={() => setIsSkillsOverviewOpen(true)}
+          className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left`}
+        >
+          <span className="font-medium text-[#F5F7FA]">Навыки</span>
+          <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
+        </button>
+      )}
 
-          {skillsExpanded && (
-            <div className="flex flex-col gap-3 border-t border-white/5 p-4">
-              {sortedSkills.map((skill) => {
-                const barMax = skill.next_milestone?.threshold ?? skill.value
-                return (
-                  <button
-                    key={skill.id}
-                    type="button"
-                    onClick={() => openSkillModal(skill.id)}
-                    // bg-dark-bg (not -card) on purpose here -- see the
-                    // flagged note in the final summary: these tiles sit
-                    // *inside* an already bg-dark-card panel, using the
-                    // darker page-bg token as an "inset" look for contrast.
-                    // Matching -card here would flatten that depth cue.
-                    className={`flex w-full flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-bg p-5 text-left transition-colors hover:border-white/20`}
-                  >
-                    <p className="font-medium text-[#F5F7FA]">{skill.name}</p>
-                    <ProgressBar value={skill.value} max={barMax} />
-                    <p className="text-xs text-[#8A94A6]">
-                      {skill.next_milestone !== null
-                        ? `${Math.round(skill.next_milestone.points_remaining)} до «${skill.next_milestone.title}»`
-                        : 'Все пороги пройдены'}
-                    </p>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
+      {isSkillsOverviewOpen && unlockedSkills !== null && lockedSkills !== null && (
+        <SkillsOverviewModal
+          unlockedSkills={unlockedSkills}
+          lockedSkills={lockedSkills}
+          preferredSkillIds={preferredSkillIds}
+          onSelectSkill={selectSkillFromOverview}
+          onClose={() => setIsSkillsOverviewOpen(false)}
+        />
       )}
 
       {selectedSkillId !== null && (
@@ -351,7 +375,7 @@ export function ProfilePage() {
           detail={skillDetails[selectedSkillId]}
           isLoading={loadingDetailId === selectedSkillId}
           error={detailError}
-          onClose={() => setSelectedSkillId(null)}
+          onClose={closeSkillDetailModal}
         />
       )}
 
@@ -370,6 +394,80 @@ export function ProfilePage() {
       )}
       </div>
     </div>
+  )
+}
+
+// Compact stand-in for the old inline expand list -- tapping the "Навыки"
+// block now opens this instead of expanding in place, so every skill (not
+// just the top few) needs a glanceable row here. Priority skills
+// (UserSkillPreference, picked in Settings) get the same persimmon accent
+// HomePage's "почти порог" card uses for its own attention-signal, just
+// applied to the row border/star/label instead of a bar-only tint.
+function SkillsOverviewModal({
+  unlockedSkills,
+  lockedSkills,
+  preferredSkillIds,
+  onSelectSkill,
+  onClose,
+}: {
+  unlockedSkills: SkillSummaryRead[]
+  lockedSkills: SkillSummaryRead[]
+  preferredSkillIds: Set<string>
+  onSelectSkill: (skillId: string) => void
+  onClose: () => void
+}) {
+  return (
+    <Modal title="Навыки" onClose={onClose}>
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-[#8A94A6]">
+          Приоритетные навыки — те, что вы выбрали в настройках, — чаще получают подходящие
+          упражнения в тренировках. Остальные тоже растут, от общей физической подготовки,
+          просто медленнее.
+        </p>
+        <div className="flex flex-col gap-2">
+          {unlockedSkills.map((skill) => {
+            const barMax = skill.next_milestone?.threshold ?? skill.value
+            const isPreferred = preferredSkillIds.has(skill.id)
+            return (
+              <button
+                key={skill.id}
+                type="button"
+                onClick={() => onSelectSkill(skill.id)}
+                className={`flex w-full flex-col gap-1.5 rounded-md border p-3 text-left transition-colors ${
+                  isPreferred
+                    ? 'border-accent-persimmon/40 bg-accent-persimmon/5 hover:border-accent-persimmon/60'
+                    : 'border-white/10 hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {isPreferred && (
+                      <i
+                        className="ti ti-star-filled shrink-0 text-xs text-accent-persimmon"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="truncate text-sm font-medium text-[#F5F7FA]">{skill.name}</span>
+                  </span>
+                  {isPreferred && (
+                    <span className="shrink-0 text-xs font-medium text-accent-persimmon">
+                      Приоритет
+                    </span>
+                  )}
+                </div>
+                <ProgressBar value={skill.value} max={barMax} accent={isPreferred ? 'persimmon' : 'ice'} />
+              </button>
+            )
+          })}
+          {/* Same LockedSkillChip SettingsPage's picker uses for skills
+              gated by level -- not clickable (there's no reachable progress
+              detail to show yet), just a preview of what's still ahead. */}
+          {lockedSkills.map((skill) => (
+            <LockedSkillChip key={skill.id} label={skill.name} requiredLevel={skill.required_level} />
+          ))}
+        </div>
+      </div>
+    </Modal>
   )
 }
 
