@@ -1,4 +1,6 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { AdminRoute } from './components/AdminRoute'
 import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { HomePage } from './pages/HomePage'
@@ -7,17 +9,56 @@ import { LoginPage } from './pages/LoginPage'
 import { NewSchedulePage } from './pages/NewSchedulePage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { ProfilePage } from './pages/ProfilePage'
-import { ReferenceArticleDetailPage } from './pages/ReferenceArticleDetailPage'
 import { ReferencePage } from './pages/ReferencePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TrainingSessionPage } from './pages/TrainingSessionPage'
+import { AdminExercisesPage } from './pages/admin/AdminExercisesPage'
+import { AdminHomePage } from './pages/admin/AdminHomePage'
+import { AdminSkillDetailPage } from './pages/admin/AdminSkillDetailPage'
+import { AdminSkillsPage } from './pages/admin/AdminSkillsPage'
+
+// No route-based code-splitting elsewhere in the app yet (everything else
+// is a static import) -- these two are singled out because they're the
+// only places pulling in react-markdown (and its unified/remark/rehype
+// chain), which would otherwise ship in the main bundle for every user,
+// including the ones who never open the reference section or the admin
+// panel.
+const ReferenceArticleDetailPage = lazy(() =>
+  import('./pages/ReferenceArticleDetailPage').then((module) => ({
+    default: module.ReferenceArticleDetailPage,
+  })),
+)
+const AdminReferenceArticlesPage = lazy(() =>
+  import('./pages/admin/AdminReferenceArticlesPage').then((module) => ({
+    default: module.AdminReferenceArticlesPage,
+  })),
+)
+const PrivacyPage = lazy(() =>
+  import('./pages/PrivacyPage').then((module) => ({ default: module.PrivacyPage })),
+)
+
+function RouteLoadingFallback() {
+  return (
+    <div className="flex min-h-svh items-center justify-center">
+      <p className="text-sm text-text-secondary">Загрузка...</p>
+    </div>
+  )
+}
 
 function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route
+        path="/privacy"
+        element={
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <PrivacyPage />
+          </Suspense>
+        }
+      />
       <Route
         path="/onboarding"
         element={
@@ -86,8 +127,52 @@ function App() {
         path="/reference/:articleId"
         element={
           <ProtectedRoute>
-            <ReferenceArticleDetailPage />
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <ReferenceArticleDetailPage />
+            </Suspense>
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminHomePage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/exercises"
+        element={
+          <AdminRoute>
+            <AdminExercisesPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/skills"
+        element={
+          <AdminRoute>
+            <AdminSkillsPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/skills/:skillId"
+        element={
+          <AdminRoute>
+            <AdminSkillDetailPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/reference-articles"
+        element={
+          <AdminRoute>
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <AdminReferenceArticlesPage />
+            </Suspense>
+          </AdminRoute>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
