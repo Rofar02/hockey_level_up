@@ -9,7 +9,9 @@ from app.models.exercise import EquipmentType, ExerciseCategory, TargetStat, Tra
 from app.models.user import User
 from app.routers.deps import get_current_user, require_admin
 from app.schemas.exercise import ExerciseCreate, ExerciseRead, ExerciseUpdate, SuggestedWeightRead
+from app.schemas.skill import SkillTagRead
 from app.services.exercise_service import ExerciseService
+from app.services.skill_service import SkillService
 from app.services.weight_suggestion_service import WeightSuggestionService
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])
@@ -36,6 +38,18 @@ async def get_exercise(
     exercise_id: uuid.UUID, session: Annotated[AsyncSession, Depends(get_db)]
 ):
     return await ExerciseService(session).get_exercise(exercise_id)
+
+
+@router.get("/{exercise_id}/skill-tags", response_model=list[SkillTagRead])
+async def list_exercise_skill_tags(
+    exercise_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Which skills this exercise is tagged for -- for the admin exercise
+    edit form, so its skill associations are visible/editable right there
+    instead of only reachable per-skill under /skills/{id}/tags."""
+    return await SkillService(session).list_tags_for_exercise(exercise_id)
 
 
 @router.get("/{exercise_id}/suggested-weight", response_model=SuggestedWeightRead)

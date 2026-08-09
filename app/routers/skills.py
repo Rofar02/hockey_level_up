@@ -36,6 +36,29 @@ async def list_skills(
     return await SkillService(session).list_skills_for_user(current_user.id)
 
 
+@router.get("/admin", response_model=list[SkillRead])
+async def list_skills_admin(
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Plain (id, name) list for the admin panel -- distinct from GET /skills
+    above, which is user-scoped (computed value + next_milestone). Must stay
+    registered *before* GET /{skill_id} below: both are 2-segment paths, and
+    Starlette matches route-by-route in registration order, so "/admin"
+    would otherwise be swallowed by {skill_id} first and fail UUID parsing.
+    """
+    return await SkillService(session).list_skills()
+
+
+@router.get("/admin/{skill_id}", response_model=SkillRead)
+async def get_skill_admin(
+    skill_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await SkillService(session).get_skill(skill_id)
+
+
 @router.get("/{skill_id}", response_model=SkillDetailRead)
 async def get_skill(
     skill_id: uuid.UUID,
@@ -73,6 +96,26 @@ async def delete_skill(
     await SkillService(session).delete_skill(skill_id)
 
 
+@router.get("/{skill_id}/stat-weights", response_model=list[SkillStatWeightRead])
+async def list_stat_weights(
+    skill_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """All weights for one skill in a single list -- for the admin edit form."""
+    return await SkillService(session).list_stat_weights(skill_id)
+
+
+@router.get("/{skill_id}/stat-weights/{weight_id}", response_model=SkillStatWeightRead)
+async def get_stat_weight(
+    skill_id: uuid.UUID,
+    weight_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await SkillService(session).get_stat_weight(skill_id, weight_id)
+
+
 @router.post(
     "/{skill_id}/stat-weights",
     response_model=SkillStatWeightRead,
@@ -108,6 +151,25 @@ async def delete_stat_weight(
     await SkillService(session).delete_stat_weight(skill_id, weight_id)
 
 
+@router.get("/{skill_id}/tags", response_model=list[SkillTagRead])
+async def list_tags(
+    skill_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await SkillService(session).list_tags(skill_id)
+
+
+@router.get("/{skill_id}/tags/{tag_id}", response_model=SkillTagRead)
+async def get_tag(
+    skill_id: uuid.UUID,
+    tag_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await SkillService(session).get_tag(skill_id, tag_id)
+
+
 @router.post("/{skill_id}/tags", response_model=SkillTagRead, status_code=status.HTTP_201_CREATED)
 async def create_tag(
     skill_id: uuid.UUID,
@@ -137,6 +199,25 @@ async def delete_tag(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     await SkillService(session).delete_tag(skill_id, tag_id)
+
+
+@router.get("/{skill_id}/milestones", response_model=list[SkillMilestoneRead])
+async def list_milestones(
+    skill_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await SkillService(session).list_milestones(skill_id)
+
+
+@router.get("/{skill_id}/milestones/{milestone_id}", response_model=SkillMilestoneRead)
+async def get_milestone(
+    skill_id: uuid.UUID,
+    milestone_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await SkillService(session).get_milestone(skill_id, milestone_id)
 
 
 @router.post(

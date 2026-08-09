@@ -168,6 +168,12 @@ class SkillService:
 
     # -- Skill admin CRUD --
 
+    async def list_skills(self) -> list[Skill]:
+        return await self._skills.list_skills()
+
+    async def get_skill(self, skill_id: uuid.UUID) -> Skill:
+        return await self._get_skill_or_404(skill_id)
+
     async def create_skill(self, data: SkillCreate) -> Skill:
         try:
             skill = await self._skills.create_skill(data)
@@ -199,6 +205,13 @@ class SkillService:
         await self._session.commit()
 
     # -- SkillStatWeight admin CRUD --
+
+    async def list_stat_weights(self, skill_id: uuid.UUID) -> list[SkillStatWeight]:
+        await self._get_skill_or_404(skill_id)
+        return await self._skills.list_stat_weights(skill_id)
+
+    async def get_stat_weight(self, skill_id: uuid.UUID, weight_id: uuid.UUID) -> SkillStatWeight:
+        return await self._get_stat_weight_or_404(skill_id, weight_id)
 
     async def create_stat_weight(
         self, skill_id: uuid.UUID, data: SkillStatWeightCreate
@@ -259,6 +272,19 @@ class SkillService:
 
     # -- SkillTag admin CRUD --
 
+    async def list_tags(self, skill_id: uuid.UUID) -> list[SkillTag]:
+        await self._get_skill_or_404(skill_id)
+        return await self._skills.list_tags(skill_id)
+
+    async def get_tag(self, skill_id: uuid.UUID, tag_id: uuid.UUID) -> SkillTag:
+        return await self._get_tag_or_404(skill_id, tag_id)
+
+    async def list_tags_for_exercise(self, exercise_id: uuid.UUID) -> list[SkillTag]:
+        exercise = await self._exercises.get_by_id(exercise_id)
+        if exercise is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found")
+        return await self._skills.list_tags_for_exercise(exercise_id)
+
     async def create_tag(self, skill_id: uuid.UUID, data: SkillTagCreate) -> SkillTag:
         await self._get_skill_or_404(skill_id)
         exercise = await self._exercises.get_by_id(data.exercise_id)
@@ -291,6 +317,13 @@ class SkillService:
         await self._session.commit()
 
     # -- SkillMilestone admin CRUD --
+
+    async def list_milestones(self, skill_id: uuid.UUID) -> list[SkillMilestone]:
+        await self._get_skill_or_404(skill_id)
+        return await self._skills.list_milestones(skill_id)
+
+    async def get_milestone(self, skill_id: uuid.UUID, milestone_id: uuid.UUID) -> SkillMilestone:
+        return await self._get_milestone_or_404(skill_id, milestone_id)
 
     async def create_milestone(
         self, skill_id: uuid.UUID, data: SkillMilestoneCreate

@@ -78,6 +78,12 @@ class SkillRepository:
         )
         return list(result.scalars().all())
 
+    async def list_tags_for_exercise(self, exercise_id: uuid.UUID) -> list[SkillTag]:
+        result = await self._session.execute(
+            select(SkillTag).where(SkillTag.exercise_id == exercise_id)
+        )
+        return list(result.scalars().all())
+
     async def get_tag(self, tag_id: uuid.UUID) -> SkillTag | None:
         return await self._session.get(SkillTag, tag_id)
 

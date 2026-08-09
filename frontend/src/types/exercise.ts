@@ -1,3 +1,7 @@
+// Type-only import -- schedule.ts imports ExerciseRead from this file, so
+// this must stay `import type` to avoid a runtime circular import.
+import type { TrainingPhase } from './schedule'
+
 export const TARGET_STATS = [
   'strength',
   'agility',
@@ -40,15 +44,49 @@ export const TARGET_STAT_DESCRIPTIONS: Record<TargetStat, string> = {
 export const EXERCISE_CATEGORIES = ['on_ice', 'off_ice'] as const
 export type ExerciseCategory = (typeof EXERCISE_CATEGORIES)[number]
 
+// Same wording as DAY_SESSION_TYPE_LABELS (types/schedule.ts) -- different
+// entity, same on_ice/off_ice values, kept as its own map here rather than
+// reaching into schedule.ts for two strings.
+export const EXERCISE_CATEGORY_LABELS: Record<ExerciseCategory, string> = {
+  on_ice: 'Лёд',
+  off_ice: 'Сухая',
+}
+
 export const EQUIPMENT_TYPES = ['gym', 'home', 'bodyweight'] as const
 export type EquipmentType = (typeof EQUIPMENT_TYPES)[number]
+
+export const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
+  gym: 'Зал',
+  home: 'Дом',
+  bodyweight: 'Только тело',
+}
 
 export interface ExerciseRead {
   id: string
   name: string
   description: string | null
   category: ExerciseCategory
-  phase: string
+  phase: TrainingPhase
+  target_stat: TargetStat
+  difficulty_level: number
+  equipment_type: EquipmentType
+  video_source_type: string | null
+  video_source_id: string | null
+  target_sets: number | null
+  target_reps: number | null
+  target_duration_seconds: number | null
+  tracks_weight: boolean
+  bodyweight_ratio: number | null
+}
+
+// Create/update payload (admin CRUD) -- same shape for both; PATCH on the
+// backend accepts a subset, but sending the full form state either way
+// keeps the admin form's state management a single object.
+export interface ExerciseWrite {
+  name: string
+  description: string | null
+  category: ExerciseCategory
+  phase: TrainingPhase
   target_stat: TargetStat
   difficulty_level: number
   equipment_type: EquipmentType
