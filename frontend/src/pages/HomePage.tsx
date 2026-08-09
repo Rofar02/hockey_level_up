@@ -23,6 +23,7 @@ import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { BlockPhase, TrainingBlockRead } from '../types/trainingBlock'
 import { POSITION_LABELS } from '../types/user'
+import { getAvatarTierStyle } from '../utils/avatarTier'
 import { WEEKDAY_LABELS, formatShortDate, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
@@ -31,6 +32,8 @@ const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
   agility: 'ЛОВ',
   intellect: 'ИНТ',
   endurance: 'ВЫН',
+  on_ice_skating: 'ЛЁД',
+  puck_handling: 'ШАЙ',
 }
 
 const MONTH_LABELS = [
@@ -201,6 +204,7 @@ export function HomePage() {
   const todayIso = toIsoDate(new Date())
   const today = weeklyPlan?.day_plans.find((day) => day.date === todayIso) ?? null
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
+  const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1)
   const selectedDayPlan =
     selectedDay !== null ? weeklyPlan?.day_plans.find((day) => day.date === toIsoDate(selectedDay)) : undefined
   const selectedDayHasActivity =
@@ -215,12 +219,19 @@ export function HomePage() {
       <div className="relative z-[1] mx-auto flex min-h-svh max-w-3xl flex-col gap-4 px-4 py-8">
         <div className={`flex items-center justify-between gap-4 p-4 ${CARD_CLASS}`}>
           <div className="flex items-center gap-4">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-white/15 bg-dark-bg">
-              {avatarUrl !== null ? (
-                <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <i className="ti ti-user text-3xl text-[#8A94A6]" aria-hidden="true" />
-              )}
+            {/* Two-layer wrapper: the outer div carries the level-tier
+                border/glow (box-shadow), the inner one clips the photo to a
+                circle. Both on the same element would clip the glow itself
+                -- overflow-hidden clips a box's own box-shadow, not just
+                its content. */}
+            <div className="h-20 w-20 shrink-0 rounded-full" style={avatarTierStyle.style}>
+              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-dark-bg">
+                {avatarUrl !== null ? (
+                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <i className="ti ti-user text-3xl text-[#8A94A6]" aria-hidden="true" />
+                )}
+              </div>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-xl font-bold leading-tight text-[#F5F7FA]">{user?.username}</span>
@@ -358,7 +369,7 @@ function TodayCard({
 
 function StatsRow({ stats, onSelect }: { stats: UserStatRead[]; onSelect: (statType: TargetStat) => void }) {
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-3 gap-2">
       {TARGET_STATS.map((statType) => {
         const stat = stats.find((candidate) => candidate.stat_type === statType)
         if (stat === undefined) {

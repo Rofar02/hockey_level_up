@@ -4,9 +4,9 @@ import { Link } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { JerseyBadge } from '../components/ui/JerseyBadge'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { ShieldBadge } from '../components/ui/ShieldBadge'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import * as progressApi from '../api/progress'
 import * as skillsApi from '../api/skills'
@@ -18,12 +18,16 @@ import type { TargetStat } from '../types/exercise'
 import type { UserStatRead } from '../types/progress'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { POSITION_LABELS } from '../types/user'
+import { getAvatarTierStyle } from '../utils/avatarTier'
+import { transliterate } from '../utils/transliterate'
 
 const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
   strength: 'СИЛ',
   agility: 'ЛОВ',
   intellect: 'ИНТ',
   endurance: 'ВЫН',
+  on_ice_skating: 'ЛЁД',
+  puck_handling: 'ШАЙ',
 }
 
 // Same icy top-border card convention as HomePage/TrainingSessionPage.
@@ -144,6 +148,7 @@ export function ProfilePage() {
     user?.years_of_experience != null ? `${user.years_of_experience} лет стажа` : null,
   ].filter((part): part is string => part !== null)
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
+  const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1)
 
   return (
     <div className="relative min-h-svh overflow-hidden">
@@ -189,7 +194,7 @@ export function ProfilePage() {
             <div className="relative flex flex-col gap-4 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-col items-center gap-2">
-                  <ShieldBadge value={overallRating ?? '—'} label="Рейтинг" accentColor="ice" />
+                  <JerseyBadge number={overallRating ?? '—'} label="Рейтинг" accentColor="ice" />
                   {user?.position != null && (
                     <span className="inline-block rounded border border-white/15 px-2 py-1 text-xs uppercase tracking-wide text-[#8A94A6]">
                       {POSITION_LABELS[user.position]}
@@ -197,36 +202,48 @@ export function ProfilePage() {
                   )}
                 </div>
                 {user?.jersey_number != null && (
-                  <ShieldBadge value={user.jersey_number} label="Номер" accentColor="persimmon" />
+                  <JerseyBadge
+                    number={user.jersey_number}
+                    label="Номер"
+                    accentColor="persimmon"
+                    surname={transliterate(user.last_name)}
+                  />
                 )}
               </div>
 
               <div className="flex justify-center py-2">
                 <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (avatarUrl !== null) {
-                        setIsAvatarPreviewOpen(true)
-                      } else {
-                        avatarInputRef.current?.click()
-                      }
-                    }}
-                    disabled={isUploadingAvatar}
-                    aria-label={avatarUrl !== null ? 'Просмотреть фото профиля' : 'Загрузить фото профиля'}
-                    className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-2 border-white/20 bg-dark-bg transition-opacity hover:opacity-90 disabled:cursor-wait"
-                  >
-                    {avatarUrl !== null ? (
-                      <img src={avatarUrl} alt="Аватар" className="h-full w-full object-cover" />
-                    ) : (
-                      <i className="ti ti-user text-5xl text-[#8A94A6]" aria-hidden="true" />
-                    )}
-                    {isUploadingAvatar && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                        <i className="ti ti-loader-2 animate-spin text-3xl text-[#F5F7FA]" aria-hidden="true" />
-                      </div>
-                    )}
-                  </button>
+                  {/* Two-layer wrapper, same reason as HomePage's avatar:
+                      the tier border/glow (box-shadow) lives on this outer
+                      div, and the button below keeps overflow-hidden to
+                      clip the photo -- combining both on one element would
+                      clip the glow along with the photo. */}
+                  <div className="h-32 w-32 rounded-full" style={avatarTierStyle.style}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (avatarUrl !== null) {
+                          setIsAvatarPreviewOpen(true)
+                        } else {
+                          avatarInputRef.current?.click()
+                        }
+                      }}
+                      disabled={isUploadingAvatar}
+                      aria-label={avatarUrl !== null ? 'Просмотреть фото профиля' : 'Загрузить фото профиля'}
+                      className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-dark-bg transition-opacity hover:opacity-90 disabled:cursor-wait"
+                    >
+                      {avatarUrl !== null ? (
+                        <img src={avatarUrl} alt="Аватар" className="h-full w-full object-cover" />
+                      ) : (
+                        <i className="ti ti-user text-5xl text-[#8A94A6]" aria-hidden="true" />
+                      )}
+                      {isUploadingAvatar && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                          <i className="ti ti-loader-2 animate-spin text-3xl text-[#F5F7FA]" aria-hidden="true" />
+                        </div>
+                      )}
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => avatarInputRef.current?.click()}
@@ -240,7 +257,6 @@ export function ProfilePage() {
                     ref={avatarInputRef}
                     type="file"
                     accept="image/*"
-                    capture="user"
                     className="hidden"
                     onChange={handleAvatarChange}
                   />
@@ -256,7 +272,7 @@ export function ProfilePage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {TARGET_STATS.map((statType) => {
                   const stat = statsByType.get(statType)
                   if (stat === undefined) {
