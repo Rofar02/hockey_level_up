@@ -13,6 +13,7 @@ from app.core.training_block import (
     MAIN_EXERCISE_COUNT_RANGE,
     BlockPhase,
     get_phase,
+    max_difficulty_for_level,
 )
 from app.models.exercise import Exercise, ExerciseCategory, TargetStat, TrainingPhase
 from app.models.schedule import (
@@ -350,17 +351,21 @@ class ScheduleService:
         """Warmup/cooldown: curated pool for the phase, filtered by the day's category.
 
         equipment_access still narrows off_ice candidates but never excludes
-        on_ice ones (no equipment choice on the ice). The active block's
-        phase biases difficulty (intensification prefers difficulty>=4,
-        deload prefers difficulty<=2), falling back to the full pool when
-        nothing matches that preference -- never an empty result just
-        because the preferred difficulty band is missing.
+        on_ice ones (no equipment choice on the ice). User.level caps which
+        difficulty tier is even eligible (see _apply_level_cap), and *then*
+        the active block's phase biases difficulty within whatever that cap
+        allows (intensification prefers difficulty>=4, deload prefers
+        difficulty<=2), falling back to the level-capped pool when nothing
+        matches that preference -- never an empty result just because the
+        preferred difficulty band is missing.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=phase, equipment_access=user.equipment_access, category=category
         )
         if not candidates:
             return None
+
+        candidates = self._apply_level_cap(candidates, user, context=f"{phase}/{category}")
 
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
         if difficulty_predicate is not None:
@@ -375,25 +380,30 @@ class ScheduleService:
         category, at most one per target stat.
 
         If fewer than `count` stats have candidates, returns fewer exercises
-        rather than repeating a stat. Two priority layers apply *within*
+        rather than repeating a stat. Three priority layers apply *within*
         each stat's candidate pool, in this order:
 
-          1. block-phase difficulty preference (intensification: >=4,
-             deload: <=2) -- narrows the pool for that stat, falling back to
-             the full stat pool if nothing matches;
-          2. SkillTag priority for the user's chosen skills (Phase 7) --
+          1. User.level difficulty cap (see _apply_level_cap) -- the hard
+             ceiling on what the user is allowed at all, falling back to the
+             full stat pool (ignoring the cap, with a warning) only if the
+             stat has literally nothing under it;
+          2. block-phase difficulty preference (intensification: >=4,
+             deload: <=2) -- narrows the level-capped pool further, falling
+             back to it if nothing matches;
+          3. SkillTag priority for the user's chosen skills (Phase 7) --
              narrows *that* pool further, again falling back if nothing
              matches.
 
-        Difficulty goes first because it's the block's physiological
-        constraint on the week (how hard this week should be, chosen by the
-        system); SkillTag is the user's personalization on top, and should
-        only pick among whatever difficulty envelope the block allows --
-        otherwise a user's skill choice could quietly cancel out
-        intensification/deload by always winning with an off-envelope
-        exercise. A user with no preferences and an accumulation-phase block
-        (no difficulty predicate) sees plain round-robin, identical to
-        before this and the Phase 7 priority were added.
+        Level goes first because it's a hard capability gate, not a
+        preference -- every later layer's fallback lands on *its* pool, so
+        none of them can ever reintroduce an over-cap exercise except layer
+        1's own last-resort fallback. Difficulty preference goes next
+        because it's the block's physiological constraint on the week (how
+        hard this week should be, chosen by the system); SkillTag is the
+        user's personalization on top. A user with no preferences and an
+        accumulation-phase block (no difficulty predicate) sees plain
+        round-robin among their level-capped pool, identical to before this
+        and the Phase 7 priority were added.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
@@ -409,6 +419,7 @@ class ScheduleService:
             exercise_ids=[exercise.id for exercise in candidates], skill_ids=preferred_skill_ids
         )
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
+        level_cap = max_difficulty_for_level(user.level)
 
         by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
         for exercise in candidates:
@@ -422,12 +433,50 @@ class ScheduleService:
             if not stat_pool:
                 continue
 
+            stat_pool = self._apply_level_cap(
+                stat_pool, user, context=f"main/{category}/{stat}", level_cap=level_cap
+            )
+
             if difficulty_predicate is not None:
                 stat_pool = [e for e in stat_pool if difficulty_predicate(e)] or stat_pool
 
             skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
             picked.append(random.choice(skill_pool))
         return picked
+
+    @staticmethod
+    def _apply_level_cap(
+        candidates: list[Exercise],
+        user: User,
+        *,
+        context: str,
+        level_cap: int | None = None,
+    ) -> list[Exercise]:
+        """Hard difficulty ceiling from User.level (see max_difficulty_for_level),
+        applied at exercise-*assembly* time only -- never touches SessionBlocks
+        already saved into a plan, even if the user's level later makes one of
+        them ineligible for a fresh pick.
+
+        Last-resort fallback: if nothing in `candidates` is under the cap
+        (e.g. a low-level user's catalog has no easy exercises for this
+        phase/category/stat), relax back to the full, uncapped `candidates`
+        rather than assembling an empty/broken plan -- and log it, since an
+        empty pool under the level cap is a catalog gap worth knowing about.
+        """
+        cap = level_cap if level_cap is not None else max_difficulty_for_level(user.level)
+        capped = [e for e in candidates if e.difficulty_level <= cap]
+        if capped:
+            return capped
+
+        logger.warning(
+            "No exercises with difficulty<=%s available for %s (user_id=%s, level=%s) -- "
+            "falling back to the full difficulty range so the plan isn't left empty",
+            cap,
+            context,
+            user.id,
+            user.level,
+        )
+        return candidates
 
     @staticmethod
     def _to_read_schema(weekly_plan: WeeklyPlan) -> WeeklyPlanRead:

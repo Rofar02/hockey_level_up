@@ -11,6 +11,24 @@ WEEKS_PER_BLOCK = 4
 _INTENSIFICATION_DIFFICULTY_FLOOR = 4
 _DELOAD_DIFFICULTY_CEILING = 2
 
+MAX_DIFFICULTY_LEVEL = 5
+
+# User.level -> highest Exercise.difficulty_level the assembly pipeline may
+# pick. Ordered ascending on the threshold; the first row whose threshold is
+# > level wins. Edit this list to retune the level gate -- nothing else in
+# the assembly code needs to change.
+_LEVEL_DIFFICULTY_CAPS: list[tuple[int, int]] = [
+    (8, 2),  # level < 8  -> difficulty <= 2
+    (15, 3),  # 8 <= level < 15 -> difficulty <= 3
+]  # level >= 15 -> difficulty <= MAX_DIFFICULTY_LEVEL (no cap)
+
+
+def max_difficulty_for_level(level: int) -> int:
+    for threshold, cap in _LEVEL_DIFFICULTY_CAPS:
+        if level < threshold:
+            return cap
+    return MAX_DIFFICULTY_LEVEL
+
 
 class BlockPhase(enum.StrEnum):
     ACCUMULATION = "accumulation"

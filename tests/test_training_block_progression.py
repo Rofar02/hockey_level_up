@@ -64,6 +64,7 @@ async def test_five_consecutive_weeks_progress_block_and_flag_reassessment(db_se
 
     for week_index, (exp_block_number, exp_week_in_block, exp_phase) in enumerate(expected):
         assert user.suggested_reassessment is False, f"week {week_index}: flag set too early"
+        assert user.suggested_onice_reassessment is False, f"week {week_index}: onice flag set too early"
 
         await schedule.create_weekly_plan(user, _week_payload(base + timedelta(days=7 * week_index)))
         current = await blocks.get_current(user.id)
@@ -76,8 +77,12 @@ async def test_five_consecutive_weeks_progress_block_and_flag_reassessment(db_se
 
         if week_index == 4:
             assert user.suggested_reassessment is True, "flag should flip on the week4->new-block transition"
+            # Same rollover trigger flips both flags together -- neither
+            # test's window opens/closes independently of the other's.
+            assert user.suggested_onice_reassessment is True
         else:
             assert user.suggested_reassessment is False
+            assert user.suggested_onice_reassessment is False
 
 
 # --- _resolve_training_block: anchor_week_start_date-driven advancement ---
@@ -159,6 +164,7 @@ async def test_multi_week_jump_rolls_over_mid_gap_and_flags_reassessment(db_sess
     landed = await service._resolve_training_block(user, base + timedelta(days=14))  # (1, 3)
     assert (landed.block_number, landed.week_in_block) == (1, 3)
     assert user.suggested_reassessment is False
+    assert user.suggested_onice_reassessment is False
 
     # 2 real weeks ahead from week 3: step to 4, then roll over to (2, 1) --
     # not "3 + 2 = 5" and not "stops at 4 without rolling over".
@@ -167,6 +173,7 @@ async def test_multi_week_jump_rolls_over_mid_gap_and_flags_reassessment(db_sess
     assert (result.block_number, result.week_in_block) == (2, 1)
     assert result.anchor_week_start_date == base + timedelta(days=28)
     assert user.suggested_reassessment is True
+    assert user.suggested_onice_reassessment is True
 
 
 @pytest.mark.asyncio

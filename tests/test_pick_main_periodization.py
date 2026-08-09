@@ -35,6 +35,11 @@ def _make_user() -> User:
         email=f"periodization_{unique}@example.com",
         password_hash="irrelevant",
         equipment_access=EquipmentType.BODYWEIGHT,
+        # High enough to clear the User.level difficulty cap entirely (see
+        # test_level_difficulty_gate.py) -- this file is about block-phase
+        # difficulty preference specifically, which needs difficulty 1/3/5
+        # candidates all equally reachable, not about the level gate.
+        level=15,
     )
 
 
