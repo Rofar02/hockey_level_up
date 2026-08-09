@@ -7,11 +7,13 @@ export interface TokenPair {
   token_type: string
 }
 
-export function login(username: string, password: string): Promise<TokenPair> {
+export function login(identifier: string, password: string): Promise<TokenPair> {
   // POST /auth/login expects OAuth2PasswordRequestForm: form-urlencoded,
-  // field is named "username" even though it authenticates against the
-  // user's username (the backend has no login-by-email path yet).
-  return apiPostForm<TokenPair>('/auth/login', { username, password })
+  // field is named "username" per the OAuth2 spec, but AuthService.authenticate
+  // accepts either a username or an email in it -- new accounts have no
+  // client-chosen username (see AuthService._generate_username), so they log
+  // in by email; pre-existing accounts can still use their username.
+  return apiPostForm<TokenPair>('/auth/login', { username: identifier, password })
 }
 
 export function register(payload: RegisterPayload): Promise<UserRead> {

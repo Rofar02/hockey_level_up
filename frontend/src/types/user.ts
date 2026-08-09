@@ -50,15 +50,16 @@ export interface UserRead {
 }
 
 export interface RegisterPayload {
-  username: string
   email: string
   password: string
   last_name: string
   first_name: string
+  jersey_number: number
   patronymic?: string | null
   height?: number | null
   weight?: number | null
   age?: number | null
   position?: Position | null
   years_of_experience?: number | null
+  privacy_consent: boolean
 }

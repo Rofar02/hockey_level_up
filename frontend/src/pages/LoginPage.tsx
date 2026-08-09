@@ -39,7 +39,7 @@ export function LoginPage() {
         <h1 className="mb-6 text-xl font-semibold">Вход</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <TextField
-            label="Имя пользователя"
+            label="Email"
             name="username"
             autoComplete="username"
             value={username}

@@ -9,7 +9,6 @@ from app.models.user import Position, ReminderPreference
 
 
 class UserBase(BaseModel):
-    username: str = Field(min_length=3, max_length=50)
     email: EmailStr
     # No min_length here -- UserRead inherits this too, and legacy users
     # created before these fields existed have "" (the DB server_default),
@@ -29,12 +28,29 @@ class UserCreate(UserBase):
     password: str = Field(min_length=8, max_length=128)
     last_name: str = Field(min_length=1, max_length=100)
     first_name: str = Field(min_length=1, max_length=100)
+    # No username input at registration -- AuthService.register generates
+    # one internally (still needed as a stable, unique DB identifier for
+    # login-by-username on pre-existing accounts). Jersey number, on the
+    # other hand, is now a required part of who a player is, not an
+    # optional profile detail edited later.
+    jersey_number: int = Field(ge=0, le=99)
+    # Defaults to False (not a required field) rather than `bool` with no
+    # default -- an omitted field should fail the same explicit 400 check in
+    # AuthService.register as an explicit `false`, instead of a generic 422
+    # from pydantic that wouldn't distinguish "forgot to send it" from any
+    # other malformed request.
+    privacy_consent: bool = False
 
 
 class UserRead(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    # Still a real, unique column (see AuthService._generate_username) --
+    # kept on UserRead since login-by-username still works for accounts
+    # created before this field left the registration form, but it's no
+    # longer treated as a display name anywhere in the frontend.
+    username: str
     jersey_number: int | None = Field(default=None, ge=0, le=99)
     avatar_url: str | None = None
     equipment_access: EquipmentType

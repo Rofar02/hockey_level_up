@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { SelectField } from '../components/ui/SelectField'
 import { TextField } from '../components/ui/TextField'
@@ -22,17 +23,20 @@ function toOptionalNumber(value: string): number | undefined {
 export function RegisterPage() {
   const navigate = useNavigate()
 
-  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [lastName, setLastName] = useState('')
   const [firstName, setFirstName] = useState('')
   const [patronymic, setPatronymic] = useState('')
+  const [jerseyNumber, setJerseyNumber] = useState('')
   const [height, setHeight] = useState('')
   const [weight, setWeight] = useState('')
   const [age, setAge] = useState('')
   const [position, setPosition] = useState('')
   const [yearsOfExperience, setYearsOfExperience] = useState('')
+  // Never pre-checked -- the user must actively opt in on every visit to
+  // this form, not just once ever (a fresh page load always starts false).
+  const [privacyConsent, setPrivacyConsent] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -40,20 +44,33 @@ export function RegisterPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
+
+    const parsedJerseyNumber = Number(jerseyNumber.trim())
+    if (
+      jerseyNumber.trim() === '' ||
+      !Number.isInteger(parsedJerseyNumber) ||
+      parsedJerseyNumber < 0 ||
+      parsedJerseyNumber > 99
+    ) {
+      setError('Укажите игровой номер — целое число от 0 до 99.')
+      return
+    }
+
     setIsSubmitting(true)
     try {
       await authApi.register({
-        username,
         email,
         password,
         last_name: lastName,
         first_name: firstName,
+        jersey_number: parsedJerseyNumber,
         patronymic: patronymic.trim() === '' ? undefined : patronymic,
         height: toOptionalNumber(height),
         weight: toOptionalNumber(weight),
         age: toOptionalNumber(age),
         position: position === '' ? undefined : (position as Position),
         years_of_experience: toOptionalNumber(yearsOfExperience),
+        privacy_consent: privacyConsent,
       })
       navigate('/login', { replace: true })
     } catch (err) {
@@ -70,16 +87,6 @@ export function RegisterPage() {
       <Card className="relative w-full max-w-md">
         <h1 className="mb-6 text-xl font-semibold">Регистрация</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <TextField
-            label="Имя пользователя"
-            name="username"
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            minLength={3}
-            maxLength={50}
-            required
-          />
           <TextField
             label="Email"
             name="email"
@@ -128,6 +135,17 @@ export function RegisterPage() {
             value={patronymic}
             onChange={(event) => setPatronymic(event.target.value)}
             maxLength={100}
+          />
+          <TextField
+            label="Игровой номер"
+            name="jersey_number"
+            type="number"
+            numeric
+            min={0}
+            max={99}
+            value={jerseyNumber}
+            onChange={(event) => setJerseyNumber(event.target.value)}
+            required
           />
 
           <div className="grid grid-cols-2 gap-4">
@@ -179,8 +197,24 @@ export function RegisterPage() {
             options={POSITIONS.map((value) => ({ value, label: POSITION_LABELS[value] }))}
           />
 
+          <label className="flex cursor-pointer items-start gap-2.5">
+            <Checkbox checked={privacyConsent} onClick={() => setPrivacyConsent((value) => !value)} />
+            <span className="text-sm text-text-secondary">
+              Я согласен с{' '}
+              <Link
+                to="/privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent-ice hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                Политикой обработки персональных данных
+              </Link>
+            </span>
+          </label>
+
           <FormError message={error} />
-          <Button type="submit" isLoading={isSubmitting}>
+          <Button type="submit" isLoading={isSubmitting} disabled={!privacyConsent}>
             Зарегистрироваться
           </Button>
         </form>

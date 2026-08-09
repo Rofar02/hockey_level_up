@@ -107,6 +107,14 @@ class User(Base):
         server_default=ReminderPreference.NONE.value,
     )
 
+    # Set at registration time, only when the required consent checkbox was
+    # checked (AuthService.register rejects the request with 400 otherwise)
+    # -- 152-FZ requires being able to point to when consent was given, so
+    # this is never backfilled/defaulted for existing rows.
+    privacy_consent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
