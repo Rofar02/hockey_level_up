@@ -64,11 +64,18 @@ export function ExerciseDetailModal({
   trainingSessionId,
   accessToken,
   onClose,
+  onLastSetCompleted,
 }: {
   exercise: ExerciseRead
   trainingSessionId: string
   accessToken: string
   onClose: () => void
+  // Fires once, right after the set that reaches target_sets is saved --
+  // undefined in read-only contexts (e.g. NewSchedulePage's view of an
+  // already-started/completed day), where auto-completing a block would be
+  // wrong. Just forwarded to SetLogger as-is; this component's own logic
+  // doesn't otherwise change.
+  onLastSetCompleted?: () => void
 }) {
   const [activeTab, setActiveTab] = useState<ExerciseModalTab>('sets')
 
@@ -100,6 +107,7 @@ export function ExerciseDetailModal({
               exercise={exercise}
               trainingSessionId={trainingSessionId}
               accessToken={accessToken}
+              onLastSetCompleted={onLastSetCompleted}
             />
           ) : targetVolume !== null ? (
             <div className="flex items-center justify-between text-sm">
@@ -177,10 +185,12 @@ function SetLogger({
   exercise,
   trainingSessionId,
   accessToken,
+  onLastSetCompleted,
 }: {
   exercise: ExerciseRead
   trainingSessionId: string
   accessToken: string
+  onLastSetCompleted?: () => void
 }) {
   const targetSets = exercise.target_sets
   const [suggestedWeightKg, setSuggestedWeightKg] = useState<number | null>(null)
@@ -287,6 +297,15 @@ function SetLogger({
       setCompletedSets((previous) => ({ ...previous, [currentSetNumber]: result }))
       setWeightInput(result.suggested_weight_kg !== null ? String(result.suggested_weight_kg) : '')
       setRepsInput('')
+
+      // currentSetNumber is the set just saved (captured before this async
+      // call started) -- if it's the last one, tick the exercise off
+      // automatically instead of making the user tap the checkbox
+      // separately. onLastSetCompleted is undefined in read-only contexts
+      // (NewSchedulePage), where this must never fire.
+      if (currentSetNumber === targetSets && onLastSetCompleted !== undefined) {
+        onLastSetCompleted()
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
         // The specific case the backend's >3x sanity check guards against --

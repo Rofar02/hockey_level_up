@@ -335,6 +335,18 @@ export function TrainingSessionPage() {
   const currentExerciseId =
     orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))?.id ?? null
 
+  // The SessionBlock behind the exercise currently open in
+  // ExerciseDetailModal -- selectedExercise only stores the ExerciseRead
+  // (see onOpenDetail below), so this is looked up by exercise id, same
+  // simplification setCompletionCounts/isExerciseDone already make
+  // elsewhere in this file (an exercise appearing twice in one session
+  // would be ambiguous here too, pre-existing either way). Needed to build
+  // onLastSetCompleted's closure over the right block for handleComplete.
+  const selectedBlock =
+    selectedExercise !== null
+      ? (blocks.find((block) => block.exercise.id === selectedExercise.id) ?? null)
+      : null
+
   const weekdayLabel = day !== null ? WEEKDAY_LABELS[(parseIsoDate(day.date).getDay() + 6) % 7] : null
   const eyebrow = [weekdayLabel, trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null]
     .filter(Boolean)
@@ -433,6 +445,15 @@ export function TrainingSessionPage() {
           trainingSessionId={trainingSessionId}
           accessToken={accessToken}
           onClose={handleCloseExerciseDetail}
+          // Only when the block is actually known and not already ticked --
+          // handleComplete itself also no-ops on an already-completed block,
+          // this just avoids constructing a callback that would immediately
+          // no-op every time it's called.
+          onLastSetCompleted={
+            selectedBlock !== null && selectedBlock.completed_at === null
+              ? () => handleComplete(selectedBlock)
+              : undefined
+          }
         />
       )}
 
