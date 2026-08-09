@@ -1,5 +1,5 @@
-import { apiGet, apiPatchAuth, apiPostMultipartAuth, apiPutAuth } from './client'
-import type { EquipmentAccess, UserRead } from '../types/user'
+import { apiDeleteAuthWithBody, apiGet, apiPatchAuth, apiPostMultipartAuth, apiPutAuth } from './client'
+import type { EquipmentAccess, ReminderPreference, UserRead } from '../types/user'
 import type { UserSkillPreference } from '../types/skill'
 
 export function updateEquipmentAccess(
@@ -14,6 +14,8 @@ export interface UserProfileUpdate {
   first_name?: string
   patronymic?: string | null
   jersey_number?: number | null
+  reminder_preference?: ReminderPreference
+  timezone?: string
 }
 
 export function updateProfile(
@@ -42,4 +44,8 @@ export function replaceSkillPreferences(
     { skill_ids: skillIds },
     accessToken,
   )
+}
+
+export function deleteAccount(password: string, accessToken: string): Promise<void> {
+  return apiDeleteAuthWithBody<void>('/users/me', { password }, accessToken)
 }

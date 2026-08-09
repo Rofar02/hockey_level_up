@@ -1,27 +1,36 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { ChoiceCard } from '../components/ui/ChoiceCard'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
-import { SkillChip } from '../components/ui/SkillChip'
+import { Modal } from '../components/ui/Modal'
+import { SelectField } from '../components/ui/SelectField'
+import { LockedSkillChip, SkillChip } from '../components/ui/SkillChip'
+import { Switch } from '../components/ui/Switch'
 import { TextField } from '../components/ui/TextField'
 import { AssessmentTestForm } from './onboarding/AssessmentTestForm'
+import { OnIceAssessmentTestForm } from './onboarding/OnIceAssessmentTestForm'
 import * as assessmentApi from '../api/assessment'
+import * as pushApi from '../api/push'
 import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import type { AssessmentStatus } from '../types/assessment'
+import { getActivePushSubscription, isPushSupported, subscribeToPush } from '../push'
+import type { AssessmentStatus, OnIceAssessmentStatus } from '../types/assessment'
 import type { SkillOption } from '../types/skill'
-import { EQUIPMENT_CHOICES } from '../types/user'
-import type { EquipmentAccess } from '../types/user'
+import { EQUIPMENT_CHOICES, REMINDER_PREFERENCE_LABELS } from '../types/user'
+import type { EquipmentAccess, ReminderPreference } from '../types/user'
+import { maxSkillPreferencesForLevel } from '../utils/skillPreferenceLimit'
 
 export function SettingsPage() {
   const { user, accessToken, logout, updateUser } = useAuth()
   const navigate = useNavigate()
+
+  const maxSkillPreferences = user !== null ? maxSkillPreferencesForLevel(user.level) : null
 
   const [lastName, setLastName] = useState(user?.last_name ?? '')
   const [firstName, setFirstName] = useState(user?.first_name ?? '')
@@ -47,6 +56,32 @@ export function SettingsPage() {
   const [isDismissing, setIsDismissing] = useState(false)
   const [showTestForm, setShowTestForm] = useState(false)
   const [testSuccess, setTestSuccess] = useState(false)
+
+  const [onIceStatus, setOnIceStatus] = useState<OnIceAssessmentStatus | null>(null)
+  const [onIceStatusError, setOnIceStatusError] = useState<string | null>(null)
+  const [showOnIceTestForm, setShowOnIceTestForm] = useState(false)
+  const [onIceTestSuccess, setOnIceTestSuccess] = useState(false)
+
+  const [pushSupported] = useState(() => isPushSupported())
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(() =>
+    isPushSupported() ? Notification.permission : null,
+  )
+  const [pushSubscribed, setPushSubscribed] = useState(false)
+  const [pushStatusChecked, setPushStatusChecked] = useState(false)
+  const [isPushBusy, setIsPushBusy] = useState(false)
+  const [pushError, setPushError] = useState<string | null>(null)
+  const [isSendingTestPush, setIsSendingTestPush] = useState(false)
+  const [testPushSuccess, setTestPushSuccess] = useState(false)
+  const [reminderPreference, setReminderPreference] = useState<Exclude<ReminderPreference, 'none'>>(
+    user?.reminder_preference !== undefined && user.reminder_preference !== 'none'
+      ? user.reminder_preference
+      : 'morning',
+  )
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (accessToken === null) {
@@ -92,6 +127,157 @@ export function SettingsPage() {
       cancelled = true
     }
   }, [accessToken])
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    assessmentApi
+      .getOnIceStatus(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setOnIceStatus(result)
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setOnIceStatusError(
+            err instanceof ApiError ? err.message : 'Не удалось загрузить статус теста.',
+          )
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
+  useEffect(() => {
+    if (!pushSupported) {
+      return
+    }
+    // The server has no record of "is this browser currently subscribed" --
+    // permission can be revoked from OS/browser settings behind the app's
+    // back, so the only trustworthy source is the browser's own state.
+    let cancelled = false
+    getActivePushSubscription()
+      .then((subscription) => {
+        if (!cancelled) {
+          setPushSubscribed(subscription !== null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPushStatusChecked(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [pushSupported])
+
+  async function handlePushToggle() {
+    if (accessToken === null || isPushBusy) {
+      return
+    }
+    setPushError(null)
+    setTestPushSuccess(false)
+    setIsPushBusy(true)
+    try {
+      if (pushSubscribed) {
+        const subscription = await getActivePushSubscription()
+        if (subscription !== null) {
+          await pushApi.deletePushSubscription(subscription.endpoint, accessToken)
+          await subscription.unsubscribe()
+        }
+        setPushSubscribed(false)
+        try {
+          const updated = await usersApi.updateProfile(
+            { reminder_preference: 'none' },
+            accessToken,
+          )
+          updateUser(updated)
+        } catch {
+          // Best-effort -- the browser subscription is already gone either
+          // way, so a stale server-side preference is harmless until the
+          // next successful save.
+        }
+        return
+      }
+
+      if (Notification.permission === 'denied') {
+        setPushError('Уведомления заблокированы в настройках браузера.')
+        return
+      }
+      const permission = await Notification.requestPermission()
+      setPushPermission(permission)
+      if (permission !== 'granted') {
+        setPushError('Уведомления заблокированы в настройках браузера.')
+        return
+      }
+
+      const { public_key: vapidPublicKey } = await pushApi.getVapidPublicKey(accessToken)
+      const subscription = await subscribeToPush(vapidPublicKey)
+      const json = subscription.toJSON()
+      if (json.endpoint === undefined || json.keys === undefined) {
+        throw new Error('Некорректная push-подписка браузера.')
+      }
+      await pushApi.savePushSubscription(
+        { endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth } },
+        accessToken,
+      )
+      const updated = await usersApi.updateProfile(
+        {
+          reminder_preference: reminderPreference,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        accessToken,
+      )
+      updateUser(updated)
+      setPushSubscribed(true)
+    } catch (err) {
+      setPushError(
+        err instanceof ApiError ? err.message : 'Не удалось изменить настройку уведомлений.',
+      )
+    } finally {
+      setIsPushBusy(false)
+    }
+  }
+
+  async function handleReminderPreferenceChange(value: Exclude<ReminderPreference, 'none'>) {
+    if (accessToken === null || value === reminderPreference) {
+      return
+    }
+    const previous = reminderPreference
+    setReminderPreference(value)
+    setPushError(null)
+    try {
+      const updated = await usersApi.updateProfile({ reminder_preference: value }, accessToken)
+      updateUser(updated)
+    } catch (err) {
+      setReminderPreference(previous)
+      setPushError(err instanceof ApiError ? err.message : 'Не удалось сохранить выбор.')
+    }
+  }
+
+  async function handleSendTestPush() {
+    if (accessToken === null) {
+      return
+    }
+    setPushError(null)
+    setTestPushSuccess(false)
+    setIsSendingTestPush(true)
+    try {
+      await pushApi.sendTestPushNotification(accessToken)
+      setTestPushSuccess(true)
+    } catch (err) {
+      setPushError(
+        err instanceof ApiError ? err.message : 'Не удалось отправить тестовое уведомление.',
+      )
+    } finally {
+      setIsSendingTestPush(false)
+    }
+  }
 
   async function handleProfileSave(event: FormEvent) {
     event.preventDefault()
@@ -220,9 +406,49 @@ export function SettingsPage() {
     )
   }
 
+  function handleOnIceTestSuccess() {
+    setShowOnIceTestForm(false)
+    setOnIceTestSuccess(true)
+    // Unlike the off-ice flow above, no extra dismiss call is needed here --
+    // AssessmentService.run_onice_test already resets
+    // suggested_onice_reassessment server-side, so the optimistic update
+    // below is the only client-side bookkeeping required.
+    setOnIceStatus((previous) =>
+      previous !== null
+        ? { ...previous, has_onice_assessment: true, suggested_onice_reassessment: false }
+        : previous,
+    )
+  }
+
   function handleLogout() {
     logout()
     navigate('/login', { replace: true })
+  }
+
+  function openDeleteModal() {
+    setDeletePassword('')
+    setDeleteError(null)
+    setShowDeleteModal(true)
+  }
+
+  async function handleDeleteAccount(event: FormEvent) {
+    event.preventDefault()
+    if (accessToken === null) {
+      return
+    }
+    setDeleteError(null)
+    setIsDeleting(true)
+    try {
+      await usersApi.deleteAccount(deletePassword, accessToken)
+      logout()
+      navigate('/login', { replace: true })
+    } catch (err) {
+      setDeleteError(
+        err instanceof ApiError ? err.message : 'Не удалось удалить аккаунт. Попробуйте ещё раз.',
+      )
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -303,16 +529,41 @@ export function SettingsPage() {
           <p className="text-sm text-[#8A94A6]">Загрузка...</p>
         )}
         <FormError message={skillsLoadError} />
+        {/* maxSkillPreferences is null at level 25+ (unlimited) -- omitted
+            entirely rather than showing "X из ∞". */}
+        {maxSkillPreferences !== null && (
+          <p className="text-sm text-[#8A94A6]">
+            Выбрано {selectedSkillIds.size} из {maxSkillPreferences}
+          </p>
+        )}
         {skills !== null && (
           <div className="flex flex-wrap gap-2">
-            {skills.map((skill) => (
-              <SkillChip
-                key={skill.id}
-                label={skill.name}
-                selected={selectedSkillIds.has(skill.id)}
-                onClick={() => toggleSkill(skill.id)}
-              />
-            ))}
+            {skills.map((skill) => {
+              // Locked skills are still shown (not filtered out) -- with a
+              // lock icon and unlock level instead of a toggle, independent
+              // of the slot-limit check below.
+              if (skill.required_level > (user?.level ?? 1)) {
+                return (
+                  <LockedSkillChip
+                    key={skill.id}
+                    label={skill.name}
+                    requiredLevel={skill.required_level}
+                  />
+                )
+              }
+              const isSelected = selectedSkillIds.has(skill.id)
+              const limitReached =
+                maxSkillPreferences !== null && selectedSkillIds.size >= maxSkillPreferences
+              return (
+                <SkillChip
+                  key={skill.id}
+                  label={skill.name}
+                  selected={isSelected}
+                  disabled={!isSelected && limitReached}
+                  onClick={() => toggleSkill(skill.id)}
+                />
+              )
+            })}
           </div>
         )}
         <FormError message={skillsSaveError} />
@@ -325,28 +576,35 @@ export function SettingsPage() {
         )}
         <FormError message={statusError} />
 
-        {assessmentStatus?.suggested_reassessment === true && (
-          <div className="flex flex-col gap-3 rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-4">
-            <p className="text-sm text-[#F5F7FA]">
-              Похоже, ваш уровень подготовки изменился. Стоит пройти тест заново, чтобы точнее
-              откалибровать характеристики.
-            </p>
-            <div className="flex gap-3">
-              <Button onClick={() => setShowTestForm(true)} disabled={showTestForm}>
-                Пройти тест заново
-              </Button>
-              <Button variant="neutral" onClick={handleDismissReassessment} isLoading={isDismissing}>
-                Не сейчас
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {assessmentStatus?.suggested_reassessment === false && !showTestForm && (
+        {assessmentStatus?.has_assessment === false && !showTestForm && (
           <Button variant="neutral" onClick={() => setShowTestForm(true)} className="self-start">
-            Пройти тест заново
+            Пройти тест
           </Button>
         )}
+
+        {assessmentStatus?.has_assessment === true &&
+          assessmentStatus.suggested_reassessment === true &&
+          !showTestForm && (
+            <div className="flex flex-col gap-3 rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-4">
+              <p className="text-sm text-[#F5F7FA]">
+                Похоже, ваш уровень подготовки изменился. Стоит пройти тест заново, чтобы точнее
+                откалибровать характеристики.
+              </p>
+              <div className="flex gap-3">
+                <Button onClick={() => setShowTestForm(true)}>Пройти тест заново</Button>
+                <Button variant="neutral" onClick={handleDismissReassessment} isLoading={isDismissing}>
+                  Не сейчас
+                </Button>
+              </div>
+            </div>
+          )}
+
+        {assessmentStatus?.has_assessment === true &&
+          assessmentStatus.suggested_reassessment === false && (
+            <p className="text-sm text-[#8A94A6]">
+              Переоценка станет доступна в начале следующего тренировочного блока.
+            </p>
+          )}
 
         {testSuccess && <p className="text-sm text-accent-ice">Результаты сохранены.</p>}
 
@@ -355,10 +613,165 @@ export function SettingsPage() {
         )}
       </section>
 
+      <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-medium text-[#8A94A6]">Оценка катания</h2>
+        {onIceStatus === null && onIceStatusError === null && (
+          <p className="text-sm text-[#8A94A6]">Загрузка...</p>
+        )}
+        <FormError message={onIceStatusError} />
+
+        {onIceStatus?.has_onice_assessment === false && !showOnIceTestForm && (
+          <Button variant="neutral" onClick={() => setShowOnIceTestForm(true)} className="self-start">
+            Пройти тест
+          </Button>
+        )}
+
+        {onIceStatus?.has_onice_assessment === true &&
+          onIceStatus.suggested_onice_reassessment === true &&
+          !showOnIceTestForm && (
+            <div className="flex flex-col gap-3 rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-4">
+              <p className="text-sm text-[#F5F7FA]">
+                Похоже, ваш уровень катания изменился. Стоит пройти тест заново, чтобы точнее
+                откалибровать характеристики.
+              </p>
+              <Button onClick={() => setShowOnIceTestForm(true)}>Пройти тест заново</Button>
+            </div>
+          )}
+
+        {onIceStatus?.has_onice_assessment === true &&
+          onIceStatus.suggested_onice_reassessment === false && (
+            <p className="text-sm text-[#8A94A6]">Переоценка станет доступна позже.</p>
+          )}
+
+        {onIceTestSuccess && <p className="text-sm text-accent-ice">Результаты сохранены.</p>}
+
+        {showOnIceTestForm && accessToken !== null && (
+          <OnIceAssessmentTestForm accessToken={accessToken} onSuccess={handleOnIceTestSuccess} />
+        )}
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-medium text-[#8A94A6]">Уведомления</h2>
+        {!pushSupported && (
+          <p className="text-sm text-text-secondary">
+            Этот браузер не поддерживает push-уведомления.
+          </p>
+        )}
+        {pushSupported && (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-medium text-text-primary">Напоминания о тренировках</p>
+                <p className="text-sm text-text-secondary">Push-уведомления в этом браузере</p>
+              </div>
+              <Switch
+                checked={pushSubscribed}
+                disabled={isPushBusy || !pushStatusChecked}
+                onClick={handlePushToggle}
+              />
+            </div>
+            {pushPermission === 'denied' && (
+              <p className="text-sm text-text-secondary">
+                Уведомления заблокированы в настройках браузера.
+              </p>
+            )}
+            <FormError message={pushError} />
+            {pushSubscribed && (
+              <>
+                <SelectField
+                  label="Когда напоминать"
+                  value={reminderPreference}
+                  onChange={(event) =>
+                    handleReminderPreferenceChange(
+                      event.target.value as Exclude<ReminderPreference, 'none'>,
+                    )
+                  }
+                  options={Object.entries(REMINDER_PREFERENCE_LABELS).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                />
+                <Button
+                  variant="neutral"
+                  onClick={handleSendTestPush}
+                  isLoading={isSendingTestPush}
+                  className="self-start"
+                >
+                  Отправить тестовое уведомление
+                </Button>
+                {testPushSuccess && (
+                  <p className="text-sm text-accent-ice">Уведомление отправлено.</p>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </section>
+
+      {user?.is_admin === true && (
+        <Link
+          to="/admin"
+          className="self-start rounded px-4 py-2.5 font-medium text-accent-ice transition-colors hover:underline"
+        >
+          Админ-панель
+        </Link>
+      )}
+
       <Button variant="neutral" onClick={handleLogout} className="mt-4 self-start">
         Выйти из аккаунта
       </Button>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-medium text-[#8A94A6]">Удаление аккаунта</h2>
+        <div className="flex flex-col gap-3 rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-4">
+          <p className="text-sm text-[#F5F7FA]">
+            Аккаунт и все связанные данные — тренировки, прогресс, статистика, навыки — будут
+            удалены безвозвратно. Это действие нельзя отменить.
+          </p>
+          <Button
+            variant="neutral"
+            onClick={openDeleteModal}
+            className="self-start border-accent-persimmon/60 text-accent-persimmon hover:bg-accent-persimmon/10"
+          >
+            Удалить аккаунт
+          </Button>
+        </div>
+      </section>
       </div>
+
+      {showDeleteModal && (
+        <Modal title="Удалить аккаунт?" onClose={() => setShowDeleteModal(false)}>
+          <form onSubmit={handleDeleteAccount} className="flex flex-col gap-4">
+            <p className="text-sm text-text-secondary">
+              Это действие необратимо. Введите пароль, чтобы подтвердить удаление аккаунта и
+              всех связанных данных.
+            </p>
+            <TextField
+              label="Пароль"
+              name="delete_password"
+              type="password"
+              autoComplete="current-password"
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+              required
+            />
+            <FormError message={deleteError} />
+            <div className="flex gap-3">
+              <Button type="submit" isLoading={isDeleting}>
+                Удалить аккаунт
+              </Button>
+              <Button
+                type="button"
+                variant="neutral"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+              >
+                Отмена
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }

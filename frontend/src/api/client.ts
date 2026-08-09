@@ -107,6 +107,14 @@ export function apiPutAuth<T>(path: string, body: unknown, accessToken: string):
   return request<T>(path, 'PUT', { body, accessToken })
 }
 
+export function apiDeleteAuth<T>(path: string, accessToken: string): Promise<T> {
+  return request<T>(path, 'DELETE', { accessToken })
+}
+
+export function apiDeleteAuthWithBody<T>(path: string, body: unknown, accessToken: string): Promise<T> {
+  return request<T>(path, 'DELETE', { body, accessToken })
+}
+
 export function apiPostMultipartAuth<T>(
   path: string,
   formData: FormData,

@@ -1,10 +1,11 @@
 from pathlib import Path
 
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile, status
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.security import verify_password
 from app.models.user import User
 from app.schemas.user import UserUpdate
 from app.services import image_processing
@@ -57,3 +58,28 @@ class UserService:
             image_processing.delete_image_file(upload_dir, previous_filename)
 
         return user
+
+    async def delete_account(self, user: User, password: str) -> None:
+        if password == "":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required"
+            )
+        if not verify_password(password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect password"
+            )
+
+        avatar_path = user.avatar_path
+        upload_dir = Path(get_settings().avatar_upload_dir)
+
+        # Every other table with a user_id FK has ON DELETE CASCADE (see the
+        # models under app/models/), and the schedule tree (weekly_plans ->
+        # day_plans -> training_sessions -> session_blocks) cascades
+        # transitively from weekly_plans.user_id -- so deleting the row here
+        # is enough for the DB side; only the avatar file below needs
+        # explicit cleanup since it isn't a DB row.
+        await self._session.delete(user)
+        await self._session.commit()
+
+        if avatar_path is not None:
+            image_processing.delete_image_file(upload_dir, avatar_path)
