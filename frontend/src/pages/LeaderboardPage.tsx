@@ -7,6 +7,7 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { LeaderboardEntryRead, LeaderboardMeRead } from '../types/leaderboard'
 import { POSITION_LABELS } from '../types/user'
+import { getDisplayName } from '../utils/displayName'
 
 // Same icy top-border card convention as Home/TrainingSession/Profile.
 const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
@@ -73,7 +74,7 @@ export function LeaderboardPage() {
     }
   }, [accessToken])
 
-  const myIndex = entries?.findIndex((entry) => entry.username === user?.username) ?? -1
+  const myIndex = entries?.findIndex((entry) => entry.id === user?.id) ?? -1
   // /leaderboard is capped at a page size -- if the current user's rank
   // falls outside it, /leaderboard/me still has their rank+rating, so pin a
   // separate row for them instead of just leaving them out.
@@ -102,7 +103,7 @@ export function LeaderboardPage() {
             <>
               <LeaderboardRow
                 rank={pinnedMe.rank}
-                username={user?.username ?? ''}
+                displayName={user !== null ? getDisplayName(user) : ''}
                 position={user?.position ?? null}
                 jerseyNumber={user?.jersey_number ?? null}
                 ratingExcess={pinnedMe.rating_excess}
@@ -114,9 +115,9 @@ export function LeaderboardPage() {
 
           {entries.map((entry, index) => (
             <LeaderboardRow
-              key={entry.username}
+              key={entry.id}
               rank={index + 1}
-              username={entry.username}
+              displayName={getDisplayName(entry)}
               position={entry.position}
               jerseyNumber={entry.jersey_number}
               ratingExcess={entry.rating_excess}
@@ -138,14 +139,14 @@ export function LeaderboardPage() {
 
 function LeaderboardRow({
   rank,
-  username,
+  displayName,
   position,
   jerseyNumber,
   ratingExcess,
   highlighted,
 }: {
   rank: number
-  username: string
+  displayName: string
   position: LeaderboardEntryRead['position']
   jerseyNumber: number | null
   ratingExcess: number
@@ -162,7 +163,7 @@ function LeaderboardRow({
       <span className="w-8 shrink-0 text-center font-mono text-sm text-[#8A94A6]">{rank}</span>
       <div className="flex min-w-0 flex-1 flex-col">
         <span className={`truncate font-medium ${highlighted ? 'text-accent-ice' : 'text-[#F5F7FA]'}`}>
-          {username}
+          {displayName}
         </span>
         <span className="text-xs text-[#8A94A6]">
           {[position !== null ? POSITION_LABELS[position] : null, jerseyNumber !== null ? `№${jerseyNumber}` : null]

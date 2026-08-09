@@ -1,7 +1,10 @@
 import type { Position } from './user'
 
 export interface LeaderboardEntryRead {
-  username: string
+  id: string
+  last_name: string
+  first_name: string
+  patronymic: string | null
   avatar_url: string | null
   position: Position | null
   jersey_number: number | null

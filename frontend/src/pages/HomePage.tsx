@@ -24,6 +24,7 @@ import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { BlockPhase, TrainingBlockRead } from '../types/trainingBlock'
 import { POSITION_LABELS } from '../types/user'
 import { getAvatarTierStyle } from '../utils/avatarTier'
+import { getDisplayName } from '../utils/displayName'
 import { WEEKDAY_LABELS, formatShortDate, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
@@ -234,7 +235,9 @@ export function HomePage() {
               </div>
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-xl font-bold leading-tight text-[#F5F7FA]">{user?.username}</span>
+              <span className="text-xl font-bold leading-tight text-[#F5F7FA]">
+                {user !== null ? getDisplayName(user) : ''}
+              </span>
               <span className="text-sm text-[#8A94A6]">
                 {[user?.position != null ? POSITION_LABELS[user.position] : null, `Уровень ${user?.level}`]
                   .filter(Boolean)

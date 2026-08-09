@@ -19,6 +19,7 @@ import type { UserStatRead } from '../types/progress'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { POSITION_LABELS } from '../types/user'
 import { getAvatarTierStyle } from '../utils/avatarTier'
+import { getDisplayName } from '../utils/displayName'
 import { transliterate } from '../utils/transliterate'
 
 const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
@@ -139,10 +140,7 @@ export function ProfilePage() {
   const selectedSkill = sortedSkills?.find((skill) => skill.id === selectedSkillId)
   const selectedStat = selectedStatType !== null ? statsByType.get(selectedStatType) : undefined
 
-  const hasFullName = user !== null && user !== undefined && user.last_name !== '' && user.first_name !== ''
-  const displayName = hasFullName
-    ? [user.last_name, user.first_name, user.patronymic].filter(Boolean).join(' ').toUpperCase()
-    : (user?.username ?? '')
+  const displayName = user !== null ? getDisplayName(user).toUpperCase() : ''
   const ageExperienceParts = [
     user?.age != null ? `${user.age} лет` : null,
     user?.years_of_experience != null ? `${user.years_of_experience} лет стажа` : null,

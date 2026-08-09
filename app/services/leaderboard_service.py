@@ -36,7 +36,7 @@ class LeaderboardService:
         # (get_expected_baseline needs it), so they're the only ones
         # eligible for a fair rating_excess.
         result = await self._session.execute(
-            select(User).where(User.age.is_not(None)).order_by(User.username)
+            select(User).where(User.age.is_not(None)).order_by(User.id)
         )
         users = list(result.scalars().all())
 
@@ -47,7 +47,10 @@ class LeaderboardService:
     @staticmethod
     def _to_entry(user: User, rating_excess: float) -> LeaderboardEntryRead:
         return LeaderboardEntryRead(
-            username=user.username,
+            id=user.id,
+            last_name=user.last_name,
+            first_name=user.first_name,
+            patronymic=user.patronymic,
             avatar_url=user.avatar_url,
             position=user.position,
             jersey_number=user.jersey_number,
