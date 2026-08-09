@@ -19,6 +19,7 @@ class ReferenceArticleRead(BaseModel):
     title: str
     category: str
     body: str
+    image_url: str | None = None
     created_at: datetime
 
 
@@ -32,3 +33,7 @@ class ReferenceArticleUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     category: str | None = Field(default=None, min_length=1, max_length=100)
     body: str | None = Field(default=None, min_length=1)
+
+
+class ReferenceArticleImageUploadRead(BaseModel):
+    url: str

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { MarkdownContent } from '../components/MarkdownContent'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import * as referenceArticlesApi from '../api/referenceArticles'
-import { ApiError } from '../api/client'
+import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { ReferenceArticleDetail } from '../types/referenceArticle'
 
@@ -56,13 +57,14 @@ export function ReferenceArticleDetailPage() {
             </span>
             <h1 className="text-xl font-semibold">{article.title}</h1>
           </div>
-          <div className="flex flex-col gap-4">
-            {article.body.split('\n\n').map((paragraph, index) => (
-              <p key={index} className="text-sm leading-relaxed text-[#8A94A6]">
-                {paragraph}
-              </p>
-            ))}
-          </div>
+          {article.image_url !== null && (
+            <img
+              src={`${API_BASE_URL}${article.image_url}`}
+              alt=""
+              className="w-full rounded-md object-cover"
+            />
+          )}
+          <MarkdownContent content={article.body} />
         </div>
       )}
       </div>

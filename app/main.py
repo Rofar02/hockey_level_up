@@ -76,9 +76,11 @@ app.include_router(reference_articles.router)
 app.include_router(leaderboard.router)
 app.include_router(push.router)
 
-# Mounted at the parent of avatar_upload_dir so "/static/avatars/..." serves
-# uploaded avatars; the directory is created up front since StaticFiles
-# errors at mount time if it doesn't exist yet.
+# Mounted at the shared parent of avatar_upload_dir and
+# reference_article_image_upload_dir, so "/static/avatars/..." and
+# "/static/reference-articles/..." both serve from it; the directory is
+# created up front since StaticFiles errors at mount time if it doesn't
+# exist yet.
 static_root = Path(settings.avatar_upload_dir).parent
 static_root.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_root)), name="static")

@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     )
 
     avatar_upload_dir: str = "static/avatars"
+    # Same static_root as avatar_upload_dir (both live under "static/") --
+    # already covered by the existing StaticFiles mount in main.py, no
+    # separate mount needed.
+    reference_article_image_upload_dir: str = "static/reference-articles"
 
     # VAPID key pair for Web Push (RFC 8292) -- generated once via
     # py_vapid.Vapid().generate_keys(), raw EC key bytes, base64url-encoded
