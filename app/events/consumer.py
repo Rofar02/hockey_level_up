@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import uuid
 
 import aio_pika
 
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 async def _dispatch(message: aio_pika.abc.AbstractIncomingMessage) -> None:
     try:
         data = json.loads(message.body)
+        event_id = uuid.UUID(data["event_id"])
         event_type = data["event_type"]
         payload = data["payload"]
     except Exception:
@@ -29,7 +31,7 @@ async def _dispatch(message: aio_pika.abc.AbstractIncomingMessage) -> None:
     failed = False
     for handler in get_handlers(event_type):
         try:
-            await handler(payload)
+            await handler(payload, event_id)
         except Exception:
             failed = True
             # payload is included in the message text itself, not just via
@@ -54,9 +56,12 @@ async def _dispatch(message: aio_pika.abc.AbstractIncomingMessage) -> None:
         # Note: handlers for the same message are independent side effects
         # (stat/streak/xp). If only one handler fails, the others have
         # already committed by the time we dead-letter here, so a naive
-        # replay of the DLQ message would re-run *all* handlers again,
-        # double-applying the ones that already succeeded. Handlers aren't
-        # idempotent today, so replay needs to account for that manually.
+        # replay of the DLQ message re-runs *all* handlers again. That's
+        # safe now: each handler claims (event_id, handler_name) in
+        # processed_events in the same transaction as its own side-effect
+        # (see app/events/idempotency.py), so a handler that already
+        # committed just finds its claim on replay and skips, while one that
+        # never committed (no claim persisted) retries properly.
         await message.reject(requeue=False)
     else:
         await message.ack()

@@ -1,7 +1,8 @@
+import uuid
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 
-Handler = Callable[[dict], Awaitable[None]]
+Handler = Callable[[dict, uuid.UUID], Awaitable[None]]
 
 _handlers: dict[str, list[Handler]] = defaultdict(list)
 

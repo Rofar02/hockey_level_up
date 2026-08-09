@@ -1,5 +1,6 @@
 from app.models.exercise import Exercise
 from app.models.outbox import OutboxEvent
+from app.models.processed_event import ProcessedEvent
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.reference_article import ReferenceArticle
 from app.models.schedule import (
@@ -19,6 +20,7 @@ __all__ = [
     "DaySessionType",
     "Exercise",
     "OutboxEvent",
+    "ProcessedEvent",
     "ReferenceArticle",
     "SessionBlock",
     "SetCompletion",

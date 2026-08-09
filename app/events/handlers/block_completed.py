@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
 from app.db.session import AsyncSessionLocal
+from app.events.idempotency import try_claim
 from app.events.registry import register_handler
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, TrainingStreak, UserStat
@@ -19,19 +20,31 @@ RELEVANT_MULTIPLIER = 1.3
 BASE_MULTIPLIER = 1.0
 DIMINISHING_CAP = 120
 
+STAT_CONSUMER_HANDLER_NAME = "stat_consumer"
+STREAK_CONSUMER_HANDLER_NAME = "streak_consumer"
+XP_CONSUMER_HANDLER_NAME = "xp_consumer"
+
 
 def xp_to_next_level(level: int) -> int:
     return round(100 * 1.2 ** (level - 1))
 
 
 @register_handler(EVENT_TYPE)
-async def stat_consumer(payload: dict) -> None:
+async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
     user_id = uuid.UUID(payload["user_id"])
     exercise_id = payload["exercise_id"]
     stat_type = TargetStat(payload["target_stat"])
     difficulty_level = payload["difficulty_level"]
 
     async with AsyncSessionLocal() as session:
+        # Claimed first, in the same transaction the side-effect below
+        # commits in: at-least-once redelivery of this event finds its claim
+        # already here and returns without touching UserStat/StatHistory at
+        # all. If anything below raises, the whole transaction (including
+        # this claim) rolls back, so a genuine retry can still claim it.
+        if not await try_claim(session, event_id, STAT_CONSUMER_HANDLER_NAME):
+            return
+
         # Pre-increment value, used only to shape this event's gain. Reading
         # it outside the atomic upsert below means two concurrent events for
         # the same user/stat can compute their gain off the same starting
@@ -99,7 +112,7 @@ async def stat_consumer(payload: dict) -> None:
 
 
 @register_handler(EVENT_TYPE)
-async def streak_consumer(payload: dict) -> None:
+async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
     user_id = uuid.UUID(payload["user_id"])
     today = date.today()
 
@@ -129,6 +142,14 @@ async def streak_consumer(payload: dict) -> None:
                 )
                 streak = result.scalar_one()
 
+        # Claimed here rather than at the top of the function: the
+        # IntegrityError fallback above can call session.rollback(), which
+        # would wipe out an earlier claim before it's ever committed. From
+        # this point on nothing in this function rolls back, so the claim
+        # and the streak mutation below always commit together.
+        if not await try_claim(session, event_id, STREAK_CONSUMER_HANDLER_NAME):
+            return
+
         if streak.last_activity_date == today:
             pass  # already counted today, don't touch the streak
         elif streak.last_activity_date == today - timedelta(days=1):
@@ -144,12 +165,15 @@ async def streak_consumer(payload: dict) -> None:
 
 
 @register_handler(EVENT_TYPE)
-async def xp_consumer(payload: dict) -> None:
+async def xp_consumer(payload: dict, event_id: uuid.UUID) -> None:
     user_id = uuid.UUID(payload["user_id"])
     difficulty_level = payload["difficulty_level"]
     gain = difficulty_level * 10
 
     async with AsyncSessionLocal() as session:
+        if not await try_claim(session, event_id, XP_CONSUMER_HANDLER_NAME):
+            return
+
         # Atomic SQL increment (xp = xp + gain) so concurrent events can't
         # clobber each other. RETURNING gives us the post-increment values in
         # the same round trip, so there's no read-after-write gap to reread.
