@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
@@ -48,3 +48,26 @@ class UserRepository:
         self._session.add(user)
         await self._session.flush()
         return user
+
+    async def list_users(
+        self, *, search: str | None, limit: int, offset: int
+    ) -> list[User]:
+        stmt = select(User).order_by(User.created_at).limit(limit).offset(offset)
+        if search is not None and search.strip() != "":
+            pattern = f"%{search.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    User.email.ilike(pattern),
+                    User.first_name.ilike(pattern),
+                    User.last_name.ilike(pattern),
+                )
+            )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_admins(self, *, exclude_user_id: uuid.UUID | None = None) -> int:
+        stmt = select(func.count()).select_from(User).where(User.is_admin.is_(True))
+        if exclude_user_id is not None:
+            stmt = stmt.where(User.id != exclude_user_id)
+        result = await self._session.execute(stmt)
+        return result.scalar_one()

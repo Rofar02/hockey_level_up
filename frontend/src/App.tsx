@@ -17,6 +17,7 @@ import { AdminExercisesPage } from './pages/admin/AdminExercisesPage'
 import { AdminHomePage } from './pages/admin/AdminHomePage'
 import { AdminSkillDetailPage } from './pages/admin/AdminSkillDetailPage'
 import { AdminSkillsPage } from './pages/admin/AdminSkillsPage'
+import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 
 // No route-based code-splitting elsewhere in the app yet (everything else
 // is a static import) -- these two are singled out because they're the
@@ -172,6 +173,14 @@ function App() {
             <Suspense fallback={<RouteLoadingFallback />}>
               <AdminReferenceArticlesPage />
             </Suspense>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <AdminRoute>
+            <AdminUsersPage />
           </AdminRoute>
         }
       />

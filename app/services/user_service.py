@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
@@ -7,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.security import verify_password
 from app.models.user import User
-from app.schemas.user import UserUpdate
+from app.repositories.user_repository import UserRepository
+from app.schemas.user import UserAdminUpdate, UserUpdate
 from app.services import image_processing
 
 MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
@@ -17,6 +19,7 @@ AVATAR_TARGET_SIZE = 400
 class UserService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        self._users = UserRepository(session)
 
     async def update_profile(self, user: User, data: UserUpdate) -> User:
         updates = data.model_dump(exclude_unset=True)
@@ -83,3 +86,32 @@ class UserService:
 
         if avatar_path is not None:
             image_processing.delete_image_file(upload_dir, avatar_path)
+
+    async def list_users_admin(
+        self, *, search: str | None, limit: int, offset: int
+    ) -> list[User]:
+        return await self._users.list_users(search=search, limit=limit, offset=offset)
+
+    async def update_user_admin(self, user_id: uuid.UUID, data: UserAdminUpdate) -> User:
+        user = await self._users.get_by_id(user_id)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        updates = data.model_dump(exclude_unset=True)
+        # Demoting is only dangerous when it actually flips a currently-admin
+        # user to non-admin -- guard on the target's current state, not just
+        # "is_admin present in the request", so re-sending is_admin=True (or
+        # is_admin=False for someone who already isn't one) never trips it.
+        if updates.get("is_admin") is False and user.is_admin:
+            remaining_admins = await self._users.count_admins(exclude_user_id=user.id)
+            if remaining_admins == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot remove admin rights from the last remaining administrator",
+                )
+
+        for field, value in updates.items():
+            setattr(user, field, value)
+        await self._session.commit()
+        await self._session.refresh(user)
+        return user

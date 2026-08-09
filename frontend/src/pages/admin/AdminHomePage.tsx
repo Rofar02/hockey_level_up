@@ -30,6 +30,15 @@ export function AdminHomePage() {
           <h2 className="text-lg font-semibold">Справочник</h2>
           <p className="mt-1 text-sm text-text-secondary">Статьи справочника: создание, редактирование, удаление.</p>
         </Link>
+        <Link
+          to="/admin/users"
+          className="rounded-md border border-white/10 bg-dark-card p-6 transition-colors hover:border-accent-ice/40"
+        >
+          <h2 className="text-lg font-semibold">Пользователи</h2>
+          <p className="mt-1 text-sm text-text-secondary">
+            Список пользователей, права администратора и премиум-доступ.
+          </p>
+        </Link>
       </div>
     </AdminLayout>
   )

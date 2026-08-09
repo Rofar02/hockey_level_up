@@ -49,6 +49,20 @@ export interface UserRead {
   created_at: string
 }
 
+export interface UserAdminRead {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  level: number
+  is_admin: boolean
+  created_at: string
+}
+
+export interface UserAdminUpdate {
+  is_admin?: boolean
+}
+
 export interface RegisterPayload {
   email: string
   password: string

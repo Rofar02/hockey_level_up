@@ -77,3 +77,26 @@ class UserUpdate(BaseModel):
         if value is not None and value not in available_timezones():
             raise ValueError("Unknown IANA timezone")
         return value
+
+
+class UserDeleteRequest(BaseModel):
+    # Defaults to "" rather than a required field, same reasoning as
+    # UserCreate.privacy_consent above -- an omitted password should fail
+    # UserService.delete_account's explicit 400 check, not a generic 422.
+    password: str = ""
+
+
+class UserAdminRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    email: EmailStr
+    first_name: str
+    last_name: str
+    level: int
+    is_admin: bool
+    created_at: datetime
+
+
+class UserAdminUpdate(BaseModel):
+    is_admin: bool | None = None
