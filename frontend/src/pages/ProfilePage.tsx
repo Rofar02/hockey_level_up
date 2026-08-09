@@ -212,6 +212,13 @@ export function ProfilePage() {
               <i className="ti ti-trophy text-xl" aria-hidden="true" />
             </Link>
             <Link
+              to="/analytics"
+              aria-label="Аналитика"
+              className="text-[#8A94A6] transition-colors hover:text-[#F5F7FA]"
+            >
+              <i className="ti ti-chart-line text-xl" aria-hidden="true" />
+            </Link>
+            <Link
               to="/settings"
               aria-label="Настройки"
               className="text-[#8A94A6] transition-colors hover:text-[#F5F7FA]"

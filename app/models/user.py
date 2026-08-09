@@ -71,6 +71,9 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    has_premium: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     fitness_tier: Mapped[FitnessTier | None] = mapped_column(
         enum_column(FitnessTier, "fitness_tier"), nullable=True

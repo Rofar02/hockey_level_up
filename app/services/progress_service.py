@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +9,7 @@ from app.models.exercise import TargetStat
 from app.models.progress import TrainingStreak, UserStat
 from app.models.user import User
 from app.repositories.progress_repository import ProgressRepository
-from app.schemas.progress import StatHistoryRead, UserStatRead
+from app.schemas.progress import StatHistoryPointRead, StatHistoryRead, UserStatRead
 from app.services.stat_service import get_effective_value, get_idle_days, is_decay_active
 
 # All 4 stats are always included in rating_excess, even ones the user has
@@ -66,6 +66,22 @@ class ProgressService:
             )
         )
         return entries
+
+    async def get_stats_history(
+        self, user_id: uuid.UUID, stat_type: TargetStat | None, days: int
+    ) -> list[StatHistoryPointRead] | dict[TargetStat, list[StatHistoryPointRead]]:
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        if stat_type is not None:
+            return await self._history_points(user_id, stat_type, since)
+        # No stat_type -- every stat's window in one response, grouped by
+        # type, rather than making the caller issue one request per stat.
+        return {stat: await self._history_points(user_id, stat, since) for stat in TargetStat}
+
+    async def _history_points(
+        self, user_id: uuid.UUID, stat_type: TargetStat, since: datetime
+    ) -> list[StatHistoryPointRead]:
+        history = await self._progress.list_stat_history_since(user_id, stat_type, since)
+        return [StatHistoryPointRead(date=entry.recorded_at.date(), value=entry.value) for entry in history]
 
     async def get_stat_excess(self, stat_type: TargetStat, user: User) -> float:
         if user.age is None:

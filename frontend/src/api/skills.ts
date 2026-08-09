@@ -1,4 +1,5 @@
 import { apiDeleteAuth, apiGet, apiPatchAuth, apiPostAuth } from './client'
+import type { StatHistoryPointRead } from '../types/progress'
 import type {
   SkillDetailRead,
   SkillMilestoneRead,
@@ -21,6 +22,20 @@ export function listSkills(accessToken: string): Promise<SkillSummaryRead[]> {
 
 export function getSkillDetail(skillId: string, accessToken: string): Promise<SkillDetailRead> {
   return apiGet<SkillDetailRead>(`/skills/${skillId}`, accessToken)
+}
+
+// Same "always pass the id" reasoning as progress.ts's getStatsHistory --
+// the backend also supports grouping every skill at once, but the
+// analytics page only ever plots one skill's series at a time.
+export function getSkillsHistory(
+  skillId: string,
+  days: number,
+  accessToken: string,
+): Promise<StatHistoryPointRead[]> {
+  return apiGet<StatHistoryPointRead[]>(
+    `/users/me/analytics/skills-history?skill_id=${skillId}&days=${days}`,
+    accessToken,
+  )
 }
 
 // -- admin CRUD: Skill --

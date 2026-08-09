@@ -29,6 +29,20 @@ class ProgressRepository:
         )
         return list(result.scalars().all())
 
+    async def list_stat_history_since(
+        self, user_id: uuid.UUID, stat_type: TargetStat, since: datetime
+    ) -> list[StatHistory]:
+        result = await self._session.execute(
+            select(StatHistory)
+            .where(
+                StatHistory.user_id == user_id,
+                StatHistory.stat_type == stat_type,
+                StatHistory.recorded_at >= since,
+            )
+            .order_by(StatHistory.recorded_at)
+        )
+        return list(result.scalars().all())
+
     async def get_streak(self, user_id: uuid.UUID) -> TrainingStreak | None:
         result = await self._session.execute(
             select(TrainingStreak).where(TrainingStreak.user_id == user_id)

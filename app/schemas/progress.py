@@ -27,6 +27,11 @@ class StatHistoryRead(BaseModel):
     reason: str
 
 
+class StatHistoryPointRead(BaseModel):
+    date: date
+    value: float
+
+
 class TrainingStreakRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

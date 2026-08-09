@@ -18,3 +18,10 @@ export interface UserStatRead {
   decay_active: boolean
   last_updated_at: string
 }
+
+// Shared shape for both GET /users/me/analytics/stats-history and
+// .../skills-history -- {date, value} points over a `days` window.
+export interface StatHistoryPointRead {
+  date: string
+  value: number
+}

@@ -42,6 +42,7 @@ export interface UserRead {
   avatar_url: string | null
   equipment_access: EquipmentAccess
   is_admin: boolean
+  has_premium: boolean
   xp: number
   level: number
   timezone: string
@@ -56,11 +57,13 @@ export interface UserAdminRead {
   last_name: string
   level: number
   is_admin: boolean
+  has_premium: boolean
   created_at: string
 }
 
 export interface UserAdminUpdate {
   is_admin?: boolean
+  has_premium?: boolean
 }
 
 export interface RegisterPayload {

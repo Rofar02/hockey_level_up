@@ -55,6 +55,7 @@ class UserRead(UserBase):
     avatar_url: str | None = None
     equipment_access: EquipmentType
     is_admin: bool
+    has_premium: bool
     xp: int
     level: int
     timezone: str
@@ -95,8 +96,10 @@ class UserAdminRead(BaseModel):
     last_name: str
     level: int
     is_admin: bool
+    has_premium: bool
     created_at: datetime
 
 
 class UserAdminUpdate(BaseModel):
     is_admin: bool | None = None
+    has_premium: bool | None = None

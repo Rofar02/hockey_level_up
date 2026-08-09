@@ -38,6 +38,12 @@ const AdminReferenceArticlesPage = lazy(() =>
 const PrivacyPage = lazy(() =>
   import('./pages/PrivacyPage').then((module) => ({ default: module.PrivacyPage })),
 )
+// Also lazy -- the only page pulling in recharts, kept out of the main
+// bundle for everyone who never opens it, same reasoning as the
+// react-markdown pages above.
+const AnalyticsPage = lazy(() =>
+  import('./pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })),
+)
 
 function RouteLoadingFallback() {
   return (
@@ -113,6 +119,16 @@ function App() {
         element={
           <ProtectedRoute>
             <LeaderboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics"
+        element={
+          <ProtectedRoute>
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <AnalyticsPage />
+            </Suspense>
           </ProtectedRoute>
         }
       />

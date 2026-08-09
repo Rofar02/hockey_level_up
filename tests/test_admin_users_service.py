@@ -91,6 +91,21 @@ async def test_list_users_admin_search_matches_email(db_session) -> None:
     assert [u.id for u in results] == [target.id]
 
 
+# -- update_user_admin: has_premium --
+
+
+@pytest.mark.asyncio
+async def test_update_user_admin_sets_has_premium(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    service = UserService(db_session)
+    updated = await service.update_user_admin(user.id, UserAdminUpdate(has_premium=True))
+
+    assert updated.has_premium is True
+
+
 # -- update_user_admin: last-admin guard --
 
 
@@ -145,6 +160,6 @@ async def test_update_user_admin_allows_promoting_to_admin(db_session) -> None:
 async def test_update_user_admin_missing_user_returns_404(db_session) -> None:
     service = UserService(db_session)
     with pytest.raises(HTTPException) as exc_info:
-        await service.update_user_admin(uuid.uuid4(), UserAdminUpdate(is_admin=True))
+        await service.update_user_admin(uuid.uuid4(), UserAdminUpdate(has_premium=True))
 
     assert exc_info.value.status_code == 404

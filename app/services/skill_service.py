@@ -1,17 +1,20 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.skill_preferences import max_skill_preferences_for_level
+from app.models.exercise import TargetStat
+from app.models.progress import StatHistory
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.skill_repository import SkillRepository
 from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
+from app.schemas.progress import StatHistoryPointRead
 from app.schemas.skill import (
     NextMilestoneRead,
     SkillCreate,
@@ -28,7 +31,7 @@ from app.schemas.skill import (
     StatContributionRead,
     UserSkillPreferenceRead,
 )
-from app.services.stat_service import get_effective_value
+from app.services.stat_service import get_effective_value, get_stat_value_at_from_history
 
 WEIGHT_SUM_EPSILON = 1e-6
 
@@ -66,6 +69,100 @@ class SkillService:
                 )
             )
         return breakdown
+
+    # -- historical value (on-the-fly, no persisted snapshot -- see the
+    # design note in _compute_skill_history) --
+
+    async def get_skill_history(
+        self, skill_id: uuid.UUID, user_id: uuid.UUID, days: int
+    ) -> list[StatHistoryPointRead]:
+        await self._get_skill_or_404(skill_id)
+        return await self._compute_skill_history(skill_id, user_id, days)
+
+    async def get_all_skills_history(
+        self, user_id: uuid.UUID, days: int
+    ) -> dict[uuid.UUID, list[StatHistoryPointRead]]:
+        skills = await self._skills.list_skills()
+        return {
+            skill.id: await self._compute_skill_history(skill.id, user_id, days)
+            for skill in skills
+        }
+
+    async def get_skill_value_at(
+        self, skill_id: uuid.UUID, user_id: uuid.UUID, at: datetime
+    ) -> float:
+        """Same on-the-fly reconstruction as _compute_skill_history, just for
+        a single arbitrary instant instead of a whole event-timestamp series
+        -- used by AnalyticsService to diff a skill's value against a
+        baseline `days` ago without needing get_skill_history's full point
+        list.
+        """
+        weights = await self._skills.list_stat_weights(skill_id)
+        if not weights:
+            return 0.0
+        histories: dict[TargetStat, list[StatHistory]] = {
+            weight.stat_type: await self._progress.list_stat_history(user_id, weight.stat_type)
+            for weight in weights
+        }
+        return self._skill_value_at(weights, histories, at)
+
+    async def _compute_skill_history(
+        self, skill_id: uuid.UUID, user_id: uuid.UUID, days: int
+    ) -> list[StatHistoryPointRead]:
+        """Skill value has no persisted history (see get_skill_value above --
+        it's always computed live from current UserStat rows), so this
+        reconstructs an approximate time series instead of reading one back:
+        for each stat this skill is weighted on, walk that stat's real
+        StatHistory rows and, at every timestamp *any* weighted stat
+        actually changed, recompute the skill's value as of that instant --
+        same Σ weight * get_effective_value formula get_skill_value uses,
+        just fed a synthetic (unpersisted) UserStat per stat built from
+        "most recent history row at or before this timestamp" instead of
+        today's real UserStat row.
+
+        Two approximations worth naming: (1) SkillStatWeight isn't
+        versioned, so this always applies *today's* weights against
+        *historical* stat values, not whatever the weights actually were
+        back then; (2) between two such event timestamps the real skill
+        value would keep drifting from decay, but that drift isn't plotted
+        as its own point here -- only actual stat-change events are.
+        """
+        weights = await self._skills.list_stat_weights(skill_id)
+        if not weights:
+            return []
+
+        since = datetime.now(timezone.utc) - timedelta(days=days)
+        histories: dict[TargetStat, list[StatHistory]] = {
+            weight.stat_type: await self._progress.list_stat_history(user_id, weight.stat_type)
+            for weight in weights
+        }
+
+        event_times = sorted(
+            {
+                entry.recorded_at
+                for history in histories.values()
+                for entry in history
+                if entry.recorded_at >= since
+            }
+        )
+        return [
+            StatHistoryPointRead(
+                date=at.date(), value=self._skill_value_at(weights, histories, at)
+            )
+            for at in event_times
+        ]
+
+    @staticmethod
+    def _skill_value_at(
+        weights: list[SkillStatWeight],
+        histories: dict[TargetStat, list[StatHistory]],
+        at: datetime,
+    ) -> float:
+        return sum(
+            get_stat_value_at_from_history(weight.stat_type, histories.get(weight.stat_type, []), at)
+            * weight.weight
+            for weight in weights
+        )
 
     # -- read endpoints --
 

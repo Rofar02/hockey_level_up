@@ -40,3 +40,11 @@ async def require_admin(current_user: Annotated[User, Depends(get_current_user)]
             status_code=status.HTTP_403_FORBIDDEN, detail="Admin privileges required"
         )
     return current_user
+
+
+async def require_premium(current_user: Annotated[User, Depends(get_current_user)]) -> User:
+    if not current_user.has_premium:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Аналитика доступна с премиум-подпиской"
+        )
+    return current_user

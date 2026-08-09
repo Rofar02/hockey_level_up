@@ -78,13 +78,14 @@ export function AdminUsersPage() {
     }
   }, [accessToken, search, offset])
 
-  async function toggleUserField(user: UserAdminRead, field: 'is_admin') {
+  async function toggleUserField(user: UserAdminRead, field: 'is_admin' | 'has_premium') {
     if (accessToken === null || savingUserIds.has(user.id)) {
       return
     }
     const previousValue = user[field]
     const nextValue = !previousValue
-    const payload: UserAdminUpdate = { is_admin: nextValue }
+    const payload: UserAdminUpdate =
+      field === 'is_admin' ? { is_admin: nextValue } : { has_premium: nextValue }
 
     setRowErrors((previous) => {
       if (!(user.id in previous)) {
@@ -103,7 +104,8 @@ export function AdminUsersPage() {
       const updated = await adminUsersApi.updateUserAdmin(user.id, payload, accessToken)
       setUsers((previous) => previous?.map((row) => (row.id === user.id ? updated : row)) ?? previous)
     } catch (err) {
-      const rollback: UserAdminUpdate = { is_admin: previousValue }
+      const rollback: UserAdminUpdate =
+        field === 'is_admin' ? { is_admin: previousValue } : { has_premium: previousValue }
       setUsers((previous) =>
         previous?.map((row) => (row.id === user.id ? { ...row, ...rollback } : row)) ?? previous,
       )
@@ -153,13 +155,14 @@ export function AdminUsersPage() {
                   <th className="px-3 py-2 font-medium">Имя</th>
                   <th className="px-3 py-2 font-medium">Уровень</th>
                   <th className="px-3 py-2 font-medium">Админ</th>
+                  <th className="px-3 py-2 font-medium">Премиум</th>
                   <th className="px-3 py-2 font-medium">Регистрация</th>
                 </tr>
               </thead>
               <tbody>
                 {users.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-text-secondary">
+                    <td colSpan={6} className="px-3 py-6 text-center text-text-secondary">
                       Ничего не найдено.
                     </td>
                   </tr>
@@ -179,13 +182,20 @@ export function AdminUsersPage() {
                           onClick={() => toggleUserField(user, 'is_admin')}
                         />
                       </td>
+                      <td className="px-3 py-2">
+                        <Switch
+                          checked={user.has_premium}
+                          disabled={savingUserIds.has(user.id)}
+                          onClick={() => toggleUserField(user, 'has_premium')}
+                        />
+                      </td>
                       <td className="px-3 py-2 font-mono text-text-secondary">
                         {formatRegisteredAt(user.created_at)}
                       </td>
                     </tr>
                     {rowErrors[user.id] !== undefined && (
                       <tr className="border-b border-white/5">
-                        <td colSpan={5} className="px-3 pb-2">
+                        <td colSpan={6} className="px-3 pb-2">
                           <FormError message={rowErrors[user.id]} />
                         </td>
                       </tr>
