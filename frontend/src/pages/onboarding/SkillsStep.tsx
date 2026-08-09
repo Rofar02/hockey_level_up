@@ -2,16 +2,19 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { FormError } from '../../components/ui/FormError'
-import { SkillChip } from '../../components/ui/SkillChip'
+import { LockedSkillChip, SkillChip } from '../../components/ui/SkillChip'
 import * as skillsApi from '../../api/skills'
 import * as usersApi from '../../api/users'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import type { SkillOption } from '../../types/skill'
+import { maxSkillPreferencesForLevel } from '../../utils/skillPreferenceLimit'
 
 export function SkillsStep() {
-  const { accessToken, markAssessmentComplete } = useAuth()
+  const { accessToken, user, markAssessmentComplete } = useAuth()
   const navigate = useNavigate()
+
+  const maxAllowed = user !== null ? maxSkillPreferencesForLevel(user.level) : null
 
   const [skills, setSkills] = useState<SkillOption[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -80,16 +83,41 @@ export function SkillsStep() {
       {skills === null && loadError === null && <p className="text-sm text-text-secondary">Загрузка...</p>}
       <FormError message={loadError} />
 
+      {/* maxAllowed is null at level 25+ (unlimited) -- omitted entirely
+          rather than showing "X из ∞". */}
+      {maxAllowed !== null && (
+        <p className="text-sm text-text-secondary">
+          Выбрано {selectedIds.size} из {maxAllowed}
+        </p>
+      )}
+
       {skills !== null && (
         <div className="flex flex-wrap gap-2">
-          {skills.map((skill) => (
-            <SkillChip
-              key={skill.id}
-              label={skill.name}
-              selected={selectedIds.has(skill.id)}
-              onClick={() => toggleSkill(skill.id)}
-            />
-          ))}
+          {skills.map((skill) => {
+            // Locked skills are still shown (not filtered out) -- with a
+            // lock icon and unlock level instead of a toggle, independent
+            // of the slot-limit check below.
+            if (skill.required_level > (user?.level ?? 1)) {
+              return (
+                <LockedSkillChip
+                  key={skill.id}
+                  label={skill.name}
+                  requiredLevel={skill.required_level}
+                />
+              )
+            }
+            const isSelected = selectedIds.has(skill.id)
+            const limitReached = maxAllowed !== null && selectedIds.size >= maxAllowed
+            return (
+              <SkillChip
+                key={skill.id}
+                label={skill.name}
+                selected={isSelected}
+                disabled={!isSelected && limitReached}
+                onClick={() => toggleSkill(skill.id)}
+              />
+            )
+          })}
         </div>
       )}
 

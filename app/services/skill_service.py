@@ -5,7 +5,9 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.skill_preferences import max_skill_preferences_for_level
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag
+from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.skill_repository import SkillRepository
@@ -88,6 +90,7 @@ class SkillService:
                         if next_milestone is not None
                         else None
                     ),
+                    required_level=skill.required_level,
                 )
             )
         return results
@@ -124,15 +127,44 @@ class SkillService:
         return [UserSkillPreferenceRead(skill_id=skill_id, name=name) for skill_id, name in rows]
 
     async def replace_user_preferences(
-        self, user_id: uuid.UUID, skill_ids: list[uuid.UUID]
+        self, user: User, skill_ids: list[uuid.UUID]
     ) -> list[UserSkillPreferenceRead]:
         unique_skill_ids = list(dict.fromkeys(skill_ids))
-        for skill_id in unique_skill_ids:
-            await self._get_skill_or_404(skill_id)
 
-        await self._user_skill_preferences.replace_for_user(user_id, unique_skill_ids)
+        # This is a full-replace endpoint (the client always sends its
+        # complete desired set, not an incremental add/remove), so a single
+        # check against the incoming list is sufficient: submitting a
+        # smaller-or-equal set is always allowed (that's how a user who's
+        # already over a since-lowered cap would unwind below it), and
+        # submitting one that's still over the cap is rejected outright --
+        # existing rows are never force-trimmed here.
+        max_allowed = max_skill_preferences_for_level(user.level)
+        if max_allowed is not None and len(unique_skill_ids) > max_allowed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Доступно не более {max_allowed} навыков на вашем уровне",
+            )
+
+        # Resolve + validate existence first (also gives us each Skill's
+        # required_level for the gate below, in the same fetch).
+        skills_by_id = {
+            skill_id: await self._get_skill_or_404(skill_id) for skill_id in unique_skill_ids
+        }
+
+        # Independent of the slot-count cap above: a skill can be within
+        # the slot limit and still be locked by required_level, or vice
+        # versa -- both checks run unconditionally on every submitted id.
+        for skill_id in unique_skill_ids:
+            skill = skills_by_id[skill_id]
+            if skill.required_level > user.level:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Навык '{skill.name}' доступен с уровня {skill.required_level}",
+                )
+
+        await self._user_skill_preferences.replace_for_user(user.id, unique_skill_ids)
         await self._session.commit()
-        return await self.list_user_preferences(user_id)
+        return await self.list_user_preferences(user.id)
 
     # -- Skill admin CRUD --
 

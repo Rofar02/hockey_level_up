@@ -10,14 +10,17 @@ class SkillRead(BaseModel):
 
     id: uuid.UUID
     name: str
+    required_level: int
 
 
 class SkillCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    required_level: int = Field(default=1, ge=1)
 
 
 class SkillUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
+    required_level: int | None = Field(default=None, ge=1)
 
 
 class SkillStatWeightRead(BaseModel):
@@ -90,6 +93,7 @@ class SkillSummaryRead(BaseModel):
     name: str
     value: float
     next_milestone: NextMilestoneRead | None
+    required_level: int
 
 
 class StatContributionRead(BaseModel):

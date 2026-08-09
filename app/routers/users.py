@@ -74,4 +74,4 @@ async def replace_my_skill_preferences(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await SkillService(session).replace_user_preferences(current_user.id, body.skill_ids)
+    return await SkillService(session).replace_user_preferences(current_user, body.skill_ids)

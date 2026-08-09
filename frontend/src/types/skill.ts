@@ -3,6 +3,7 @@ import type { TargetStat } from './exercise'
 export interface SkillOption {
   id: string
   name: string
+  required_level: number
 }
 
 export interface UserSkillPreference {
@@ -21,6 +22,7 @@ export interface SkillSummaryRead {
   name: string
   value: number
   next_milestone: NextMilestoneRead | null
+  required_level: number
 }
 
 export interface StatContributionRead {
