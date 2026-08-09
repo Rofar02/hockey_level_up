@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime
+from zoneinfo import available_timezones
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.exercise import EquipmentType
-from app.models.user import Position
+from app.models.user import Position, ReminderPreference
 
 
 class UserBase(BaseModel):
@@ -40,6 +41,8 @@ class UserRead(UserBase):
     is_admin: bool
     xp: int
     level: int
+    timezone: str
+    reminder_preference: ReminderPreference
     created_at: datetime
 
 
@@ -49,3 +52,12 @@ class UserUpdate(BaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     patronymic: str | None = Field(default=None, max_length=100)
     jersey_number: int | None = Field(default=None, ge=0, le=99)
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
+    reminder_preference: ReminderPreference | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def _validate_timezone(cls, value: str | None) -> str | None:
+        if value is not None and value not in available_timezones():
+            raise ValueError("Unknown IANA timezone")
+        return value

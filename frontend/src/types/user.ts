@@ -18,6 +18,14 @@ export const EQUIPMENT_CHOICES: { value: EquipmentAccess; title: string; descrip
   { value: 'bodyweight', title: 'Только тело', description: 'Тренировки без какого-либо инвентаря' },
 ]
 
+export const REMINDER_PREFERENCES = ['none', 'morning', 'evening'] as const
+export type ReminderPreference = (typeof REMINDER_PREFERENCES)[number]
+
+export const REMINDER_PREFERENCE_LABELS: Record<Exclude<ReminderPreference, 'none'>, string> = {
+  morning: 'Утром в день тренировки',
+  evening: 'Вечером накануне',
+}
+
 export interface UserRead {
   id: string
   username: string
@@ -36,6 +44,8 @@ export interface UserRead {
   is_admin: boolean
   xp: number
   level: number
+  timezone: string
+  reminder_preference: ReminderPreference
   created_at: string
 }
 

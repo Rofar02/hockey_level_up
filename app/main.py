@@ -16,6 +16,7 @@ from app.routers import (
     auth,
     exercises,
     leaderboard,
+    push,
     reference_articles,
     schedule,
     session_blocks,
@@ -25,6 +26,7 @@ from app.routers import (
     training_sessions,
     users,
 )
+from app.services.reminder_scheduler import run_reminder_scheduler
 
 settings = get_settings()
 
@@ -33,13 +35,17 @@ settings = get_settings()
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     consumer_task = asyncio.create_task(run_consumer())
     relay_task = asyncio.create_task(run_outbox_relay())
+    reminder_task = asyncio.create_task(run_reminder_scheduler())
     yield
     consumer_task.cancel()
     relay_task.cancel()
+    reminder_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await consumer_task
     with contextlib.suppress(asyncio.CancelledError):
         await relay_task
+    with contextlib.suppress(asyncio.CancelledError):
+        await reminder_task
     await close_publisher()
 
 
@@ -68,6 +74,7 @@ app.include_router(training_block.router)
 app.include_router(training_sessions.router)
 app.include_router(reference_articles.router)
 app.include_router(leaderboard.router)
+app.include_router(push.router)
 
 # Mounted at the parent of avatar_upload_dir so "/static/avatars/..." serves
 # uploaded avatars; the directory is created up front since StaticFiles

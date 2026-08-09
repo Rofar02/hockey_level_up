@@ -2,6 +2,7 @@ from app.models.exercise import Exercise
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import StatHistory, TrainingStreak, UserStat
+from app.models.push_subscription import PushSubscription
 from app.models.reference_article import ReferenceArticle
 from app.models.schedule import (
     DayPlan,
@@ -21,6 +22,7 @@ __all__ = [
     "Exercise",
     "OutboxEvent",
     "ProcessedEvent",
+    "PushSubscription",
     "ReferenceArticle",
     "SessionBlock",
     "SetCompletion",

@@ -31,6 +31,21 @@ class Settings(BaseSettings):
 
     avatar_upload_dir: str = "static/avatars"
 
+    # VAPID key pair for Web Push (RFC 8292) -- generated once via
+    # py_vapid.Vapid().generate_keys(), raw EC key bytes, base64url-encoded
+    # (no padding): 32-byte private scalar / 65-byte uncompressed public
+    # point, the same format pywebpush's Vapid.from_string() and the
+    # browser's PushManager.subscribe({applicationServerKey}) both expect.
+    # Dev-only pair, same "committed, not actually secret" convention as
+    # jwt_secret_key above -- regenerate before any real deployment.
+    vapid_private_key: str = "fmVrz4YsbsIibjJcNvHVpUGLkDuAHvcO-2CQwsveCy0"
+    vapid_public_key: str = (
+        "BPD8KGVrzMDG5oZONsvz7dVBRDiE9b8IRFJdQn7BZ-Adqjz7o_U753g3zrK01JeBzBmU3NVoUJxNWPVNa1IVOXA"
+    )
+    # "sub" claim in the VAPID JWT -- contact address push services may use
+    # if they need to reach the sender; a placeholder is normal for dev.
+    vapid_subject: str = "mailto:admin@example.com"
+
 
 @lru_cache
 def get_settings() -> Settings:

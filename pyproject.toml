@@ -23,6 +23,8 @@ email-validator = "^2.2.0"
 greenlet = "^3.1.1"
 aio-pika = "^9.4.3"
 pillow = "^12.3.0"
+pywebpush = "^2.4.0"
+tzdata = "^2026.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"

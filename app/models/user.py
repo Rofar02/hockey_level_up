@@ -23,6 +23,12 @@ class FitnessTier(enum.StrEnum):
     ADVANCED = "advanced"
 
 
+class ReminderPreference(enum.StrEnum):
+    NONE = "none"
+    MORNING = "morning"
+    EVENING = "evening"
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
@@ -78,6 +84,18 @@ class User(Base):
 
     xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+
+    # IANA zone name (e.g. "Europe/Moscow"), auto-detected client-side via
+    # Intl.DateTimeFormat().resolvedOptions().timeZone when the user turns
+    # reminders on -- without it, reminder_scheduler would have no way to
+    # know when "09:00" actually is for this person. "UTC" default keeps the
+    # column non-nullable for rows created before this existed.
+    timezone: Mapped[str] = mapped_column(String(64), nullable=False, server_default="UTC")
+    reminder_preference: Mapped[ReminderPreference] = mapped_column(
+        enum_column(ReminderPreference, "reminder_preference"),
+        nullable=False,
+        server_default=ReminderPreference.NONE.value,
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

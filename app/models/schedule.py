@@ -98,6 +98,12 @@ class DayPlan(Base):
     session_type: Mapped[DaySessionType] = mapped_column(
         enum_column(DaySessionType, "day_session_type"), nullable=False
     )
+    # Set the moment a reminder push goes out for this day -- guards against
+    # sending the same reminder twice across scheduler ticks (e.g. if a tick
+    # runs slow and overlaps the next one).
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     weekly_plan: Mapped["WeeklyPlan"] = relationship(back_populates="day_plans")
     training_session: Mapped["TrainingSession | None"] = relationship(
