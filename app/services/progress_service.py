@@ -49,7 +49,7 @@ class ProgressService:
 
         now = datetime.now(timezone.utc)
         idle_days = get_idle_days(stat, now)
-        if not is_decay_active(idle_days):
+        if not is_decay_active(idle_days, stat_type):
             return entries
 
         last_recorded_date = entries[-1].recorded_at.date() if entries else None
@@ -109,6 +109,6 @@ class ProgressService:
             effective_value=effective_value,
             trend="up" if effective_value == stat.current_value else "down",
             idle_days=idle_days,
-            decay_active=is_decay_active(idle_days),
+            decay_active=is_decay_active(idle_days, stat.stat_type),
             last_updated_at=stat.last_updated_at,
         )

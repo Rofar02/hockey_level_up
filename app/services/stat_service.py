@@ -1,10 +1,29 @@
 from datetime import datetime
 
+from app.models.exercise import TargetStat
 from app.models.progress import UserStat
 
 GRACE_PERIOD_DAYS = 10
+# On-ice stats decay slower: on-ice ice time is scarce/scheduled (rinks,
+# team practice) compared to off-ice training, so a 10-day gap between
+# sessions is normal rather than a sign of detraining.
+ON_ICE_GRACE_PERIOD_DAYS = 18
+
+GRACE_PERIOD_DAYS_BY_STAT: dict[TargetStat, int] = {
+    TargetStat.STRENGTH: GRACE_PERIOD_DAYS,
+    TargetStat.AGILITY: GRACE_PERIOD_DAYS,
+    TargetStat.ENDURANCE: GRACE_PERIOD_DAYS,
+    TargetStat.INTELLECT: GRACE_PERIOD_DAYS,
+    TargetStat.ON_ICE_SKATING: ON_ICE_GRACE_PERIOD_DAYS,
+    TargetStat.PUCK_HANDLING: ON_ICE_GRACE_PERIOD_DAYS,
+}
+
 DECAY_RATE_PER_WEEK = 0.98
 FLOOR_RATIO = 0.10
+
+
+def get_grace_period_days(stat_type: TargetStat) -> int:
+    return GRACE_PERIOD_DAYS_BY_STAT[stat_type]
 
 
 def get_idle_days(stat: UserStat, now: datetime) -> float:
@@ -13,16 +32,17 @@ def get_idle_days(stat: UserStat, now: datetime) -> float:
     return (now - stat.last_updated_at).total_seconds() / 86400
 
 
-def is_decay_active(idle_days: float) -> bool:
-    return idle_days > GRACE_PERIOD_DAYS
+def is_decay_active(idle_days: float, stat_type: TargetStat) -> bool:
+    return idle_days > get_grace_period_days(stat_type)
 
 
 def get_effective_value(stat: UserStat, now: datetime) -> float:
     idle_days = get_idle_days(stat, now)
-    if not is_decay_active(idle_days):
+    if not is_decay_active(idle_days, stat.stat_type):
         return stat.current_value
 
-    decay_weeks = (idle_days - GRACE_PERIOD_DAYS) / 7
+    grace_period_days = get_grace_period_days(stat.stat_type)
+    decay_weeks = (idle_days - grace_period_days) / 7
     effective = stat.current_value * (DECAY_RATE_PER_WEEK**decay_weeks)
     floor = stat.current_value * FLOOR_RATIO
     return max(effective, floor)
