@@ -6,7 +6,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
-from app.schemas.assessment import AssessmentResultRead, AssessmentStatusRead, AssessmentTestIn
+from app.schemas.assessment import (
+    AssessmentResultRead,
+    AssessmentStatusRead,
+    AssessmentTestIn,
+    OnIceAssessmentResultRead,
+    OnIceAssessmentStatusRead,
+    OnIceAssessmentTestIn,
+)
 from app.services.assessment_service import AssessmentService
 
 router = APIRouter(prefix="/assessment", tags=["assessment"])
@@ -43,3 +50,20 @@ async def dismiss_reassessment_suggestion(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     await AssessmentService(session).dismiss_reassessment_suggestion(current_user)
+
+
+@router.post("/on-ice-test", response_model=OnIceAssessmentResultRead)
+async def run_onice_test(
+    body: OnIceAssessmentTestIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await AssessmentService(session).run_onice_test(current_user, body)
+
+
+@router.get("/on-ice-status", response_model=OnIceAssessmentStatusRead)
+async def get_onice_assessment_status(current_user: Annotated[User, Depends(get_current_user)]):
+    return OnIceAssessmentStatusRead(
+        has_onice_assessment=current_user.has_onice_assessment,
+        suggested_onice_reassessment=current_user.suggested_onice_reassessment,
+    )

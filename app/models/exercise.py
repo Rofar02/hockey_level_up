@@ -25,6 +25,12 @@ class TargetStat(enum.StrEnum):
     AGILITY = "agility"
     INTELLECT = "intellect"
     ENDURANCE = "endurance"
+    # On-ice-only stats, calibrated from a separate on-ice test rather than
+    # the off-ice fitness assessment (see AssessmentService) -- longer decay
+    # grace period in stat_service.GRACE_PERIOD_DAYS_BY_STAT since on-ice
+    # sessions happen less often than off-ice training.
+    ON_ICE_SKATING = "on_ice_skating"
+    PUCK_HANDLING = "puck_handling"
 
 
 class EquipmentType(enum.StrEnum):

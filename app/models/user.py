@@ -81,6 +81,16 @@ class User(Base):
     suggested_reassessment: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # Independent of has_assessment/suggested_reassessment above: on-ice
+    # rink access is scheduled separately from off-ice training, so the
+    # on-ice test's own completion/retake-window state must be tracked on
+    # its own, not piggybacked on the off-ice flags.
+    has_onice_assessment: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    suggested_onice_reassessment: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")

@@ -1,4 +1,11 @@
-export const TARGET_STATS = ['strength', 'agility', 'intellect', 'endurance'] as const
+export const TARGET_STATS = [
+  'strength',
+  'agility',
+  'intellect',
+  'endurance',
+  'on_ice_skating',
+  'puck_handling',
+] as const
 export type TargetStat = (typeof TARGET_STATS)[number]
 
 export const TARGET_STAT_LABELS: Record<TargetStat, string> = {
@@ -6,6 +13,11 @@ export const TARGET_STAT_LABELS: Record<TargetStat, string> = {
   agility: 'Ловкость',
   intellect: 'Интеллект',
   endurance: 'Выносливость',
+  // Not "Катание" -- that name is already taken by the "Катание" skill
+  // (built partly from this same stat). Same reasoning for puck_handling
+  // vs the "Обводка" skill.
+  on_ice_skating: 'Скорость на льду',
+  puck_handling: 'Владение шайбой',
 }
 
 // Shared between ProfilePage's stat detail modal and HomePage's compact one
@@ -19,6 +31,10 @@ export const TARGET_STAT_DESCRIPTIONS: Record<TargetStat, string> = {
     'Понимание игры: чтение ситуаций, принятие решений, позиционирование. Растёт медленнее физических характеристик и во многом опирается на игровой опыт.',
   endurance:
     'Способность поддерживать интенсивность на протяжении всей игры без потери скорости и силы действий.',
+  on_ice_skating:
+    'Скорость и техника катания по результатам отдельного теста на льду. Растёт только после прохождения этого теста, независимо от общей физической подготовки.',
+  puck_handling:
+    'Контроль шайбы клюшкой на скорости по результатам отдельного теста на льду. Растёт только после прохождения этого теста, независимо от общей физической подготовки.',
 }
 
 export const EXERCISE_CATEGORIES = ['on_ice', 'off_ice'] as const

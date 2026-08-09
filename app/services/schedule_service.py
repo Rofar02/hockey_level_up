@@ -308,6 +308,12 @@ class ScheduleService:
             return active
 
         user.suggested_reassessment = True
+        # Same rollover trigger as the off-ice flag, but a separate flag --
+        # on-ice access is scheduled around rink time, so a player might
+        # retake one test well before/after the other. Neither test's
+        # gate (AssessmentService._check_gate) should close because the
+        # other one was just retaken.
+        user.suggested_onice_reassessment = True
         return await self._training_blocks.create(
             TrainingBlock(user_id=user.id, block_number=active.block_number + 1, week_in_block=1)
         )

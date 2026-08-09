@@ -26,3 +26,22 @@ class AssessmentStatusRead(BaseModel):
 
     has_assessment: bool
     suggested_reassessment: bool
+
+
+class OnIceAssessmentTestIn(BaseModel):
+    on_ice_skating_seconds: float = Field(gt=0)
+    puck_handling_seconds: float = Field(gt=0)
+
+
+class OnIceAssessmentResultRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    on_ice_skating: float
+    puck_handling: float
+
+
+class OnIceAssessmentStatusRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    has_onice_assessment: bool
+    suggested_onice_reassessment: bool

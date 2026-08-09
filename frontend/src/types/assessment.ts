@@ -18,3 +18,18 @@ export interface AssessmentTestPayload {
   plank_seconds: number
   run_1km_seconds: number
 }
+
+export interface OnIceAssessmentStatus {
+  has_onice_assessment: boolean
+  suggested_onice_reassessment: boolean
+}
+
+export interface OnIceAssessmentResult {
+  on_ice_skating: number
+  puck_handling: number
+}
+
+export interface OnIceAssessmentTestPayload {
+  on_ice_skating_seconds: number
+  puck_handling_seconds: number
+}

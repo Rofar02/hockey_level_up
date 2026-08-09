@@ -35,9 +35,34 @@ NORM_TABLES: dict[str, dict[str, list[tuple[int, float]]]] = {
         "40-49": [(20, 435), (50, 345), (80, 300), (100, 260)],
         "50+": [(20, 465), (50, 375), (80, 330), (100, 290)],
     },
+    # -- On-ice tests below: PRELIMINARY norms, not sourced from any real
+    # dataset or coaching standard -- there was no existing on-ice norm
+    # table to calibrate against (unlike the 5 off-ice tests above, which
+    # were already in place). These are rough, conservative estimates for
+    # an amateur/recreational adult hockey player and MUST be recalibrated
+    # against real timed-test data before being trusted for anything beyond
+    # a placeholder starting value. Anchor points follow the same
+    # (score, raw_value) shape as the off-ice tables above.
+    #
+    # on_ice_skating_seconds: 20m forward skate sprint from a stationary
+    # start, timed to the line.
+    "on_ice_skating_seconds": {
+        "18-29": [(20, 6.5), (50, 5.0), (80, 4.0), (100, 3.4)],
+        "30-39": [(20, 6.8), (50, 5.3), (80, 4.3), (100, 3.7)],
+        "40-49": [(20, 7.2), (50, 5.7), (80, 4.7), (100, 4.1)],
+        "50+": [(20, 7.8), (50, 6.2), (80, 5.2), (100, 4.6)],
+    },
+    # puck_handling_seconds: slalom with a puck through ~6-8 cones over a
+    # ~20m course, timed start to finish.
+    "puck_handling_seconds": {
+        "18-29": [(20, 22.0), (50, 16.0), (80, 12.0), (100, 9.5)],
+        "30-39": [(20, 23.5), (50, 17.5), (80, 13.0), (100, 10.5)],
+        "40-49": [(20, 25.0), (50, 19.0), (80, 14.5), (100, 12.0)],
+        "50+": [(20, 27.0), (50, 21.0), (80, 16.5), (100, 14.0)],
+    },
 }
 
-INVERSE_TESTS = {"run_1km_seconds"}
+INVERSE_TESTS = {"run_1km_seconds", "on_ice_skating_seconds", "puck_handling_seconds"}
 
 
 def age_group(age: int) -> str:
