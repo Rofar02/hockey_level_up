@@ -1,3 +1,4 @@
+from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.exercise import Exercise
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
@@ -17,6 +18,8 @@ from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag, U
 from app.models.user import User
 
 __all__ = [
+    "CoachChatMessage",
+    "CoachChatRole",
     "DayPlan",
     "DaySessionType",
     "Exercise",

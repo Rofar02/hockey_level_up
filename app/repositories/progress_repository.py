@@ -43,6 +43,19 @@ class ProgressRepository:
         )
         return list(result.scalars().all())
 
+    async def list_recent_history(self, user_id: uuid.UUID, limit: int) -> list[StatHistory]:
+        """Last `limit` StatHistory rows across *all* stat types, newest
+        first -- used by the AI coach's system prompt (a quick "what changed
+        recently and why" summary), unlike list_stat_history above which is
+        scoped to one stat_type and returns the full unfiltered history."""
+        result = await self._session.execute(
+            select(StatHistory)
+            .where(StatHistory.user_id == user_id)
+            .order_by(StatHistory.recorded_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
     async def get_streak(self, user_id: uuid.UUID) -> TrainingStreak | None:
         result = await self._session.execute(
             select(TrainingStreak).where(TrainingStreak.user_id == user_id)

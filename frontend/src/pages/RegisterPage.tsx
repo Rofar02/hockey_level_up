@@ -9,6 +9,7 @@ import { SelectField } from '../components/ui/SelectField'
 import { TextField } from '../components/ui/TextField'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
+import { useAuth } from '../hooks/useAuth'
 import { POSITIONS, POSITION_LABELS } from '../types/user'
 import type { Position } from '../types/user'
 
@@ -22,6 +23,7 @@ function toOptionalNumber(value: string): number | undefined {
 
 export function RegisterPage() {
   const navigate = useNavigate()
+  const { login } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -72,9 +74,23 @@ export function RegisterPage() {
         years_of_experience: toOptionalNumber(yearsOfExperience),
         privacy_consent: privacyConsent,
       })
-      navigate('/login', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось зарегистрироваться. Попробуйте ещё раз.')
+      setIsSubmitting(false)
+      return
+    }
+
+    // /auth/register only creates the account, it doesn't return a token
+    // (unlike /auth/login) -- reuse the same email/password right away so
+    // the user isn't sent to the login screen to type what they just typed.
+    try {
+      await login(email, password)
+      navigate('/', { replace: true })
+    } catch {
+      // Account exists at this point; only the auto-login itself failed
+      // (e.g. a transient network hiccup) -- let them log in manually
+      // instead of stranding them on this form.
+      navigate('/login', { replace: true })
     } finally {
       setIsSubmitting(false)
     }

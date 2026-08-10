@@ -11,6 +11,7 @@ import {
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { PremiumGate } from '../components/ui/PremiumGate'
 import { SelectField } from '../components/ui/SelectField'
 import * as analyticsApi from '../api/analytics'
 import { ApiError } from '../api/client'
@@ -62,6 +63,9 @@ function formatPointDate(iso: string): string {
 const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 const ICE = '#D7EFFF'
 
+const ANALYTICS_PREMIUM_GATE_DESCRIPTION =
+  'С премиум-подпиской откроются графики роста характеристик и навыков, текстовые инсайты о вашем прогрессе, а скоро — персональный AI-тренер.'
+
 export function AnalyticsPage() {
   const { user, accessToken } = useAuth()
   const hasPremium = user?.has_premium === true
@@ -78,27 +82,11 @@ export function AnalyticsPage() {
         {hasPremium && accessToken !== null ? (
           <AnalyticsContent accessToken={accessToken} />
         ) : (
-          <PremiumGate />
+          <PremiumGate
+            title="Аналитика — часть премиум-подписки"
+            description={ANALYTICS_PREMIUM_GATE_DESCRIPTION}
+          />
         )}
-      </div>
-    </div>
-  )
-}
-
-// Purely informational -- no payment flow exists yet, so this is a preview
-// of what premium unlocks, not an upsell with a call to action.
-function PremiumGate() {
-  return (
-    <div
-      className={`flex flex-col items-center gap-4 rounded-md ${CARD_BORDER} bg-dark-card p-8 text-center`}
-    >
-      <i className="ti ti-crown text-4xl text-accent-ice" aria-hidden="true" />
-      <div className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold text-[#F5F7FA]">Аналитика — часть премиум-подписки</h2>
-        <p className="text-sm text-[#8A94A6]">
-          С премиум-подпиской откроются графики роста характеристик и навыков, текстовые инсайты о
-          вашем прогрессе, а скоро — персональный AI-тренер.
-        </p>
       </div>
     </div>
   )

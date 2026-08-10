@@ -58,6 +58,18 @@ const BLOCK_PHASE_DESCRIPTIONS: Record<BlockPhase, string> = {
     'Разгрузочная неделя перед новым блоком: упражнения проще, а нагрузки в основной части меньше. Время на восстановление.',
 }
 
+// Rest-day hint on TodayCard: during intensification (the highest-load
+// week, see BLOCK_PHASE_DESCRIPTIONS above) light movement speeds recovery
+// more than full inactivity, so that phase gets a more specific nudge.
+// Accumulation/deload weeks, or no active block at all, get the same
+// simple text -- no phase-specific tuning needed there.
+function getRestDayHint(phase: BlockPhase | null): string {
+  if (phase === 'intensification') {
+    return 'День отдыха. Лёгкая прогулка 20-30 минут поможет мышцам быстрее восстановиться после высокой нагрузки этой недели.'
+  }
+  return 'День отдыха. Дайте телу восстановиться.'
+}
+
 // Card surface shared by every dashboard tile below: dark-card fill with a
 // thin icy top border, per the HomePage palette (see IceGlowBackground for
 // the matching bg tones).
@@ -280,6 +292,7 @@ export function HomePage() {
             <TodayCard
               day={today}
               phaseLabel={trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null}
+              phase={trainingBlock !== null ? trainingBlock.phase : null}
               onStart={() => today !== null && navigate(`/training/${today.id}`)}
             />
 
@@ -327,21 +340,27 @@ export function HomePage() {
 function TodayCard({
   day,
   phaseLabel,
+  phase,
   onStart,
 }: {
   day: DayPlanRead | null
   phaseLabel: string | null
+  phase: BlockPhase | null
   onStart: () => void
 }) {
   const weekday = day !== null ? WEEKDAY_LABELS[(parseIsoDate(day.date).getDay() + 6) % 7] : null
   const eyebrow = [weekday, phaseLabel].filter(Boolean).join(' · ')
 
-  if (day === null || day.session_type === 'rest' || day.training_session === null) {
+  if (day === null || day.training_session === null) {
+    // Rest days never get a TrainingSession (see schedule_service.py), so
+    // day.training_session === null already covers session_type === 'rest'
+    // -- checking session_type here too would just be redundant with it.
+    const isRestDay = day !== null && day.session_type === 'rest'
     return (
       <div className={`p-5 ${CARD_CLASS}`}>
         {eyebrow !== '' && <p className="mb-1 text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
         <p className="text-lg font-semibold text-[#F5F7FA]">
-          {day === null || day.training_session === null ? 'Нет плана на сегодня' : 'День отдыха'}
+          {isRestDay ? getRestDayHint(phase) : 'Нет плана на сегодня'}
         </p>
       </div>
     )

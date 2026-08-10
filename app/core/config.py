@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     # if they need to reach the sender; a placeholder is normal for dev.
     vapid_subject: str = "mailto:admin@example.com"
 
+    # AI coach chat (POST /users/me/coach-chat) -- premium-gated but stays
+    # functionally off (503) until this is filled in, since a real key
+    # costs money per message. Заполнить перед включением ИИ-чата.
+    anthropic_api_key: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

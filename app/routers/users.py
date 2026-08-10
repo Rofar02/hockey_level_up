@@ -9,6 +9,7 @@ from app.models.exercise import TargetStat
 from app.models.user import User
 from app.routers.deps import get_current_user, require_premium
 from app.schemas.analytics import AnalyticsSummaryRead
+from app.schemas.coach_chat import CoachChatMessageCreate, CoachChatMessageRead, CoachChatReplyRead
 from app.schemas.progress import StatHistoryPointRead, StatHistoryRead, TrainingStreakRead, UserStatRead
 from app.schemas.push_subscription import (
     PushSubscriptionCreate,
@@ -19,6 +20,7 @@ from app.schemas.push_subscription import (
 from app.schemas.skill import UserSkillPreferenceRead, UserSkillPreferencesReplace
 from app.schemas.user import UserDeleteRequest, UserRead, UserUpdate
 from app.services.analytics_service import AnalyticsService
+from app.services.coach_chat_service import CoachChatService
 from app.services.progress_service import ProgressService
 from app.services.push_subscription_service import PushSubscriptionService
 from app.services.skill_service import SkillService
@@ -130,6 +132,29 @@ async def get_my_analytics_summary(
     state -- never a fabricated one.
     """
     return await AnalyticsService(session).get_summary(current_user, days)
+
+
+@router.post("/me/coach-chat", response_model=CoachChatReplyRead)
+async def send_coach_chat_message(
+    body: CoachChatMessageCreate,
+    current_user: Annotated[User, Depends(require_premium)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Premium gates *access*; a 503 here means access is fine but the
+    feature isn't technically switched on yet (no Anthropic API key
+    configured -- see Settings.anthropic_api_key), which is a different
+    state from the 403 require_premium raises."""
+    reply = await CoachChatService(session).send_message(current_user, body.message)
+    return CoachChatReplyRead(reply=reply)
+
+
+@router.get("/me/coach-chat/history", response_model=list[CoachChatMessageRead])
+async def get_coach_chat_history(
+    current_user: Annotated[User, Depends(require_premium)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = Query(default=50, ge=1, le=200),
+):
+    return await CoachChatService(session).list_history(current_user.id, limit)
 
 
 @router.get("/me/streak", response_model=TrainingStreakRead)

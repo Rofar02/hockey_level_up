@@ -44,6 +44,9 @@ const PrivacyPage = lazy(() =>
 const AnalyticsPage = lazy(() =>
   import('./pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })),
 )
+const CoachPage = lazy(() =>
+  import('./pages/CoachPage').then((module) => ({ default: module.CoachPage })),
+)
 
 function RouteLoadingFallback() {
   return (
@@ -128,6 +131,16 @@ function App() {
           <ProtectedRoute>
             <Suspense fallback={<RouteLoadingFallback />}>
               <AnalyticsPage />
+            </Suspense>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/coach"
+        element={
+          <ProtectedRoute>
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <CoachPage />
             </Suspense>
           </ProtectedRoute>
         }
