@@ -47,6 +47,12 @@ def _target_date(preference: ReminderPreference, local_today: date_) -> date_:
 
 def _reminder_body(preference: ReminderPreference, session_type: DaySessionType) -> str:
     day_word = "Сегодня" if preference == ReminderPreference.MORNING else "Завтра"
+    if session_type == DaySessionType.GAME:
+        # Not in _SESSION_TYPE_TEXT (that dict feeds "тренировка X", which
+        # reads wrong for a game) and _due_day_plan's query already includes
+        # every non-REST day, GAME included, so this needs its own phrasing
+        # rather than a KeyError.
+        return f"{day_word} игра — не забудьте про разминку и настрой"
     return f"{day_word} тренировка {_SESSION_TYPE_TEXT[session_type]}"
 
 

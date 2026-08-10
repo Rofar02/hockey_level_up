@@ -141,6 +141,20 @@ async def test_planned_rest_day_between_activities_does_not_break_streak(real_us
 
 
 @pytest.mark.asyncio
+async def test_planned_game_day_between_activities_does_not_break_streak(real_user) -> None:
+    event_id = uuid.uuid4()
+    await _seed_streak(
+        real_user.id, current_streak=3, longest_streak=3, last_activity_date=TWO_DAYS_AGO
+    )
+    await _seed_day_plan(real_user.id, day_date=YESTERDAY, session_type=DaySessionType.GAME)
+    try:
+        await streak_consumer(_payload(real_user.id), event_id)
+        assert await _current_streak(real_user.id) == 4
+    finally:
+        await _cleanup_processed_events(event_id)
+
+
+@pytest.mark.asyncio
 async def test_missed_planned_training_day_breaks_streak(real_user) -> None:
     event_id = uuid.uuid4()
     await _seed_streak(

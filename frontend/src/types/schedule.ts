@@ -1,12 +1,13 @@
 import type { ExerciseRead } from './exercise'
 
-export const DAY_SESSION_TYPES = ['on_ice', 'off_ice', 'rest'] as const
+export const DAY_SESSION_TYPES = ['on_ice', 'off_ice', 'rest', 'game'] as const
 export type DaySessionType = (typeof DAY_SESSION_TYPES)[number]
 
 export const DAY_SESSION_TYPE_LABELS: Record<DaySessionType, string> = {
   on_ice: 'Лёд',
   off_ice: 'Сухая',
   rest: 'Отдых',
+  game: 'Игра',
 }
 
 export const TRAINING_PHASES = ['warmup', 'main', 'cooldown'] as const

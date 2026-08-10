@@ -15,11 +15,15 @@ async def has_missed_training_day(
     """True if a planned on/off-ice day strictly between from_date and
     to_date has no completed SessionBlock.
 
-    A date with no DayPlan at all, or a DayPlan with session_type=REST,
-    never counts as missed -- only a day the plan actually scheduled
-    training for, and that training never happened, breaks a streak.
-    Shared by streak_consumer (writes) and ProgressService.get_streak
-    (lazy read-time check) so both agree on what counts as a break.
+    A date with no DayPlan at all, or a DayPlan with session_type REST or
+    GAME, never counts as missed -- only a day the plan actually scheduled
+    a full training session for, and that training never happened, breaks
+    a streak. GAME days are a light activation, not a workout (see
+    ScheduleService._build_game_day_session), so they're excluded from
+    TRAINING_SESSION_TYPES below the same way REST is, just implicitly
+    (only ON_ICE/OFF_ICE are ever "in" it). Shared by streak_consumer
+    (writes) and ProgressService.get_streak (lazy read-time check) so both
+    agree on what counts as a break.
     """
     if to_date - from_date <= timedelta(days=1):
         return False  # nothing strictly between two consecutive (or equal) dates

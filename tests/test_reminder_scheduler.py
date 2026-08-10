@@ -3,6 +3,7 @@ reminder_sent_at's guard against re-sending. No real push is ever sent --
 webpush_async is monkeypatched at the app.services.push_service module
 level, same convention as test_push_subscription.py.
 """
+import json
 import uuid
 from datetime import date, datetime, timezone
 
@@ -110,6 +111,33 @@ async def test_morning_reminder_targets_today(db_session, monkeypatch) -> None:
     await db_session.refresh(tomorrow_plan)
     assert today_plan.reminder_sent_at is not None
     assert tomorrow_plan.reminder_sent_at is None
+
+
+@pytest.mark.asyncio
+async def test_game_day_reminder_does_not_crash_and_uses_game_wording(db_session, monkeypatch) -> None:
+    # _SESSION_TYPE_TEXT only has ON_ICE/OFF_ICE entries -- a GAME day (also
+    # not REST, so _due_day_plan picks it up) must not KeyError there.
+    calls: list = []
+    monkeypatch.setattr(push_service, "webpush_async", _counting_webpush(calls))
+
+    user = _make_user(reminder_preference=ReminderPreference.MORNING)
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(_make_subscription(user.id))
+    await db_session.flush()
+    weekly_plan = await _make_weekly_plan(db_session, user.id)
+    today_plan = await _add_day_plan(
+        db_session, weekly_plan.id, day_date=TODAY, session_type=DaySessionType.GAME
+    )
+
+    await _run_tick(db_session, MORNING_NOW)  # must not raise
+    await db_session.commit()
+
+    await db_session.refresh(today_plan)
+    assert today_plan.reminder_sent_at is not None
+    assert len(calls) == 1
+    body = json.loads(calls[0][1]["data"])["body"]
+    assert "игра" in body.lower()
 
 
 @pytest.mark.asyncio

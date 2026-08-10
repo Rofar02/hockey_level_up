@@ -23,7 +23,7 @@ import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parse
 import { hasExerciseTechnique } from '../utils/exerciseTechnique'
 import { loadOptional } from '../utils/loadOptional'
 
-const SESSION_TYPE_OPTIONS: DaySessionType[] = ['on_ice', 'off_ice', 'rest']
+const SESSION_TYPE_OPTIONS: DaySessionType[] = ['on_ice', 'off_ice', 'rest', 'game']
 
 // Same icy top-border card convention as Home/TrainingSession/Profile.
 const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'

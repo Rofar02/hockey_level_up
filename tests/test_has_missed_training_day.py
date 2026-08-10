@@ -112,6 +112,18 @@ async def test_rest_day_between_does_not_count_as_missed(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_game_day_between_does_not_count_as_missed(db_session) -> None:
+    # GAME is a light pre-game day, not a workout -- same non-breaking
+    # treatment as REST (see ScheduleService._build_game_day_session).
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    await _add_day_plan(db_session, user.id, day_date=YESTERDAY, session_type=DaySessionType.GAME)
+
+    assert await has_missed_training_day(db_session, user.id, TWO_DAYS_AGO, TODAY) is False
+
+
+@pytest.mark.asyncio
 async def test_missing_day_plan_does_not_count_as_missed(db_session) -> None:
     user = _make_user()
     db_session.add(user)

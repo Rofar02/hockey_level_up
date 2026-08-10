@@ -1,5 +1,6 @@
 import logging
 import random
+import uuid
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -76,7 +77,7 @@ class ScheduleService:
         for day_in in payload.days:
             day_plan = DayPlan(date=day_in.date, session_type=day_in.session_type)
             if day_in.session_type != DaySessionType.REST:
-                day_plan.training_session = await self._build_training_session(
+                day_plan.training_session = await self._build_session_for_day(
                     day_in.session_type, user, block_phase
                 )
             weekly_plan.day_plans.append(day_plan)
@@ -201,7 +202,7 @@ class ScheduleService:
                 day_plan.training_session = None
 
             if day_in.session_type != DaySessionType.REST:
-                day_plan.training_session = await self._build_training_session(
+                day_plan.training_session = await self._build_session_for_day(
                     day_in.session_type, user, block_phase
                 )
 
@@ -318,6 +319,62 @@ class ScheduleService:
         return await self._training_blocks.create(
             TrainingBlock(user_id=user.id, block_number=active.block_number + 1, week_in_block=1)
         )
+
+    async def _build_session_for_day(
+        self, session_type: DaySessionType, user: User, block_phase: BlockPhase
+    ) -> TrainingSession:
+        """Dispatch to the GAME-day builder (light activation only) or the
+        regular on/off-ice builder -- the single place both
+        create_weekly_plan and _patch_weekly_plan go through, so neither
+        has to know GAME is a special case."""
+        if session_type == DaySessionType.GAME:
+            return await self._build_game_day_session(user, block_phase)
+        return await self._build_training_session(session_type, user, block_phase)
+
+    async def _build_game_day_session(self, user: User, block_phase: BlockPhase) -> TrainingSession:
+        """GAME day: light pre-game activation only -- no main block (no full
+        workout right before a game) and no cooldown (a game follows, not
+        recovery). GAME has no ExerciseCategory of its own (unlike
+        ON_ICE/OFF_ICE), so physical activation is pulled from both the
+        on-ice and off-ice warmup pools instead of picking one, plus one
+        optional intellect-targeted warmup exercise for mental prep.
+        """
+        blocks: list[SessionBlock] = []
+        for category in (ExerciseCategory.ON_ICE, ExerciseCategory.OFF_ICE):
+            activation = await self._pick_single(TrainingPhase.WARMUP, category, user, block_phase)
+            if activation is not None:
+                blocks.append(
+                    SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=activation.id, order=len(blocks))
+                )
+
+        picked_ids = {block.exercise_id for block in blocks}
+        mental_prep = await self._pick_mental_prep(user, exclude_ids=picked_ids)
+        if mental_prep is not None:
+            blocks.append(
+                SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=mental_prep.id, order=len(blocks))
+            )
+
+        return TrainingSession(blocks=blocks)
+
+    async def _pick_mental_prep(
+        self, user: User, *, exclude_ids: set[uuid.UUID]
+    ) -> Exercise | None:
+        """One optional warmup exercise targeting intellect, for a GAME day's
+        mental prep. The catalog may not have any such exercise yet -- that's
+        fine, this returns None rather than raising, so GAME sessions still
+        build with physical activation only until content catches up.
+        """
+        candidates = await self._exercises.list_for_assembly(
+            phase=TrainingPhase.WARMUP, equipment_access=user.equipment_access
+        )
+        candidates = [
+            e for e in candidates if e.target_stat == TargetStat.INTELLECT and e.id not in exclude_ids
+        ]
+        if not candidates:
+            return None
+
+        candidates = self._apply_level_cap(candidates, user, context="game/mental_prep")
+        return random.choice(candidates)
 
     async def _build_training_session(
         self, session_type: DaySessionType, user: User, block_phase: BlockPhase
@@ -484,7 +541,13 @@ class ScheduleService:
         for day in weekly_plan.day_plans:
             session_read = None
             if day.training_session is not None:
-                category = _SESSION_TYPE_TO_CATEGORY[day.session_type]
+                # GAME has no ExerciseCategory of its own (see
+                # _build_game_day_session) -- warmup-only by construction, so
+                # its split is fixed rather than looked up per category.
+                if day.session_type == DaySessionType.GAME:
+                    phase_split = {TrainingPhase.WARMUP: 1.0}
+                else:
+                    phase_split = get_phase_split(_SESSION_TYPE_TO_CATEGORY[day.session_type])
                 blocks_read = [
                     SessionBlockRead(
                         id=block.id,
@@ -497,7 +560,7 @@ class ScheduleService:
                 ]
                 session_read = TrainingSessionRead(
                     id=day.training_session.id,
-                    phase_split=get_phase_split(category),
+                    phase_split=phase_split,
                     blocks=blocks_read,
                 )
             day_reads.append(

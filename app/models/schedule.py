@@ -16,6 +16,10 @@ class DaySessionType(enum.StrEnum):
     ON_ICE = "on_ice"
     OFF_ICE = "off_ice"
     REST = "rest"
+    # Light pre-game activation + mental prep, not a full workout -- see
+    # ScheduleService._build_game_day_session. Like REST, a missed GAME day
+    # doesn't break TrainingStreak (see streak_service.TRAINING_SESSION_TYPES).
+    GAME = "game"
 
 
 class WeeklyPlan(Base):
