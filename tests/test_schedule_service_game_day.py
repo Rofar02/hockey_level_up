@@ -2,11 +2,16 @@
 
 GAME is a light pre-game day, not a workout -- no main block, no cooldown,
 and physical activation is pulled from both on-ice and off-ice warmup pools
-since GAME has no ExerciseCategory of its own. A separate optional pick
-covers "mental prep" (a warmup exercise targeting intellect), which must
-degrade gracefully (no exception) when the catalog has none yet -- exactly
-the current state of the real catalog (see the assertion in
-test_game_day_mental_prep_gracefully_skipped_when_catalog_has_none).
+since GAME has no ExerciseCategory of its own. The activation pick is
+further filtered to Exercise.suitable_for_game_day=True, not just
+phase=WARMUP -- a plain warmup exercise (e.g. loaded barbell work meant to
+prep for a full session) isn't necessarily light enough for pre-game
+activation, so it has to be explicitly marked, and defaults to False for
+every exercise (including the whole real catalog, via the migration's
+server_default). A separate optional pick covers "mental prep" (a warmup
+exercise targeting intellect, unfiltered by suitable_for_game_day per
+spec), which must degrade gracefully (no exception) when the catalog has
+none yet -- exactly the current state of the real catalog.
 
 These tests run against the same shared dev DB as test_schedule_service_pick_main.py,
 which already has a real seeded exercise catalog -- so, same as that file,
@@ -52,6 +57,7 @@ def _make_exercise(
     category: ExerciseCategory,
     phase: TrainingPhase,
     target_stat: TargetStat = TargetStat.STRENGTH,
+    suitable_for_game_day: bool = False,
 ) -> Exercise:
     return Exercise(
         id=uuid.uuid4(),
@@ -61,17 +67,22 @@ def _make_exercise(
         target_stat=target_stat,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
+        suitable_for_game_day=suitable_for_game_day,
     )
 
 
 async def _seed_activation_pool(db_session) -> dict[str, Exercise]:
-    """One "AAA"-prefixed warmup exercise per category (guaranteed to win
-    the deterministic name-sort over the real catalog), plus a main/cooldown
-    exercise per category so a GAME day that incorrectly fell back to the
-    regular on/off-ice builder would visibly pick those up too."""
+    """One "AAA"-prefixed, suitable_for_game_day=True warmup exercise per
+    category (guaranteed to win the deterministic name-sort over the real
+    catalog, all of which defaults to suitable_for_game_day=False), plus a
+    main/cooldown exercise per category so a GAME day that incorrectly fell
+    back to the regular on/off-ice builder would visibly pick those up too."""
     exercises = {
         "on_ice_warmup": _make_exercise(
-            name="AAA on-ice warmup", category=ExerciseCategory.ON_ICE, phase=TrainingPhase.WARMUP
+            name="AAA on-ice warmup",
+            category=ExerciseCategory.ON_ICE,
+            phase=TrainingPhase.WARMUP,
+            suitable_for_game_day=True,
         ),
         "on_ice_main": _make_exercise(
             name="AAA on-ice main", category=ExerciseCategory.ON_ICE, phase=TrainingPhase.MAIN
@@ -80,7 +91,10 @@ async def _seed_activation_pool(db_session) -> dict[str, Exercise]:
             name="AAA on-ice cooldown", category=ExerciseCategory.ON_ICE, phase=TrainingPhase.COOLDOWN
         ),
         "off_ice_warmup": _make_exercise(
-            name="AAA off-ice warmup", category=ExerciseCategory.OFF_ICE, phase=TrainingPhase.WARMUP
+            name="AAA off-ice warmup",
+            category=ExerciseCategory.OFF_ICE,
+            phase=TrainingPhase.WARMUP,
+            suitable_for_game_day=True,
         ),
         "off_ice_main": _make_exercise(
             name="AAA off-ice main", category=ExerciseCategory.OFF_ICE, phase=TrainingPhase.MAIN
@@ -123,6 +137,59 @@ async def test_game_day_pulls_activation_from_both_ice_and_off_ice(db_session) -
 
 
 @pytest.mark.asyncio
+async def test_warmup_exercise_without_flag_is_excluded_from_activation(db_session) -> None:
+    """phase=WARMUP alone is no longer enough -- an unflagged warmup
+    exercise (the default for every exercise, including the whole real
+    catalog after the migration) must not be picked for GAME-day
+    activation, even though it would be picked for a regular on/off-ice
+    day's warmup."""
+    user = _make_user()
+    db_session.add(user)
+    unflagged = _make_exercise(
+        name="AAA unflagged on-ice warmup",
+        category=ExerciseCategory.ON_ICE,
+        phase=TrainingPhase.WARMUP,
+        # suitable_for_game_day left at its default: False.
+    )
+    db_session.add(unflagged)
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    session = await service._build_game_day_session(user, BlockPhase.ACCUMULATION)
+
+    picked_ids = {block.exercise_id for block in session.blocks}
+    assert unflagged.id not in picked_ids
+    # Sorts first alphabetically among on-ice warmups, so its absence here
+    # proves the filter -- not just "something else got picked instead".
+    assert session.blocks == []
+
+
+@pytest.mark.asyncio
+async def test_warmup_exercise_with_flag_is_included_in_activation(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    flagged = _make_exercise(
+        name="AAA flagged on-ice warmup",
+        category=ExerciseCategory.ON_ICE,
+        phase=TrainingPhase.WARMUP,
+        suitable_for_game_day=True,
+    )
+    unflagged = _make_exercise(
+        name="AAA unflagged on-ice warmup",
+        category=ExerciseCategory.ON_ICE,
+        phase=TrainingPhase.WARMUP,
+    )
+    db_session.add_all([flagged, unflagged])
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    session = await service._build_game_day_session(user, BlockPhase.ACCUMULATION)
+
+    picked_ids = [block.exercise_id for block in session.blocks]
+    assert picked_ids == [flagged.id]
+
+
+@pytest.mark.asyncio
 async def test_game_day_includes_mental_prep_when_catalog_has_one(db_session) -> None:
     user = _make_user()
     db_session.add(user)
@@ -136,6 +203,9 @@ async def test_game_day_includes_mental_prep_when_catalog_has_one(db_session) ->
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.WARMUP,
         target_stat=TargetStat.INTELLECT,
+        # suitable_for_game_day intentionally left False -- per spec,
+        # _pick_mental_prep is unfiltered by it (target_stat=intellect is
+        # already specific enough).
     )
     db_session.add(mental_exercise)
     await db_session.flush()

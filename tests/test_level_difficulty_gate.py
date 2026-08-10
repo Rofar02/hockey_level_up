@@ -266,7 +266,7 @@ async def test_pick_single_respects_level_cap(db_session, monkeypatch: pytest.Mo
 
     service = ScheduleService(db_session)
 
-    async def fake_list_for_assembly(*, phase, equipment_access, category):
+    async def fake_list_for_assembly(*, phase, equipment_access, category, suitable_for_game_day=None):
         return [easy, hard]
 
     service._exercises.list_for_assembly = fake_list_for_assembly

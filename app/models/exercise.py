@@ -85,3 +85,13 @@ class Exercise(Base):
     # when tracks_weight is true. Used by WeightSuggestionService for the
     # first-ever suggestion before any SetCompletion history exists.
     bodyweight_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Whether this exercise is light enough to be pre-game activation, not a
+    # full warmup (e.g. not loaded barbell work) -- gates
+    # ScheduleService._build_game_day_session's physical-activation pick,
+    # on top of phase=WARMUP. Defaults false for every existing exercise on
+    # purpose: this isn't inferred from name/category, someone has to
+    # actually mark exercises suitable one at a time via the admin panel.
+    suitable_for_game_day: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )

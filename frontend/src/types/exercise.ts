@@ -77,6 +77,7 @@ export interface ExerciseRead {
   target_duration_seconds: number | null
   tracks_weight: boolean
   bodyweight_ratio: number | null
+  suitable_for_game_day: boolean
 }
 
 // Create/update payload (admin CRUD) -- same shape for both; PATCH on the
@@ -97,4 +98,5 @@ export interface ExerciseWrite {
   target_duration_seconds: number | null
   tracks_weight: boolean
   bodyweight_ratio: number | null
+  suitable_for_game_day: boolean
 }

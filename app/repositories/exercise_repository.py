@@ -55,16 +55,24 @@ class ExerciseRepository:
         phase: TrainingPhase,
         equipment_access: EquipmentType,
         category: ExerciseCategory | None = None,
+        suitable_for_game_day: bool | None = None,
     ) -> list[Exercise]:
         """Candidates for training-session assembly.
 
         equipment_access only constrains off_ice exercises -- on the ice, the
         player doesn't choose gym/home/bodyweight, so on_ice exercises are
         never excluded by equipment.
+
+        suitable_for_game_day is None (no filter) for every regular on/off-ice
+        session -- only ScheduleService._build_game_day_session's physical
+        activation pick passes True, since a full warmup pool (e.g. loaded
+        barbell work) isn't appropriate right before a game.
         """
         query = select(Exercise).where(Exercise.phase == phase)
         if category is not None:
             query = query.where(Exercise.category == category)
+        if suitable_for_game_day is not None:
+            query = query.where(Exercise.suitable_for_game_day == suitable_for_game_day)
         query = query.where(
             or_(
                 Exercise.category == ExerciseCategory.ON_ICE,

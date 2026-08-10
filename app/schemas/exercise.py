@@ -23,6 +23,7 @@ class ExerciseRead(BaseModel):
     target_duration_seconds: int | None
     tracks_weight: bool
     bodyweight_ratio: float | None
+    suitable_for_game_day: bool
 
 
 class ExerciseCreate(BaseModel):
@@ -40,6 +41,7 @@ class ExerciseCreate(BaseModel):
     target_duration_seconds: int | None = None
     tracks_weight: bool = False
     bodyweight_ratio: float | None = Field(default=None, gt=0)
+    suitable_for_game_day: bool = False
 
 
 class ExerciseUpdate(BaseModel):
@@ -57,6 +59,7 @@ class ExerciseUpdate(BaseModel):
     target_duration_seconds: int | None = None
     tracks_weight: bool | None = None
     bodyweight_ratio: float | None = Field(default=None, gt=0)
+    suitable_for_game_day: bool | None = None
 
 
 class SuggestedWeightRead(BaseModel):

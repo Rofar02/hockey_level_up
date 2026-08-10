@@ -283,6 +283,9 @@ function ExerciseFormModal({
   const [bodyweightRatio, setBodyweightRatio] = useState(
     exercise?.bodyweight_ratio != null ? String(exercise.bodyweight_ratio) : '',
   )
+  const [suitableForGameDay, setSuitableForGameDay] = useState(
+    exercise?.suitable_for_game_day ?? false,
+  )
 
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -324,6 +327,7 @@ function ExerciseFormModal({
       target_duration_seconds: parseOptionalInt(targetDurationSeconds),
       tracks_weight: tracksWeight,
       bodyweight_ratio: bodyweightRatioValue,
+      suitable_for_game_day: suitableForGameDay,
     }
 
     setIsSaving(true)
@@ -475,6 +479,16 @@ function ExerciseFormModal({
             className="max-w-[180px]"
           />
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-text-primary">
+          <input
+            type="checkbox"
+            checked={suitableForGameDay}
+            onChange={(event) => setSuitableForGameDay(event.target.checked)}
+            className="h-4 w-4"
+          />
+          Подходит для дня игры
+        </label>
 
         <FormError message={formError} />
         <Button type="submit" isLoading={isSaving} className="self-start">

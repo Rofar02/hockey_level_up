@@ -341,7 +341,9 @@ class ScheduleService:
         """
         blocks: list[SessionBlock] = []
         for category in (ExerciseCategory.ON_ICE, ExerciseCategory.OFF_ICE):
-            activation = await self._pick_single(TrainingPhase.WARMUP, category, user, block_phase)
+            activation = await self._pick_single(
+                TrainingPhase.WARMUP, category, user, block_phase, suitable_for_game_day=True
+            )
             if activation is not None:
                 blocks.append(
                     SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=activation.id, order=len(blocks))
@@ -404,6 +406,8 @@ class ScheduleService:
         category: ExerciseCategory,
         user: User,
         block_phase: BlockPhase,
+        *,
+        suitable_for_game_day: bool | None = None,
     ) -> Exercise | None:
         """Warmup/cooldown: curated pool for the phase, filtered by the day's category.
 
@@ -415,9 +419,17 @@ class ScheduleService:
         difficulty<=2), falling back to the level-capped pool when nothing
         matches that preference -- never an empty result just because the
         preferred difficulty band is missing.
+
+        suitable_for_game_day is None for every regular on/off-ice call --
+        only _build_game_day_session passes True, to keep its physical
+        activation pick to exercises actually marked light enough for it
+        (see Exercise.suitable_for_game_day), not the full WARMUP pool.
         """
         candidates = await self._exercises.list_for_assembly(
-            phase=phase, equipment_access=user.equipment_access, category=category
+            phase=phase,
+            equipment_access=user.equipment_access,
+            category=category,
+            suitable_for_game_day=suitable_for_game_day,
         )
         if not candidates:
             return None
