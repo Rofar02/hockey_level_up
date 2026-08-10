@@ -223,8 +223,7 @@ export function HomePage() {
     }
   }
 
-  async function handleTourFinish() {
-    setTourDismissed(true)
+  async function persistTourSeen() {
     if (accessToken === null) {
       return
     }
@@ -232,10 +231,24 @@ export function HomePage() {
       const updated = await usersApi.markOnboardingTourSeen(accessToken)
       updateUser(updated)
     } catch {
-      // Best-effort -- tourDismissed above already lets this session
+      // Best-effort -- tourDismissed below already lets this session
       // through; a failed persist just means the tour shows again next
       // launch instead of being gone for good.
     }
+  }
+
+  function handleTourSkip() {
+    setTourDismissed(true)
+    void persistTourSeen()
+  }
+
+  function handleTourComplete() {
+    setTourDismissed(true)
+    void persistTourSeen()
+    // Straight into planning the first week -- an empty Home dashboard
+    // ("Нет плана на сегодня") right after the tour is a dead end, not a
+    // next step.
+    navigate('/schedule/new')
   }
 
   const showTour = user !== null && !user.has_seen_onboarding_tour && !tourDismissed
@@ -255,7 +268,7 @@ export function HomePage() {
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
-      {showTour && <OnboardingTour onFinish={handleTourFinish} />}
+      {showTour && <OnboardingTour onSkip={handleTourSkip} onComplete={handleTourComplete} />}
       <div className="relative z-[1] mx-auto flex min-h-svh max-w-3xl flex-col gap-4 px-4 py-8">
         <div className={`flex items-center justify-between gap-4 p-4 ${CARD_CLASS}`}>
           <div className="flex items-center gap-4">

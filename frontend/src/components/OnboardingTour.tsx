@@ -36,7 +36,15 @@ const SLIDES: Slide[] = [
 // short taps/scrolls shouldn't accidentally flip a slide.
 const SWIPE_THRESHOLD_PX = 50
 
-export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
+interface OnboardingTourProps {
+  // Both count as "seen" server-side (see HomePage), but only the final
+  // "Начать" sends the user on to plan their first week -- "Пропустить" at
+  // any earlier slide just drops them back on Home as before.
+  onSkip: () => void
+  onComplete: () => void
+}
+
+export function OnboardingTour({ onSkip, onComplete }: OnboardingTourProps) {
   const [index, setIndex] = useState(0)
   const touchStartX = useRef<number | null>(null)
 
@@ -45,7 +53,7 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
 
   function goNext() {
     if (isLast) {
-      onFinish()
+      onComplete()
       return
     }
     setIndex((current) => current + 1)
@@ -83,7 +91,7 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
       {!isLast && (
         <button
           type="button"
-          onClick={onFinish}
+          onClick={onSkip}
           className="absolute right-4 top-4 z-[1] px-2 py-1 text-sm text-text-secondary transition-colors hover:text-text-primary"
         >
           Пропустить
