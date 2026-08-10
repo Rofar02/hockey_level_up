@@ -23,6 +23,7 @@ export interface UserProfileUpdate {
   jersey_number?: number | null
   reminder_preference?: ReminderPreference
   timezone?: string
+  has_seen_weight_hint?: boolean
 }
 
 export function updateProfile(
@@ -34,6 +35,13 @@ export function updateProfile(
 
 export function markOnboardingTourSeen(accessToken: string): Promise<UserRead> {
   return apiPostAuth<UserRead>('/users/me/onboarding-tour-seen', {}, accessToken)
+}
+
+// Unlike markOnboardingTourSeen, this has no dedicated endpoint -- it's just
+// one more simple field on the existing PATCH /users/me, same as changing
+// reminder_preference or timezone from Settings.
+export function markWeightHintSeen(accessToken: string): Promise<UserRead> {
+  return updateProfile({ has_seen_weight_hint: true }, accessToken)
 }
 
 export function uploadAvatar(file: File, accessToken: string): Promise<UserRead> {

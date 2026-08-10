@@ -48,6 +48,7 @@ export interface UserRead {
   timezone: string
   reminder_preference: ReminderPreference
   has_seen_onboarding_tour: boolean
+  has_seen_weight_hint: boolean
   created_at: string
 }
 

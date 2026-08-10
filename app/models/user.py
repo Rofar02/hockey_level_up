@@ -100,6 +100,13 @@ class User(Base):
     has_seen_onboarding_tour: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # One-time SetLogger hint (suggested weight + feedback), shown on first
+    # real encounter with that UI rather than in the general onboarding
+    # tour. Flag is per-user, not per-exercise -- once dismissed on any
+    # tracks_weight exercise, it never shows again on any other one either.
+    has_seen_weight_hint: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")

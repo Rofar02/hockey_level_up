@@ -61,6 +61,7 @@ class UserRead(UserBase):
     timezone: str
     reminder_preference: ReminderPreference
     has_seen_onboarding_tour: bool
+    has_seen_weight_hint: bool
     created_at: datetime
 
 
@@ -72,6 +73,7 @@ class UserUpdate(BaseModel):
     jersey_number: int | None = Field(default=None, ge=0, le=99)
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     reminder_preference: ReminderPreference | None = None
+    has_seen_weight_hint: bool | None = None
 
     @field_validator("timezone")
     @classmethod

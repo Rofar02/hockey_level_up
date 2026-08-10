@@ -7,7 +7,9 @@ import { ExerciseTechnique } from './ExerciseTechnique'
 import * as exercisesApi from '../api/exercises'
 import * as setCompletionsApi from '../api/setCompletions'
 import * as trainingSessionsApi from '../api/trainingSessions'
+import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
+import { useAuth } from '../hooks/useAuth'
 import type { ExerciseRead } from '../types/exercise'
 import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletion'
 import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
@@ -192,7 +194,12 @@ function SetLogger({
   accessToken: string
   onLastSetCompleted?: () => void
 }) {
+  const { user, updateUser } = useAuth()
   const targetSets = exercise.target_sets
+  // Session-local guard, same reasoning as OnboardingTour's tourDismissed --
+  // dismiss immediately regardless of whether the persist call below
+  // succeeds, so a dropped request never leaves the hint stuck on screen.
+  const [weightHintDismissed, setWeightHintDismissed] = useState(false)
   const [suggestedWeightKg, setSuggestedWeightKg] = useState<number | null>(null)
   const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(exercise.tracks_weight)
   const [isLoadingSets, setIsLoadingSets] = useState(true)
@@ -276,6 +283,19 @@ function SetLogger({
     }
   }
   const allSetsDone = currentSetNumber > targetSets
+  const showWeightHint =
+    exercise.tracks_weight && user !== null && !user.has_seen_weight_hint && !weightHintDismissed
+
+  async function dismissWeightHint() {
+    setWeightHintDismissed(true)
+    try {
+      const updated = await usersApi.markWeightHintSeen(accessToken)
+      updateUser(updated)
+    } catch {
+      // Best-effort -- weightHintDismissed above already hides it for this
+      // session; a failed persist just means it can show once more later.
+    }
+  }
 
   async function handleSaveSet() {
     const reps = repsInput.trim() === '' ? null : Number(repsInput)
@@ -390,6 +410,21 @@ function SetLogger({
                 <div className="flex flex-col gap-2">
                   {exercise.tracks_weight && (
                     <div className="flex flex-col gap-1">
+                      {showWeightHint && (
+                        <div className="mb-1 flex flex-col gap-2 rounded border border-accent-ice/30 bg-accent-ice/5 px-3 py-2.5">
+                          <p className="text-xs leading-relaxed text-text-secondary">
+                            Мы предлагаем вес автоматически, вы всегда можете поправить его. После
+                            подхода скажите, как ощущалось — в следующий раз подберём точнее.
+                          </p>
+                          <Button
+                            variant="neutral"
+                            onClick={dismissWeightHint}
+                            className="self-start px-3 py-1 text-xs"
+                          >
+                            Понятно
+                          </Button>
+                        </div>
+                      )}
                       <CompactNumberField
                         label="Вес"
                         unit="кг"
