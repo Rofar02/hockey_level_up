@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -12,6 +12,7 @@ from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.skill import SkillStatWeight, SkillTag
 from app.models.user import User
+from app.services.streak_service import has_missed_training_day
 
 EVENT_TYPE = "block_completed"
 
@@ -152,7 +153,10 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
 
         if streak.last_activity_date == today:
             pass  # already counted today, don't touch the streak
-        elif streak.last_activity_date == today - timedelta(days=1):
+        elif streak.last_activity_date is not None and not await has_missed_training_day(
+            session, user_id, streak.last_activity_date, today
+        ):
+            # No gap, or the gap was only rest days / days with no plan.
             streak.current_streak += 1
         else:
             streak.current_streak = 1

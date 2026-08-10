@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ from app.models.user import User
 from app.repositories.progress_repository import ProgressRepository
 from app.schemas.progress import StatHistoryPointRead, StatHistoryRead, UserStatRead
 from app.services.stat_service import get_effective_value, get_idle_days, is_decay_active
+from app.services.streak_service import has_missed_training_day
 
 # All 4 stats are always included in rating_excess, even ones the user has
 # never trained (excess is then 0 - baseline, i.e. fully negative).
@@ -30,6 +31,7 @@ def _stat_excess(stat_type: TargetStat, user: User, stat: UserStat | None, now: 
 
 class ProgressService:
     def __init__(self, session: AsyncSession) -> None:
+        self._session = session
         self._progress = ProgressRepository(session)
 
     async def list_user_stats(self, user_id: uuid.UUID) -> list[UserStatRead]:
@@ -113,6 +115,26 @@ class ProgressService:
             return TrainingStreak(
                 user_id=user_id, current_streak=0, longest_streak=0, last_activity_date=None
             )
+
+        today = date.today()
+        if streak.last_activity_date is not None and streak.last_activity_date != today:
+            # Lazy, read-only check: the row itself is only ever written by
+            # streak_consumer (on the next block_completed), so a break that
+            # happened since the last activity would otherwise keep showing
+            # the stale pre-break count until the user trains again. This
+            # reflects the break in the response without writing it back --
+            # writing here would mean taking a row lock and mutating state on
+            # every GET, for a value the next real activity overwrites anyway.
+            missed = await has_missed_training_day(
+                self._session, user_id, streak.last_activity_date, today
+            )
+            if missed:
+                return TrainingStreak(
+                    user_id=streak.user_id,
+                    current_streak=0,
+                    longest_streak=streak.longest_streak,
+                    last_activity_date=streak.last_activity_date,
+                )
         return streak
 
     @staticmethod
