@@ -3,8 +3,8 @@ import { NavLink } from 'react-router-dom'
 const TABS: { to: string; icon: string; label: string; end?: boolean }[] = [
   { to: '/', icon: 'ti-home', label: 'Главная', end: true },
   { to: '/schedule/new', icon: 'ti-calendar', label: 'Неделя' },
-  { to: '/profile', icon: 'ti-user', label: 'Профиль' },
   { to: '/reference', icon: 'ti-book', label: 'Справочник' },
+  { to: '/profile', icon: 'ti-user', label: 'Профиль' },
 ]
 
 export function BottomNav() {
