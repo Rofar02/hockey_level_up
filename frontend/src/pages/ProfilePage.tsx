@@ -199,7 +199,12 @@ export function ProfilePage() {
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
-      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
+      {/* gap-4/py-6, not the page-wide gap-6/py-8 default -- installed as a
+          home-screen PWA on iOS loses the address bar's vertical budget, so
+          this page's own content (card + stats + Skills button) needs to sit
+          tighter to clear the fixed BottomNav without scrolling on a phone
+          like iPhone 13 Pro (measured live: was short by ~20px). */}
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-4 px-4 py-6">
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <BackLink />
@@ -241,7 +246,7 @@ export function ProfilePage() {
       {isLoading && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
 
       {!isLoading && stats !== null && (
-        <div className="mx-auto flex w-[310px] flex-col">
+        <div className="mx-auto flex w-full max-w-[310px] flex-col">
           {/* Keeps its rink-pattern.webp background image + dark overlay --
               flagged separately as a different card-assembly pattern from
               the rest of the app, not silently flattened to bg-dark-card
@@ -271,7 +276,7 @@ export function ProfilePage() {
                 )}
               </div>
 
-              <div className="flex justify-center py-2">
+              <div className="flex justify-center py-1">
                 <div className="relative">
                   {/* Two-layer wrapper, same reason as HomePage's avatar:
                       the tier border/glow (box-shadow) lives on this outer
