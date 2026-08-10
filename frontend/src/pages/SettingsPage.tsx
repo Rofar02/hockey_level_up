@@ -19,7 +19,7 @@ import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import { getActivePushSubscription, isPushSupported, subscribeToPush } from '../push'
+import { getActivePushSubscription, isIos, isPushSupported, isStandalone, subscribeToPush } from '../push'
 import type { AssessmentStatus, OnIceAssessmentStatus } from '../types/assessment'
 import type { SkillOption } from '../types/skill'
 import { EQUIPMENT_CHOICES, REMINDER_PREFERENCE_LABELS } from '../types/user'
@@ -63,6 +63,12 @@ export function SettingsPage() {
   const [onIceTestSuccess, setOnIceTestSuccess] = useState(false)
 
   const [pushSupported] = useState(() => isPushSupported())
+  // Unsupported for the fixable reason (iOS Safari, not installed to the
+  // home screen) vs. every other unsupported case, which has no fix to
+  // point the user at -- see push.ts for why standalone gates PushManager.
+  const [needsIosHomeScreenInstall] = useState(
+    () => !isPushSupported() && isIos() && !isStandalone(),
+  )
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(() =>
     isPushSupported() ? Notification.permission : null,
   )
@@ -652,7 +658,13 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-medium text-[#8A94A6]">Уведомления</h2>
-        {!pushSupported && (
+        {!pushSupported && needsIosHomeScreenInstall && (
+          <p className="text-sm text-text-secondary">
+            Добавьте приложение на домашний экран (Поделиться → «На экран «Домой»»), чтобы получать
+            уведомления.
+          </p>
+        )}
+        {!pushSupported && !needsIosHomeScreenInstall && (
           <p className="text-sm text-text-secondary">
             Этот браузер не поддерживает push-уведомления.
           </p>

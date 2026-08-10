@@ -2,6 +2,23 @@ export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
 
+export function isIos(): boolean {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+}
+
+// iOS Safari only exposes PushManager (isPushSupported above) once the site
+// runs standalone, installed to the home screen -- a plain browser tab
+// never gets it, no matter how recent iOS is. `navigator.standalone` is the
+// long-standing Safari-only signal for that; `display-mode: standalone`
+// is the standard equivalent and covers versions/cases where the former is
+// flaky, so both are checked.
+export function isStandalone(): boolean {
+  return (
+    (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches
+  )
+}
+
 // Called once at app startup so the worker is already active by the time
 // the user opens Settings and toggles notifications on -- register() is
 // idempotent (the browser reuses the existing registration when the script
