@@ -47,6 +47,14 @@ async def delete_current_user(
     await UserService(session).delete_account(current_user, body.password)
 
 
+@router.post("/me/onboarding-tour-seen", response_model=UserRead)
+async def mark_onboarding_tour_seen(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await UserService(session).mark_onboarding_tour_seen(current_user)
+
+
 @router.post("/me/avatar", response_model=UserRead)
 async def upload_avatar(
     current_user: Annotated[User, Depends(get_current_user)],

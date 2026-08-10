@@ -1,4 +1,11 @@
-import { apiDeleteAuthWithBody, apiGet, apiPatchAuth, apiPostMultipartAuth, apiPutAuth } from './client'
+import {
+  apiDeleteAuthWithBody,
+  apiGet,
+  apiPatchAuth,
+  apiPostAuth,
+  apiPostMultipartAuth,
+  apiPutAuth,
+} from './client'
 import type { EquipmentAccess, ReminderPreference, UserRead } from '../types/user'
 import type { UserSkillPreference } from '../types/skill'
 
@@ -23,6 +30,10 @@ export function updateProfile(
   accessToken: string,
 ): Promise<UserRead> {
   return apiPatchAuth<UserRead>('/users/me', payload, accessToken)
+}
+
+export function markOnboardingTourSeen(accessToken: string): Promise<UserRead> {
+  return apiPostAuth<UserRead>('/users/me/onboarding-tour-seen', {}, accessToken)
 }
 
 export function uploadAvatar(file: File, accessToken: string): Promise<UserRead> {

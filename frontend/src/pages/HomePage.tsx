@@ -5,6 +5,7 @@ import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import { API_BASE_URL, ApiError } from '../api/client'
 import * as leaderboardApi from '../api/leaderboard'
@@ -12,6 +13,7 @@ import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
 import * as skillsApi from '../api/skills'
 import * as trainingBlockApi from '../api/trainingBlock'
+import * as usersApi from '../api/users'
 import { useAuth } from '../hooks/useAuth'
 import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { TargetStat } from '../types/exercise'
@@ -132,8 +134,15 @@ function topSkillsNearMilestone(skills: SkillSummaryRead[]): SkillSummaryRead[] 
 }
 
 export function HomePage() {
-  const { user, accessToken } = useAuth()
+  const { user, accessToken, updateUser } = useAuth()
   const navigate = useNavigate()
+
+  // Local, session-only guard on top of user.has_seen_onboarding_tour --
+  // set the instant the tour closes, regardless of whether the
+  // persist-to-server call below succeeds, so a dropped request never
+  // strands the user behind the tour; worst case it just shows again next
+  // launch.
+  const [tourDismissed, setTourDismissed] = useState(false)
 
   const [trainingBlock, setTrainingBlock] = useState<TrainingBlockRead | null>(null)
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlanRead | null>(null)
@@ -214,6 +223,23 @@ export function HomePage() {
     }
   }
 
+  async function handleTourFinish() {
+    setTourDismissed(true)
+    if (accessToken === null) {
+      return
+    }
+    try {
+      const updated = await usersApi.markOnboardingTourSeen(accessToken)
+      updateUser(updated)
+    } catch {
+      // Best-effort -- tourDismissed above already lets this session
+      // through; a failed persist just means the tour shows again next
+      // launch instead of being gone for good.
+    }
+  }
+
+  const showTour = user !== null && !user.has_seen_onboarding_tour && !tourDismissed
+
   const todayIso = toIsoDate(new Date())
   const today = weeklyPlan?.day_plans.find((day) => day.date === todayIso) ?? null
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
@@ -229,6 +255,7 @@ export function HomePage() {
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
+      {showTour && <OnboardingTour onFinish={handleTourFinish} />}
       <div className="relative z-[1] mx-auto flex min-h-svh max-w-3xl flex-col gap-4 px-4 py-8">
         <div className={`flex items-center justify-between gap-4 p-4 ${CARD_CLASS}`}>
           <div className="flex items-center gap-4">

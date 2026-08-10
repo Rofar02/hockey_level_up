@@ -47,6 +47,7 @@ export interface UserRead {
   level: number
   timezone: string
   reminder_preference: ReminderPreference
+  has_seen_onboarding_tour: boolean
   created_at: string
 }
 

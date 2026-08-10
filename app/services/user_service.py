@@ -29,6 +29,16 @@ class UserService:
         await self._session.refresh(user)
         return user
 
+    async def mark_onboarding_tour_seen(self, user: User) -> User:
+        # Idempotent by design -- closing the tour a second time (e.g. a
+        # retry after a dropped response) just re-sets True to True, never
+        # errors.
+        if not user.has_seen_onboarding_tour:
+            user.has_seen_onboarding_tour = True
+            await self._session.commit()
+            await self._session.refresh(user)
+        return user
+
     async def update_avatar(self, user: User, file: UploadFile) -> User:
         content = await image_processing.read_limited(file, MAX_AVATAR_SIZE_BYTES)
         extension = image_processing.detect_image_extension(content)

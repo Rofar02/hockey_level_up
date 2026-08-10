@@ -95,6 +95,12 @@ class User(Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
 
+    # One-time welcome tour shown on first Home visit after onboarding --
+    # never reset, so a re-login or a second device just sees Home directly.
+    has_seen_onboarding_tour: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+
     xp: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
 

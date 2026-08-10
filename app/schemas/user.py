@@ -60,6 +60,7 @@ class UserRead(UserBase):
     level: int
     timezone: str
     reminder_preference: ReminderPreference
+    has_seen_onboarding_tour: bool
     created_at: datetime
 
 
