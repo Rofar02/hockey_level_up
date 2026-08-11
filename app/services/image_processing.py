@@ -10,12 +10,15 @@ max-dimension downscale are different framings (circular avatar vs.
 rectangular banner) and stay in their respective services.
 """
 import io
+import logging
 import uuid
 from pathlib import Path
 
 import pillow_heif
 from fastapi import HTTPException, UploadFile, status
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+logger = logging.getLogger(__name__)
 
 # Registers a Pillow plugin so Image.open() understands HEIC/HEIF -- the
 # format iPhones save Camera Roll photos in. Without this, every iPhone
@@ -27,11 +30,16 @@ READ_CHUNK_SIZE = 1024 * 1024
 
 # Keyed by the format Pillow reports after actually decoding the file --
 # never by the client's filename extension or Content-Type header, both of
-# which are attacker-controlled and easy to fake. HEIF maps to "jpg", not a
-# "heic" extension of its own: browsers other than Safari can't render
-# <img src="*.heic">, and encode() always re-saves as an actual JPEG for
-# that extension regardless of the source format (see SAVE_FORMAT_BY_EXTENSION).
-ALLOWED_IMAGE_FORMATS = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp", "HEIF": "jpg"}
+# which are attacker-controlled and easy to fake. HEIF and MPO both map to
+# "jpg", not a format-specific extension of their own: browsers other than
+# Safari can't render <img src="*.heic">, and encode() always re-saves as
+# an actual JPEG for that extension regardless of the source format (see
+# SAVE_FORMAT_BY_EXTENSION). MPO is what iPhone Portrait-mode photos often
+# get saved/re-exported as -- a JPEG container holding the main shot plus
+# a depth/disparity frame; Pillow's MpoImageFile is a JpegImageFile
+# subclass and defaults to the first (main) frame, so it behaves exactly
+# like a plain JPEG for every operation this pipeline does.
+ALLOWED_IMAGE_FORMATS = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp", "HEIF": "jpg", "MPO": "jpg"}
 SAVE_FORMAT_BY_EXTENSION = {"jpg": "JPEG", "png": "PNG", "webp": "WEBP"}
 
 
@@ -62,17 +70,33 @@ def detect_image_extension(content: bytes) -> str:
     try:
         probe = Image.open(io.BytesIO(content))
         probe.verify()
-    except (UnidentifiedImageError, OSError) as exc:
+    except (UnidentifiedImageError, OSError):
+        # Logged with the magic bytes + exact exception -- "not a valid
+        # image" alone isn't enough to diagnose a real-world rejection
+        # after the fact (e.g. which iPhone HEIC variant/codec Pillow
+        # actually choked on).
+        logger.warning(
+            "detect_image_extension: Pillow could not decode %d bytes "
+            "(first 16 bytes: %s)",
+            len(content),
+            content[:16].hex(),
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File is not a valid image",
-        ) from exc
+        ) from None
 
     # verify() leaves the parser in a state that can't be read further, so
     # re-open the same bytes to read the detected format.
     image = Image.open(io.BytesIO(content))
     extension = ALLOWED_IMAGE_FORMATS.get(image.format or "")
     if extension is None:
+        logger.warning(
+            "detect_image_extension: decoded as unsupported format %r (mode=%s)",
+            image.format,
+            image.mode,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported image type -- only JPEG, PNG, or WEBP are allowed",

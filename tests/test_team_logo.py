@@ -130,6 +130,36 @@ async def test_heic_upload_from_iphone_is_accepted_and_saved_as_jpg(db_session, 
 
 
 @pytest.mark.asyncio
+async def test_mpo_upload_from_iphone_portrait_mode_is_accepted(db_session, tmp_path) -> None:
+    """Found via a real failed upload in the wild: iPhone Portrait-mode
+    photos are sometimes exported as MPO -- a JPEG container holding the
+    main shot plus a depth frame -- which Pillow decodes fine (MpoImageFile
+    is a JpegImageFile subclass) but wasn't in the allow-list, so every
+    such photo 400ed with "Unsupported image type".
+    """
+    captain = _make_user()
+    db_session.add(captain)
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+
+    buffer = io.BytesIO()
+    main_frame = Image.new("RGB", (400, 300), color="orange")
+    depth_frame = Image.new("RGB", (400, 300), color="gray")
+    main_frame.save(buffer, format="MPO", save_all=True, append_images=[depth_frame])
+    buffer.seek(0)
+    mpo_file = UploadFile(filename="IMG_0002.jpg", file=buffer)
+
+    updated = await service.update_logo(captain, team.id, mpo_file)
+
+    assert updated.logo_url is not None
+    assert updated.logo_url.endswith(".jpg")
+    saved_files = list(tmp_path.iterdir())
+    assert len(saved_files) == 1
+
+
+@pytest.mark.asyncio
 async def test_invalid_image_is_rejected(db_session) -> None:
     captain = _make_user()
     db_session.add(captain)
