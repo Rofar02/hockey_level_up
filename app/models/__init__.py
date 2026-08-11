@@ -15,6 +15,7 @@ from app.models.schedule import (
 )
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag, UserSkillPreference
+from app.models.team import Team, TeamJoinRequest, TeamJoinRequestStatus, TeamMembership
 from app.models.user import User
 
 __all__ = [
@@ -35,6 +36,10 @@ __all__ = [
     "SkillStatWeight",
     "SkillTag",
     "StatHistory",
+    "Team",
+    "TeamJoinRequest",
+    "TeamJoinRequestStatus",
+    "TeamMembership",
     "TrainingBlock",
     "TrainingSession",
     "TrainingStreak",

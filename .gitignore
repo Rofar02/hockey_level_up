@@ -15,3 +15,4 @@ venv/
 # User-uploaded content -- not source, shouldn't be committed
 static/avatars/
 static/reference-articles/
+static/team-logos/

@@ -13,16 +13,26 @@ import io
 import uuid
 from pathlib import Path
 
+import pillow_heif
 from fastapi import HTTPException, UploadFile, status
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+# Registers a Pillow plugin so Image.open() understands HEIC/HEIF -- the
+# format iPhones save Camera Roll photos in. Without this, every iPhone
+# upload (avatar or team logo) that Safari didn't already transcode to JPEG
+# fails detection with "not a valid image".
+pillow_heif.register_heif_opener()
 
 READ_CHUNK_SIZE = 1024 * 1024
 
 # Keyed by the format Pillow reports after actually decoding the file --
 # never by the client's filename extension or Content-Type header, both of
-# which are attacker-controlled and easy to fake.
-ALLOWED_IMAGE_FORMATS = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}
-SAVE_FORMAT_BY_EXTENSION = {extension: fmt for fmt, extension in ALLOWED_IMAGE_FORMATS.items()}
+# which are attacker-controlled and easy to fake. HEIF maps to "jpg", not a
+# "heic" extension of its own: browsers other than Safari can't render
+# <img src="*.heic">, and encode() always re-saves as an actual JPEG for
+# that extension regardless of the source format (see SAVE_FORMAT_BY_EXTENSION).
+ALLOWED_IMAGE_FORMATS = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp", "HEIF": "jpg"}
+SAVE_FORMAT_BY_EXTENSION = {"jpg": "JPEG", "png": "PNG", "webp": "WEBP"}
 
 
 async def read_limited(file: UploadFile, max_bytes: int) -> bytes:
