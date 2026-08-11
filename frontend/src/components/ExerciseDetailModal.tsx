@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button } from './ui/Button'
 import { FormError } from './ui/FormError'
@@ -173,6 +173,83 @@ function CompactNumberField({
   )
 }
 
+function formatRestClock(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+// Vibration + a short synthesized beep (Web Audio oscillator, no external
+// audio asset needed) when a rest countdown reaches zero. Both are
+// best-effort -- navigator.vibrate isn't available on desktop browsers, and
+// AudioContext can be blocked without a prior user gesture on some mobile
+// browsers -- the visual countdown hitting 0:00 is the signal that always
+// works regardless of whether either of these actually fires.
+function alertRestDone() {
+  if (typeof navigator.vibrate === 'function') {
+    navigator.vibrate(200)
+  }
+  try {
+    const AudioContextClass =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (AudioContextClass === undefined) {
+      return
+    }
+    const ctx = new AudioContextClass()
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    oscillator.frequency.value = 880
+    gain.gain.setValueAtTime(0.2, ctx.currentTime)
+    oscillator.connect(gain)
+    gain.connect(ctx.destination)
+    oscillator.start()
+    oscillator.stop(ctx.currentTime + 0.3)
+    oscillator.onended = () => ctx.close()
+  } catch {
+    // Best-effort -- see comment above, the visual countdown already
+    // reached zero regardless of whether this succeeds.
+  }
+}
+
+// Auto-started by SetLogger right after a non-final set is saved (see
+// restState there) -- counts down from the exercise's computed
+// rest_seconds (app/core/rest.py's target_reps-based formula) and fires
+// alertRestDone + onDone once it reaches zero, so the next set's input
+// reappears on its own without another tap. "Пропустить" lets the athlete
+// end the rest early if they feel ready.
+function RestTimer({ totalSeconds, onDone }: { totalSeconds: number; onDone: () => void }) {
+  const [remaining, setRemaining] = useState(totalSeconds)
+  const onDoneRef = useRef(onDone)
+  onDoneRef.current = onDone
+
+  useEffect(() => {
+    if (remaining <= 0) {
+      alertRestDone()
+      onDoneRef.current()
+      return
+    }
+    const timer = setTimeout(() => setRemaining((value) => value - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [remaining])
+
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-2 rounded border-2 border-accent-ice bg-dark-card px-3 py-4">
+      <span className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+        Отдых перед следующим подходом
+      </span>
+      <span className="font-mono text-2xl text-accent-ice">{formatRestClock(Math.max(0, remaining))}</span>
+      <button
+        type="button"
+        onClick={onDone}
+        className="text-xs text-text-secondary underline underline-offset-2 hover:text-text-primary"
+      >
+        Пропустить
+      </button>
+    </div>
+  )
+}
+
 // Per-set logging layered on top of the exercise-level Checkbox in
 // TrainingSessionPage's ExerciseRow: SessionBlock.completed_at (and the
 // block_completed event that drives stat/XP gain) are untouched by any of
@@ -213,6 +290,14 @@ function SetLogger({
   const [feedback, setFeedback] = useState<SetFeedback | null>(null)
   const [isSavingFeedback, setIsSavingFeedback] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
+  // Set right after a non-final set is saved (see handleSaveSet) -- renders
+  // RestTimer in place of the next set's input card until it counts down to
+  // 0 or the athlete taps "Пропустить". forSetNumber pins the timer to the
+  // specific set it's a rest *before*, so it never survives into rendering
+  // for the wrong set.
+  const [restState, setRestState] = useState<{ forSetNumber: number; totalSeconds: number } | null>(
+    null,
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -323,8 +408,15 @@ function SetLogger({
       // automatically instead of making the user tap the checkbox
       // separately. onLastSetCompleted is undefined in read-only contexts
       // (NewSchedulePage), where this must never fire.
-      if (currentSetNumber === targetSets && onLastSetCompleted !== undefined) {
-        onLastSetCompleted()
+      if (currentSetNumber === targetSets) {
+        if (onLastSetCompleted !== undefined) {
+          onLastSetCompleted()
+        }
+      } else if (exercise.rest_seconds !== null) {
+        // Only between sets of *this* exercise -- there's no next set to
+        // rest before once the last one is saved, whatever comes after
+        // (next exercise, or done) isn't this formula's concern.
+        setRestState({ forSetNumber: currentSetNumber + 1, totalSeconds: exercise.rest_seconds })
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
@@ -398,6 +490,15 @@ function SetLogger({
           // ~142 + 12(gap) + ~112 =~ 266px, which does NOT fit -- that's why
           // weight and reps are stacked instead of in a row.
           if (setNumber === currentSetNumber && !allSetsDone) {
+            if (restState !== null && restState.forSetNumber === setNumber) {
+              return (
+                <RestTimer
+                  key={setNumber}
+                  totalSeconds={restState.totalSeconds}
+                  onDone={() => setRestState(null)}
+                />
+              )
+            }
             return (
               <div
                 key={setNumber}

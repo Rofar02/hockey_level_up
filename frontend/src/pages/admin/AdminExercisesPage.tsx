@@ -15,10 +15,19 @@ import {
   EQUIPMENT_TYPE_LABELS,
   EXERCISE_CATEGORIES,
   EXERCISE_CATEGORY_LABELS,
+  MUSCLE_GROUPS,
+  MUSCLE_GROUP_LABELS,
   TARGET_STATS,
   TARGET_STAT_LABELS,
 } from '../../types/exercise'
-import type { EquipmentType, ExerciseCategory, ExerciseRead, ExerciseWrite, TargetStat } from '../../types/exercise'
+import type {
+  EquipmentType,
+  ExerciseCategory,
+  ExerciseRead,
+  ExerciseWrite,
+  MuscleGroup,
+  TargetStat,
+} from '../../types/exercise'
 import { TRAINING_PHASES } from '../../types/schedule'
 import type { TrainingPhase } from '../../types/schedule'
 import type { SkillOption, SkillTagRead } from '../../types/skill'
@@ -38,6 +47,10 @@ const TARGET_STAT_OPTIONS = TARGET_STATS.map((value) => ({ value, label: TARGET_
 const EQUIPMENT_OPTIONS = EQUIPMENT_TYPES.map((value) => ({
   value,
   label: EQUIPMENT_TYPE_LABELS[value],
+}))
+const MUSCLE_GROUP_OPTIONS = MUSCLE_GROUPS.map((value) => ({
+  value,
+  label: MUSCLE_GROUP_LABELS[value],
 }))
 
 export function AdminExercisesPage() {
@@ -286,6 +299,7 @@ function ExerciseFormModal({
   const [suitableForGameDay, setSuitableForGameDay] = useState(
     exercise?.suitable_for_game_day ?? false,
   )
+  const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | ''>(exercise?.muscle_group ?? '')
 
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -328,6 +342,7 @@ function ExerciseFormModal({
       tracks_weight: tracksWeight,
       bodyweight_ratio: bodyweightRatioValue,
       suitable_for_game_day: suitableForGameDay,
+      muscle_group: muscleGroup === '' ? null : muscleGroup,
     }
 
     setIsSaving(true)
@@ -403,6 +418,13 @@ function ExerciseFormModal({
             value={equipmentType}
             onChange={(event) => setEquipmentType(event.target.value as EquipmentType)}
             required
+          />
+          <SelectField
+            label="Группа мышц"
+            options={MUSCLE_GROUP_OPTIONS}
+            placeholder="Не применимо"
+            value={muscleGroup}
+            onChange={(event) => setMuscleGroup(event.target.value as MuscleGroup | '')}
           />
         </div>
 

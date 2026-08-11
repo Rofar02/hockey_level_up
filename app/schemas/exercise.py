@@ -1,8 +1,9 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from app.models.exercise import EquipmentType, ExerciseCategory, TargetStat, TrainingPhase
+from app.core.rest import rest_seconds_for
+from app.models.exercise import EquipmentType, ExerciseCategory, MuscleGroup, TargetStat, TrainingPhase
 
 
 class ExerciseRead(BaseModel):
@@ -24,6 +25,16 @@ class ExerciseRead(BaseModel):
     tracks_weight: bool
     bodyweight_ratio: float | None
     suitable_for_game_day: bool
+    muscle_group: MuscleGroup | None
+
+    # Computed, not stored -- see app.core.rest. Derived from target_reps
+    # alone (None whenever target_sets/target_reps aren't both set), exposed
+    # here so every client reads the same rest suggestion without
+    # reimplementing the rep-range thresholds.
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def rest_seconds(self) -> int | None:
+        return rest_seconds_for(self.target_sets, self.target_reps)
 
 
 class ExerciseCreate(BaseModel):
@@ -42,6 +53,7 @@ class ExerciseCreate(BaseModel):
     tracks_weight: bool = False
     bodyweight_ratio: float | None = Field(default=None, gt=0)
     suitable_for_game_day: bool = False
+    muscle_group: MuscleGroup | None = None
 
 
 class ExerciseUpdate(BaseModel):
@@ -60,6 +72,7 @@ class ExerciseUpdate(BaseModel):
     tracks_weight: bool | None = None
     bodyweight_ratio: float | None = Field(default=None, gt=0)
     suitable_for_game_day: bool | None = None
+    muscle_group: MuscleGroup | None = None
 
 
 class SuggestedWeightRead(BaseModel):

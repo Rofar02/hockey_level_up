@@ -39,6 +39,13 @@ class EquipmentType(enum.StrEnum):
     BODYWEIGHT = "bodyweight"
 
 
+class MuscleGroup(enum.StrEnum):
+    PUSH = "push"
+    PULL = "pull"
+    LEGS = "legs"
+    CORE = "core"
+
+
 class Exercise(Base):
     __tablename__ = "exercises"
     __table_args__ = (
@@ -73,6 +80,17 @@ class Exercise(Base):
     target_sets: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_reps: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Anatomical push/pull/legs/core grouping, used only to softly balance
+    # ScheduleService._pick_main's off_ice picks (see MAIN_EXERCISE_COUNT_RANGE
+    # for the count side of that same picker). Nullable and left unset for
+    # on_ice exercises (technique/shooting/tactics drills aren't isolated-
+    # muscle-group work) and for off_ice exercises that don't fit any of the
+    # four groups (cardio, mental) -- None always means "not applicable",
+    # never a random/default group.
+    muscle_group: Mapped[MuscleGroup | None] = mapped_column(
+        enum_column(MuscleGroup, "muscle_group"), nullable=True
+    )
 
     # Whether this exercise has a working weight at all (barbell/dumbbell/
     # machine work) -- gates both the weight-suggestion service and whether

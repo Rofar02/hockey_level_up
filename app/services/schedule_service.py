@@ -445,7 +445,8 @@ class ScheduleService:
     async def _pick_main(
         self, category: ExerciseCategory, user: User, block_phase: BlockPhase
     ) -> list[Exercise]:
-        """Main: up to 2-3 exercises (1-2 on a deload week) for the day's
+        """Main: up to 5-6 exercises in accumulation, 4-5 in intensification,
+        3-4 on a deload week (see MAIN_EXERCISE_COUNT_RANGE) for the day's
         category, at most one per target stat.
 
         If fewer than `count` stats have candidates, returns fewer exercises
@@ -473,6 +474,12 @@ class ScheduleService:
         accumulation-phase block (no difficulty predicate) sees plain
         round-robin among their level-capped pool, identical to before this
         and the Phase 7 priority were added.
+
+        On top of those three, _apply_muscle_balance does one more
+        tie-break *within* whatever the SkillTag layer left: it avoids a
+        third pick in a row sharing the same off_ice muscle_group, but never
+        widens the pool back out to do so -- so SkillTag priority still wins
+        any real conflict between the two.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
@@ -510,8 +517,36 @@ class ScheduleService:
                 stat_pool = [e for e in stat_pool if difficulty_predicate(e)] or stat_pool
 
             skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
-            picked.append(random.choice(skill_pool))
+
+            balanced_pool = self._apply_muscle_balance(skill_pool, picked)
+            picked.append(random.choice(balanced_pool))
         return picked
+
+    @staticmethod
+    def _apply_muscle_balance(pool: list[Exercise], picked: list[Exercise]) -> list[Exercise]:
+        """Soft push/pull/legs/core variety rule: avoid a third main-block pick
+        in a row from the same muscle_group, applied *within* whatever pool
+        the skill-priority step above already narrowed to -- so a user's
+        SkillTag priority always wins a conflict, this never reaches back
+        into the wider stat pool to find variety the priority pool doesn't
+        have.
+
+        Exercises with muscle_group=None (on_ice drills, and off_ice cardio/
+        mental work that isn't push/pull/legs/core) never block a streak and
+        are never filtered out by one -- the rule is off_ice-anatomy-only,
+        and None means "not applicable" rather than a group of its own.
+
+        Falls back to the untouched pool whenever avoiding the streak would
+        empty it, so a main slot is never left unfilled for this reason.
+        """
+        if len(picked) < 2:
+            return pool
+        last_group, previous_group = picked[-1].muscle_group, picked[-2].muscle_group
+        if last_group is None or last_group != previous_group:
+            return pool
+
+        varied = [e for e in pool if e.muscle_group is None or e.muscle_group != last_group]
+        return varied or pool
 
     @staticmethod
     def _apply_level_cap(

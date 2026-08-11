@@ -55,10 +55,13 @@ DIFFICULTY_PRIORITY_PREDICATES: dict[BlockPhase, Callable[[Exercise], bool]] = {
 }
 
 # (min, max) for random.randint when picking how many main-block exercises to
-# assemble. Deload is the only phase that changes the count, not just the
-# selection within it.
+# assemble. Every phase has its own count now: accumulation is the
+# volume-building phase (most exercises, shortest rest -- see
+# app.core.rest), intensification trades some of that volume for heavier
+# work (fewer exercises, longer rest between sets), deload cuts furthest
+# (fewest exercises) to actually deload.
 MAIN_EXERCISE_COUNT_RANGE: dict[BlockPhase, tuple[int, int]] = {
-    BlockPhase.ACCUMULATION: (2, 3),
-    BlockPhase.INTENSIFICATION: (2, 3),
-    BlockPhase.DELOAD: (1, 2),
+    BlockPhase.ACCUMULATION: (5, 6),
+    BlockPhase.INTENSIFICATION: (4, 5),
+    BlockPhase.DELOAD: (3, 4),
 }

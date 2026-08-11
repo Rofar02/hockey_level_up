@@ -4,8 +4,10 @@ Verifies:
   1. intensification prefers difficulty>=4, falling back to the full stat
      pool when no candidate meets that bar for a given stat (block isn't
      skipped).
-  2. deload prefers difficulty<=2 AND shrinks the main-block count to 1-2
-     (the only place phase changes count, not just selection).
+  2. deload prefers difficulty<=2 AND uses its own (smallest) main-block
+     count range, 3-4 -- accumulation and intensification each have their
+     own wider ranges too (see MAIN_EXERCISE_COUNT_RANGE), this is just the
+     one exercised here.
   3. The two priority layers combine in the documented order: block-phase
      difficulty narrows first, SkillTag preference (Phase 7) narrows
      further within that.
@@ -97,7 +99,7 @@ async def test_intensification_prefers_high_difficulty_with_fallback(
     _isolate_candidates(service, exercises)
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.INTENSIFICATION)
 
-    assert calls == [(2, 3)]  # intensification doesn't change the count range
+    assert calls == [(4, 5)]  # intensification's own count range
     by_stat = {e.target_stat: e.name for e in picked}
     assert by_stat[TargetStat.STRENGTH] == exercises["high_strength"].name
     assert by_stat[TargetStat.AGILITY] == exercises["high_agility"].name
@@ -120,11 +122,15 @@ async def test_deload_prefers_low_difficulty_and_shrinks_count(
     _isolate_candidates(service, exercises)
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.DELOAD)
 
-    assert calls == [(1, 2)]  # deload is the one phase that shrinks the count range
-    assert len(picked) == 2  # fake randint returns the upper bound (2)
+    assert calls == [(3, 4)]  # deload's own (smallest) count range
+    # fake randint returns the upper bound (4), but only 3 seeded stats have
+    # any candidate at all -- count is a ceiling, not a target to pad to.
+    assert len(picked) == 3
     by_stat = {e.target_stat: e.name for e in picked}
     assert by_stat[TargetStat.STRENGTH] == exercises["low_strength"].name
     assert by_stat[TargetStat.AGILITY] == exercises["low_agility"].name
+    # no difficulty<=2 candidate for intellect -> falls back, not skipped
+    assert by_stat[TargetStat.INTELLECT] == exercises["mid_intellect"].name
 
 
 @pytest.mark.asyncio

@@ -61,6 +61,20 @@ export const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
   bodyweight: 'Только тело',
 }
 
+// Anatomical push/pull/legs/core grouping, used only to softly balance
+// off_ice main-block picks (see ScheduleService._apply_muscle_balance).
+// Meaningless for on_ice drills and for off_ice cardio/mental work -- those
+// exercises carry muscle_group=null, not one of these four values.
+export const MUSCLE_GROUPS = ['push', 'pull', 'legs', 'core'] as const
+export type MuscleGroup = (typeof MUSCLE_GROUPS)[number]
+
+export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
+  push: 'Толкающие',
+  pull: 'Тянущие',
+  legs: 'Ноги',
+  core: 'Кор',
+}
+
 export interface ExerciseRead {
   id: string
   name: string
@@ -78,6 +92,10 @@ export interface ExerciseRead {
   tracks_weight: boolean
   bodyweight_ratio: number | null
   suitable_for_game_day: boolean
+  muscle_group: MuscleGroup | null
+  // Computed server-side from target_reps (see app/core/rest.py) -- not a
+  // stored field, and not part of ExerciseWrite below.
+  rest_seconds: number | null
 }
 
 // Create/update payload (admin CRUD) -- same shape for both; PATCH on the
@@ -99,4 +117,5 @@ export interface ExerciseWrite {
   tracks_weight: boolean
   bodyweight_ratio: number | null
   suitable_for_game_day: boolean
+  muscle_group: MuscleGroup | null
 }
