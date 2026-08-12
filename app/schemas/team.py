@@ -49,12 +49,32 @@ class TeamRead(BaseModel):
     created_at: datetime
 
 
+class TeamScoreRead(BaseModel):
+    """Inter-team rating -- computed on the fly by TeamRatingService, never
+    stored (see app/services/team_rating_service.py). All formula components
+    are included, not just the final team_score, so the frontend can show a
+    breakdown and the formula stays debuggable without re-deriving inputs.
+    """
+
+    team_id: uuid.UUID
+    team_name: str
+    team_score: float
+    member_count: int
+    sum_xp: int
+    avg_trainings_per_member_per_week: float
+    activity_bonus: float
+
+
 class TeamCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
 
 
 class TeamJoinPayload(BaseModel):
     code: str = Field(min_length=1)
+
+
+class TeamTransferCaptaincyPayload(BaseModel):
+    user_id: uuid.UUID
 
 
 class TeamJoinRequestRead(BaseModel):

@@ -185,6 +185,166 @@ async def test_leave_team_removes_membership(db_session) -> None:
     assert await service.list_my_teams(player) == []
 
 
+# -- kick_member --
+
+
+@pytest.mark.asyncio
+async def test_captain_can_kick_member(db_session) -> None:
+    captain = _make_user()
+    player = _make_user()
+    db_session.add_all([captain, player])
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+    request = await service.join_by_code(player, team.invite_code)
+    await service.approve_request(captain, request.id)
+
+    await service.kick_member(captain, team.id, player.id)
+    assert await service.list_my_teams(player) == []
+
+
+@pytest.mark.asyncio
+async def test_kicked_member_can_rejoin_via_invite_code(db_session) -> None:
+    # Deliberately no ban -- kicking is just membership removal, same as
+    # leave_team, and the invite code still works afterwards.
+    captain = _make_user()
+    player = _make_user()
+    db_session.add_all([captain, player])
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+    request = await service.join_by_code(player, team.invite_code)
+    await service.approve_request(captain, request.id)
+    await service.kick_member(captain, team.id, player.id)
+
+    new_request = await service.join_by_code(player, team.invite_code)
+    await service.approve_request(captain, new_request.id)
+    assert {t.id for t in await service.list_my_teams(player)} == {team.id}
+
+
+@pytest.mark.asyncio
+async def test_kick_requires_captain(db_session) -> None:
+    captain = _make_user()
+    player = _make_user()
+    outsider = _make_user()
+    db_session.add_all([captain, player, outsider])
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+    request = await service.join_by_code(player, team.invite_code)
+    await service.approve_request(captain, request.id)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.kick_member(player, team.id, player.id)
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_kick_nonmember_returns_404(db_session) -> None:
+    captain = _make_user()
+    outsider = _make_user()
+    db_session.add_all([captain, outsider])
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.kick_member(captain, team.id, outsider.id)
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_captain_cannot_kick_self(db_session) -> None:
+    captain = _make_user()
+    db_session.add(captain)
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.kick_member(captain, team.id, captain.id)
+    assert exc_info.value.status_code == 409
+
+
+# -- transfer_captaincy --
+
+
+@pytest.mark.asyncio
+async def test_transfer_captaincy_changes_owner(db_session) -> None:
+    captain = _make_user()
+    player = _make_user()
+    db_session.add_all([captain, player])
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+    request = await service.join_by_code(player, team.invite_code)
+    await service.approve_request(captain, request.id)
+
+    updated = await service.transfer_captaincy(captain, team.id, player.id)
+    assert updated.owner_id == player.id
+    assert updated.is_captain is False  # from the old captain's own point of view
+
+    from_new_captain = await service.get_team(player, team.id)
+    assert from_new_captain.is_captain is True
+
+    # Old captain can now leave -- they're a regular member.
+    await service.leave_team(captain, team.id)
+    assert await service.list_my_teams(captain) == []
+
+
+@pytest.mark.asyncio
+async def test_transfer_requires_captain(db_session) -> None:
+    captain = _make_user()
+    player = _make_user()
+    outsider = _make_user()
+    db_session.add_all([captain, player, outsider])
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+    request = await service.join_by_code(player, team.invite_code)
+    await service.approve_request(captain, request.id)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.transfer_captaincy(player, team.id, player.id)
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_transfer_to_nonmember_returns_404(db_session) -> None:
+    captain = _make_user()
+    outsider = _make_user()
+    db_session.add_all([captain, outsider])
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.transfer_captaincy(captain, team.id, outsider.id)
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_transfer_to_self_conflicts(db_session) -> None:
+    captain = _make_user()
+    db_session.add(captain)
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.transfer_captaincy(captain, team.id, captain.id)
+    assert exc_info.value.status_code == 409
+
+
 @pytest.mark.asyncio
 async def test_captain_cannot_leave_must_disband(db_session) -> None:
     captain = _make_user()

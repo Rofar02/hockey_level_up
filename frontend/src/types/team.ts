@@ -35,12 +35,30 @@ export interface TeamRead {
   created_at: string
 }
 
+// GET /teams/{team_id}/score and /teams/leaderboard -- team_score is
+// computed on the fly server-side, never stored, so this always reflects
+// the current formula inputs. All components included (not just
+// team_score) so a breakdown can be shown without re-deriving it.
+export interface TeamScoreRead {
+  team_id: string
+  team_name: string
+  team_score: number
+  member_count: number
+  sum_xp: number
+  avg_trainings_per_member_per_week: number
+  activity_bonus: number
+}
+
 export interface TeamCreatePayload {
   name: string
 }
 
 export interface TeamJoinPayload {
   code: string
+}
+
+export interface TeamTransferCaptaincyPayload {
+  user_id: string
 }
 
 // Reused for both "my own pending requests" and the captain's incoming

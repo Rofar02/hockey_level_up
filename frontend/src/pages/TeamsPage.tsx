@@ -139,7 +139,17 @@ export function TeamsPage() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
         <div className="flex flex-col gap-2">
           <BackLink />
-          <h1 className="text-xl font-semibold">Команды</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold">Команды</h1>
+            <button
+              type="button"
+              onClick={() => navigate('/teams/leaderboard')}
+              className="inline-flex items-center gap-1.5 text-sm text-accent-ice hover:opacity-90"
+            >
+              <i className="ti ti-trophy" aria-hidden="true" />
+              Рейтинг команд
+            </button>
+          </div>
         </div>
 
         <FormError message={loadError} />

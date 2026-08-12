@@ -4,7 +4,9 @@ import type {
   TeamJoinPayload,
   TeamJoinRequestRead,
   TeamRead,
+  TeamScoreRead,
   TeamSummaryRead,
+  TeamTransferCaptaincyPayload,
 } from '../types/team'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 
@@ -71,9 +73,35 @@ export function leaveTeam(teamId: string, accessToken: string): Promise<void> {
   return apiDeleteAuth<void>(`/teams/${teamId}/members/me`, accessToken)
 }
 
+// Captain-only -- the backend 403s for anyone else (TeamService.kick_member).
+export function kickMember(teamId: string, userId: string, accessToken: string): Promise<void> {
+  return apiDeleteAuth<void>(`/teams/${teamId}/members/${userId}`, accessToken)
+}
+
+// Captain-only -- reassigns Team.owner_id to an existing member.
+export function transferCaptaincy(
+  teamId: string,
+  payload: TeamTransferCaptaincyPayload,
+  accessToken: string,
+): Promise<TeamRead> {
+  return apiPostAuth<TeamRead>(`/teams/${teamId}/captain`, payload, accessToken)
+}
+
 export function getTeamLeaderboard(
   teamId: string,
   accessToken: string,
 ): Promise<LeaderboardEntryRead[]> {
   return apiGet<LeaderboardEntryRead[]>(`/teams/${teamId}/leaderboard`, accessToken)
+}
+
+// Cross-team rating -- separate from getTeamLeaderboard above, which stays
+// scoped to one team's own members.
+export function getTeamScore(teamId: string, accessToken: string): Promise<TeamScoreRead> {
+  return apiGet<TeamScoreRead>(`/teams/${teamId}/score`, accessToken)
+}
+
+const TEAM_RANKING_PAGE_SIZE = 100
+
+export function getTeamRankings(accessToken: string): Promise<TeamScoreRead[]> {
+  return apiGet<TeamScoreRead[]>(`/teams/leaderboard?limit=${TEAM_RANKING_PAGE_SIZE}`, accessToken)
 }

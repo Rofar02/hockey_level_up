@@ -3,7 +3,17 @@ import uuid
 from datetime import date as date_
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, ForeignKey, Integer, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -98,7 +108,11 @@ class DayPlan(Base):
         nullable=False,
         index=True,
     )
-    date: Mapped[date_] = mapped_column(Date, nullable=False)
+    # Indexed (not just part of the uq_day_plans_weekly_plan_date composite
+    # above, which leads with weekly_plan_id): TeamRatingService's "trainings
+    # in the last 7 days" aggregate filters by date alone, across many
+    # users' weekly_plans, so it needs date to be the leading/only column.
+    date: Mapped[date_] = mapped_column(Date, nullable=False, index=True)
     session_type: Mapped[DaySessionType] = mapped_column(
         enum_column(DaySessionType, "day_session_type"), nullable=False
     )
@@ -136,6 +150,18 @@ class TrainingSession(Base):
 
 class SessionBlock(Base):
     __tablename__ = "session_blocks"
+    __table_args__ = (
+        # Partial index, same idiom as OutboxEvent.ix_outbox_events_unpublished:
+        # speeds up the EXISTS(... completed_at IS NOT NULL ...) checks used by
+        # has_missed_training_day and TeamRatingService's completed-trainings
+        # aggregate, without indexing the (much larger) set of incomplete rows
+        # neither of those ever queries for.
+        Index(
+            "ix_session_blocks_completed_at_not_null",
+            "completed_at",
+            postgresql_where=text("completed_at IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

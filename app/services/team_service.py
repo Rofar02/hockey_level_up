@@ -12,9 +12,10 @@ from app.models.user import User
 from app.repositories.team_repository import TeamRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.leaderboard import LeaderboardEntryRead
-from app.schemas.team import TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamSummaryRead
+from app.schemas.team import TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamScoreRead, TeamSummaryRead
 from app.services import image_processing
 from app.services.leaderboard_service import LeaderboardService
+from app.services.team_rating_service import TeamRatingService
 
 _INVITE_CODE_GENERATION_ATTEMPTS = 10
 MAX_TEAM_LOGO_SIZE_BYTES = 5 * 1024 * 1024
@@ -27,6 +28,7 @@ class TeamService:
         self._teams = TeamRepository(session)
         self._users = UserRepository(session)
         self._leaderboard = LeaderboardService(session)
+        self._ratings = TeamRatingService(session)
 
     # -- Team --
 
@@ -136,6 +138,45 @@ class TeamService:
         await self._teams.delete_membership(membership)
         await self._session.commit()
 
+    async def kick_member(self, user: User, team_id: uuid.UUID, target_user_id: uuid.UUID) -> None:
+        """Captain-only -- the slot leave_team's docstring above pointed at.
+        No re-join ban: a kicked player can immediately rejoin via the
+        invite code like anyone else (TeamService.join_by_code), same as if
+        they'd left on their own.
+        """
+        team = await self._get_team_or_404(team_id)
+        self._require_captain(user, team)
+        if target_user_id == team.owner_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Captain can't kick themselves -- transfer captaincy or disband instead",
+            )
+        membership = await self._teams.get_membership(team_id, target_user_id)
+        if membership is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this team")
+        await self._teams.delete_membership(membership)
+        await self._session.commit()
+
+    async def transfer_captaincy(
+        self, user: User, team_id: uuid.UUID, new_captain_id: uuid.UUID
+    ) -> TeamRead:
+        """Captain-only. The new captain must already be a member -- this
+        only reassigns Team.owner_id, it doesn't add anyone. The caller's
+        own TeamRead.is_captain flips to False in the response, since
+        _to_team_read computes it from team.owner_id == requesting_user.id.
+        """
+        team = await self._get_team_or_404(team_id)
+        self._require_captain(user, team)
+        if new_captain_id == team.owner_id:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already the captain")
+        membership = await self._teams.get_membership(team_id, new_captain_id)
+        if membership is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this team")
+        team.owner_id = new_captain_id
+        await self._session.commit()
+        await self._session.refresh(team)
+        return await self._to_team_read(team, user)
+
     # -- join requests --
 
     async def join_by_code(self, user: User, code: str) -> TeamJoinRequestRead:
@@ -218,6 +259,22 @@ class TeamService:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
         return await self._leaderboard.get_team_leaderboard(team_id)
+
+    # -- inter-team rating (team_score) --
+
+    async def get_team_score(self, user: User, team_id: uuid.UUID) -> TeamScoreRead:
+        """A team's own score, shown on its own page regardless of whether it
+        has enough members to appear in get_team_rankings below.
+        """
+        team = await self._get_team_or_404(team_id)
+        await self._require_member(user, team)
+        return await self._ratings.compute_team_score(team)
+
+    async def get_team_rankings(self, limit: int, offset: int) -> list[TeamScoreRead]:
+        """Cross-team leaderboard -- no membership check, same as the global
+        personal /leaderboard: any authenticated user can see it.
+        """
+        return await self._ratings.get_team_rankings(limit, offset)
 
     # -- shared helpers --
 
