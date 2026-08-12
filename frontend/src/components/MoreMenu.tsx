@@ -15,17 +15,18 @@ interface MoreItem {
 const ITEMS: MoreItem[] = [
   { icon: 'ti-book', label: 'Справочник', description: 'Статьи и техника упражнений', to: '/reference' },
   { icon: 'ti-users', label: 'Команда', description: 'Создать команду или вступить по коду', to: '/teams' },
+  { icon: 'ti-user-plus', label: 'Друзья', description: 'Добавляйте друзей и сравнивайте статы', to: '/friends' },
   {
-    icon: 'ti-user-plus',
-    label: 'Друзья',
-    description: 'Скоро — добавление друзей и сравнение статов',
-    comingSoon: true,
+    icon: 'ti-users-group',
+    label: 'Совместные тренировки',
+    description: 'Позовите друзей потренироваться в один день',
+    to: '/training-parties',
   },
 ]
 
 // Popup opened by BottomNav's "Ещё" tab -- a quick pick of the secondary
-// sections (Справочник/Команда/Друзья) right where the tab was tapped,
-// instead of first landing on an intermediate page just to choose one.
+// sections right where the tab was tapped, instead of first landing on an
+// intermediate page just to choose one.
 export function MoreMenu({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()
 

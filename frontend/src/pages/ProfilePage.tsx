@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -19,6 +19,7 @@ import type { TargetStat } from '../types/exercise'
 import type { UserStatRead } from '../types/progress'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { POSITION_LABELS } from '../types/user'
+import type { UserPublicRead } from '../types/user'
 import { getAvatarTierStyle } from '../utils/avatarTier'
 import { getDisplayName } from '../utils/displayName'
 import { transliterate } from '../utils/transliterate'
@@ -46,7 +47,23 @@ function sortByClosestMilestone(skills: SkillSummaryRead[]): SkillSummaryRead[] 
   })
 }
 
+// Thin dispatcher: /profile (no :userId, or :userId === your own id) keeps
+// the existing full self-view (stats, skills, avatar upload -- all of it
+// still /me/... underneath); any other :userId switches to the read-only,
+// friends/teammates-only public view. Two separate components rather than
+// one with an early return, so each keeps its own independent, unconditional
+// hook sequence -- an early return before some of OwnProfileView's hooks but
+// after others would violate the rules of hooks the moment :userId changes.
 export function ProfilePage() {
+  const { userId } = useParams<{ userId?: string }>()
+  const { user } = useAuth()
+  if (userId !== undefined && userId !== user?.id) {
+    return <OtherUserProfileView userId={userId} />
+  }
+  return <OwnProfileView />
+}
+
+function OwnProfileView() {
   const { user, accessToken, updateUser } = useAuth()
 
   const [stats, setStats] = useState<UserStatRead[] | null>(null)
@@ -209,13 +226,6 @@ export function ProfilePage() {
         <div className="flex items-center justify-between">
           <BackLink />
           <div className="flex items-center gap-4">
-            <Link
-              to="/leaderboard"
-              aria-label="Рейтинг"
-              className="text-[#8A94A6] transition-colors hover:text-[#F5F7FA]"
-            >
-              <i className="ti ti-trophy text-xl" aria-hidden="true" />
-            </Link>
             <Link
               to="/analytics"
               aria-label="Аналитика"
@@ -411,6 +421,124 @@ export function ProfilePage() {
           <img src={avatarUrl} alt="Аватар" className="w-full rounded" />
         </Modal>
       )}
+      </div>
+    </div>
+  )
+}
+
+// Read-only view of someone else's profile -- backed by GET /users/{id}/profile
+// (UserPublicRead), which the server 403s unless requester and target are
+// friends or teammates (UserService.get_public_profile). Deliberately much
+// smaller than OwnProfileView above: UserPublicRead has no stats/skills/xp-bar
+// data and no weight/height under any circumstance, so there's nothing to
+// build a stats grid or skills section out of here -- see the diagnosis.
+function OtherUserProfileView({ userId }: { userId: string }) {
+  const { accessToken } = useAuth()
+  const [profile, setProfile] = useState<UserPublicRead | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [isForbidden, setIsForbidden] = useState(false)
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    setProfile(null)
+    setLoadError(null)
+    setIsForbidden(false)
+    usersApi
+      .getUserPublicProfile(userId, accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setProfile(result)
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) {
+          return
+        }
+        if (err instanceof ApiError && err.status === 403) {
+          setIsForbidden(true)
+        } else {
+          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить профиль.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, userId])
+
+  const avatarTierStyle = getAvatarTierStyle(profile?.level ?? 1)
+  const avatarUrl = profile?.avatar_url != null ? `${API_BASE_URL}${profile.avatar_url}` : null
+
+  return (
+    <div className="relative min-h-svh overflow-hidden">
+      <IceGlowBackground />
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-4 px-4 py-6">
+        <BackLink />
+
+        {isForbidden && (
+          <p className="text-sm text-[#8A94A6]">
+            Этот профиль виден только друзьям и сокомандникам.
+          </p>
+        )}
+        <FormError message={loadError} />
+        {profile === null && !isForbidden && loadError === null && (
+          <p className="text-sm text-[#8A94A6]">Загрузка...</p>
+        )}
+
+        {profile !== null && (
+          <div className="mx-auto flex w-full max-w-[310px] flex-col">
+            <div className={`relative overflow-hidden rounded-md ${CARD_BORDER}`}>
+              <div className="absolute inset-0 bg-[url('/images/rink-pattern.webp')] bg-cover bg-center" />
+              <div className="absolute inset-0 bg-dark-bg/[0.85]" />
+
+              <div className="relative flex flex-col gap-4 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col items-center gap-2">
+                    <JerseyBadge number={profile.level} label="Уровень" accentColor="ice" />
+                    {profile.position != null && (
+                      <span className="inline-block rounded border border-white/15 px-2 py-1 text-xs uppercase tracking-wide text-[#8A94A6]">
+                        {POSITION_LABELS[profile.position]}
+                      </span>
+                    )}
+                  </div>
+                  {profile.jersey_number != null && (
+                    <JerseyBadge
+                      number={profile.jersey_number}
+                      label="Номер"
+                      accentColor="persimmon"
+                      surname={transliterate(profile.last_name)}
+                    />
+                  )}
+                </div>
+
+                <div className="flex justify-center py-1">
+                  <div className="h-32 w-32 rounded-full" style={avatarTierStyle.style}>
+                    <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-dark-bg">
+                      {avatarUrl !== null ? (
+                        <img src={avatarUrl} alt="Аватар" className="h-full w-full object-cover" />
+                      ) : (
+                        <i className="ti ti-user text-5xl text-[#8A94A6]" aria-hidden="true" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded bg-dark-bg/60 px-3 py-3 text-center">
+                  <p className="text-base font-bold uppercase tracking-wide text-[#F5F7FA]">
+                    {getDisplayName(profile).toUpperCase()}
+                  </p>
+                  {profile.years_of_experience != null && (
+                    <p className="mt-1 text-sm text-[#8A94A6]">
+                      {profile.years_of_experience} лет стажа
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

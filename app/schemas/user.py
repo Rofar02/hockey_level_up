@@ -53,6 +53,11 @@ class UserRead(UserBase):
     username: str
     jersey_number: int | None = Field(default=None, ge=0, le=99)
     avatar_url: str | None = None
+    # Only ever populated on the caller's own UserRead (this schema is never
+    # returned for anyone else -- see UserPublicRead for what's shown about
+    # other users) -- shared out-of-band so a friend can send a request to
+    # it (FriendService.send_request_by_code).
+    friend_code: str | None = None
     equipment_access: EquipmentType
     is_admin: bool
     has_premium: bool
@@ -62,6 +67,30 @@ class UserRead(UserBase):
     reminder_preference: ReminderPreference
     has_seen_onboarding_tour: bool
     has_seen_weight_hint: bool
+    created_at: datetime
+
+
+class UserPublicRead(BaseModel):
+    """What a friend or teammate can see about another user -- see
+    UserService.get_public_profile for the friend-or-teammate 403 gate.
+    Deliberately excludes weight/height (never included here regardless of
+    relationship, per spec) and everything private on UserRead: email,
+    is_admin, has_premium, equipment_access, timezone, reminder_preference,
+    has_seen_onboarding_tour, has_seen_weight_hint, friend_code.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    first_name: str
+    last_name: str
+    patronymic: str | None = None
+    avatar_url: str | None = None
+    position: Position | None = None
+    jersey_number: int | None = None
+    years_of_experience: float | None = None
+    level: int
+    xp: int
     created_at: datetime
 
 

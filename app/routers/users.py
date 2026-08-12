@@ -18,7 +18,7 @@ from app.schemas.push_subscription import (
     PushTestResultRead,
 )
 from app.schemas.skill import UserSkillPreferenceRead, UserSkillPreferencesReplace
-from app.schemas.user import UserDeleteRequest, UserRead, UserUpdate
+from app.schemas.user import UserDeleteRequest, UserPublicRead, UserRead, UserUpdate
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_chat_service import CoachChatService
 from app.services.progress_service import ProgressService
@@ -221,3 +221,18 @@ async def send_test_push_notification(
         current_user.id
     )
     return PushTestResultRead(total_subscriptions=total, delivered=delivered)
+
+
+@router.get("/{user_id}/profile", response_model=UserPublicRead)
+async def get_user_public_profile(
+    user_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """403s unless user_id is a friend or a teammate of current_user (see
+    UserService.get_public_profile) -- no open profile browsing, matching
+    the "no open name search for regular users" call in the diagnosis. No
+    other /{user_id}-shaped route exists on this router yet, so there's no
+    "/me"-style ordering landmine to worry about here today.
+    """
+    return await UserService(session).get_public_profile(current_user, user_id)

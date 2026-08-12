@@ -4,6 +4,7 @@ import { AdminRoute } from './components/AdminRoute'
 import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ScrollToTop } from './components/ScrollToTop'
+import { FriendsPage } from './pages/FriendsPage'
 import { HomePage } from './pages/HomePage'
 import { LeaderboardPage } from './pages/LeaderboardPage'
 import { LoginPage } from './pages/LoginPage'
@@ -14,7 +15,10 @@ import { ReferencePage } from './pages/ReferencePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TeamDetailPage } from './pages/TeamDetailPage'
+import { TeamRankingPage } from './pages/TeamRankingPage'
 import { TeamsPage } from './pages/TeamsPage'
+import { TrainingPartiesPage } from './pages/TrainingPartiesPage'
+import { TrainingPartyDetailPage } from './pages/TrainingPartyDetailPage'
 import { TrainingSessionPage } from './pages/TrainingSessionPage'
 import { AdminExercisesPage } from './pages/admin/AdminExercisesPage'
 import { AdminHomePage } from './pages/admin/AdminHomePage'
@@ -115,6 +119,38 @@ function App() {
         }
       />
       <Route
+        path="/profile/:userId"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/friends"
+        element={
+          <ProtectedRoute>
+            <FriendsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/training-parties"
+        element={
+          <ProtectedRoute>
+            <TrainingPartiesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/training-parties/:partyId"
+        element={
+          <ProtectedRoute>
+            <TrainingPartyDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/settings"
         element={
           <ProtectedRoute>
@@ -135,6 +171,14 @@ function App() {
         element={
           <ProtectedRoute>
             <TeamsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/teams/leaderboard"
+        element={
+          <ProtectedRoute>
+            <TeamRankingPage />
           </ProtectedRoute>
         }
       />

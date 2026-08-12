@@ -40,6 +40,10 @@ export interface UserRead {
   years_of_experience: number | null
   jersey_number: number | null
   avatar_url: string | null
+  // Only ever present on your own UserRead -- share it so a friend can send
+  // you a request (see api/friends.ts). Never shown for anyone else (see
+  // UserPublicRead below).
+  friend_code: string | null
   equipment_access: EquipmentAccess
   is_admin: boolean
   has_premium: boolean
@@ -49,6 +53,23 @@ export interface UserRead {
   reminder_preference: ReminderPreference
   has_seen_onboarding_tour: boolean
   has_seen_weight_hint: boolean
+  created_at: string
+}
+
+// GET /users/{id}/profile -- what a friend or teammate can see, deliberately
+// missing weight/height/email/everything-private that UserRead carries. 403
+// if there's no friend/teammate relationship (see api/users.ts).
+export interface UserPublicRead {
+  id: string
+  first_name: string
+  last_name: string
+  patronymic: string | null
+  avatar_url: string | null
+  position: Position | null
+  jersey_number: number | null
+  years_of_experience: number | null
+  level: number
+  xp: number
   created_at: string
 }
 

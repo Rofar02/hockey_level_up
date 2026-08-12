@@ -77,6 +77,24 @@ class ScheduleRepository:
         result = await self._session.execute(query)
         return result.unique().scalar_one_or_none()
 
+    async def get_day_plan_for_date(self, user_id: uuid.UUID, target_date: date) -> DayPlan | None:
+        """Direct (user_id, target_date) lookup via DayPlan.date -- backs
+        TrainingPartyService's per-member training-status resolution, same
+        date-across-many-users query shape as TeamRatingService's completed-
+        trainings aggregate. Uses ix_day_plans_date rather than resolving
+        through a week_start_date first, since the caller only has a date,
+        not necessarily "the current week."""
+        query = (
+            select(DayPlan)
+            .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
+            .where(WeeklyPlan.user_id == user_id, DayPlan.date == target_date)
+            .options(
+                selectinload(DayPlan.training_session).selectinload(TrainingSession.blocks)
+            )
+        )
+        result = await self._session.execute(query)
+        return result.unique().scalar_one_or_none()
+
     async def get_session_block_with_owner(self, block_id: uuid.UUID) -> SessionBlock | None:
         query = (
             select(SessionBlock)

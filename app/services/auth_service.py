@@ -27,6 +27,11 @@ from app.schemas.user import UserCreate
 _USERNAME_SANITIZE_RE = re.compile(r"[^a-zA-Z0-9]")
 _USERNAME_GENERATION_ATTEMPTS = 10
 
+# Same generation pattern as TeamService._generate_invite_code (also
+# secrets.token_hex(4).upper(), also a bounded-retry uniqueness loop) --
+# one friend_code per user rather than one invite_code per team.
+_FRIEND_CODE_GENERATION_ATTEMPTS = 10
+
 
 class AuthService:
     def __init__(self, session: AsyncSession) -> None:
@@ -45,7 +50,8 @@ class AuthService:
             )
 
         username = await self._generate_username(user_in.email)
-        user = await self._users.create(user_in, hash_password(user_in.password), username)
+        friend_code = await self._generate_friend_code()
+        user = await self._users.create(user_in, hash_password(user_in.password), username, friend_code)
         await self._session.commit()
         return user
 
@@ -59,6 +65,16 @@ class AuthService:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not generate a unique username",
+        )
+
+    async def _generate_friend_code(self) -> str:
+        for _ in range(_FRIEND_CODE_GENERATION_ATTEMPTS):
+            candidate = secrets.token_hex(4).upper()
+            if await self._users.get_by_friend_code(candidate) is None:
+                return candidate
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not generate a unique friend code",
         )
 
     async def authenticate(self, identifier: str, password: str) -> User:

@@ -12,9 +12,15 @@ from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.skill import SkillStatWeight, SkillTag
 from app.models.user import User
+from app.repositories.outbox_repository import OutboxRepository
 from app.services.streak_service import has_missed_training_day
 
 EVENT_TYPE = "block_completed"
+
+# Read directly from outbox_events for the friend activity feed
+# (FriendActivityService) -- no consumer registered for either, since
+# nothing needs to react to them, only display them after the fact.
+LEVEL_UP_EVENT = "level_up"
 
 RELEVANCE_WEIGHT_THRESHOLD = 0.6
 RELEVANT_MULTIPLIER = 1.3
@@ -197,10 +203,20 @@ async def xp_consumer(payload: dict, event_id: uuid.UUID) -> None:
         # Acceptable per spec -- only the increment itself needs to be atomic.
         threshold = xp_to_next_level(level)
         if xp >= threshold:
+            old_level = level
             level += 1
             xp -= threshold
             await session.execute(
                 update(User).where(User.id == user_id).values(xp=xp, level=level)
+            )
+            # Same outbox pattern as SessionBlockService.complete_block: the
+            # event row is written in the same transaction as the level
+            # bump, so a broker/relay outage can't lose it. No consumer
+            # needed here (see LEVEL_UP_EVENT above) -- FriendActivityService
+            # reads outbox_events directly.
+            OutboxRepository(session).add(
+                LEVEL_UP_EVENT,
+                {"user_id": str(user_id), "old_level": old_level, "new_level": level},
             )
 
         await session.commit()

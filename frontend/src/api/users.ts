@@ -6,7 +6,7 @@ import {
   apiPostMultipartAuth,
   apiPutAuth,
 } from './client'
-import type { EquipmentAccess, ReminderPreference, UserRead } from '../types/user'
+import type { EquipmentAccess, ReminderPreference, UserPublicRead, UserRead } from '../types/user'
 import type { UserSkillPreference } from '../types/skill'
 
 export function updateEquipmentAccess(
@@ -67,4 +67,10 @@ export function replaceSkillPreferences(
 
 export function deleteAccount(password: string, accessToken: string): Promise<void> {
   return apiDeleteAuthWithBody<void>('/users/me', { password }, accessToken)
+}
+
+// 403s server-side unless userId is a friend or teammate of the caller --
+// see UserService.get_public_profile.
+export function getUserPublicProfile(userId: string, accessToken: string): Promise<UserPublicRead> {
+  return apiGet<UserPublicRead>(`/users/${userId}/profile`, accessToken)
 }

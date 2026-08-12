@@ -16,6 +16,7 @@ from app.routers import (
     assessment,
     auth,
     exercises,
+    friends,
     leaderboard,
     push,
     reference_articles,
@@ -25,6 +26,7 @@ from app.routers import (
     skills,
     teams,
     training_block,
+    training_parties,
     training_sessions,
     users,
 )
@@ -79,6 +81,8 @@ app.include_router(leaderboard.router)
 app.include_router(push.router)
 app.include_router(admin_users.router)
 app.include_router(teams.router)
+app.include_router(friends.router)
+app.include_router(training_parties.router)
 
 # Mounted at the shared parent of avatar_upload_dir and
 # reference_article_image_upload_dir, so "/static/avatars/..." and

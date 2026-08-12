@@ -2,14 +2,20 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.schedule import SessionBlock
 from app.models.user import User
 from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.schedule_repository import ScheduleRepository
+from app.services.training_party_service import TrainingPartyService
 
 BLOCK_COMPLETED_EVENT = "block_completed"
+# Read directly from outbox_events for the friend activity feed
+# (FriendActivityService) -- no consumer registered, nothing needs to react
+# to it, only display it after the fact.
+TRAINING_COMPLETED_EVENT = "training_completed"
 
 
 class SessionBlockService:
@@ -17,6 +23,7 @@ class SessionBlockService:
         self._session = session
         self._schedule = ScheduleRepository(session)
         self._outbox = OutboxRepository(session)
+        self._parties = TrainingPartyService(session)
 
     async def complete_block(self, block_id: uuid.UUID, user: User) -> SessionBlock:
         block = await self._schedule.get_session_block_with_owner(block_id)
@@ -47,5 +54,38 @@ class SessionBlockService:
                 "difficulty_level": block.exercise.difficulty_level,
             },
         )
+        await self._maybe_publish_training_completed(block, user)
         await self._session.commit()
         return block
+
+    async def _maybe_publish_training_completed(self, block: SessionBlock, user: User) -> None:
+        # Flush first so the count below sees *this* block's just-set
+        # completed_at too -- it isn't persisted yet otherwise, and every
+        # sibling block in the session would need to already be complete for
+        # the count to reach zero.
+        await self._session.flush()
+        remaining = await self._session.execute(
+            select(func.count())
+            .select_from(SessionBlock)
+            .where(SessionBlock.session_id == block.session_id, SessionBlock.completed_at.is_(None))
+        )
+        if remaining.scalar_one() > 0:
+            return
+        # A block can only ever transition incomplete -> complete once (the
+        # already-completed check above 409s on a repeat), so "all blocks in
+        # this session are complete" flips from false to true at exactly one
+        # call across the session's lifetime -- this fires exactly once per
+        # training, never on a later no-op re-check.
+        self._outbox.add(
+            TRAINING_COMPLETED_EVENT,
+            {
+                "user_id": str(user.id),
+                "training_session_id": str(block.session_id),
+                "day_plan_id": str(block.session.day_plan_id),
+                "session_type": block.session.day_plan.session_type.value,
+            },
+        )
+        # Same transaction as the event above -- if this user's completion
+        # was the last piece a TrainingParty targeting today was waiting on,
+        # it flips to COMPLETED and publishes party_completed right here too.
+        await self._parties.try_complete_parties_for(user.id, block.session.day_plan.date)

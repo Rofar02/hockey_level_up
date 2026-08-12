@@ -5,12 +5,16 @@ from fastapi import HTTPException, UploadFile, status
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import select
+
 from app.core.config import get_settings
 from app.core.security import verify_password
+from app.models.team import TeamMembership
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserAdminUpdate, UserUpdate
 from app.services import image_processing
+from app.services.friend_service import FriendService
 
 MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
 AVATAR_TARGET_SIZE = 400
@@ -20,6 +24,7 @@ class UserService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._users = UserRepository(session)
+        self._friends = FriendService(session)
 
     async def update_profile(self, user: User, data: UserUpdate) -> User:
         updates = data.model_dump(exclude_unset=True)
@@ -96,6 +101,42 @@ class UserService:
 
         if avatar_path is not None:
             image_processing.delete_image_file(upload_dir, avatar_path)
+
+    async def get_public_profile(self, requester: User, target_id: uuid.UUID) -> User:
+        """No open profile browsing (see the diagnosis: open name search is
+        deliberately not offered to regular users) -- viewable only by
+        friends and teammates, checked here rather than left to the client.
+        """
+        target = await self._users.get_by_id(target_id)
+        if target is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        if target.id == requester.id:
+            return target
+        if await self._can_view_profile(requester.id, target.id):
+            return target
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only view the profiles of friends and teammates",
+        )
+
+    async def _can_view_profile(self, requester_id: uuid.UUID, target_id: uuid.UUID) -> bool:
+        if await self._friends.are_friends(requester_id, target_id):
+            return True
+        return await self._share_a_team(requester_id, target_id)
+
+    async def _share_a_team(self, requester_id: uuid.UUID, target_id: uuid.UUID) -> bool:
+        requester_team_ids = select(TeamMembership.team_id).where(
+            TeamMembership.user_id == requester_id
+        )
+        result = await self._session.execute(
+            select(TeamMembership.id)
+            .where(
+                TeamMembership.user_id == target_id,
+                TeamMembership.team_id.in_(requester_team_ids),
+            )
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
 
     async def list_users_admin(
         self, *, search: str | None, limit: int, offset: int
