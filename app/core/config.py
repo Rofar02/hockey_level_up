@@ -56,6 +56,25 @@ class Settings(BaseSettings):
     # costs money per message. Заполнить перед включением ИИ-чата.
     anthropic_api_key: str | None = None
 
+    # Email (Resend) -- same "empty means the feature is off, not broken"
+    # convention as anthropic_api_key above. EmailService checks this itself
+    # rather than each call site: verification email sends quietly no-op
+    # when unset (registration/resend must never fail because of it), while
+    # AuthService.request_password_reset 503s upfront instead, since a
+    # password reset request has nothing useful to do without delivery.
+    resend_api_key: str | None = None
+    # No existing precedent for a public app origin anywhere in the project
+    # (push notifications carry no link at all -- see push_service.py) --
+    # this is a new setting, used only to build the verify-email/
+    # reset-password links embedded in outgoing emails. Defaults to the Vite
+    # dev server, same as cors_origins' default.
+    frontend_url: str = "http://localhost:5173"
+    # Resend requires "from" to be a verified sending identity in the caller's
+    # Resend account; resend.dev's shared test domain works with no domain
+    # verification for development. Override in .env once a real domain is
+    # verified.
+    email_from_address: str = "HockeyLevelUp <onboarding@resend.dev>"
+
 
 @lru_cache
 def get_settings() -> Settings:

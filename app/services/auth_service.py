@@ -1,3 +1,4 @@
+import logging
 import re
 import secrets
 import uuid
@@ -6,6 +7,7 @@ from fastapi import HTTPException, status
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.security import (
     TokenType,
     create_access_token,
@@ -14,10 +16,15 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
+from app.models.auth_token import AuthTokenPurpose
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import TokenPair
 from app.schemas.user import UserCreate
+from app.services.auth_token_service import AuthTokenService
+from app.services.email_service import EmailService
+
+logger = logging.getLogger(__name__)
 
 # Registration no longer collects a username from the client, but the
 # column is still unique/non-null (existing accounts still log in with
@@ -37,6 +44,8 @@ class AuthService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._users = UserRepository(session)
+        self._tokens = AuthTokenService(session)
+        self._email = EmailService()
 
     async def register(self, user_in: UserCreate) -> User:
         if not user_in.privacy_consent:
@@ -53,7 +62,81 @@ class AuthService:
         friend_code = await self._generate_friend_code()
         user = await self._users.create(user_in, hash_password(user_in.password), username, friend_code)
         await self._session.commit()
+
+        # Best-effort: a failure here (no RESEND_API_KEY in dev, Resend
+        # down, whatever) must never undo an already-committed account --
+        # the user just ends up unverified and can hit /verify-email/resend
+        # later. Logged so a real production outage is still visible
+        # somewhere, just not to the registering user as a 500.
+        #
+        # A SAVEPOINT (begin_nested), not session.rollback(): a plain
+        # rollback() would roll back the *whole* session and expire every
+        # object it's tracking -- including `user`, already safely
+        # committed above -- forcing a reload on the caller's next attribute
+        # access, which fails outside an awaited context. The nested
+        # transaction confines the rollback to just the token/email attempt.
+        try:
+            async with self._session.begin_nested():
+                raw_token = await self._tokens.create_token(user.id, AuthTokenPurpose.EMAIL_VERIFY)
+                await self._email.send_verification_email(user, raw_token)
+            await self._session.commit()
+        except Exception:
+            logger.exception(
+                "Failed to send verification email for newly-registered user_id=%s", user.id
+            )
+
         return user
+
+    async def resend_verification_email(self, user: User) -> None:
+        if user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Email уже подтверждён"
+            )
+        raw_token = await self._tokens.create_token(user.id, AuthTokenPurpose.EMAIL_VERIFY)
+        await self._email.send_verification_email(user, raw_token)
+        await self._session.commit()
+
+    async def confirm_email_verification(self, raw_token: str) -> User:
+        user = await self._tokens.consume_token(raw_token, AuthTokenPurpose.EMAIL_VERIFY)
+        user.email_verified = True
+        await self._session.commit()
+        return user
+
+    async def request_password_reset(self, email: str) -> None:
+        settings = get_settings()
+        if not settings.resend_api_key:
+            # Checked *before* looking the user up, and unconditionally --
+            # this can never leak whether `email` is registered, unlike a
+            # check made only on the "user exists" branch would.
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Восстановление пароля временно недоступно",
+            )
+
+        user = await self._users.get_by_email(email)
+        if user is None:
+            # Same generic outcome as the success path below -- the caller
+            # (router) returns the identical response either way, so
+            # nothing here may distinguish "no such account" by timing,
+            # status code, or body.
+            return
+
+        # Same SAVEPOINT reasoning as register()'s verification-email attempt
+        # above -- a failure here must not expire `user`-tracking state for
+        # anything else still using this session, and the router returns the
+        # same generic response regardless of what happens in here anyway.
+        try:
+            async with self._session.begin_nested():
+                raw_token = await self._tokens.create_token(user.id, AuthTokenPurpose.PASSWORD_RESET)
+                await self._email.send_password_reset_email(user, raw_token)
+            await self._session.commit()
+        except Exception:
+            logger.exception("Failed to send password reset email for user_id=%s", user.id)
+
+    async def confirm_password_reset(self, raw_token: str, new_password: str) -> None:
+        user = await self._tokens.consume_token(raw_token, AuthTokenPurpose.PASSWORD_RESET)
+        user.password_hash = hash_password(new_password)
+        await self._session.commit()
 
     async def _generate_username(self, email: str) -> str:
         local_part = email.split("@", 1)[0]

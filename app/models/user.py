@@ -44,6 +44,17 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Set True by AuthService.confirm_email_verification once the user
+    # redeems an AuthToken(purpose=EMAIL_VERIFY) -- deliberately does NOT
+    # gate login/authenticate anywhere (see the design discussion: this is
+    # the first email integration in the project, so a delivery outage must
+    # never lock anyone out of an already-working account). Every row that
+    # existed before this column shipped was backfilled to True by this
+    # column's migration -- verification is only ever asked of accounts
+    # created after email sending existed at all.
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     last_name: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
     first_name: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")

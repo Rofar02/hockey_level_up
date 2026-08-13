@@ -4,6 +4,7 @@ import { AdminRoute } from './components/AdminRoute'
 import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ScrollToTop } from './components/ScrollToTop'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { FriendsPage } from './pages/FriendsPage'
 import { HomePage } from './pages/HomePage'
 import { LeaderboardPage } from './pages/LeaderboardPage'
@@ -13,6 +14,7 @@ import { OnboardingPage } from './pages/OnboardingPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ReferencePage } from './pages/ReferencePage'
 import { RegisterPage } from './pages/RegisterPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TeamDetailPage } from './pages/TeamDetailPage'
 import { TeamRankingPage } from './pages/TeamRankingPage'
@@ -20,6 +22,7 @@ import { TeamsPage } from './pages/TeamsPage'
 import { TrainingPartiesPage } from './pages/TrainingPartiesPage'
 import { TrainingPartyDetailPage } from './pages/TrainingPartyDetailPage'
 import { TrainingSessionPage } from './pages/TrainingSessionPage'
+import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { AdminExercisesPage } from './pages/admin/AdminExercisesPage'
 import { AdminHomePage } from './pages/admin/AdminHomePage'
 import { AdminSkillDetailPage } from './pages/admin/AdminSkillDetailPage'
@@ -70,6 +73,9 @@ function App() {
       <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route
         path="/privacy"
         element={

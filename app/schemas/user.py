@@ -59,6 +59,7 @@ class UserRead(UserBase):
     # it (FriendService.send_request_by_code).
     friend_code: str | None = None
     equipment_access: EquipmentType
+    email_verified: bool
     is_admin: bool
     has_premium: bool
     xp: int

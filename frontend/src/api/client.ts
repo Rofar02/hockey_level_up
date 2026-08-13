@@ -89,6 +89,13 @@ export function apiGet<T>(path: string, accessToken: string): Promise<T> {
   return request<T>(path, 'GET', { accessToken })
 }
 
+// Unauthenticated GET -- only for endpoints that don't need a logged-in
+// session at all (e.g. GET /auth/verify-email/confirm, reached from an
+// emailed link that may be opened in a browser with no session).
+export function apiGetPublic<T>(path: string): Promise<T> {
+  return request<T>(path, 'GET', {})
+}
+
 export function apiPostForm<T>(path: string, form: Record<string, string>): Promise<T> {
   return request<T>(path, 'POST', { form })
 }

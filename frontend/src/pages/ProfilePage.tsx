@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
+import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { JerseyBadge } from '../components/ui/JerseyBadge'
@@ -9,6 +10,7 @@ import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { LockedSkillChip } from '../components/ui/SkillChip'
 import { SkillDetailModal } from '../components/SkillDetailModal'
+import * as authApi from '../api/auth'
 import * as progressApi from '../api/progress'
 import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
@@ -95,6 +97,10 @@ function OwnProfileView() {
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false)
 
+  const [isResendingVerification, setIsResendingVerification] = useState(false)
+  const [verificationResendResult, setVerificationResendResult] = useState<string | null>(null)
+  const [verificationResendError, setVerificationResendError] = useState<string | null>(null)
+
   useEffect(() => {
     if (accessToken === null) {
       return
@@ -179,6 +185,24 @@ function OwnProfileView() {
       setAvatarError(err instanceof ApiError ? err.message : 'Не удалось загрузить фото. Попробуйте ещё раз.')
     } finally {
       setIsUploadingAvatar(false)
+    }
+  }
+
+  async function handleResendVerification() {
+    if (accessToken === null) {
+      return
+    }
+    setVerificationResendError(null)
+    setIsResendingVerification(true)
+    try {
+      const result = await authApi.resendVerificationEmail(accessToken)
+      setVerificationResendResult(result.detail)
+    } catch (err) {
+      setVerificationResendError(
+        err instanceof ApiError ? err.message : 'Не удалось отправить письмо. Попробуйте ещё раз.',
+      )
+    } finally {
+      setIsResendingVerification(false)
     }
   }
 
@@ -374,6 +398,34 @@ function OwnProfileView() {
             </div>
           </div>
           <FormError message={avatarError} />
+        </div>
+      )}
+
+      {!isLoading && user !== null && !user.email_verified && (
+        <div className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-4`}>
+          <div className="flex items-center gap-2">
+            <i className="ti ti-mail-exclamation text-lg text-accent-persimmon" aria-hidden="true" />
+            <span className="text-sm font-medium text-[#F5F7FA]">Email не подтверждён</span>
+          </div>
+          {verificationResendResult === null ? (
+            <>
+              <p className="text-sm text-[#8A94A6]">
+                Проверьте почту {user.email} и перейдите по ссылке из письма.
+              </p>
+              <Button
+                type="button"
+                variant="neutral"
+                isLoading={isResendingVerification}
+                onClick={handleResendVerification}
+                className="self-start !px-3 !py-1.5 !text-xs"
+              >
+                Отправить письмо ещё раз
+              </Button>
+              <FormError message={verificationResendError} />
+            </>
+          ) : (
+            <p className="text-sm text-accent-ice">{verificationResendResult}</p>
+          )}
         </div>
       )}
 

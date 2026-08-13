@@ -45,6 +45,7 @@ export interface UserRead {
   // UserPublicRead below).
   friend_code: string | null
   equipment_access: EquipmentAccess
+  email_verified: boolean
   is_admin: boolean
   has_premium: boolean
   xp: number

@@ -55,6 +55,9 @@ export function LoginPage() {
             onChange={(event) => setPassword(event.target.value)}
             required
           />
+          <Link to="/forgot-password" className="self-end text-xs text-accent-ice hover:underline">
+            Забыли пароль?
+          </Link>
           <FormError message={error} />
           <Button type="submit" isLoading={isSubmitting}>
             Войти
