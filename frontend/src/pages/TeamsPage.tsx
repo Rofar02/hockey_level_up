@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { TabButton } from '../components/ui/TabButton'
@@ -173,7 +174,11 @@ export function TeamsPage() {
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-2">
                   {teams.length === 0 && (
-                    <p className="text-sm text-[#8A94A6]">Вы пока не состоите ни в одной команде.</p>
+                    <EmptyState
+                      icon="ti-shield"
+                      title="Вы пока не состоите ни в одной команде"
+                      hint="Создайте свою команду или вступите по коду от капитана"
+                    />
                   )}
                   {teams.map((team) => (
                     <button

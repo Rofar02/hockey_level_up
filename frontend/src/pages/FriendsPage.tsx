@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { TabButton } from '../components/ui/TabButton'
@@ -296,7 +297,11 @@ export function FriendsPage() {
               <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-2">
                   {friends.length === 0 && (
-                    <p className="text-sm text-[#8A94A6]">У вас пока нет друзей.</p>
+                    <EmptyState
+                      icon="ti-users"
+                      title="У вас пока нет друзей"
+                      hint="Добавьте друзей во вкладке «Добавить» — так вы сможете сравнивать статы и звать на тренировки"
+                    />
                   )}
                   {friends.map((friend) => (
                     <div key={friend.id} className={`flex items-center gap-3 p-3 ${CARD_CLASS}`}>
