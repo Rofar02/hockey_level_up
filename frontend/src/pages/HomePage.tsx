@@ -427,7 +427,7 @@ function TodayCard({
       <div className="flex items-center justify-between gap-3">
         {eyebrow !== '' && <p className="text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
         {completed && (
-          <span className="flex items-center gap-1 text-xs text-[#8A94A6]">
+          <span className="flex items-center gap-1 rounded-full bg-accent-ice/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-ice">
             <i className="ti ti-check" aria-hidden="true" />
             Выполнено
           </span>
