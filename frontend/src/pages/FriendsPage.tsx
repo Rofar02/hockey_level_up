@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { RankBadge } from '../components/ui/RankBadge'
 import { TabButton } from '../components/ui/TabButton'
 import { TextField } from '../components/ui/TextField'
 import * as friendsApi from '../api/friends'
@@ -425,7 +426,13 @@ export function FriendsPage() {
             {activeTab === 'feed' &&
               (feed === null ? (
                 <p className="text-sm text-[#8A94A6]">Загрузка...</p>
-              ) : feed.length > 0 ? (
+              ) : feed.length === 0 ? (
+                <EmptyState
+                  icon="ti-activity"
+                  title="Пока в ленте ничего нет"
+                  hint="Здесь появятся тренировки и достижения ваших друзей"
+                />
+              ) : (
                 <div className="flex flex-col gap-2">
                   {feed.map((entry) => (
                     <button
@@ -454,20 +461,22 @@ export function FriendsPage() {
                     </button>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-[#8A94A6]">Пока в ленте ничего нет.</p>
               ))}
 
             {activeTab === 'leaderboard' &&
               (rankings === null ? (
                 <p className="text-sm text-[#8A94A6]">Загрузка...</p>
-              ) : rankings.length > 0 ? (
+              ) : rankings.length === 0 ? (
+                <EmptyState
+                  icon="ti-trophy"
+                  title="Пока никто не попал в рейтинг"
+                  hint="Рейтинг появится, как только у друзей накопится статистика"
+                />
+              ) : (
                 <div className="flex flex-col gap-2">
                   {rankings.map((entry, index) => (
                     <div key={entry.id} className={`flex items-center gap-3 p-3 ${CARD_CLASS}`}>
-                      <span className="w-6 shrink-0 text-center font-mono text-sm text-[#8A94A6]">
-                        {index + 1}
-                      </span>
+                      <RankBadge rank={index + 1} />
                       <span className="min-w-0 flex-1 truncate text-sm text-[#F5F7FA]">
                         {getDisplayName(entry)}
                       </span>
@@ -481,8 +490,6 @@ export function FriendsPage() {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-[#8A94A6]">Пока никто не попал в рейтинг.</p>
               ))}
           </>
         )}
