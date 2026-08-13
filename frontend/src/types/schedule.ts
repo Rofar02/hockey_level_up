@@ -10,6 +10,27 @@ export const DAY_SESSION_TYPE_LABELS: Record<DaySessionType, string> = {
   game: 'Игра',
 }
 
+// Shared icon/color language for session types, used anywhere a day/session
+// needs to be told apart at a glance (Неделя, главный экран TodayCard).
+// Colors reuse the app's only two accents rather than inventing new ones:
+// accent-ice for on_ice (literal match), accent-persimmon for game (same
+// "this one's a big deal" role it already plays for streak/CTAs). off_ice
+// gets plain bright text (still distinct from rest's muted gray) and rest
+// stays muted -- there's nothing to plan for it.
+export const SESSION_TYPE_ICONS: Record<DaySessionType, string> = {
+  on_ice: 'ti-ice-skating',
+  off_ice: 'ti-barbell',
+  rest: 'ti-moon',
+  game: 'ti-shirt-sport',
+}
+
+export const SESSION_TYPE_COLORS: Record<DaySessionType, string> = {
+  on_ice: 'text-accent-ice',
+  off_ice: 'text-[#F5F7FA]',
+  rest: 'text-[#8A94A6]',
+  game: 'text-accent-persimmon',
+}
+
 export const TRAINING_PHASES = ['warmup', 'main', 'cooldown'] as const
 export type TrainingPhase = (typeof TRAINING_PHASES)[number]
 

@@ -19,7 +19,7 @@ import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../t
 import type { TargetStat } from '../types/exercise'
 import type { LeaderboardMeRead } from '../types/leaderboard'
 import type { TrainingStreakRead, UserStatRead } from '../types/progress'
-import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
+import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { DayPlanRead, WeeklyPlanRead } from '../types/schedule'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
@@ -404,11 +404,17 @@ function TodayCard({
     // -- checking session_type here too would just be redundant with it.
     const isRestDay = day !== null && day.session_type === 'rest'
     return (
-      <div className={`p-5 ${CARD_CLASS}`}>
-        {eyebrow !== '' && <p className="mb-1 text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
-        <p className="text-lg font-semibold text-[#F5F7FA]">
-          {isRestDay ? getRestDayHint(phase) : 'Нет плана на сегодня'}
-        </p>
+      <div className={`flex items-center gap-4 p-5 ${CARD_CLASS}`}>
+        <i
+          className={`ti ${isRestDay ? SESSION_TYPE_ICONS.rest : 'ti-calendar-off'} text-2xl text-[#8A94A6]`}
+          aria-hidden="true"
+        />
+        <div>
+          {eyebrow !== '' && <p className="mb-1 text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
+          <p className="text-lg font-semibold text-[#F5F7FA]">
+            {isRestDay ? getRestDayHint(phase) : 'Нет плана на сегодня'}
+          </p>
+        </div>
       </div>
     )
   }
@@ -426,7 +432,10 @@ function TodayCard({
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-[#F5F7FA]">{DAY_SESSION_TYPE_LABELS[day.session_type]}</p>
+      <p className="flex items-center gap-2 text-2xl font-bold text-[#F5F7FA]">
+        <i className={`ti ${SESSION_TYPE_ICONS[day.session_type]} ${SESSION_TYPE_COLORS[day.session_type]}`} aria-hidden="true" />
+        {DAY_SESSION_TYPE_LABELS[day.session_type]}
+      </p>
       {!completed && (
         <Button onClick={onStart} className="w-full">
           Начать тренировку

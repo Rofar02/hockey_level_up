@@ -11,7 +11,12 @@ import * as scheduleApi from '../api/schedule'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { ExerciseRead } from '../types/exercise'
-import { DAY_SESSION_TYPE_LABELS, TRAINING_PHASES } from '../types/schedule'
+import {
+  DAY_SESSION_TYPE_LABELS,
+  SESSION_TYPE_COLORS,
+  SESSION_TYPE_ICONS,
+  TRAINING_PHASES,
+} from '../types/schedule'
 import type {
   DaySessionType,
   SessionBlockRead,
@@ -24,27 +29,6 @@ import { hasExerciseTechnique } from '../utils/exerciseTechnique'
 import { loadOptional } from '../utils/loadOptional'
 
 const SESSION_TYPE_OPTIONS: DaySessionType[] = ['on_ice', 'off_ice', 'rest', 'game']
-
-// One glance at a week should tell ice/gym/rest/game apart without reading
-// every label -- previously every row was identical text regardless of
-// type. Colors reuse the app's only two accents rather than inventing new
-// ones: accent-ice for on_ice (literal match), accent-persimmon for game
-// (same "this one's a big deal" role it already plays for streak/CTAs).
-// off_ice gets plain bright text (still distinct from rest's muted gray)
-// and rest stays muted -- there's nothing to plan for it.
-const SESSION_TYPE_ICONS: Record<DaySessionType, string> = {
-  on_ice: 'ti-ice-skating',
-  off_ice: 'ti-barbell',
-  rest: 'ti-moon',
-  game: 'ti-shirt-sport',
-}
-
-const SESSION_TYPE_COLORS: Record<DaySessionType, string> = {
-  on_ice: 'text-accent-ice',
-  off_ice: 'text-[#F5F7FA]',
-  rest: 'text-[#8A94A6]',
-  game: 'text-accent-persimmon',
-}
 
 // Explicit per-type classes, matching the existing single-color convention
 // (border-accent-ice bg-accent-ice/10 text-accent-ice) rather than a
