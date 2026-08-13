@@ -8,7 +8,7 @@ from app.repositories.push_subscription_repository import PushSubscriptionReposi
 from app.schemas.push_subscription import PushSubscriptionCreate
 from app.services.push_service import send_push
 
-TEST_NOTIFICATION_TITLE = "HockeyLevelUp"
+TEST_NOTIFICATION_TITLE = "IceLevel"
 TEST_NOTIFICATION_BODY = "Тестовое уведомление — если вы это видите, push работает."
 
 

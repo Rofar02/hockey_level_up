@@ -1,4 +1,4 @@
-# HockeyLevelUp
+# IceLevel
 
 RPG-трекер тренировок для хоккеистов-любителей. См. `docs/hockeylevelup_final_concept.md`
 и `docs/hockeylevelup_dev_plan.md`.

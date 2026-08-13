@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 TICK_INTERVAL_SECONDS = 300
 
-REMINDER_TITLE = "HockeyLevelUp"
+REMINDER_TITLE = "IceLevel"
 
 _REMINDER_WINDOWS: dict[ReminderPreference, tuple[time, time]] = {
     ReminderPreference.MORNING: (time(9, 0), time(9, 5)),

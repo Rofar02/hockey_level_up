@@ -1,10 +1,10 @@
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {}
-  const title = data.title || 'HockeyLevelUp'
+  const title = data.title || 'IceLevel'
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body,
-      icon: '/favicon.svg',
+      icon: '/favicon.png',
     }),
   )
 })

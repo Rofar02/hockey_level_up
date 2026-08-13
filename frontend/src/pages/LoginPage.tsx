@@ -32,9 +32,14 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center overflow-hidden px-4">
+    <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-4">
       <div className="absolute inset-0 bg-[url('/images/arena-bg.webp')] bg-cover bg-center" />
       <div className="absolute inset-0 bg-dark-bg/80" />
+      <img
+        src="/images/logo.webp"
+        alt="IceLevel"
+        className="relative mb-6 w-full max-w-[220px] opacity-80"
+      />
       <Card className="relative w-full max-w-sm">
         <h1 className="mb-6 text-xl font-semibold">Вход</h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

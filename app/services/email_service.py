@@ -59,12 +59,12 @@ class EmailService:
             settings.resend_api_key,
             settings.email_from_address,
             to=user.email,
-            subject="Подтвердите email в HockeyLevelUp",
+            subject="Подтвердите email в IceLevel",
             text=(
                 f"Здравствуйте, {user.first_name}!\n\n"
                 f"Подтвердите свой email, перейдя по ссылке (действует {_VERIFY_EMAIL_TTL_LABEL}):\n"
                 f"{link}\n\n"
-                "Если вы не регистрировались в HockeyLevelUp, просто проигнорируйте это письмо."
+                "Если вы не регистрировались в IceLevel, просто проигнорируйте это письмо."
             ),
         )
 
@@ -81,7 +81,7 @@ class EmailService:
             settings.resend_api_key,
             settings.email_from_address,
             to=user.email,
-            subject="Восстановление пароля HockeyLevelUp",
+            subject="Восстановление пароля IceLevel",
             text=(
                 f"Здравствуйте, {user.first_name}!\n\n"
                 f"Чтобы задать новый пароль, перейдите по ссылке (действует {_PASSWORD_RESET_TTL_LABEL}):\n"

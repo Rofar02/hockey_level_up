@@ -149,5 +149,9 @@ async def test_email_verify_and_password_reset_have_different_ttls(db_session) -
     }
     verify_ttl = rows[AuthTokenPurpose.EMAIL_VERIFY] - datetime.now(timezone.utc)
     reset_ttl = rows[AuthTokenPurpose.PASSWORD_RESET] - datetime.now(timezone.utc)
-    assert timedelta(hours=47) < verify_ttl < timedelta(hours=48)
-    assert timedelta(minutes=59) < reset_ttl < timedelta(hours=1)
+    # Upper bounds are <=, not < -- expires_at is computed once at
+    # create_token time, so re-measuring "now" here can land exactly on (but
+    # never past) the original TTL if this assertion runs fast enough,
+    # which a strict < flakes on.
+    assert timedelta(hours=47) < verify_ttl <= timedelta(hours=48)
+    assert timedelta(minutes=59) < reset_ttl <= timedelta(hours=1)

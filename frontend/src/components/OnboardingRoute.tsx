@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useRef } from 'react'
 import { Navigate } from 'react-router-dom'
+import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
 
 /**
@@ -34,11 +35,7 @@ export function OnboardingRoute({ children }: { children: ReactNode }) {
   }
 
   if (isInitializing) {
-    return (
-      <div className="flex min-h-svh items-center justify-center">
-        <p className="text-sm text-text-secondary">Загрузка...</p>
-      </div>
-    )
+    return <AppLoadingScreen />
   }
 
   if (!isAuthenticated) {

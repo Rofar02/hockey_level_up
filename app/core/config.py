@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = "HockeyLevelUp"
+    app_name: str = "IceLevel"
     environment: str = "local"
 
     database_url: str = "postgresql+asyncpg://hockey:hockey@localhost:5432/hockey_level_up"
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # Resend account; resend.dev's shared test domain works with no domain
     # verification for development. Override in .env once a real domain is
     # verified.
-    email_from_address: str = "HockeyLevelUp <onboarding@resend.dev>"
+    email_from_address: str = "IceLevel <onboarding@resend.dev>"
 
 
 @lru_cache

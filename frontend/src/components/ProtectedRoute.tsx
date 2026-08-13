@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
+import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -11,11 +12,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   // regardless of whether restore will succeed, so redirecting now would
   // bounce an actually-logged-in user to /login for one render.
   if (isInitializing) {
-    return (
-      <div className="flex min-h-svh items-center justify-center">
-        <p className="text-sm text-text-secondary">Загрузка...</p>
-      </div>
-    )
+    return <AppLoadingScreen />
   }
 
   if (!isAuthenticated) {

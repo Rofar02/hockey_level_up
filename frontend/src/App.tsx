@@ -4,6 +4,7 @@ import { AdminRoute } from './components/AdminRoute'
 import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ScrollToTop } from './components/ScrollToTop'
+import { AppLoadingScreen } from './components/ui/AppLoadingScreen'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { FriendsPage } from './pages/FriendsPage'
 import { HomePage } from './pages/HomePage'
@@ -59,11 +60,7 @@ const CoachPage = lazy(() =>
 )
 
 function RouteLoadingFallback() {
-  return (
-    <div className="flex min-h-svh items-center justify-center">
-      <p className="text-sm text-text-secondary">Загрузка...</p>
-    </div>
-  )
+  return <AppLoadingScreen />
 }
 
 function App() {
