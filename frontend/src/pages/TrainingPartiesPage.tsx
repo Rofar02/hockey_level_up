@@ -245,7 +245,7 @@ export function TrainingPartiesPage() {
             {activeTab === 'invites' && (
               <div className="flex flex-col gap-2">
                 {invites.length === 0 && (
-                  <p className="text-sm text-[#8A94A6]">Нет входящих приглашений.</p>
+                  <EmptyState icon="ti-mail" title="Нет входящих приглашений" />
                 )}
                 {invites.map((invite) => (
                   <div

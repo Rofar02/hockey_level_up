@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BackLink } from '../components/ui/BackLink'
+import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { RankBadge } from '../components/ui/RankBadge'
@@ -98,7 +99,11 @@ export function LeaderboardPage() {
         <p className="text-sm text-[#8A94A6]">Загрузка...</p>
       )}
 
-      {entries !== null && (
+      {entries !== null && entries.length === 0 && pinnedMe === null && (
+        <EmptyState icon="ti-trophy" title="Пока никто не в рейтинге" />
+      )}
+
+      {entries !== null && (entries.length > 0 || pinnedMe !== null) && (
         <div className="flex flex-col gap-2">
           {pinnedMe !== null && (
             <>
@@ -127,10 +132,6 @@ export function LeaderboardPage() {
               highlighted={index === myIndex}
             />
           ))}
-
-          {entries.length === 0 && (
-            <p className="text-sm text-[#8A94A6]">Пока никто не в рейтинге.</p>
-          )}
         </div>
       )}
 

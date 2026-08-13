@@ -237,7 +237,10 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
         {isLoadingPoints && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
 
         {!isLoadingPoints && points !== null && points.length === 0 && (
-          <p className="py-12 text-center text-sm text-[#8A94A6]">Пока нет истории за этот период.</p>
+          <div className="flex flex-col items-center gap-2 py-12 text-center">
+            <i className="ti ti-chart-line text-3xl text-[#8A94A6]" aria-hidden="true" />
+            <p className="text-sm text-[#8A94A6]">Пока нет истории за этот период.</p>
+          </div>
         )}
 
         {!isLoadingPoints && points !== null && points.length > 0 && (
