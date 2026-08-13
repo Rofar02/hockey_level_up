@@ -175,10 +175,17 @@ export function HomePage() {
       progressApi.getMyStreak(accessToken),
       progressApi.getMyStats(accessToken),
       skillsApi.listSkills(accessToken),
-      // Rating excess needs an age-based expected baseline -- always present
-      // post-onboarding, so this is safe to call directly rather than
-      // through loadOptional like the two calls above.
-      leaderboardApi.getMyLeaderboardPosition(accessToken),
+      // Rating excess needs an age-based expected baseline, and age is
+      // genuinely optional (never collected anywhere in onboarding or
+      // registration) -- the backend 400s without it. That must not take
+      // down the rest of the dashboard the way an unguarded Promise.all
+      // member would (Promise.all rejects whole -- weeklyPlan/streak/stats
+      // would all silently fail to ever reach state, leaving the entire
+      // dashboard blank behind a single raw backend error string). Caught
+      // locally instead of routed through loadOptional (that helper's
+      // contract is specifically "404 means not-yet-declared" -- this is a
+      // different, 400, "not eligible" case).
+      leaderboardApi.getMyLeaderboardPosition(accessToken).catch(() => null),
     ])
       .then(([block, plan, streakResult, statsResult, skillsResult, leaderboardMeResult]) => {
         if (cancelled) {

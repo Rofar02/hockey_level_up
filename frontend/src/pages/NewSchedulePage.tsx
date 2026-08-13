@@ -25,6 +25,40 @@ import { loadOptional } from '../utils/loadOptional'
 
 const SESSION_TYPE_OPTIONS: DaySessionType[] = ['on_ice', 'off_ice', 'rest', 'game']
 
+// One glance at a week should tell ice/gym/rest/game apart without reading
+// every label -- previously every row was identical text regardless of
+// type. Colors reuse the app's only two accents rather than inventing new
+// ones: accent-ice for on_ice (literal match), accent-persimmon for game
+// (same "this one's a big deal" role it already plays for streak/CTAs).
+// off_ice gets plain bright text (still distinct from rest's muted gray)
+// and rest stays muted -- there's nothing to plan for it.
+const SESSION_TYPE_ICONS: Record<DaySessionType, string> = {
+  on_ice: 'ti-ice-skating',
+  off_ice: 'ti-barbell',
+  rest: 'ti-moon',
+  game: 'ti-shirt-sport',
+}
+
+const SESSION_TYPE_COLORS: Record<DaySessionType, string> = {
+  on_ice: 'text-accent-ice',
+  off_ice: 'text-[#F5F7FA]',
+  rest: 'text-[#8A94A6]',
+  game: 'text-accent-persimmon',
+}
+
+// Explicit per-type classes, matching the existing single-color convention
+// (border-accent-ice bg-accent-ice/10 text-accent-ice) rather than a
+// `border-current`/`bg-current/10` shortcut -- Tailwind's opacity modifier
+// isn't guaranteed to resolve against the `current` keyword the same way it
+// does for a named color, so this stays explicit like every other selected-
+// state style in this codebase.
+const SESSION_TYPE_ACTIVE_CLASSES: Record<DaySessionType, string> = {
+  on_ice: 'border-accent-ice bg-accent-ice/10 text-accent-ice',
+  off_ice: 'border-white/40 bg-white/10 text-[#F5F7FA]',
+  rest: 'border-white/25 bg-white/5 text-[#8A94A6]',
+  game: 'border-accent-persimmon bg-accent-persimmon/10 text-accent-persimmon',
+}
+
 // Same icy top-border card convention as Home/TrainingSession/Profile.
 const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
@@ -321,6 +355,7 @@ export function NewSchedulePage() {
 
   const previewIndex = previewIsoDate !== null ? rows.findIndex((row) => row.isoDate === previewIsoDate) : -1
   const previewRow = previewIndex !== -1 ? rows[previewIndex] : null
+  const todayIso = toIsoDate(new Date())
 
   return (
     <div className="relative min-h-svh overflow-hidden">
@@ -355,6 +390,7 @@ export function NewSchedulePage() {
                   key={row.isoDate}
                   row={row}
                   weekdayLabel={WEEKDAY_LABELS[index]}
+                  isToday={row.isoDate === todayIso}
                   onSelectType={(type) => setDayType(index, type)}
                 />
               ))}
@@ -381,9 +417,15 @@ export function NewSchedulePage() {
                 const isExpandable = started && trainingSession !== null
                 const isExpanded = isExpandable && expandedRowIsoDate === row.isoDate
                 const badgeLabel = COMPLETION_BADGE_LABELS[row.completionStatus]
+                const isToday = row.isoDate === todayIso
 
                 return (
-                  <div key={row.isoDate} className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3`}>
+                  <div
+                    key={row.isoDate}
+                    className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
+                      isToday ? 'ring-1 ring-inset ring-accent-persimmon/40' : ''
+                    }`}
+                  >
                     <div
                       role={isPreviewable || isExpandable ? 'button' : undefined}
                       tabIndex={isPreviewable || isExpandable ? 0 : undefined}
@@ -415,9 +457,19 @@ export function NewSchedulePage() {
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
                         <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
+                        {isToday && (
+                          <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-persimmon">
+                            Сегодня
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-[#8A94A6]">{DAY_SESSION_TYPE_LABELS[row.sessionType]}</span>
+                        <span
+                          className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[row.sessionType]}`}
+                        >
+                          <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
+                          {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+                        </span>
                         {badgeLabel !== undefined && (
                           <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
                             {badgeLabel}
@@ -460,6 +512,7 @@ export function NewSchedulePage() {
                   key={row.isoDate}
                   row={row}
                   weekdayLabel={WEEKDAY_LABELS[index]}
+                  isToday={row.isoDate === todayIso}
                   onSelectType={(type) => setDayType(index, type)}
                 />
               ))}
@@ -528,22 +581,36 @@ export function NewSchedulePage() {
 function EditableDayRow({
   row,
   weekdayLabel,
+  isToday,
   onSelectType,
 }: {
   row: DayRow
   weekdayLabel: string
+  isToday: boolean
   onSelectType: (type: DaySessionType) => void
 }) {
   return (
-    <div className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3`}>
+    <div
+      className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
+        isToday ? 'ring-1 ring-inset ring-accent-persimmon/40' : ''
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium text-[#F5F7FA]">{weekdayLabel}</span>
           <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
+          {isToday && (
+            <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-persimmon">
+              Сегодня
+            </span>
+          )}
         </div>
         {isStarted(row) ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-[#8A94A6]">{DAY_SESSION_TYPE_LABELS[row.sessionType]}</span>
+            <span className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[row.sessionType]}`}>
+              <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
+              {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+            </span>
             <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
               {COMPLETION_BADGE_LABELS[row.completionStatus]}
             </span>
@@ -555,12 +622,13 @@ function EditableDayRow({
                 key={option}
                 type="button"
                 onClick={() => onSelectType(option)}
-                className={`rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
                   row.sessionType === option
-                    ? 'border-accent-ice bg-accent-ice/10 text-accent-ice'
+                    ? SESSION_TYPE_ACTIVE_CLASSES[option]
                     : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
                 }`}
               >
+                <i className={`ti ${SESSION_TYPE_ICONS[option]}`} aria-hidden="true" />
                 {DAY_SESSION_TYPE_LABELS[option]}
               </button>
             ))}

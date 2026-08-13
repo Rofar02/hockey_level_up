@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import type { TouchEvent } from 'react'
 import { Button } from './ui/Button'
-import { IceGlowBackground } from './ui/IceGlowBackground'
 
 interface Slide {
   icon: string
@@ -86,7 +85,14 @@ export function OnboardingTour({ onSkip, onComplete }: OnboardingTourProps) {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <IceGlowBackground />
+      {/* Same arena-bg + logo treatment as Login/Register/Onboarding --
+          this tour is still part of that "welcome" sequence (shown once,
+          right after finishing onboarding), not a regular in-app screen --
+          IceGlowBackground (what HomePage itself uses underneath this
+          overlay) is reserved for the moment the tour ends and the real
+          app takes over. */}
+      <div className="absolute inset-0 bg-[url('/images/arena-bg.webp')] bg-cover bg-center" />
+      <div className="absolute inset-0 bg-dark-bg/80" />
 
       {!isLast && (
         <button
@@ -99,6 +105,7 @@ export function OnboardingTour({ onSkip, onComplete }: OnboardingTourProps) {
       )}
 
       <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-6">
+        <img src="/images/logo.webp" alt="IceLevel" className="mb-8 w-full max-w-[180px] opacity-80" />
         <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
           <div className="flex h-20 w-20 items-center justify-center rounded-full border-t border-[rgba(215,239,255,0.35)] bg-dark-card">
             <i className={`ti ${slide.icon} text-4xl text-accent-ice`} aria-hidden="true" />
