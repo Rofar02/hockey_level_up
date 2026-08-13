@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.exercise import ExerciseRead
+
 MemberTrainingStatus = Literal[
     "no_plan_for_date", "resting", "game_day", "not_started", "in_progress", "completed"
 ]
@@ -46,6 +48,35 @@ class TrainingPartyDetailRead(BaseModel):
     members: list[TrainingPartyMemberRead]
     created_at: datetime
     completed_at: datetime | None = None
+    # None until the creator confirms an exercise set (see
+    # TrainingPartyService.confirm_exercises) -- exercises mirrors it (the
+    # shared list every joined member's SessionBlocks were built from, read
+    # back from the creator's own materialized blocks) so the frontend can
+    # show "what everyone's training" without a separate lookup.
+    exercises_finalized_at: datetime | None = None
+    exercises: list[ExerciseRead] | None = None
+
+
+class TrainingPartyExercisesConfirm(BaseModel):
+    """POST /training-parties/{id}/exercises/confirm body -- the creator's
+    final ordered exercise list, whether it came straight from /suggest
+    ("Сгенерировать") or was hand-picked ("Собрать самому"). No mode flag:
+    both flows converge on the same "here is the final list" contract, and
+    manual mode is intentionally unconstrained (the creator may add/remove
+    anything from the full catalog, not just recommended exercises), so
+    there's nothing left to validate that differs by mode.
+    """
+
+    exercise_ids: list[uuid.UUID] = Field(min_length=1, max_length=12)
+
+
+class PartyExerciseSuggestionsRead(BaseModel):
+    """Response for POST /training-parties/{id}/exercises/suggest -- a fresh,
+    non-persisted candidate set from suggest_party_exercises. Calling this
+    again ("перемешать") just recomputes; nothing is stored until confirm.
+    """
+
+    exercises: list[ExerciseRead]
 
 
 class TrainingPartySummaryRead(BaseModel):

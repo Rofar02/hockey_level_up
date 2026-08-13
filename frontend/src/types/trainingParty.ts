@@ -1,3 +1,5 @@
+import type { ExerciseRead } from './exercise'
+
 export const TRAINING_PARTY_STATUSES = ['pending', 'completed', 'cancelled', 'expired'] as const
 export type TrainingPartyStatus = (typeof TRAINING_PARTY_STATUSES)[number]
 
@@ -37,6 +39,15 @@ export interface TrainingPartyDetailRead {
   members: TrainingPartyMemberRead[]
   created_at: string
   completed_at: string | null
+  // None until the creator confirms an exercise set (see
+  // POST /training-parties/{id}/exercises/confirm) -- exercises mirrors it,
+  // the shared list every joined member is training from.
+  exercises_finalized_at: string | null
+  exercises: ExerciseRead[] | null
+}
+
+export interface TrainingPartyExercisesConfirmPayload {
+  exercise_ids: string[]
 }
 
 // GET /training-parties/me -- one row per party the caller created or joined.

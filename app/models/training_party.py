@@ -22,14 +22,25 @@ class TrainingPartyStatus(enum.StrEnum):
 
 
 class TrainingParty(Base):
-    """A co-op layer over each member's own, already-personalized training --
-    deliberately does NOT generate shared session content (see the design
-    discussion: periodization/equipment/skill gaps differ per member, so a
-    literal shared workout would fight TrainingBlock's per-user progression).
-    Members just train their own DayPlan for target_date and see each
-    other's live progress; TrainingPartyService.try_complete_parties_for
-    (called from SessionBlockService right after training_completed fires)
-    flips this to COMPLETED once every training member is done.
+    """A co-op layer that gives every JOINED member the exact same set of
+    exercises on target_date -- see TrainingPartyService.suggest_exercises /
+    confirm_exercises. The exercise set itself is never stored on this row
+    (or anywhere party-specific): confirm_exercises materializes it straight
+    into each joined member's own DayPlan/TrainingSession/SessionBlock rows
+    (see ScheduleService.replace_day_plan_content), so the creator's own
+    materialized SessionBlocks *are* the canonical record of what the party
+    trains -- read back via ScheduleRepository.get_day_plan_for_date when a
+    friend joins after the fact (see _materialize_for_member).
+
+    exercises_finalized_at is the only party-specific bit of state this adds:
+    None means the creator hasn't confirmed a set yet (members keep whatever
+    training -- or rest -- they already had); once set, every JOINED member
+    has the shared session, and anyone who joins afterward is materialized
+    into it immediately (see respond_to_invite).
+
+    TrainingPartyService.try_complete_parties_for (called from
+    SessionBlockService right after training_completed fires) flips this to
+    COMPLETED once every training member is done.
     """
 
     __tablename__ = "training_parties"
@@ -50,6 +61,9 @@ class TrainingParty(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exercises_finalized_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class TrainingPartyMemberStatus(enum.StrEnum):
@@ -64,9 +78,11 @@ class TrainingPartyMember(Base):
     TeamService.create_team, so member listing never special-cases the
     creator. No day_plan_id/training_session_id snapshot: a member's
     training status for target_date is always resolved live (see
-    TrainingPartyService._resolve_member_training_status), so a rest-day
-    swap via the existing PATCH /schedule/weekly/current is picked up
-    automatically on the next read, nothing here needs updating.
+    TrainingPartyService._resolve_member_training_status) against whatever
+    DayPlan/TrainingSession actually exists for them on target_date --
+    before confirm_exercises that's still their own personal plan (or rest),
+    after it it's the materialized shared session, but the resolution code
+    doesn't need to know which one it's looking at.
     """
 
     __tablename__ = "training_party_members"

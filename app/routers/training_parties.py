@@ -1,19 +1,21 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
+from app.schemas.exercise import ExerciseRead
 from app.schemas.training_party import (
     TrainingPartyCreate,
     TrainingPartyDetailRead,
+    TrainingPartyExercisesConfirm,
     TrainingPartyInviteRead,
     TrainingPartySummaryRead,
 )
-from app.services.training_party_service import TrainingPartyService
+from app.services.training_party_service import DEFAULT_SUGGESTION_COUNT, TrainingPartyService
 
 router = APIRouter(prefix="/training-parties", tags=["training-parties"])
 
@@ -81,6 +83,34 @@ async def decline_training_party_invite(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await TrainingPartyService(session).respond_to_invite(current_user, party_id, accept=False)
+
+
+@router.post("/{party_id}/exercises/suggest", response_model=list[ExerciseRead])
+async def suggest_training_party_exercises(
+    party_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    count: Annotated[int, Query(ge=1, le=12)] = DEFAULT_SUGGESTION_COUNT,
+):
+    """Creator-only, never persists anything -- both "Сгенерировать" and the
+    recommended-highlighting in "Собрать самому" call this; re-calling it is
+    exactly "перемешать"."""
+    return await TrainingPartyService(session).suggest_exercises(current_user, party_id, count)
+
+
+@router.post("/{party_id}/exercises/confirm", response_model=TrainingPartyDetailRead)
+async def confirm_training_party_exercises(
+    party_id: uuid.UUID,
+    body: TrainingPartyExercisesConfirm,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Creator-only. Materializes body.exercise_ids as every joined member's
+    TrainingSession for the party's target_date -- same list regardless of
+    whether it came from /suggest untouched or was hand-assembled."""
+    return await TrainingPartyService(session).confirm_exercises(
+        current_user, party_id, body.exercise_ids
+    )
 
 
 @router.delete("/{party_id}/members/me", status_code=status.HTTP_204_NO_CONTENT)

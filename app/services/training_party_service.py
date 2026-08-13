@@ -5,13 +5,15 @@ from typing import NamedTuple
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.schedule import DaySessionType
+from app.models.schedule import DayPlan, DaySessionType
 from app.models.training_party import TrainingParty, TrainingPartyMemberStatus, TrainingPartyStatus
 from app.models.user import User
+from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.training_party_repository import TrainingPartyRepository
 from app.repositories.user_repository import UserRepository
+from app.schemas.exercise import ExerciseRead
 from app.schemas.training_party import (
     MemberTrainingStatus,
     PartyStatus,
@@ -22,6 +24,13 @@ from app.schemas.training_party import (
     TrainingPartySummaryRead,
 )
 from app.services.friend_service import FriendService
+from app.services.schedule_service import ScheduleService
+
+# Co-op session content is capped at this many exercises when nothing else
+# constrains it (see suggest_exercises' default) -- a shared main block,
+# same order of magnitude as ScheduleService.MAIN_EXERCISE_COUNT_RANGE's
+# personal-plan main counts.
+DEFAULT_SUGGESTION_COUNT = 6
 
 # Read directly from outbox_events for the friend activity feed
 # (FriendActivityService) -- no consumer registered, same as level_up and
@@ -51,6 +60,8 @@ class TrainingPartyService:
         self._session = session
         self._parties = TrainingPartyRepository(session)
         self._schedule = ScheduleRepository(session)
+        self._schedule_service = ScheduleService(session)
+        self._exercises = ExerciseRepository(session)
         self._users = UserRepository(session)
         self._friends = FriendService(session)
         self._outbox = OutboxRepository(session)
@@ -62,6 +73,11 @@ class TrainingPartyService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Нельзя позвать на тренировку в прошедшую дату",
+            )
+        if await self._has_completed_training(creator.id, payload.target_date):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="В этот день у вас уже есть завершённая тренировка -- совместную создать нельзя",
             )
         friend_ids = {friend_id for friend_id in payload.friend_ids if friend_id != creator.id}
         if not friend_ids:
@@ -141,6 +157,7 @@ class TrainingPartyService:
     async def respond_to_invite(
         self, user: User, party_id: uuid.UUID, accept: bool
     ) -> TrainingPartyDetailRead:
+        party = await self._get_party_or_404(party_id)
         member = await self._parties.get_member(party_id, user.id)
         if member is None:
             raise HTTPException(
@@ -150,14 +167,28 @@ class TrainingPartyService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Уже отвечено на это приглашение"
             )
-        member.status = (
-            TrainingPartyMemberStatus.JOINED if accept else TrainingPartyMemberStatus.DECLINED
-        )
-        if accept:
-            member.joined_at = datetime.now(timezone.utc)
-        await self._session.commit()
 
-        party = await self._get_party_or_404(party_id)
+        if accept:
+            if await self._has_completed_training(user.id, party.target_date):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="В этот день у вас уже есть завершённая тренировка -- присоединиться нельзя",
+                )
+            member.status = TrainingPartyMemberStatus.JOINED
+            member.joined_at = datetime.now(timezone.utc)
+            # Joining after the creator already confirmed a shared set --
+            # give the newcomer that exact same set immediately rather than
+            # leaving them on whatever they had before (rest/personal plan/
+            # nothing), so "everyone trains the same exercises" holds
+            # regardless of when they actually joined.
+            if party.exercises_finalized_at is not None:
+                exercise_ids = await self._canonical_exercise_ids(party)
+                if exercise_ids:
+                    await self._materialize_for_member(user, party.target_date, exercise_ids)
+        else:
+            member.status = TrainingPartyMemberStatus.DECLINED
+
+        await self._session.commit()
         return await self._to_detail_read(party)
 
     async def cancel_party(self, user: User, party_id: uuid.UUID) -> None:
@@ -188,6 +219,72 @@ class TrainingPartyService:
             )
         await self._parties.delete_member(member)
         await self._session.commit()
+
+    # -- shared exercise set --
+    #
+    # Two modes, one engine (ScheduleService.suggest_party_exercises) and one
+    # confirm endpoint: "Сгенерировать" calls suggest_exercises and hands the
+    # result straight to confirm_exercises (or calls suggest_exercises again
+    # to "перемешать" first); "Собрать самому" also calls suggest_exercises
+    # (to highlight recommendations in the picker) but the frontend lets the
+    # creator submit any exercise_ids to confirm_exercises regardless of
+    # whether they came from the suggestion list -- manual mode is
+    # deliberately unconstrained, so confirm_exercises itself never
+    # re-applies the equipment/difficulty rules, only "do these exist".
+    #
+    # Finalization happens on this single explicit creator action
+    # (confirm_exercises), not at party-creation time and not once every
+    # invitee has responded -- invites can sit unanswered indefinitely, and
+    # "everyone answered" is a fragile trigger to build a training around.
+    # A member who joins *after* confirm_exercises gets the exact same set
+    # materialized immediately (see respond_to_invite above); a member who
+    # joins *before* it just waits like today, with nothing materialized
+    # until the creator confirms.
+
+    async def suggest_exercises(
+        self, user: User, party_id: uuid.UUID, count: int = DEFAULT_SUGGESTION_COUNT
+    ) -> list[ExerciseRead]:
+        party = await self._get_party_or_404(party_id)
+        self._require_creator(party, user)
+        self._require_pending(party)
+
+        joined_users = await self._joined_users(party.id)
+        exercises = await self._schedule_service.suggest_party_exercises(joined_users, count)
+        return [ExerciseRead.model_validate(exercise) for exercise in exercises]
+
+    async def confirm_exercises(
+        self, user: User, party_id: uuid.UUID, exercise_ids: list[uuid.UUID]
+    ) -> TrainingPartyDetailRead:
+        party = await self._get_party_or_404(party_id)
+        self._require_creator(party, user)
+        self._require_pending(party)
+
+        for exercise_id in exercise_ids:
+            if await self._exercises.get_by_id(exercise_id) is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Упражнение {exercise_id} не найдено",
+                )
+        if await self._has_completed_training(user.id, party.target_date):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Вы уже завершили тренировку в этот день -- изменить набор нельзя",
+            )
+
+        joined_users = await self._joined_users(party.id)
+        for member_user in joined_users:
+            # Per-member skip, not an all-or-nothing failure: a friend may
+            # have completed unrelated training that day between joining and
+            # this confirm (or a re-confirm/"перемешать" after an earlier
+            # confirm), or have a GAME day scheduled -- either way their
+            # existing state is left untouched rather than clobbered. The
+            # creator's own completed-training case is already handled above
+            # as a hard 409, since there's no "someone else" to leave alone.
+            await self._materialize_for_member(member_user, party.target_date, exercise_ids)
+
+        party.exercises_finalized_at = datetime.now(timezone.utc)
+        await self._session.commit()
+        return await self._to_detail_read(party)
 
     # -- auto-completion (called from SessionBlockService, same transaction
     # as the training_completed event -- no commit here, the caller's own
@@ -250,6 +347,80 @@ class TrainingPartyService:
         return party
 
     @staticmethod
+    def _require_creator(party: TrainingParty, user: User) -> None:
+        if party.created_by != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Только организатор может управлять набором упражнений",
+            )
+
+    @staticmethod
+    def _require_pending(party: TrainingParty) -> None:
+        if party.status != TrainingPartyStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Эту тренировку уже нельзя изменить"
+            )
+
+    @staticmethod
+    def _day_plan_has_completed_block(day_plan: DayPlan) -> bool:
+        if day_plan.training_session is None:
+            return False
+        return any(block.completed_at is not None for block in day_plan.training_session.blocks)
+
+    async def _has_completed_training(self, user_id: uuid.UUID, target_date: date) -> bool:
+        day_plan = await self._schedule.get_day_plan_for_date(user_id, target_date)
+        return day_plan is not None and self._day_plan_has_completed_block(day_plan)
+
+    async def _joined_users(self, party_id: uuid.UUID) -> list[User]:
+        members_with_users = await self._parties.list_members_with_users(party_id)
+        return [
+            member_user
+            for member, member_user in members_with_users
+            if member.status == TrainingPartyMemberStatus.JOINED
+        ]
+
+    async def _materialize_for_member(
+        self, member_user: User, target_date: date, exercise_ids: list[uuid.UUID]
+    ) -> None:
+        day_plan = await self._schedule.get_day_plan_for_date(member_user.id, target_date)
+        if day_plan is not None:
+            if day_plan.session_type == DaySessionType.GAME:
+                return  # pre-game activation isn't replaced with a co-op workout
+            if self._day_plan_has_completed_block(day_plan):
+                return  # already trained something else that day -- don't clobber it
+        else:
+            day_plan = await self._schedule_service.ensure_day_plan_for_date(member_user, target_date)
+        await self._schedule_service.replace_day_plan_content(day_plan, exercise_ids)
+
+    async def _canonical_exercise_ids(self, party: TrainingParty) -> list[uuid.UUID]:
+        """The finalized set, read back from whichever joined member's own
+        materialized SessionBlocks still carry it -- there is no separate
+        party-content table (see the model docstring), so this *is* the
+        source of truth once exercises_finalized_at is set. Checks the
+        creator first (present unless declined via a GAME day on their own
+        target_date) and falls back to any other joined member's blocks.
+        """
+        joined_users = await self._joined_users(party.id)
+        joined_users.sort(key=lambda member_user: member_user.id != party.created_by)
+        for member_user in joined_users:
+            day_plan = await self._schedule.get_day_plan_for_date(member_user.id, party.target_date)
+            if day_plan is not None and day_plan.training_session is not None:
+                blocks = day_plan.training_session.blocks
+                if blocks:
+                    return [block.exercise_id for block in blocks]
+        return []
+
+    async def _finalized_exercises_read(self, party: TrainingParty) -> list[ExerciseRead] | None:
+        if party.exercises_finalized_at is None:
+            return None
+        exercises = []
+        for exercise_id in await self._canonical_exercise_ids(party):
+            exercise = await self._exercises.get_by_id(exercise_id)
+            if exercise is not None:
+                exercises.append(ExerciseRead.model_validate(exercise))
+        return exercises
+
+    @staticmethod
     def _effective_status(party: TrainingParty) -> PartyStatus:
         if party.status == TrainingPartyStatus.PENDING and party.target_date < date.today():
             return "expired"
@@ -305,4 +476,6 @@ class TrainingPartyService:
             members=member_reads,
             created_at=party.created_at,
             completed_at=party.completed_at,
+            exercises_finalized_at=party.exercises_finalized_at,
+            exercises=await self._finalized_exercises_read(party),
         )

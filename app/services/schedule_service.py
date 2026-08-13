@@ -16,7 +16,7 @@ from app.core.training_block import (
     get_phase,
     max_difficulty_for_level,
 )
-from app.models.exercise import Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
 from app.models.schedule import (
     DayPlan,
     DaySessionType,
@@ -48,6 +48,16 @@ logger = logging.getLogger(__name__)
 _SESSION_TYPE_TO_CATEGORY = {
     DaySessionType.ON_ICE: ExerciseCategory.ON_ICE,
     DaySessionType.OFF_ICE: ExerciseCategory.OFF_ICE,
+}
+
+# suggest_party_exercises-only: what equipment_type values a member with this
+# equipment_access can actually train with, as cumulative capability rather
+# than list_for_assembly's single-user exact match -- see that method's
+# docstring for why the two need different rules.
+_EQUIPMENT_REACH: dict[EquipmentType, frozenset[EquipmentType]] = {
+    EquipmentType.GYM: frozenset({EquipmentType.GYM, EquipmentType.HOME, EquipmentType.BODYWEIGHT}),
+    EquipmentType.HOME: frozenset({EquipmentType.HOME, EquipmentType.BODYWEIGHT}),
+    EquipmentType.BODYWEIGHT: frozenset({EquipmentType.BODYWEIGHT}),
 }
 
 
@@ -581,6 +591,149 @@ class ScheduleService:
             user.level,
         )
         return candidates
+
+    # -- training-party support --
+    #
+    # Shared by TrainingPartyService for the "everyone trains the same
+    # exercises" flow: suggest_party_exercises picks a co-op-friendly set,
+    # ensure_day_plan_for_date/replace_day_plan_content materialize it into
+    # a *member's own* DayPlan/TrainingSession/SessionBlock rows -- there is
+    # no party-specific storage, these are the exact same tables personal
+    # plans use.
+
+    async def suggest_party_exercises(self, members: list[User], count: int) -> list[Exercise]:
+        """Off-ice, MAIN-phase candidates every member in `members` can both
+        equip for and handle, spread across as many different target_stat
+        values as possible (never more than one exercise per stat).
+
+        On-ice is deliberately out of scope here: it isn't equipment-gated
+        at all (see ExerciseRepository.list_for_assembly), so it wouldn't
+        exercise the "shared equipment" requirement this exists for, and a
+        co-op session is naturally an off-ice/gym-or-home affair -- nothing
+        in this app coordinates multiple players actually being on the same
+        ice at once.
+
+        Equipment: deliberately NOT list_for_assembly's exact-match
+        `equipment_type == equipment_access` rule -- that rule is a single
+        user's constraint, and applying it per member and intersecting the
+        results would mean any two members with *different* equipment_access
+        share literally nothing (an exercise's equipment_type can equal at
+        most one of two different values), even though someone with gym
+        access can obviously still do a bodyweight-only move. Instead
+        equipment_access is treated as cumulative capability via
+        _EQUIPMENT_REACH (gym implies home implies bodyweight) and an
+        exercise is eligible only if its equipment_type is reachable for
+        *every* member -- the actual "intersection of what everyone can do".
+
+        Difficulty: capped at min(max_difficulty_for_level(m.level) for m in
+        members) -- the *weakest* member's ceiling -- and never relaxed past
+        that even if a stat ends up with no eligible candidates (unlike
+        _apply_level_cap's last-resort fallback for personal plans, which
+        would relax the cap rather than leave a slot unfilled). Overloading
+        someone is worse here than a shorter suggested list.
+        """
+        if not members:
+            return []
+
+        candidates = await self._exercises.list_exercises(
+            category=ExerciseCategory.OFF_ICE, phase=TrainingPhase.MAIN
+        )
+        reachable_sets = [_EQUIPMENT_REACH[member.equipment_access] for member in members]
+        eligible = [
+            exercise
+            for exercise in candidates
+            if all(exercise.equipment_type in reach for reach in reachable_sets)
+        ]
+
+        cap = min(max_difficulty_for_level(member.level) for member in members)
+        eligible = [exercise for exercise in eligible if exercise.difficulty_level <= cap]
+
+        by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
+        for exercise in eligible:
+            by_stat[exercise.target_stat].append(exercise)
+
+        picked: list[Exercise] = []
+        stats = list(TargetStat)
+        random.shuffle(stats)
+        for stat in stats:
+            if len(picked) >= count:
+                break
+            stat_pool = by_stat.get(stat)
+            if not stat_pool:
+                continue
+            picked.append(random.choice(stat_pool))
+        return picked
+
+    async def ensure_day_plan_for_date(self, user: User, target_date: date) -> DayPlan:
+        """Return the user's DayPlan for target_date, creating a brand-new
+        WeeklyPlan for it from scratch if none exists yet (the
+        no_plan_for_date case from TrainingPartyService's status resolution).
+
+        The fabricated week is a full 7 days -- target_date gets a REST
+        placeholder (replace_day_plan_content overwrites it right after) and
+        every other day of that week is also REST -- rather than a lone
+        1-day WeeklyPlan. A partial week would permanently strand the rest
+        of it: create_weekly_plan requires exactly 7 days and would 409 on
+        this same week later, and patch_weekly_plan can't add a day that
+        isn't already part of the plan. A full (if mostly-REST) week keeps
+        every existing schedule endpoint able to read and patch it normally.
+        """
+        day_plan = await self._schedule.get_day_plan_for_date(user.id, target_date)
+        if day_plan is not None:
+            return day_plan
+
+        week_start = target_date - timedelta(days=target_date.weekday())
+        training_block = await self._resolve_training_block(user, week_start)
+        weekly_plan = WeeklyPlan(
+            user_id=user.id, week_start_date=week_start, training_block_id=training_block.id
+        )
+        for offset in range(7):
+            # training_session=None explicitly, not left to default -- once
+            # flushed this becomes a persistent instance, and an *unset*
+            # one-to-one reverse relationship on a persistent instance lazy-
+            # loads on next access (there's no local way to know a related
+            # TrainingSession row doesn't exist without asking the DB).
+            # ensure_day_plan_for_date's caller reads .training_session on
+            # this exact in-memory object right after, synchronously, which
+            # a lazy load can't service outside AsyncSession's greenlet --
+            # setting it explicitly marks it already-loaded instead.
+            weekly_plan.day_plans.append(
+                DayPlan(
+                    date=week_start + timedelta(days=offset),
+                    session_type=DaySessionType.REST,
+                    training_session=None,
+                )
+            )
+
+        await self._schedule.save(weekly_plan)
+        return next(dp for dp in weekly_plan.day_plans if dp.date == target_date)
+
+    async def replace_day_plan_content(
+        self, day_plan: DayPlan, exercise_ids: list[uuid.UUID]
+    ) -> None:
+        """Overwrite day_plan's TrainingSession with one MAIN-phase block per
+        exercise_id (in order) -- used to materialize a party's finalized
+        exercise set into a member's own plan, replacing whatever was there
+        (rest, a fresh REST placeholder from ensure_day_plan_for_date, or an
+        untouched personal session) exactly once per confirm/late-join.
+
+        Same explicit delete-then-flush-then-attach as _patch_weekly_plan,
+        and for the same reason: TrainingSession.day_plan_id is unique and
+        SQLAlchemy doesn't guarantee this flush's DELETE orders before the
+        replacement's INSERT if the relationship were just reassigned.
+        """
+        if day_plan.training_session is not None:
+            await self._session.delete(day_plan.training_session)
+            await self._session.flush()
+            day_plan.training_session = None
+
+        day_plan.session_type = DaySessionType.OFF_ICE
+        blocks = [
+            SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise_id, order=i)
+            for i, exercise_id in enumerate(exercise_ids)
+        ]
+        day_plan.training_session = TrainingSession(blocks=blocks)
+        await self._session.flush()
 
     @staticmethod
     def _to_read_schema(weekly_plan: WeeklyPlan) -> WeeklyPlanRead:

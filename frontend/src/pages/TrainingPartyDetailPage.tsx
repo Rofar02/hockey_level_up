@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import * as scheduleApi from '../api/schedule'
+import * as exercisesApi from '../api/exercises'
 import * as trainingPartiesApi from '../api/trainingParties'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { TARGET_STAT_LABELS } from '../types/exercise'
+import type { ExerciseRead } from '../types/exercise'
 import type { TrainingPartyDetailRead, TrainingPartyMemberRead } from '../types/trainingParty'
 import { formatShortDate, parseIsoDate } from '../utils/date'
 import { getDisplayName } from '../utils/displayName'
@@ -16,9 +19,12 @@ import { getDisplayName } from '../utils/displayName'
 // Same icy top-border card convention as Friends/Teams/Profile.
 const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
-// Refresh while the party is still open -- everyone's training on their own
-// schedule, so this is the only way to see live progress without websockets.
+// Refresh while the party is still open -- everyone's training on the same
+// shared exercise set once the organizer confirms it, this is the only way
+// to see live progress without websockets.
 const POLL_INTERVAL_MS = 8000
+
+type BuilderMode = 'closed' | 'auto' | 'manual'
 
 export function TrainingPartyDetailPage() {
   const { partyId } = useParams<{ partyId: string }>()
@@ -31,6 +37,15 @@ export function TrainingPartyDetailPage() {
   const [busyUserId, setBusyUserId] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
+
+  // -- creator-only exercise builder --
+  const [builderMode, setBuilderMode] = useState<BuilderMode>('closed')
+  const [suggestions, setSuggestions] = useState<ExerciseRead[] | null>(null)
+  const [catalog, setCatalog] = useState<ExerciseRead[] | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [isSuggesting, setIsSuggesting] = useState(false)
+  const [isConfirming, setIsConfirming] = useState(false)
+  const [builderError, setBuilderError] = useState<string | null>(null)
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -102,42 +117,6 @@ export function TrainingPartyDetailPage() {
     }
   }
 
-  async function handleSwapRestToTraining() {
-    if (accessToken === null || party === null) {
-      return
-    }
-    if (
-      !window.confirm(
-        'Отдых — часть вашего восстановления по плану. Точно заменить его на тренировку, чтобы присоединиться?',
-      )
-    ) {
-      return
-    }
-    setActionError(null)
-    setBusyUserId(user?.id ?? null)
-    try {
-      const result = await scheduleApi.patchCurrentWeeklyPlan(
-        { days: [{ date: party.target_date, session_type: 'off_ice' }] },
-        accessToken,
-      )
-      if (result.conflicts.length > 0) {
-        setActionError(result.conflicts[0].detail)
-      } else {
-        await refresh()
-      }
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        // The exact case we designed for: no WeeklyPlan covers this date at
-        // all yet -- point at the fix instead of surfacing a raw 404.
-        setActionError('Сначала сформируйте план на эту неделю (Расписание → Новая неделя), затем попробуйте ещё раз.')
-      } else {
-        setActionError(err instanceof ApiError ? err.message : 'Не удалось заменить отдых на тренировку.')
-      }
-    } finally {
-      setBusyUserId(null)
-    }
-  }
-
   async function handleCancel() {
     if (accessToken === null || partyId === undefined || party === null) {
       return
@@ -176,9 +155,119 @@ export function TrainingPartyDetailPage() {
     }
   }
 
+  // -- exercise builder --
+
+  async function fetchSuggestions(): Promise<ExerciseRead[]> {
+    if (accessToken === null || partyId === undefined) {
+      return []
+    }
+    const result = await trainingPartiesApi.suggestTrainingPartyExercises(partyId, accessToken)
+    setSuggestions(result)
+    return result
+  }
+
+  async function handleOpenAuto() {
+    setBuilderError(null)
+    setBuilderMode('auto')
+    setIsSuggesting(true)
+    try {
+      const result = await fetchSuggestions()
+      setSelectedIds(result.map((exercise) => exercise.id))
+    } catch (err) {
+      setBuilderError(err instanceof ApiError ? err.message : 'Не удалось подобрать упражнения.')
+    } finally {
+      setIsSuggesting(false)
+    }
+  }
+
+  async function handleReshuffle() {
+    setBuilderError(null)
+    setIsSuggesting(true)
+    try {
+      const result = await fetchSuggestions()
+      setSelectedIds(result.map((exercise) => exercise.id))
+    } catch (err) {
+      setBuilderError(err instanceof ApiError ? err.message : 'Не удалось подобрать упражнения.')
+    } finally {
+      setIsSuggesting(false)
+    }
+  }
+
+  async function handleOpenManual() {
+    if (accessToken === null) {
+      return
+    }
+    setBuilderError(null)
+    setBuilderMode('manual')
+    setIsSuggesting(true)
+    try {
+      const [recommended, fullCatalog] = await Promise.all([
+        suggestions ?? fetchSuggestions(),
+        catalog ?? exercisesApi.listExercises({ category: 'off_ice', phase: 'main' }, accessToken),
+      ])
+      setCatalog(fullCatalog)
+      setSelectedIds(recommended.map((exercise) => exercise.id))
+    } catch (err) {
+      setBuilderError(err instanceof ApiError ? err.message : 'Не удалось загрузить список упражнений.')
+    } finally {
+      setIsSuggesting(false)
+    }
+  }
+
+  function handleReopenBuilder() {
+    if (party?.exercises === null || party?.exercises === undefined) {
+      return
+    }
+    setBuilderMode('manual')
+    setSelectedIds(party.exercises.map((exercise) => exercise.id))
+    if (catalog === null && accessToken !== null) {
+      exercisesApi
+        .listExercises({ category: 'off_ice', phase: 'main' }, accessToken)
+        .then(setCatalog)
+        .catch(() => {
+          // Best-effort prefetch -- the picker just stays empty until retried.
+        })
+    }
+    if (suggestions === null) {
+      fetchSuggestions().catch(() => {
+        // Recommendations are a nice-to-have highlight, not required to edit.
+      })
+    }
+  }
+
+  function toggleSelected(exerciseId: string) {
+    setSelectedIds((previous) =>
+      previous.includes(exerciseId)
+        ? previous.filter((id) => id !== exerciseId)
+        : [...previous, exerciseId],
+    )
+  }
+
+  async function handleConfirm() {
+    if (accessToken === null || partyId === undefined || selectedIds.length === 0) {
+      return
+    }
+    setBuilderError(null)
+    setIsConfirming(true)
+    try {
+      const result = await trainingPartiesApi.confirmTrainingPartyExercises(
+        partyId,
+        { exercise_ids: selectedIds },
+        accessToken,
+      )
+      setParty(result)
+      setBuilderMode('closed')
+    } catch (err) {
+      setBuilderError(err instanceof ApiError ? err.message : 'Не удалось сохранить набор упражнений.')
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+
   const isLoading = party === null
   const isCreator = party !== null && user !== null && party.created_by === user.id
   const myMember = party?.members.find((member) => member.user_id === user?.id) ?? null
+  const recommendedIds = new Set((suggestions ?? []).map((exercise) => exercise.id))
 
   return (
     <div className="relative min-h-svh overflow-hidden">
@@ -193,6 +282,39 @@ export function TrainingPartyDetailPage() {
           <>
             <StatusBanner party={party} />
 
+            {party.status === 'pending' && isCreator && builderMode === 'closed' && (
+              <ExerciseBuilderLauncher
+                party={party}
+                onOpenAuto={handleOpenAuto}
+                onReopen={handleReopenBuilder}
+              />
+            )}
+
+            {party.status === 'pending' && isCreator && builderMode !== 'closed' && (
+              <ExerciseBuilder
+                mode={builderMode}
+                suggestions={suggestions}
+                catalog={catalog}
+                selectedIds={selectedIds}
+                recommendedIds={recommendedIds}
+                isSuggesting={isSuggesting}
+                isConfirming={isConfirming}
+                error={builderError}
+                onSwitchToManual={handleOpenManual}
+                onReshuffle={handleReshuffle}
+                onToggle={toggleSelected}
+                onConfirm={handleConfirm}
+                onCancel={() => {
+                  setBuilderMode('closed')
+                  setBuilderError(null)
+                }}
+              />
+            )}
+
+            {party.exercises !== null && party.exercises.length > 0 && builderMode === 'closed' && (
+              <FinalizedExercisesCard exercises={party.exercises} />
+            )}
+
             <div className="flex flex-col gap-2">
               {party.members.map((member) => (
                 <MemberCard
@@ -201,11 +323,10 @@ export function TrainingPartyDetailPage() {
                   isSelf={member.user_id === user?.id}
                   isBusy={busyUserId === member.user_id}
                   showActions={party.status === 'pending'}
+                  exercisesFinalized={party.exercises_finalized_at !== null}
                   onAccept={() => handleDecide(true)}
                   onDecline={() => handleDecide(false)}
-                  onSwapRestToTraining={handleSwapRestToTraining}
                   onGoToTraining={() => navigate(`/training/${member.day_plan_id}`)}
-                  onGeneratePlan={() => navigate('/schedule/new')}
                 />
               ))}
             </div>
@@ -269,6 +390,220 @@ function StatusBanner({ party }: { party: TrainingPartyDetailRead }) {
     <div className="flex flex-col gap-1">
       <h1 className="text-xl font-semibold">{labels[party.status] ?? 'Совместная тренировка'}</h1>
       <p className="text-sm text-[#8A94A6]">{dateLabel}</p>
+      {party.status === 'pending' && party.exercises_finalized_at === null && (
+        <p className="text-xs text-[#8A94A6]">
+          Организатор ещё не выбрал упражнения — у всех участников будет один общий набор.
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ExerciseBuilderLauncher({
+  party,
+  onOpenAuto,
+  onReopen,
+}: {
+  party: TrainingPartyDetailRead
+  onOpenAuto: () => void
+  onReopen: () => void
+}) {
+  if (party.exercises_finalized_at !== null) {
+    return (
+      <div className={`flex flex-col gap-2 p-4 ${CARD_CLASS}`}>
+        <span className="text-sm text-[#8A94A6]">
+          Набор упражнений уже подтверждён — его можно поменять, пока никто не начал тренировку.
+        </span>
+        <Button type="button" variant="neutral" onClick={onReopen} className="self-start !px-3 !py-1.5 !text-xs">
+          Изменить набор
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
+      <span className="text-sm text-[#F5F7FA]">
+        Выберите общий набор упражнений — его пройдут все участники.
+      </span>
+      <div className="flex gap-2">
+        <Button type="button" onClick={onOpenAuto} className="!px-3 !py-1.5 !text-xs">
+          Сгенерировать
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ExerciseBuilder({
+  mode,
+  suggestions,
+  catalog,
+  selectedIds,
+  recommendedIds,
+  isSuggesting,
+  isConfirming,
+  error,
+  onSwitchToManual,
+  onReshuffle,
+  onToggle,
+  onConfirm,
+  onCancel,
+}: {
+  mode: BuilderMode
+  suggestions: ExerciseRead[] | null
+  catalog: ExerciseRead[] | null
+  selectedIds: string[]
+  recommendedIds: Set<string>
+  isSuggesting: boolean
+  isConfirming: boolean
+  error: string | null
+  onSwitchToManual: () => void
+  onReshuffle: () => void
+  onToggle: (exerciseId: string) => void
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const selected = new Set(selectedIds)
+
+  // Manual mode: recommended exercises first (in suggestion order), then
+  // the rest of the catalog alphabetically -- same pool the personal-plan
+  // side already fetches from (GET /exercises), just with recommendations
+  // from suggest_party_exercises visually promoted.
+  const orderedCatalog =
+    catalog === null
+      ? null
+      : [...catalog].sort((a, b) => {
+          const aRecommended = recommendedIds.has(a.id) ? 0 : 1
+          const bRecommended = recommendedIds.has(b.id) ? 0 : 1
+          return aRecommended - bRecommended
+        })
+
+  return (
+    <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-[#F5F7FA]">
+          {mode === 'auto' ? 'Сгенерированный набор' : 'Соберите набор сами'}
+        </span>
+        {mode === 'auto' && (
+          <button
+            type="button"
+            onClick={onSwitchToManual}
+            className="text-xs text-accent-ice hover:underline"
+          >
+            Собрать самому
+          </button>
+        )}
+      </div>
+
+      {isSuggesting && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+
+      {mode === 'auto' && !isSuggesting && suggestions !== null && (
+        <div className="flex flex-col gap-2">
+          {suggestions.map((exercise) => (
+            <ExerciseRow key={exercise.id} exercise={exercise} recommended />
+          ))}
+          {suggestions.length === 0 && (
+            <p className="text-sm text-[#8A94A6]">
+              Не удалось подобрать общие упражнения — попробуйте собрать набор вручную.
+            </p>
+          )}
+        </div>
+      )}
+
+      {mode === 'manual' && !isSuggesting && orderedCatalog !== null && (
+        <div className="flex max-h-96 flex-col gap-1 overflow-y-auto">
+          {orderedCatalog.map((exercise) => (
+            <button
+              key={exercise.id}
+              type="button"
+              onClick={() => onToggle(exercise.id)}
+              className="flex items-center gap-3 p-2 text-left hover:bg-white/5"
+            >
+              <Checkbox checked={selected.has(exercise.id)} />
+              <ExerciseRow exercise={exercise} recommended={recommendedIds.has(exercise.id)} compact />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <FormError message={error} />
+
+      <div className="flex flex-wrap gap-2">
+        {mode === 'auto' && (
+          <Button
+            type="button"
+            variant="neutral"
+            isLoading={isSuggesting}
+            onClick={onReshuffle}
+            className="!px-3 !py-1.5 !text-xs"
+          >
+            Перемешать
+          </Button>
+        )}
+        <Button
+          type="button"
+          isLoading={isConfirming}
+          disabled={selectedIds.length === 0}
+          onClick={onConfirm}
+          className="!px-3 !py-1.5 !text-xs"
+        >
+          Подтвердить набор ({selectedIds.length})
+        </Button>
+        <Button
+          type="button"
+          variant="neutral"
+          disabled={isConfirming}
+          onClick={onCancel}
+          className="!px-3 !py-1.5 !text-xs"
+        >
+          Отмена
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ExerciseRow({
+  exercise,
+  recommended,
+  compact = false,
+}: {
+  exercise: ExerciseRead
+  recommended: boolean
+  compact?: boolean
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-col">
+        <span className={`truncate text-sm ${compact ? '' : 'font-medium'} text-[#F5F7FA]`}>
+          {exercise.name}
+        </span>
+        <span className="text-xs text-[#8A94A6]">{TARGET_STAT_LABELS[exercise.target_stat]}</span>
+      </div>
+      {recommended && (
+        <span className="shrink-0 rounded-full border border-accent-ice/40 px-2 py-0.5 text-[10px] text-accent-ice">
+          Рекомендовано
+        </span>
+      )}
+    </div>
+  )
+}
+
+function FinalizedExercisesCard({ exercises }: { exercises: ExerciseRead[] }) {
+  return (
+    <div className={`flex flex-col gap-2 p-4 ${CARD_CLASS}`}>
+      <span className="text-sm font-medium text-[#F5F7FA]">Общая тренировка</span>
+      <div className="flex flex-col gap-1.5">
+        {exercises.map((exercise) => (
+          <div key={exercise.id} className="flex items-center justify-between gap-2 text-sm">
+            <span className="truncate text-[#F5F7FA]">{exercise.name}</span>
+            <span className="shrink-0 text-xs text-[#8A94A6]">
+              {TARGET_STAT_LABELS[exercise.target_stat]}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -278,25 +613,23 @@ function MemberCard({
   isSelf,
   isBusy,
   showActions,
+  exercisesFinalized,
   onAccept,
   onDecline,
-  onSwapRestToTraining,
   onGoToTraining,
-  onGeneratePlan,
 }: {
   member: TrainingPartyMemberRead
   isSelf: boolean
   isBusy: boolean
   // False once the party is no longer pending (completed/cancelled/expired)
-  // -- accept/decline, swap-rest, and start/continue all stop being
-  // meaningful actions at that point, even though the member's own
-  // training_status value (e.g. "not_started") wouldn't otherwise hide them.
+  // -- accept/decline and start/continue all stop being meaningful actions
+  // at that point, even though the member's own training_status value
+  // (e.g. "not_started") wouldn't otherwise hide them.
   showActions: boolean
+  exercisesFinalized: boolean
   onAccept: () => void
   onDecline: () => void
-  onSwapRestToTraining: () => void
   onGoToTraining: () => void
-  onGeneratePlan: () => void
 }) {
   const dimmed = member.membership_status === 'declined'
 
@@ -315,7 +648,7 @@ function MemberCard({
           {getDisplayName(member)}
           {isSelf ? ' (вы)' : ''}
         </span>
-        <MemberStatusRow member={member} />
+        <MemberStatusRow member={member} exercisesFinalized={exercisesFinalized} />
       </div>
 
       {showActions && (
@@ -336,22 +669,6 @@ function MemberCard({
               </Button>
             </div>
           )}
-          {isSelf && member.training_status === 'resting' && (
-            <Button
-              type="button"
-              variant="neutral"
-              isLoading={isBusy}
-              onClick={onSwapRestToTraining}
-              className="!px-3 !py-1.5 !text-xs"
-            >
-              Заменить на тренировку
-            </Button>
-          )}
-          {isSelf && member.training_status === 'no_plan_for_date' && (
-            <Button type="button" variant="neutral" onClick={onGeneratePlan} className="!px-3 !py-1.5 !text-xs">
-              Сформировать план
-            </Button>
-          )}
           {isSelf &&
             (member.training_status === 'not_started' || member.training_status === 'in_progress') && (
               <Button type="button" onClick={onGoToTraining} className="!px-3 !py-1.5 !text-xs">
@@ -364,7 +681,13 @@ function MemberCard({
   )
 }
 
-function MemberStatusRow({ member }: { member: TrainingPartyMemberRead }) {
+function MemberStatusRow({
+  member,
+  exercisesFinalized,
+}: {
+  member: TrainingPartyMemberRead
+  exercisesFinalized: boolean
+}) {
   if (member.membership_status === 'invited') {
     return <span className="text-xs text-[#8A94A6]">Ещё не ответил(а)</span>
   }
@@ -372,21 +695,20 @@ function MemberStatusRow({ member }: { member: TrainingPartyMemberRead }) {
     return <span className="text-xs text-[#8A94A6]">Отклонил(а) приглашение</span>
   }
 
+  // Before the organizer confirms a set, a joined member's own plan for that
+  // day (rest, no plan, or whatever they already had) is about to be
+  // replaced with the shared session -- showing it as-is would read like it
+  // matters, so a single waiting label covers all of those states instead.
+  if (!exercisesFinalized) {
+    return <span className="text-xs text-[#8A94A6]">Ждёт набор упражнений от организатора</span>
+  }
+
   switch (member.training_status) {
-    case 'no_plan_for_date':
-      return <span className="text-xs text-[#8A94A6]">План на эту неделю ещё не сформирован</span>
-    case 'resting':
-      return (
-        <span className="flex items-center gap-1 text-xs text-[#8A94A6]">
-          <i className="ti ti-moon" aria-hidden="true" />
-          Отдыхает сегодня
-        </span>
-      )
     case 'game_day':
       return (
         <span className="flex items-center gap-1 text-xs text-[#8A94A6]">
           <i className="ti ti-shirt-sport" aria-hidden="true" />
-          Игровой день
+          Игровой день — не участвует
         </span>
       )
     case 'not_started':
