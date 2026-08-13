@@ -5,6 +5,7 @@ import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { RankBadge } from '../components/ui/RankBadge'
 import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import { API_BASE_URL, ApiError } from '../api/client'
@@ -590,14 +591,15 @@ function RatingRow({ me, onClick }: { me: LeaderboardMeRead; onClick: () => void
       onClick={onClick}
       className={`flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
     >
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-medium text-[#F5F7FA]">Рейтинг</span>
-        {/* Same explanation LeaderboardPage gives for rating_excess, trimmed to fit a one-line subtitle. */}
-        <span className="text-xs text-[#8A94A6]">Относительно вашего возраста и стажа</span>
+      <div className="flex items-center gap-3">
+        <RankBadge rank={me.rank} />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-medium text-[#F5F7FA]">Рейтинг</span>
+          {/* Same explanation LeaderboardPage gives for rating_excess, trimmed to fit a one-line subtitle. */}
+          <span className="text-xs text-[#8A94A6]">Относительно вашего возраста и стажа</span>
+        </div>
       </div>
-      <span className="font-mono text-lg text-[#F5F7FA]">
-        #{me.rank} <span className="text-accent-ice">{sign}{me.rating_excess.toFixed(1)}</span>
-      </span>
+      <span className="font-mono text-lg text-accent-ice">{sign}{me.rating_excess.toFixed(1)}</span>
     </button>
   )
 }

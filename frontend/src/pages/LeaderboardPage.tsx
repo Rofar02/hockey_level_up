@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { RankBadge } from '../components/ui/RankBadge'
 import * as leaderboardApi from '../api/leaderboard'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -11,17 +12,6 @@ import { getDisplayName } from '../utils/displayName'
 
 // Same icy top-border card convention as Home/TrainingSession/Profile.
 const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
-
-// Conventional medal colors, not the app's usual ice/persimmon accent pair
-// -- scoped deliberately tight (only the podium circle in this one
-// component) rather than proposed as new brand colors. A leaderboard's
-// top-3 is exactly the kind of content where gold/silver/bronze is
-// immediately legible in a way a third invented brand accent wouldn't be.
-const MEDAL_COLORS: Record<number, string> = {
-  1: '#FFC94A',
-  2: '#C7CFDB',
-  3: '#D3915B',
-}
 
 function formatRatingExcess(value: number): string {
   const sign = value > 0 ? '+' : ''
@@ -198,20 +188,3 @@ function LeaderboardRow({
   )
 }
 
-// Podium (top 3) gets a conventional medal color instead of a plain gray
-// number -- see MEDAL_COLORS for why those specific colors are an
-// exception to the app's usual ice/persimmon-only palette.
-function RankBadge({ rank }: { rank: number }) {
-  const medalColor = MEDAL_COLORS[rank]
-  if (medalColor === undefined) {
-    return <span className="w-8 shrink-0 text-center font-mono text-sm text-[#8A94A6]">{rank}</span>
-  }
-  return (
-    <div
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold text-dark-bg"
-      style={{ backgroundColor: medalColor }}
-    >
-      {rank === 1 ? <i className="ti ti-trophy text-base" aria-hidden="true" /> : rank}
-    </div>
-  )
-}
