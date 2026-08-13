@@ -3,7 +3,7 @@ import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import * as leaderboardApi from '../api/leaderboard'
-import { ApiError } from '../api/client'
+import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { LeaderboardEntryRead, LeaderboardMeRead } from '../types/leaderboard'
 import { POSITION_LABELS } from '../types/user'
@@ -11,6 +11,17 @@ import { getDisplayName } from '../utils/displayName'
 
 // Same icy top-border card convention as Home/TrainingSession/Profile.
 const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
+
+// Conventional medal colors, not the app's usual ice/persimmon accent pair
+// -- scoped deliberately tight (only the podium circle in this one
+// component) rather than proposed as new brand colors. A leaderboard's
+// top-3 is exactly the kind of content where gold/silver/bronze is
+// immediately legible in a way a third invented brand accent wouldn't be.
+const MEDAL_COLORS: Record<number, string> = {
+  1: '#FFC94A',
+  2: '#C7CFDB',
+  3: '#D3915B',
+}
 
 function formatRatingExcess(value: number): string {
   const sign = value > 0 ? '+' : ''
@@ -106,6 +117,7 @@ export function LeaderboardPage() {
                 displayName={user !== null ? getDisplayName(user) : ''}
                 position={user?.position ?? null}
                 jerseyNumber={user?.jersey_number ?? null}
+                avatarUrl={user?.avatar_url ?? null}
                 ratingExcess={pinnedMe.rating_excess}
                 highlighted
               />
@@ -120,6 +132,7 @@ export function LeaderboardPage() {
               displayName={getDisplayName(entry)}
               position={entry.position}
               jerseyNumber={entry.jersey_number}
+              avatarUrl={entry.avatar_url}
               ratingExcess={entry.rating_excess}
               highlighted={index === myIndex}
             />
@@ -142,6 +155,7 @@ function LeaderboardRow({
   displayName,
   position,
   jerseyNumber,
+  avatarUrl,
   ratingExcess,
   highlighted,
 }: {
@@ -149,6 +163,7 @@ function LeaderboardRow({
   displayName: string
   position: LeaderboardEntryRead['position']
   jerseyNumber: number | null
+  avatarUrl: string | null
   ratingExcess: number
   highlighted: boolean
 }) {
@@ -160,7 +175,14 @@ function LeaderboardRow({
           : `${CARD_BORDER} bg-dark-card`
       }`}
     >
-      <span className="w-8 shrink-0 text-center font-mono text-sm text-[#8A94A6]">{rank}</span>
+      <RankBadge rank={rank} />
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-dark-bg">
+        {avatarUrl !== null ? (
+          <img src={`${API_BASE_URL}${avatarUrl}`} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <i className="ti ti-user text-lg text-[#8A94A6]" aria-hidden="true" />
+        )}
+      </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <span className={`truncate font-medium ${highlighted ? 'text-accent-ice' : 'text-[#F5F7FA]'}`}>
           {displayName}
@@ -172,6 +194,24 @@ function LeaderboardRow({
         </span>
       </div>
       <RatingExcess value={ratingExcess} />
+    </div>
+  )
+}
+
+// Podium (top 3) gets a conventional medal color instead of a plain gray
+// number -- see MEDAL_COLORS for why those specific colors are an
+// exception to the app's usual ice/persimmon-only palette.
+function RankBadge({ rank }: { rank: number }) {
+  const medalColor = MEDAL_COLORS[rank]
+  if (medalColor === undefined) {
+    return <span className="w-8 shrink-0 text-center font-mono text-sm text-[#8A94A6]">{rank}</span>
+  }
+  return (
+    <div
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold text-dark-bg"
+      style={{ backgroundColor: medalColor }}
+    >
+      {rank === 1 ? <i className="ti ti-trophy text-base" aria-hidden="true" /> : rank}
     </div>
   )
 }
