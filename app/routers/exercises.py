@@ -14,6 +14,7 @@ from app.schemas.exercise import (
     ExerciseUpdate,
     MovementPatternsReplace,
     SuggestedWeightRead,
+    TargetStatsReplace,
 )
 from app.schemas.skill import SkillTagRead
 from app.services.exercise_service import ExerciseService
@@ -43,7 +44,7 @@ async def list_exercises(
 async def get_exercise(
     exercise_id: uuid.UUID, session: Annotated[AsyncSession, Depends(get_db)]
 ):
-    return await ExerciseService(session).get_exercise(exercise_id)
+    return await ExerciseService(session).get_exercise_read(exercise_id)
 
 
 @router.get("/{exercise_id}/skill-tags", response_model=list[SkillTagRead])
@@ -77,6 +78,25 @@ async def replace_exercise_movement_patterns(
     return await ExerciseService(session).replace_movement_patterns(
         exercise_id, body.movement_patterns
     )
+
+
+@router.get("/{exercise_id}/target-stats", response_model=list[TargetStat])
+async def list_exercise_target_stats(
+    exercise_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).list_target_stats(exercise_id)
+
+
+@router.put("/{exercise_id}/target-stats", response_model=list[TargetStat])
+async def replace_exercise_target_stats(
+    exercise_id: uuid.UUID,
+    body: TargetStatsReplace,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).replace_target_stats(exercise_id, body.target_stats)
 
 
 @router.get("/{exercise_id}/suggested-weight", response_model=SuggestedWeightRead)

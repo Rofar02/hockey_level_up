@@ -77,6 +77,8 @@ class MovementPattern(enum.StrEnum):
     ROTATION = "rotation"
     ANKLE_MOBILITY = "ankle_mobility"
     HIP_MOBILITY = "hip_mobility"
+    SHOULDER_MOBILITY = "shoulder_mobility"
+    WRIST_MOBILITY = "wrist_mobility"
     CORE = "core"
     LOCOMOTION = "locomotion"
 
@@ -100,9 +102,6 @@ class Exercise(Base):
     )
     phase: Mapped[TrainingPhase] = mapped_column(
         enum_column(TrainingPhase, "training_phase"), nullable=False
-    )
-    target_stat: Mapped[TargetStat] = mapped_column(
-        enum_column(TargetStat, "target_stat"), nullable=False
     )
     difficulty_level: Mapped[int] = mapped_column(Integer, nullable=False)
     equipment_type: Mapped[EquipmentType] = mapped_column(
@@ -187,3 +186,31 @@ class ExerciseMovementPattern(Base):
     movement_pattern: Mapped[MovementPattern] = mapped_column(
         enum_column(MovementPattern, "movement_pattern"), nullable=False
     )
+
+
+# Also a plain association table (no relationship() on Exercise), but unlike
+# ExerciseMovementPattern this one needs an explicit order: order=0 is the
+# exercise's "primary" stat, which ScheduleService._pick_main/
+# suggest_party_exercises bucket on for diversity -- relying on whatever row
+# order Postgres happens to return would repeat the SessionBlock.order=0
+# collision bug found across training phases. Reward-splitting (stat_consumer)
+# reads every row for an exercise, not just order=0.
+class ExerciseTargetStat(Base):
+    __tablename__ = "exercise_target_stats"
+    __table_args__ = (
+        UniqueConstraint(
+            "exercise_id", "target_stat", name="uq_exercise_target_stats_exercise_stat"
+        ),
+        UniqueConstraint("exercise_id", "order", name="uq_exercise_target_stats_exercise_order"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_stat: Mapped[TargetStat] = mapped_column(
+        enum_column(TargetStat, "target_stat"), nullable=False
+    )
+    order: Mapped[int] = mapped_column(Integer, nullable=False)

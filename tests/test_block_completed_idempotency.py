@@ -37,11 +37,13 @@ from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.user import User
 
 
-def _payload(user_id: uuid.UUID, *, difficulty_level: int) -> dict:
+def _payload(
+    user_id: uuid.UUID, *, difficulty_level: int, stats: list[TargetStat] | None = None
+) -> dict:
     return {
         "user_id": str(user_id),
         "exercise_id": str(uuid.uuid4()),
-        "target_stat": TargetStat.STRENGTH.value,
+        "target_stats": [s.value for s in (stats or [TargetStat.STRENGTH])],
         "difficulty_level": difficulty_level,
     }
 
@@ -86,12 +88,14 @@ async def real_user():
             await session.commit()
 
 
-async def _stat_value(user_id: uuid.UUID) -> float | None:
+async def _stat_value(
+    user_id: uuid.UUID, stat: TargetStat = TargetStat.STRENGTH
+) -> float | None:
     async with AsyncSessionLocal() as session:
         return (
             await session.execute(
                 select(UserStat.current_value).where(
-                    UserStat.user_id == user_id, UserStat.stat_type == TargetStat.STRENGTH
+                    UserStat.user_id == user_id, UserStat.stat_type == stat
                 )
             )
         ).scalar_one_or_none()
@@ -146,6 +150,38 @@ async def test_stat_consumer_two_different_events_both_apply(real_user) -> None:
         assert await _stat_history_count(real_user.id) == 2
     finally:
         await _cleanup_processed_events(event_id_1, event_id_2)
+
+
+@pytest.mark.asyncio
+async def test_stat_consumer_splits_base_gain_evenly_across_multiple_stats(real_user) -> None:
+    """A fresh user (no diminishing returns yet) and an untagged exercise (no
+    SkillTag relevance boost) isolates the split itself: the pre-modifier
+    base (difficulty_level * 0.5) is divided by len(stats) before each
+    stat's own diminishing_factor/relevance_multiplier apply -- with both at
+    their neutral 1.0 here, a 2-stat exercise should award each stat exactly
+    half of what a 1-stat exercise at the same difficulty would award its
+    single stat, and the two halves should sum back to that single-stat
+    total (see stat_consumer's base_gain computation)."""
+    single_event_id = uuid.uuid4()
+    multi_event_id = uuid.uuid4()
+    try:
+        single_payload = _payload(real_user.id, difficulty_level=4, stats=[TargetStat.STRENGTH])
+        await stat_consumer(single_payload, single_event_id)
+        single_stat_gain = await _stat_value(real_user.id, TargetStat.STRENGTH)
+        assert single_stat_gain == 2.0  # difficulty_level(4) * 0.5 / 1 stat
+
+        multi_payload = _payload(
+            real_user.id, difficulty_level=4, stats=[TargetStat.AGILITY, TargetStat.ENDURANCE]
+        )
+        await stat_consumer(multi_payload, multi_event_id)
+        agility_gain = await _stat_value(real_user.id, TargetStat.AGILITY)
+        endurance_gain = await _stat_value(real_user.id, TargetStat.ENDURANCE)
+
+        assert agility_gain == 1.0  # difficulty_level(4) * 0.5 / 2 stats
+        assert endurance_gain == 1.0
+        assert agility_gain + endurance_gain == single_stat_gain
+    finally:
+        await _cleanup_processed_events(single_event_id, multi_event_id)
 
 
 @pytest.mark.asyncio

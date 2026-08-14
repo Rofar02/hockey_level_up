@@ -9,15 +9,40 @@ import uuid
 
 import pytest
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    ExerciseTargetStat,
+    TargetStat,
+    TrainingPhase,
+)
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
 
-# The dev/test Postgres database already has seeded off_ice/MAIN exercises
-# for STRENGTH/AGILITY/ENDURANCE (see scripts/seed_exercises.py) -- tests
-# that need an exact, uncontaminated candidate pool use these three stats
-# instead, which the seed data never touches for off_ice/MAIN.
+# _CLEAN_STATS no longer buys real isolation on its own -- the 90-exercise
+# import (see static/exercise_import_review.json) added real off_ice/MAIN
+# exercises with INTELLECT among their target_stats, so every test below
+# now also stubs list_exercises via _isolate (see below) rather than
+# relying on any stat being untouched by the real catalog.
 _CLEAN_STATS = (TargetStat.INTELLECT, TargetStat.ON_ICE_SKATING, TargetStat.PUCK_HANDLING)
+
+
+def _isolate(service: ScheduleService, exercises: dict) -> None:
+    """Make list_exercises return only this test's own exercises, filtered
+    the same way suggest_party_exercises' real call
+    (category=OFF_ICE, phase=MAIN) would -- the real dev DB now has a real
+    seeded catalog that would otherwise leak into these tests' pools."""
+
+    async def fake_list_exercises(*, category=None, phase=None, equipment_type=None, target_stat=None):
+        pool = list(exercises.values())
+        if category is not None:
+            pool = [e for e in pool if e.category == category]
+        if phase is not None:
+            pool = [e for e in pool if e.phase == phase]
+        return pool
+
+    service._exercises.list_exercises = fake_list_exercises
 
 
 def _make_user(**overrides) -> User:
@@ -35,18 +60,39 @@ def _make_user(**overrides) -> User:
     return User(**defaults)
 
 
-def _make_exercise(**overrides) -> Exercise:
+def _make_exercise(**overrides) -> tuple[Exercise, ExerciseTargetStat]:
+    # target_stat isn't a real Exercise field anymore (see
+    # ExerciseTargetStat) -- popped here and returned as a companion
+    # order=0 row the caller must also add to the session, since
+    # suggest_party_exercises now buckets on a real ExerciseTargetStat
+    # query, not an in-memory attribute.
+    target_stat = overrides.pop("target_stat", TargetStat.STRENGTH)
     defaults = dict(
         id=uuid.uuid4(),
         name=f"Exercise {uuid.uuid4().hex[:8]}",
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=TargetStat.STRENGTH,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
     )
     defaults.update(overrides)
-    return Exercise(**defaults)
+    exercise = Exercise(**defaults)
+    return exercise, ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0)
+
+
+def _add(db_session, *items) -> None:
+    """Add a mix of plain models, (Exercise, ExerciseTargetStat) pairs, and
+    lists of either to the session -- flattens pairs so callers can pass
+    _make_exercise(...)'s return value directly alongside plain User rows."""
+    flat: list = []
+    for item in items:
+        candidates = item if isinstance(item, list) else [item]
+        for candidate in candidates:
+            if isinstance(candidate, tuple):
+                flat.extend(candidate)
+            else:
+                flat.append(candidate)
+    db_session.add_all(flat)
 
 
 @pytest.mark.asyncio
@@ -58,11 +104,12 @@ async def test_equipment_without_common_ground_excludes_gym_only_exercise(db_ses
     exclusion is about equipment, not just "different stat got picked"."""
     gym_user = _make_user(equipment_access=EquipmentType.GYM)
     bodyweight_user = _make_user(equipment_access=EquipmentType.BODYWEIGHT)
-    gym_only = _make_exercise(equipment_type=EquipmentType.GYM, target_stat=_CLEAN_STATS[0])
-    db_session.add_all([gym_user, bodyweight_user, gym_only])
+    gym_only, gym_only_stat = _make_exercise(equipment_type=EquipmentType.GYM, target_stat=_CLEAN_STATS[0])
+    _add(db_session, gym_user, bodyweight_user, (gym_only, gym_only_stat))
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate(service, {"gym_only": gym_only})
     suggested = await service.suggest_party_exercises([gym_user, bodyweight_user], count=6)
 
     assert gym_only.id not in {e.id for e in suggested}
@@ -75,13 +122,14 @@ async def test_equipment_common_ground_is_shared(db_session) -> None:
     it, unlike the gym-only case above."""
     gym_user = _make_user(equipment_access=EquipmentType.GYM)
     bodyweight_user = _make_user(equipment_access=EquipmentType.BODYWEIGHT)
-    shared_bodyweight = _make_exercise(
+    shared_bodyweight, shared_bodyweight_stat = _make_exercise(
         equipment_type=EquipmentType.BODYWEIGHT, target_stat=_CLEAN_STATS[0]
     )
-    db_session.add_all([gym_user, bodyweight_user, shared_bodyweight])
+    _add(db_session, gym_user, bodyweight_user, (shared_bodyweight, shared_bodyweight_stat))
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate(service, {"shared_bodyweight": shared_bodyweight})
     suggested = await service.suggest_party_exercises([gym_user, bodyweight_user], count=6)
 
     assert shared_bodyweight.id in {e.id for e in suggested}
@@ -90,11 +138,12 @@ async def test_equipment_common_ground_is_shared(db_session) -> None:
 @pytest.mark.asyncio
 async def test_gym_member_alone_gets_the_gym_exercise(db_session) -> None:
     gym_user = _make_user(equipment_access=EquipmentType.GYM)
-    gym_only = _make_exercise(equipment_type=EquipmentType.GYM, target_stat=_CLEAN_STATS[0])
-    db_session.add_all([gym_user, gym_only])
+    gym_only, gym_only_stat = _make_exercise(equipment_type=EquipmentType.GYM, target_stat=_CLEAN_STATS[0])
+    _add(db_session, gym_user, (gym_only, gym_only_stat))
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate(service, {"gym_only": gym_only})
     suggested = await service.suggest_party_exercises([gym_user], count=6)
 
     assert gym_only.id in {e.id for e in suggested}
@@ -109,12 +158,13 @@ async def test_difficulty_cap_uses_the_weakest_member(db_session) -> None:
     exclusion is about difficulty, not just "different stat got picked"."""
     weak = _make_user(level=1)
     strong = _make_user(level=20)
-    easy = _make_exercise(difficulty_level=2, target_stat=_CLEAN_STATS[0])
-    hard = _make_exercise(difficulty_level=5, target_stat=_CLEAN_STATS[0])
-    db_session.add_all([weak, strong, easy, hard])
+    easy, easy_stat = _make_exercise(difficulty_level=2, target_stat=_CLEAN_STATS[0])
+    hard, hard_stat = _make_exercise(difficulty_level=5, target_stat=_CLEAN_STATS[0])
+    _add(db_session, weak, strong, (easy, easy_stat), (hard, hard_stat))
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate(service, {"easy": easy, "hard": hard})
     suggested = await service.suggest_party_exercises([weak, strong], count=6)
 
     suggested_ids = {e.id for e in suggested}
@@ -124,25 +174,30 @@ async def test_difficulty_cap_uses_the_weakest_member(db_session) -> None:
 @pytest.mark.asyncio
 async def test_covers_distinct_target_stats(db_session) -> None:
     user = _make_user()
-    exercises = [_make_exercise(target_stat=stat) for stat in _CLEAN_STATS]
-    db_session.add_all([user, *exercises])
+    pairs = [_make_exercise(target_stat=stat) for stat in _CLEAN_STATS]
+    stat_by_id = {exercise.id: stat for (exercise, _), stat in zip(pairs, _CLEAN_STATS)}
+    _add(db_session, user, pairs)
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate(service, {e.id: e for e, _ in pairs})
     suggested = await service.suggest_party_exercises([user], count=6)
 
-    stats = {e.target_stat for e in suggested if e.id in {ex.id for ex in exercises}}
+    stats = {stat_by_id[e.id] for e in suggested if e.id in stat_by_id}
     assert stats == set(_CLEAN_STATS)
 
 
 @pytest.mark.asyncio
 async def test_on_ice_exercises_are_never_suggested(db_session) -> None:
     user = _make_user()
-    on_ice = _make_exercise(category=ExerciseCategory.ON_ICE, target_stat=TargetStat.ON_ICE_SKATING)
-    db_session.add_all([user, on_ice])
+    on_ice, on_ice_stat = _make_exercise(
+        category=ExerciseCategory.ON_ICE, target_stat=TargetStat.ON_ICE_SKATING
+    )
+    _add(db_session, user, (on_ice, on_ice_stat))
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate(service, {"on_ice": on_ice})
     suggested = await service.suggest_party_exercises([user], count=6)
 
     assert on_ice.id not in {e.id for e in suggested}
@@ -151,14 +206,15 @@ async def test_on_ice_exercises_are_never_suggested(db_session) -> None:
 @pytest.mark.asyncio
 async def test_respects_count(db_session) -> None:
     user = _make_user()
-    exercises = [
+    pairs = [
         _make_exercise(target_stat=stat)
         for stat in (TargetStat.STRENGTH, TargetStat.AGILITY, TargetStat.ENDURANCE, TargetStat.INTELLECT)
     ]
-    db_session.add_all([user, *exercises])
+    _add(db_session, user, pairs)
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate(service, {e.id: e for e, _ in pairs})
     suggested = await service.suggest_party_exercises([user], count=2)
 
     assert len(suggested) == 2

@@ -13,7 +13,6 @@ from app.models.exercise import (
     Exercise,
     ExerciseCategory,
     MovementPattern,
-    TargetStat,
     TrainingPhase,
 )
 from app.services.exercise_service import ExerciseService
@@ -26,7 +25,6 @@ def _make_exercise() -> Exercise:
         name=f"Exercise {unique}",
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=TargetStat.STRENGTH,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
     )

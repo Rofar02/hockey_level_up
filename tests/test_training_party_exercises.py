@@ -10,7 +10,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi import HTTPException
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
 from app.schemas.training_party import TrainingPartyCreate
@@ -42,12 +42,16 @@ async def _befriend(db_session, a: User, b: User) -> None:
 
 
 def _make_exercise(**overrides) -> Exercise:
+    # target_stat isn't a real Exercise field anymore (see ExerciseTargetStat)
+    # and nothing in this file's tests reads it -- confirm_exercises works
+    # off explicit exercise_ids, not stat-based selection -- so any caller
+    # still passing it as an override is just silently dropped.
+    overrides.pop("target_stat", None)
     defaults = dict(
         id=uuid.uuid4(),
         name=f"Exercise {uuid.uuid4().hex[:8]}",
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=TargetStat.STRENGTH,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
     )
@@ -103,8 +107,8 @@ async def _make_party(db_session, creator: User, *friends: User) -> "TrainingPar
 async def test_confirm_materializes_same_exercise_ids_for_every_joined_member(db_session) -> None:
     alice = _make_user()
     bob = _make_user()
-    exercise_a = _make_exercise(target_stat=TargetStat.STRENGTH)
-    exercise_b = _make_exercise(target_stat=TargetStat.AGILITY)
+    exercise_a = _make_exercise()
+    exercise_b = _make_exercise()
     db_session.add_all([alice, bob, exercise_a, exercise_b])
     await db_session.flush()
     party = await _make_party(db_session, alice, bob)

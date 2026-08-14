@@ -18,7 +18,14 @@ import uuid
 import pytest
 
 from app.core.training_block import BlockPhase
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    ExerciseTargetStat,
+    TargetStat,
+    TrainingPhase,
+)
 from app.models.skill import Skill, SkillTag, UserSkillPreference
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
@@ -47,10 +54,19 @@ def _make_exercise(name: str, target_stat: TargetStat) -> Exercise:
         name=name,
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=target_stat,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
     )
+
+
+_CANDIDATE_STATS: dict[str, TargetStat] = {
+    "a_strength": TargetStat.STRENGTH,
+    "z_strength": TargetStat.STRENGTH,
+    "a_agility": TargetStat.AGILITY,
+    "z_agility": TargetStat.AGILITY,
+    "a_intellect": TargetStat.INTELLECT,
+    "z_intellect": TargetStat.INTELLECT,
+}
 
 
 async def _seed_candidates(db_session) -> dict[str, Exercise]:
@@ -63,6 +79,10 @@ async def _seed_candidates(db_session) -> dict[str, Exercise]:
         "z_intellect": _make_exercise("Z-intellect", TargetStat.INTELLECT),
     }
     db_session.add_all(exercises.values())
+    db_session.add_all([
+        ExerciseTargetStat(exercise_id=exercises[key].id, target_stat=stat, order=0)
+        for key, stat in _CANDIDATE_STATS.items()
+    ])
     await db_session.flush()
     return exercises
 
@@ -120,4 +140,5 @@ async def test_preference_prioritizes_tagged_exercise_but_keeps_one_per_stat(
     ]
     # one-per-stat rule still holds: exactly 3 picks, 3 distinct stats
     assert len(picked) == 3
-    assert len({e.target_stat for e in picked}) == 3
+    name_to_key = {exercises[key].name: key for key in exercises}
+    assert len({_CANDIDATE_STATS[name_to_key[e.name]] for e in picked}) == 3

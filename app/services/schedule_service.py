@@ -31,7 +31,7 @@ from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.skill_repository import SkillRepository
 from app.repositories.training_block_repository import TrainingBlockRepository
 from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
-from app.schemas.exercise import ExerciseRead
+from app.schemas.exercise import exercise_to_read
 from app.schemas.schedule import (
     DayPlanRead,
     ScheduleConflictRead,
@@ -103,7 +103,7 @@ class ScheduleService:
             ) from exc
 
         saved = await self._schedule.get_by_id_with_details(weekly_plan.id)
-        return self._to_read_schema(saved)
+        return await self._to_read_schema(saved)
 
     async def get_current_weekly_plan(self, user: User) -> WeeklyPlanRead:
         weekly_plan = await self._schedule.get_current(user.id, date.today())
@@ -111,7 +111,7 @@ class ScheduleService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="No current weekly plan"
             )
-        return self._to_read_schema(weekly_plan)
+        return await self._to_read_schema(weekly_plan)
 
     async def get_weekly_plan(self, user: User, week_start_date: date | None) -> WeeklyPlanRead:
         """GET /schedule/weekly -- week_start_date is optional and aliases to
@@ -132,7 +132,7 @@ class ScheduleService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No weekly plan for week starting {week_start_date.isoformat()}",
             )
-        return self._to_read_schema(weekly_plan)
+        return await self._to_read_schema(weekly_plan)
 
     async def patch_current_weekly_plan(
         self, user: User, payload: WeeklyPlanPatch
@@ -219,7 +219,7 @@ class ScheduleService:
         await self._session.commit()
         saved = await self._schedule.get_by_id_with_details(weekly_plan.id)
         return WeeklyPlanPatchResult(
-            weekly_plan=self._to_read_schema(saved), conflicts=conflicts
+            weekly_plan=await self._to_read_schema(saved), conflicts=conflicts
         )
 
     async def _block_phase_for_weekly_plan(self, weekly_plan: WeeklyPlan) -> BlockPhase:
@@ -379,9 +379,13 @@ class ScheduleService:
         candidates = await self._exercises.list_for_assembly(
             phase=TrainingPhase.WARMUP, equipment_access=user.equipment_access
         )
-        candidates = [
-            e for e in candidates if e.target_stat == TargetStat.INTELLECT and e.id not in exclude_ids
-        ]
+        # "INTELLECT anywhere among its target_stats", not just the primary
+        # one -- this is a point lookup for a specific need, not the
+        # diversity-bucketing mechanism _pick_main/suggest_party_exercises use.
+        intellect_ids = await self._exercises.list_exercise_ids_with_stat(
+            [e.id for e in candidates], TargetStat.INTELLECT
+        )
+        candidates = [e for e in candidates if e.id in intellect_ids and e.id not in exclude_ids]
         if not candidates:
             return None
 
@@ -457,7 +461,9 @@ class ScheduleService:
     ) -> list[Exercise]:
         """Main: up to 5-6 exercises in accumulation, 4-5 in intensification,
         3-4 on a deload week (see MAIN_EXERCISE_COUNT_RANGE) for the day's
-        category, at most one per target stat.
+        category, at most one per *primary* target stat (an exercise can
+        have more than one target_stat -- see ExerciseTargetStat -- but only
+        its order=0 stat counts for this diversity bucketing).
 
         If fewer than `count` stats have candidates, returns fewer exercises
         rather than repeating a stat. Three priority layers apply *within*
@@ -507,9 +513,19 @@ class ScheduleService:
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
         level_cap = max_difficulty_for_level(user.level)
 
+        # Bucketed by each exercise's *primary* target_stat (order=0) --
+        # an exercise with multiple stats still occupies exactly one bucket
+        # for diversity purposes, same as before this stat became multi-
+        # valued. An exercise with no target_stats at all (not yet tagged)
+        # is simply absent from every bucket.
+        primary_stats = await self._exercises.list_primary_target_stats(
+            [exercise.id for exercise in candidates]
+        )
         by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
         for exercise in candidates:
-            by_stat[exercise.target_stat].append(exercise)
+            stat = primary_stats.get(exercise.id)
+            if stat is not None:
+                by_stat[stat].append(exercise)
 
         picked: list[Exercise] = []
         for stat in TargetStat:
@@ -603,8 +619,9 @@ class ScheduleService:
 
     async def suggest_party_exercises(self, members: list[User], count: int) -> list[Exercise]:
         """Off-ice, MAIN-phase candidates every member in `members` can both
-        equip for and handle, spread across as many different target_stat
-        values as possible (never more than one exercise per stat).
+        equip for and handle, spread across as many different primary
+        target_stat values as possible (never more than one exercise per
+        primary stat -- see _pick_main's docstring on what "primary" means).
 
         On-ice is deliberately out of scope here: it isn't equipment-gated
         at all (see ExerciseRepository.list_for_assembly), so it wouldn't
@@ -648,9 +665,15 @@ class ScheduleService:
         cap = min(max_difficulty_for_level(member.level) for member in members)
         eligible = [exercise for exercise in eligible if exercise.difficulty_level <= cap]
 
+        # Same primary-stat bucketing as _pick_main -- see the comment there.
+        primary_stats = await self._exercises.list_primary_target_stats(
+            [exercise.id for exercise in eligible]
+        )
         by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
         for exercise in eligible:
-            by_stat[exercise.target_stat].append(exercise)
+            stat = primary_stats.get(exercise.id)
+            if stat is not None:
+                by_stat[stat].append(exercise)
 
         picked: list[Exercise] = []
         stats = list(TargetStat)
@@ -735,8 +758,15 @@ class ScheduleService:
         day_plan.training_session = TrainingSession(blocks=blocks)
         await self._session.flush()
 
-    @staticmethod
-    def _to_read_schema(weekly_plan: WeeklyPlan) -> WeeklyPlanRead:
+    async def _to_read_schema(self, weekly_plan: WeeklyPlan) -> WeeklyPlanRead:
+        exercise_ids = [
+            block.exercise_id
+            for day in weekly_plan.day_plans
+            if day.training_session is not None
+            for block in day.training_session.blocks
+        ]
+        stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
+
         day_reads = []
         for day in weekly_plan.day_plans:
             session_read = None
@@ -754,7 +784,9 @@ class ScheduleService:
                         phase=block.phase,
                         order=block.order,
                         completed_at=block.completed_at,
-                        exercise=ExerciseRead.model_validate(block.exercise),
+                        exercise=exercise_to_read(
+                            block.exercise, stats_by_id.get(block.exercise_id, [])
+                        ),
                     )
                     for block in day.training_session.blocks
                 ]

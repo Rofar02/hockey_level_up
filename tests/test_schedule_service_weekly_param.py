@@ -19,7 +19,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi import HTTPException
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import (
     DayPlan,
     DaySessionType,
@@ -51,7 +51,6 @@ def _make_exercise() -> Exercise:
         name=f"Exercise {uuid.uuid4().hex[:8]}",
         category=ExerciseCategory.ON_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=TargetStat.STRENGTH,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
     )

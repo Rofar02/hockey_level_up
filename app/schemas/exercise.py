@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 from app.core.rest import rest_seconds_for
 from app.models.exercise import (
     EquipmentType,
+    Exercise,
     ExerciseCategory,
     ExerciseType,
     MovementPattern,
@@ -23,7 +24,12 @@ class ExerciseRead(BaseModel):
     description: str | None
     category: ExerciseCategory
     phase: TrainingPhase
-    target_stat: TargetStat
+    # Not a passthrough model attribute (Exercise has no target_stat column
+    # or relationship() -- see ExerciseTargetStat) -- always supplied
+    # explicitly by the service layer from a bulk ExerciseTargetStat query,
+    # never auto-populated by from_attributes. Order matches ExerciseTargetStat.order;
+    # index 0 is the "primary" stat ScheduleService buckets on for diversity.
+    target_stats: list[TargetStat]
     difficulty_level: int = Field(ge=1, le=5)
     equipment_type: EquipmentType
     video_source_type: str | None
@@ -48,12 +54,48 @@ class ExerciseRead(BaseModel):
         return rest_seconds_for(self.target_sets, self.target_reps)
 
 
+# Every ExerciseRead must be built through here (or exercises_to_read for a
+# batch), not ExerciseRead.model_validate(exercise) -- target_stats isn't a
+# passthrough model attribute (see the field's docstring above), so
+# from_attributes alone can't populate it. Callers fetch target_stats
+# themselves (single via ExerciseRepository.list_target_stats, batch via
+# list_target_stats_by_exercise) so this stays a pure function with no
+# repository/session dependency of its own.
+def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> ExerciseRead:
+    return ExerciseRead(
+        id=exercise.id,
+        name=exercise.name,
+        description=exercise.description,
+        category=exercise.category,
+        phase=exercise.phase,
+        target_stats=target_stats,
+        difficulty_level=exercise.difficulty_level,
+        equipment_type=exercise.equipment_type,
+        video_source_type=exercise.video_source_type,
+        video_source_id=exercise.video_source_id,
+        target_sets=exercise.target_sets,
+        target_reps=exercise.target_reps,
+        target_duration_seconds=exercise.target_duration_seconds,
+        tracks_weight=exercise.tracks_weight,
+        bodyweight_ratio=exercise.bodyweight_ratio,
+        suitable_for_game_day=exercise.suitable_for_game_day,
+        muscle_group=exercise.muscle_group,
+        stimulus_type=exercise.stimulus_type,
+        exercise_type=exercise.exercise_type,
+    )
+
+
+def exercises_to_read(
+    exercises: list[Exercise], target_stats_by_id: dict[uuid.UUID, list[TargetStat]]
+) -> list[ExerciseRead]:
+    return [exercise_to_read(e, target_stats_by_id.get(e.id, [])) for e in exercises]
+
+
 class ExerciseCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     category: ExerciseCategory
     phase: TrainingPhase
-    target_stat: TargetStat
     difficulty_level: int = Field(ge=1, le=5)
     equipment_type: EquipmentType
     video_source_type: str | None = None
@@ -74,7 +116,6 @@ class ExerciseUpdate(BaseModel):
     description: str | None = None
     category: ExerciseCategory | None = None
     phase: TrainingPhase | None = None
-    target_stat: TargetStat | None = None
     difficulty_level: int | None = Field(default=None, ge=1, le=5)
     equipment_type: EquipmentType | None = None
     video_source_type: str | None = None
@@ -92,6 +133,12 @@ class ExerciseUpdate(BaseModel):
 
 class MovementPatternsReplace(BaseModel):
     movement_patterns: list[MovementPattern]
+
+
+class TargetStatsReplace(BaseModel):
+    # List order becomes ExerciseTargetStat.order on write -- index 0 is the
+    # "primary" stat (see ExerciseRead.target_stats).
+    target_stats: list[TargetStat]
 
 
 class SuggestedWeightRead(BaseModel):

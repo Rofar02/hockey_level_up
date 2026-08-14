@@ -75,14 +75,21 @@ function formatTargetVolume(exercise: ExerciseRead): string | null {
 }
 
 // Client-side optimistic mirror of stat_consumer/xp_consumer's gain formula
-// (difficulty_level * 0.5 stat, difficulty_level * 10 XP) -- shown
-// immediately on a 200 rather than waiting on a separate request, since the
-// formula is already public knowledge and the real numbers land via the
-// event pipeline moments later regardless.
+// (difficulty_level * 0.5 stat split evenly across the exercise's
+// target_stats, difficulty_level * 10 XP -- see stat_consumer's base_gain)
+// -- shown immediately on a 200 rather than waiting on a separate request,
+// since the formula is already public knowledge and the real numbers land
+// via the event pipeline moments later regardless.
 function formatCompletionFeedback(exercise: ExerciseRead): string {
-  const statGain = exercise.difficulty_level * 0.5
   const xpGain = exercise.difficulty_level * 10
-  return `+${statGain} ${TARGET_STAT_LABELS[exercise.target_stat]} +${xpGain} XP`
+  if (exercise.target_stats.length === 0) {
+    return `+${xpGain} XP`
+  }
+  const statGain = (exercise.difficulty_level * 0.5) / exercise.target_stats.length
+  const statsText = exercise.target_stats
+    .map((stat) => `+${statGain} ${TARGET_STAT_LABELS[stat]}`)
+    .join(' ')
+  return `${statsText} +${xpGain} XP`
 }
 
 // Same per-block formula as formatCompletionFeedback, summed across every
@@ -95,8 +102,13 @@ function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
   const statTotals: Partial<Record<TargetStat, number>> = {}
   let xpTotal = 0
   for (const block of sessionBlocks) {
-    const stat = block.exercise.target_stat
-    statTotals[stat] = (statTotals[stat] ?? 0) + block.exercise.difficulty_level * 0.5
+    const stats = block.exercise.target_stats
+    if (stats.length > 0) {
+      const share = (block.exercise.difficulty_level * 0.5) / stats.length
+      for (const stat of stats) {
+        statTotals[stat] = (statTotals[stat] ?? 0) + share
+      }
+    }
     xpTotal += block.exercise.difficulty_level * 10
   }
   return { statTotals, xpTotal }
@@ -633,9 +645,9 @@ function ExerciseRow({
           )}
         </div>
       </div>
-      {showTargetStat && (
+      {showTargetStat && block.exercise.target_stats.length > 0 && (
         <span className="shrink-0 text-xs text-text-secondary">
-          {TARGET_STAT_LABELS[block.exercise.target_stat]}
+          {block.exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
         </span>
       )}
     </div>

@@ -20,7 +20,7 @@ from sqlalchemy import delete, select
 from app.db.session import AsyncSessionLocal
 from app.db.session import engine as app_engine
 from app.events.handlers.block_completed import streak_consumer
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import TrainingStreak
@@ -96,7 +96,6 @@ async def test_completing_a_party_training_block_advances_personal_streak(real_p
         name=f"Party exercise {uuid.uuid4().hex[:8]}",
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=TargetStat.STRENGTH,
         difficulty_level=2,
         equipment_type=EquipmentType.BODYWEIGHT,
     )

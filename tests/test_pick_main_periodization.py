@@ -23,7 +23,14 @@ import uuid
 import pytest
 
 from app.core.training_block import BlockPhase
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    ExerciseTargetStat,
+    TargetStat,
+    TrainingPhase,
+)
 from app.models.skill import Skill, SkillTag, UserSkillPreference
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
@@ -51,10 +58,13 @@ def _make_exercise(name: str, target_stat: TargetStat, difficulty_level: int) ->
         name=name,
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=target_stat,
         difficulty_level=difficulty_level,
         equipment_type=EquipmentType.BODYWEIGHT,
     )
+
+
+def _stat(exercise: Exercise, target_stat: TargetStat) -> ExerciseTargetStat:
+    return ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0)
 
 
 async def _seed_candidates(db_session) -> dict[str, Exercise]:
@@ -65,7 +75,15 @@ async def _seed_candidates(db_session) -> dict[str, Exercise]:
         "high_agility": _make_exercise("High-agility", TargetStat.AGILITY, 5),
         "mid_intellect": _make_exercise("Mid-intellect", TargetStat.INTELLECT, 3),
     }
+    stats = {
+        "low_strength": TargetStat.STRENGTH,
+        "high_strength": TargetStat.STRENGTH,
+        "low_agility": TargetStat.AGILITY,
+        "high_agility": TargetStat.AGILITY,
+        "mid_intellect": TargetStat.INTELLECT,
+    }
     db_session.add_all(exercises.values())
+    db_session.add_all([_stat(exercises[key], stats[key]) for key in exercises])
     await db_session.flush()
     return exercises
 
@@ -100,11 +118,13 @@ async def test_intensification_prefers_high_difficulty_with_fallback(
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.INTENSIFICATION)
 
     assert calls == [(4, 5)]  # intensification's own count range
-    by_stat = {e.target_stat: e.name for e in picked}
-    assert by_stat[TargetStat.STRENGTH] == exercises["high_strength"].name
-    assert by_stat[TargetStat.AGILITY] == exercises["high_agility"].name
-    # no difficulty>=4 candidate for intellect -> falls back, not skipped
-    assert by_stat[TargetStat.INTELLECT] == exercises["mid_intellect"].name
+    picked_names = {e.name for e in picked}
+    assert picked_names == {
+        exercises["high_strength"].name,
+        exercises["high_agility"].name,
+        # no difficulty>=4 candidate for intellect -> falls back, not skipped
+        exercises["mid_intellect"].name,
+    }
 
 
 @pytest.mark.asyncio
@@ -126,11 +146,13 @@ async def test_deload_prefers_low_difficulty_and_shrinks_count(
     # fake randint returns the upper bound (4), but only 3 seeded stats have
     # any candidate at all -- count is a ceiling, not a target to pad to.
     assert len(picked) == 3
-    by_stat = {e.target_stat: e.name for e in picked}
-    assert by_stat[TargetStat.STRENGTH] == exercises["low_strength"].name
-    assert by_stat[TargetStat.AGILITY] == exercises["low_agility"].name
-    # no difficulty<=2 candidate for intellect -> falls back, not skipped
-    assert by_stat[TargetStat.INTELLECT] == exercises["mid_intellect"].name
+    picked_names = {e.name for e in picked}
+    assert picked_names == {
+        exercises["low_strength"].name,
+        exercises["low_agility"].name,
+        # no difficulty<=2 candidate for intellect -> falls back, not skipped
+        exercises["mid_intellect"].name,
+    }
 
 
 @pytest.mark.asyncio
@@ -145,6 +167,11 @@ async def test_skilltag_priority_applies_within_the_difficulty_envelope(
     high_untagged = _make_exercise("High-strength-untagged", TargetStat.STRENGTH, 5)
     high_tagged = _make_exercise("High-strength-tagged", TargetStat.STRENGTH, 5)
     db_session.add_all([low, high_untagged, high_tagged])
+    db_session.add_all([
+        _stat(low, TargetStat.STRENGTH),
+        _stat(high_untagged, TargetStat.STRENGTH),
+        _stat(high_tagged, TargetStat.STRENGTH),
+    ])
     await db_session.flush()
 
     skill = Skill(id=uuid.uuid4(), name=f"Test skill {uuid.uuid4().hex[:8]}")

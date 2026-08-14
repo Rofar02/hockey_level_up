@@ -353,21 +353,42 @@ function SetLogger({
     }
   }, [exercise.id, exercise.tracks_weight, trainingSessionId, accessToken])
 
+  // First set_number (1..targetSets) without a logged record -- not just
+  // Object.keys(completedSets).length + 1, in case rehydrated sets have a
+  // gap. Computed before the targetSets===null early return below (and
+  // guarded for it) so the auto-complete effect right after can see
+  // allSetsDone on every render, not just once sets start getting logged.
+  let currentSetNumber = targetSets === null ? 0 : targetSets + 1
+  if (targetSets !== null) {
+    for (let setNumber = 1; setNumber <= targetSets; setNumber += 1) {
+      if (completedSets[setNumber] === undefined) {
+        currentSetNumber = setNumber
+        break
+      }
+    }
+  }
+  const allSetsDone = targetSets !== null && currentSetNumber > targetSets
+
+  // handleSaveSet's onLastSetCompleted call (below) only fires as a side
+  // effect of the save request for the Nth set landing -- it never runs if
+  // the sets were already all logged by the time this modal opened (a
+  // dropped completeSessionBlock call earlier, the app being backgrounded
+  // mid-flow, sets logged in an older session before this feature existed,
+  // etc). This effect is the reconciling path: whenever rehydration
+  // settles and finds every set already logged, but the block itself
+  // isn't marked complete yet, it fires the same callback -- handleComplete
+  // is itself guarded against a block that's already completed, so this is
+  // safe to re-run on every render once allSetsDone is true.
+  useEffect(() => {
+    if (!isLoadingSets && allSetsDone && onLastSetCompleted !== undefined) {
+      onLastSetCompleted()
+    }
+  }, [isLoadingSets, allSetsDone, onLastSetCompleted])
+
   if (targetSets === null) {
     return null
   }
 
-  // First set_number (1..targetSets) without a logged record -- not just
-  // Object.keys(completedSets).length + 1, in case rehydrated sets have a
-  // gap.
-  let currentSetNumber = targetSets + 1
-  for (let setNumber = 1; setNumber <= targetSets; setNumber += 1) {
-    if (completedSets[setNumber] === undefined) {
-      currentSetNumber = setNumber
-      break
-    }
-  }
-  const allSetsDone = currentSetNumber > targetSets
   const showWeightHint =
     exercise.tracks_weight && user !== null && !user.has_seen_weight_hint && !weightHintDismissed
 

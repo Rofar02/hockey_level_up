@@ -221,7 +221,9 @@ export function AdminExercisesPage() {
                   </td>
                   <td className="px-3 py-2 text-text-secondary">{PHASE_LABELS[exercise.phase]}</td>
                   <td className="px-3 py-2 text-text-secondary">
-                    {TARGET_STAT_LABELS[exercise.target_stat]}
+                    {exercise.target_stats.length === 0
+                      ? '—'
+                      : exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
                   </td>
                   <td className="px-3 py-2 font-mono text-text-secondary">{exercise.difficulty_level}</td>
                   <td className="px-3 py-2 text-text-secondary">
@@ -293,7 +295,6 @@ function ExerciseFormModal({
   const [description, setDescription] = useState(exercise?.description ?? '')
   const [category, setCategory] = useState<ExerciseCategory>(exercise?.category ?? 'off_ice')
   const [phase, setPhase] = useState<TrainingPhase>(exercise?.phase ?? 'main')
-  const [targetStat, setTargetStat] = useState<TargetStat>(exercise?.target_stat ?? 'strength')
   const [difficultyLevel, setDifficultyLevel] = useState(String(exercise?.difficulty_level ?? 1))
   const [equipmentType, setEquipmentType] = useState<EquipmentType>(
     exercise?.equipment_type ?? 'bodyweight',
@@ -354,7 +355,6 @@ function ExerciseFormModal({
       description: description.trim() === '' ? null : description.trim(),
       category,
       phase,
-      target_stat: targetStat,
       difficulty_level: difficulty,
       equipment_type: equipmentType,
       video_source_type: videoSourceType.trim() === '' ? null : videoSourceType.trim(),
@@ -428,13 +428,6 @@ function ExerciseFormModal({
             options={PHASE_OPTIONS}
             value={phase}
             onChange={(event) => setPhase(event.target.value as TrainingPhase)}
-            required
-          />
-          <SelectField
-            label="Характеристика"
-            options={TARGET_STAT_OPTIONS}
-            value={targetStat}
-            onChange={(event) => setTargetStat(event.target.value as TargetStat)}
             required
           />
           <SelectField
@@ -558,12 +551,151 @@ function ExerciseFormModal({
       </form>
 
       {currentExercise !== null && accessToken !== null && (
+        <ExerciseTargetStatsSection exerciseId={currentExercise.id} accessToken={accessToken} />
+      )}
+      {currentExercise !== null && accessToken !== null && (
         <ExerciseSkillTagsSection exerciseId={currentExercise.id} accessToken={accessToken} />
       )}
       {currentExercise !== null && accessToken !== null && (
         <ExerciseMovementPatternsSection exerciseId={currentExercise.id} accessToken={accessToken} />
       )}
     </AdminModal>
+  )
+}
+
+function ExerciseTargetStatsSection({
+  exerciseId,
+  accessToken,
+}: {
+  exerciseId: string
+  accessToken: string
+}) {
+  // Order matters here, unlike movement patterns: index 0 is the "primary"
+  // stat ScheduleService._pick_main/suggest_party_exercises bucket on for
+  // diversity (see ExerciseRead.target_stats). Modeled as a separate
+  // required "primary" select + checkboxes for the rest, rather than a
+  // plain multi-select, so that ordering survives the round trip without
+  // building a full drag-reorder UI -- only the primary slot's identity is
+  // functionally load-bearing, the relative order of the others isn't.
+  const [primary, setPrimary] = useState<TargetStat | ''>('')
+  const [additional, setAdditional] = useState<Set<TargetStat>>(new Set())
+  const [loaded, setLoaded] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    exercisesApi
+      .listExerciseTargetStats(exerciseId, accessToken)
+      .then((stats) => {
+        if (cancelled) {
+          return
+        }
+        setPrimary(stats[0] ?? '')
+        setAdditional(new Set(stats.slice(1)))
+        setLoaded(true)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить статы.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exerciseId, accessToken])
+
+  function toggleAdditional(stat: TargetStat) {
+    setAdditional((previous) => {
+      const next = new Set(previous)
+      if (next.has(stat)) {
+        next.delete(stat)
+      } else {
+        next.add(stat)
+      }
+      return next
+    })
+  }
+
+  async function handleSave() {
+    if (primary === '') {
+      setSaveError('Выберите основной стат.')
+      return
+    }
+    setSaveError(null)
+    setIsSaving(true)
+    try {
+      const saved = await exercisesApi.replaceExerciseTargetStats(
+        exerciseId,
+        [primary, ...Array.from(additional)],
+        accessToken,
+      )
+      setPrimary(saved[0] ?? '')
+      setAdditional(new Set(saved.slice(1)))
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить статы.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
+      <h3 className="text-sm font-medium text-text-secondary">Целевые статы</h3>
+      <FormError message={loadError} />
+
+      {loaded && (
+        <>
+          <SelectField
+            label="Основной стат"
+            options={TARGET_STAT_OPTIONS}
+            placeholder="Не задано"
+            value={primary}
+            onChange={(event) => {
+              const value = event.target.value as TargetStat | ''
+              setPrimary(value)
+              setAdditional((previous) => {
+                if (value === '') {
+                  return previous
+                }
+                const next = new Set(previous)
+                next.delete(value)
+                return next
+              })
+            }}
+          />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-text-secondary">Дополнительные статы</span>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {TARGET_STATS.filter((stat) => stat !== primary).map((stat) => (
+                <label key={stat} className="flex items-center gap-2 text-sm text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={additional.has(stat)}
+                    onChange={() => toggleAdditional(stat)}
+                    className="h-4 w-4"
+                  />
+                  {TARGET_STAT_LABELS[stat]}
+                </label>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      <Button
+        type="button"
+        variant="neutral"
+        isLoading={isSaving}
+        disabled={!loaded}
+        onClick={handleSave}
+        className="self-start"
+      >
+        Сохранить статы
+      </Button>
+      <FormError message={saveError} />
+    </div>
   )
 }
 

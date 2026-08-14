@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.schedule import SessionBlock
 from app.models.user import User
+from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.services.training_party_service import TrainingPartyService
@@ -24,6 +25,7 @@ class SessionBlockService:
         self._schedule = ScheduleRepository(session)
         self._outbox = OutboxRepository(session)
         self._parties = TrainingPartyService(session)
+        self._exercises = ExerciseRepository(session)
 
     async def complete_block(self, block_id: uuid.UUID, user: User) -> SessionBlock:
         block = await self._schedule.get_session_block_with_owner(block_id)
@@ -38,6 +40,7 @@ class SessionBlockService:
             )
 
         block.completed_at = datetime.now(timezone.utc)
+        target_stats = await self._exercises.list_target_stats(block.exercise_id)
         # Outbox pattern: the event row is written in the same transaction as
         # completed_at, instead of publishing to RabbitMQ directly here. That
         # way a broker outage can't leave the block "burned" (completed with
@@ -50,7 +53,7 @@ class SessionBlockService:
                 "user_id": str(user.id),
                 "session_block_id": str(block.id),
                 "exercise_id": str(block.exercise_id),
-                "target_stat": block.exercise.target_stat.value,
+                "target_stats": [stat.value for stat in target_stats],
                 "difficulty_level": block.exercise.difficulty_level,
             },
         )

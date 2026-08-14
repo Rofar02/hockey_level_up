@@ -14,7 +14,14 @@ from fastapi import HTTPException
 
 from app.core.config import get_settings
 from app.core.security import hash_password
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    ExerciseTargetStat,
+    TargetStat,
+    TrainingPhase,
+)
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.push_subscription import PushSubscription
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingBlock, TrainingSession, WeeklyPlan
@@ -46,12 +53,14 @@ async def _seed_full_graph(db_session, user: User) -> dict:
         name=f"Exercise {uuid.uuid4().hex[:8]}",
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=TargetStat.STRENGTH,
         difficulty_level=3,
         equipment_type=EquipmentType.GYM,
     )
+    exercise_target_stat = ExerciseTargetStat(
+        exercise_id=exercise.id, target_stat=TargetStat.STRENGTH, order=0
+    )
     skill = Skill(id=uuid.uuid4(), name=f"Skill {uuid.uuid4().hex[:8]}")
-    db_session.add_all([exercise, skill])
+    db_session.add_all([exercise, exercise_target_stat, skill])
     await db_session.flush()
 
     session_block = SessionBlock(

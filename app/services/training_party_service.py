@@ -13,7 +13,7 @@ from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.training_party_repository import TrainingPartyRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.exercise import ExerciseRead
+from app.schemas.exercise import ExerciseRead, exercises_to_read
 from app.schemas.training_party import (
     MemberTrainingStatus,
     PartyStatus,
@@ -250,7 +250,10 @@ class TrainingPartyService:
 
         joined_users = await self._joined_users(party.id)
         exercises = await self._schedule_service.suggest_party_exercises(joined_users, count)
-        return [ExerciseRead.model_validate(exercise) for exercise in exercises]
+        stats_by_id = await self._exercises.list_target_stats_by_exercise(
+            [exercise.id for exercise in exercises]
+        )
+        return exercises_to_read(exercises, stats_by_id)
 
     async def confirm_exercises(
         self, user: User, party_id: uuid.UUID, exercise_ids: list[uuid.UUID]
@@ -417,8 +420,11 @@ class TrainingPartyService:
         for exercise_id in await self._canonical_exercise_ids(party):
             exercise = await self._exercises.get_by_id(exercise_id)
             if exercise is not None:
-                exercises.append(ExerciseRead.model_validate(exercise))
-        return exercises
+                exercises.append(exercise)
+        stats_by_id = await self._exercises.list_target_stats_by_exercise(
+            [exercise.id for exercise in exercises]
+        )
+        return exercises_to_read(exercises, stats_by_id)
 
     @staticmethod
     def _effective_status(party: TrainingParty) -> PartyStatus:

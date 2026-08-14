@@ -27,7 +27,14 @@ from datetime import date, timedelta
 import pytest
 
 from app.core.training_block import BlockPhase
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    ExerciseTargetStat,
+    TargetStat,
+    TrainingPhase,
+)
 from app.models.schedule import DaySessionType
 from app.models.user import User
 from app.schemas.schedule import DayPlanIn, WeeklyPlanCreate
@@ -56,7 +63,6 @@ def _make_exercise(
     name: str,
     category: ExerciseCategory,
     phase: TrainingPhase,
-    target_stat: TargetStat = TargetStat.STRENGTH,
     suitable_for_game_day: bool = False,
 ) -> Exercise:
     return Exercise(
@@ -64,11 +70,33 @@ def _make_exercise(
         name=name,
         category=category,
         phase=phase,
-        target_stat=target_stat,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
         suitable_for_game_day=suitable_for_game_day,
     )
+
+
+def _isolate_candidates(service: ScheduleService, exercises: dict[str, Exercise]) -> None:
+    """Make list_for_assembly return only this test's own exercises, filtered
+    the same way the real repository method would. The real dev DB now has a
+    real seeded catalog including off_ice/warmup/suitable_for_game_day=True
+    content (see the 90-exercise import) and off_ice intellect-tagged
+    exercises, both of which would otherwise leak into these tests' pools
+    and break assertions like "exactly these two ids" or "no candidate at
+    all" -- same isolation pattern as test_pick_main_periodization.py/
+    test_level_difficulty_gate.py."""
+
+    async def fake_list_for_assembly(
+        *, phase, equipment_access, category=None, suitable_for_game_day=None
+    ):
+        pool = [e for e in exercises.values() if e.phase == phase]
+        if category is not None:
+            pool = [e for e in pool if e.category == category]
+        if suitable_for_game_day is not None:
+            pool = [e for e in pool if e.suitable_for_game_day == suitable_for_game_day]
+        return pool
+
+    service._exercises.list_for_assembly = fake_list_for_assembly
 
 
 async def _seed_activation_pool(db_session) -> dict[str, Exercise]:
@@ -112,10 +140,11 @@ async def _seed_activation_pool(db_session) -> dict[str, Exercise]:
 async def test_game_day_has_no_main_or_cooldown_blocks(db_session) -> None:
     user = _make_user()
     db_session.add(user)
-    await _seed_activation_pool(db_session)
+    exercises = await _seed_activation_pool(db_session)
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
     session = await service._build_game_day_session(user, BlockPhase.ACCUMULATION)
 
     assert len(session.blocks) > 0  # both warmup pools had a candidate
@@ -130,6 +159,7 @@ async def test_game_day_pulls_activation_from_both_ice_and_off_ice(db_session) -
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
     session = await service._build_game_day_session(user, BlockPhase.ACCUMULATION)
 
     picked_ids = [block.exercise_id for block in session.blocks]
@@ -155,6 +185,7 @@ async def test_warmup_exercise_without_flag_is_excluded_from_activation(db_sessi
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, {"unflagged": unflagged})
     session = await service._build_game_day_session(user, BlockPhase.ACCUMULATION)
 
     picked_ids = {block.exercise_id for block in session.blocks}
@@ -183,6 +214,7 @@ async def test_warmup_exercise_with_flag_is_included_in_activation(db_session) -
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, {"flagged": flagged, "unflagged": unflagged})
     session = await service._build_game_day_session(user, BlockPhase.ACCUMULATION)
 
     picked_ids = [block.exercise_id for block in session.blocks]
@@ -202,15 +234,20 @@ async def test_game_day_includes_mental_prep_when_catalog_has_one(db_session) ->
         name="ZZZ mental prep",
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.WARMUP,
-        target_stat=TargetStat.INTELLECT,
         # suitable_for_game_day intentionally left False -- per spec,
         # _pick_mental_prep is unfiltered by it (target_stat=intellect is
         # already specific enough).
     )
     db_session.add(mental_exercise)
+    db_session.add(
+        ExerciseTargetStat(
+            exercise_id=mental_exercise.id, target_stat=TargetStat.INTELLECT, order=0
+        )
+    )
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, {**exercises, "mental": mental_exercise})
     session = await service._build_game_day_session(user, BlockPhase.ACCUMULATION)
 
     picked_ids = [block.exercise_id for block in session.blocks]
@@ -233,6 +270,7 @@ async def test_game_day_mental_prep_gracefully_skipped_when_catalog_has_none(db_
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
     session = await service._build_game_day_session(user, BlockPhase.ACCUMULATION)
 
     picked_ids = [block.exercise_id for block in session.blocks]

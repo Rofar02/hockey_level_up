@@ -111,6 +111,8 @@ export const MOVEMENT_PATTERNS = [
   'rotation',
   'ankle_mobility',
   'hip_mobility',
+  'shoulder_mobility',
+  'wrist_mobility',
   'core',
   'locomotion',
 ] as const
@@ -124,6 +126,8 @@ export const MOVEMENT_PATTERN_LABELS: Record<MovementPattern, string> = {
   rotation: 'Ротация',
   ankle_mobility: 'Мобильность голеностопа',
   hip_mobility: 'Мобильность таза',
+  shoulder_mobility: 'Мобильность плечевого пояса',
+  wrist_mobility: 'Мобильность запястья',
   core: 'Кор',
   locomotion: 'Локомоция',
 }
@@ -134,7 +138,12 @@ export interface ExerciseRead {
   description: string | null
   category: ExerciseCategory
   phase: TrainingPhase
-  target_stat: TargetStat
+  // Not a raw model passthrough on the backend -- assembled server-side
+  // from ExerciseTargetStat rows, ordered; index 0 is the "primary" stat
+  // ScheduleService buckets on for diversity. Not part of ExerciseWrite --
+  // set via PUT /exercises/{id}/target-stats (see api/exercises.ts), same
+  // two-step create-then-tag flow as movement_patterns/skill-tags.
+  target_stats: TargetStat[]
   difficulty_level: number
   equipment_type: EquipmentType
   video_source_type: string | null
@@ -161,7 +170,6 @@ export interface ExerciseWrite {
   description: string | null
   category: ExerciseCategory
   phase: TrainingPhase
-  target_stat: TargetStat
   difficulty_level: number
   equipment_type: EquipmentType
   video_source_type: string | null

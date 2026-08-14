@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select  # noqa: E402
 
 from app.db.session import AsyncSessionLocal  # noqa: E402
-from app.models.exercise import Exercise  # noqa: E402
+from app.models.exercise import Exercise, ExerciseTargetStat, TargetStat  # noqa: E402
 
 PLACEHOLDER_DESCRIPTION = "Заглушка: описание будет добавлено позже."
 
@@ -743,11 +743,29 @@ async def seed() -> None:
         )
 
         created = 0
+        # target_stat is no longer an Exercise column (see
+        # ExerciseTargetStat) -- popped per-dict here rather than editing
+        # every literal in EXERCISES, and inserted as that exercise's single
+        # order=0 (primary) target_stat row once flush() has assigned ids.
+        new_exercise_stats: list[tuple[Exercise, str]] = []
         for data in EXERCISES:
             if data["name"] in existing_names:
                 continue
-            session.add(Exercise(**data))
+            data = dict(data)
+            target_stat = data.pop("target_stat")
+            exercise = Exercise(**data)
+            session.add(exercise)
+            new_exercise_stats.append((exercise, target_stat))
             created += 1
+
+        if new_exercise_stats:
+            await session.flush()
+            for exercise, target_stat in new_exercise_stats:
+                session.add(
+                    ExerciseTargetStat(
+                        exercise_id=exercise.id, target_stat=TargetStat(target_stat), order=0
+                    )
+                )
 
         updated = 0
         for name, fields in FIELD_UPDATES:

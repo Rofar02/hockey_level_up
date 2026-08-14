@@ -22,7 +22,14 @@ import uuid
 import pytest
 
 from app.core.training_block import BlockPhase, max_difficulty_for_level
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    ExerciseTargetStat,
+    TargetStat,
+    TrainingPhase,
+)
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
 
@@ -45,10 +52,13 @@ def _make_exercise(name: str, target_stat: TargetStat, difficulty_level: int) ->
         name=name,
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=target_stat,
         difficulty_level=difficulty_level,
         equipment_type=EquipmentType.BODYWEIGHT,
     )
+
+
+def _stat(exercise: Exercise, target_stat: TargetStat) -> ExerciseTargetStat:
+    return ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0)
 
 
 def _isolate_candidates(service: ScheduleService, exercises: dict[str, Exercise]) -> None:
@@ -87,6 +97,12 @@ async def test_low_level_user_never_gets_difficulty_above_2(db_session) -> None:
     hard = _make_exercise("Hard", TargetStat.STRENGTH, 4)
     very_hard = _make_exercise("Very-hard", TargetStat.STRENGTH, 5)
     db_session.add_all([easy, mid_easy, hard, very_hard])
+    db_session.add_all([
+        _stat(easy, TargetStat.STRENGTH),
+        _stat(mid_easy, TargetStat.STRENGTH),
+        _stat(hard, TargetStat.STRENGTH),
+        _stat(very_hard, TargetStat.STRENGTH),
+    ])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -110,6 +126,12 @@ async def test_mid_level_user_gets_up_to_3_not_4_or_5(db_session) -> None:
     hard = _make_exercise("Hard", TargetStat.STRENGTH, 4)
     very_hard = _make_exercise("Very-hard", TargetStat.STRENGTH, 5)
     db_session.add_all([easy, mid, hard, very_hard])
+    db_session.add_all([
+        _stat(easy, TargetStat.STRENGTH),
+        _stat(mid, TargetStat.STRENGTH),
+        _stat(hard, TargetStat.STRENGTH),
+        _stat(very_hard, TargetStat.STRENGTH),
+    ])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -134,6 +156,7 @@ async def test_high_level_user_can_get_any_difficulty(db_session) -> None:
     very_hard = _make_exercise("Very-hard", TargetStat.STRENGTH, 5)
     easy = _make_exercise("Easy", TargetStat.AGILITY, 1)
     db_session.add_all([very_hard, easy])
+    db_session.add_all([_stat(very_hard, TargetStat.STRENGTH), _stat(easy, TargetStat.AGILITY)])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -151,6 +174,7 @@ async def test_boundary_level_8_allows_difficulty_3_but_not_4(db_session) -> Non
     mid = _make_exercise("Mid", TargetStat.STRENGTH, 3)
     hard = _make_exercise("Hard", TargetStat.STRENGTH, 4)
     db_session.add_all([mid, hard])
+    db_session.add_all([_stat(mid, TargetStat.STRENGTH), _stat(hard, TargetStat.STRENGTH)])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -173,6 +197,7 @@ async def test_boundary_level_15_is_uncapped_level_14_still_capped(
     mid = _make_exercise("Mid", TargetStat.STRENGTH, 3)
     hard = _make_exercise("Hard", TargetStat.STRENGTH, 5)
     db_session.add_all([mid, hard])
+    db_session.add_all([_stat(mid, TargetStat.STRENGTH), _stat(hard, TargetStat.STRENGTH)])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -205,6 +230,9 @@ async def test_level_cap_is_not_overridden_by_skilltag_priority(db_session) -> N
     easy_untagged = _make_exercise("Easy-untagged", TargetStat.STRENGTH, 2)
     hard_tagged = _make_exercise("Hard-tagged", TargetStat.STRENGTH, 5)
     db_session.add_all([easy_untagged, hard_tagged])
+    db_session.add_all([
+        _stat(easy_untagged, TargetStat.STRENGTH), _stat(hard_tagged, TargetStat.STRENGTH),
+    ])
     await db_session.flush()
 
     skill = Skill(id=uuid.uuid4(), name=f"Test skill {uuid.uuid4().hex[:8]}")
@@ -238,6 +266,7 @@ async def test_fallback_when_stat_has_nothing_under_the_cap(
 
     only_hard = _make_exercise("Only-hard", TargetStat.ENDURANCE, 5)
     db_session.add(only_hard)
+    db_session.add(_stat(only_hard, TargetStat.ENDURANCE))
     await db_session.flush()
 
     service = ScheduleService(db_session)

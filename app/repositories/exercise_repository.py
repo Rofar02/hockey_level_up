@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,7 @@ from app.models.exercise import (
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
+    ExerciseTargetStat,
     MovementPattern,
     TargetStat,
     TrainingPhase,
@@ -34,10 +36,87 @@ class ExerciseRepository:
         if equipment_type is not None:
             query = query.where(Exercise.equipment_type == equipment_type)
         if target_stat is not None:
-            query = query.where(Exercise.target_stat == target_stat)
+            # "Has this stat anywhere among its target_stats", not just the
+            # primary (order=0) one -- this is an admin browsing/filtering
+            # convenience, not the diversity-selection mechanism in
+            # ScheduleService, so there's no notion of "primary" here.
+            query = query.where(
+                select(ExerciseTargetStat.id)
+                .where(
+                    ExerciseTargetStat.exercise_id == Exercise.id,
+                    ExerciseTargetStat.target_stat == target_stat,
+                )
+                .exists()
+            )
 
         result = await self._session.execute(query.order_by(Exercise.name))
         return list(result.scalars().all())
+
+    async def list_target_stats(self, exercise_id: uuid.UUID) -> list[TargetStat]:
+        result = await self._session.execute(
+            select(ExerciseTargetStat.target_stat)
+            .where(ExerciseTargetStat.exercise_id == exercise_id)
+            .order_by(ExerciseTargetStat.order)
+        )
+        return list(result.scalars().all())
+
+    async def list_target_stats_by_exercise(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[TargetStat]]:
+        """Bulk read-side lookup, ordered per exercise -- for enriching
+        ExerciseRead.target_stats without an N+1 query per exercise."""
+        if not exercise_ids:
+            return {}
+        result = await self._session.execute(
+            select(ExerciseTargetStat.exercise_id, ExerciseTargetStat.target_stat)
+            .where(ExerciseTargetStat.exercise_id.in_(exercise_ids))
+            .order_by(ExerciseTargetStat.exercise_id, ExerciseTargetStat.order)
+        )
+        by_exercise: dict[uuid.UUID, list[TargetStat]] = defaultdict(list)
+        for exercise_id, target_stat in result.all():
+            by_exercise[exercise_id].append(target_stat)
+        return dict(by_exercise)
+
+    async def list_primary_target_stats(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, TargetStat]:
+        """Bulk order=0 lookup -- the diversity-bucketing key for
+        ScheduleService._pick_main/suggest_party_exercises. An exercise with
+        no target_stats at all (e.g. just created, not yet tagged via
+        PUT .../target-stats) is simply absent from the result."""
+        if not exercise_ids:
+            return {}
+        result = await self._session.execute(
+            select(ExerciseTargetStat.exercise_id, ExerciseTargetStat.target_stat).where(
+                ExerciseTargetStat.exercise_id.in_(exercise_ids), ExerciseTargetStat.order == 0
+            )
+        )
+        return dict(result.all())
+
+    async def list_exercise_ids_with_stat(
+        self, exercise_ids: list[uuid.UUID], stat: TargetStat
+    ) -> set[uuid.UUID]:
+        """Which of exercise_ids have `stat` anywhere among their
+        target_stats (not necessarily primary) -- mirrors
+        SkillRepository.list_tagged_exercise_ids's shape."""
+        if not exercise_ids:
+            return set()
+        result = await self._session.execute(
+            select(ExerciseTargetStat.exercise_id).where(
+                ExerciseTargetStat.exercise_id.in_(exercise_ids), ExerciseTargetStat.target_stat == stat
+            )
+        )
+        return set(result.scalars().all())
+
+    async def replace_target_stats(self, exercise_id: uuid.UUID, stats: list[TargetStat]) -> None:
+        await self._session.execute(
+            delete(ExerciseTargetStat).where(ExerciseTargetStat.exercise_id == exercise_id)
+        )
+        for order, stat in enumerate(stats):
+            self._session.add(
+                ExerciseTargetStat(exercise_id=exercise_id, target_stat=stat, order=order)
+            )
+        await self._session.flush()
 
     async def list_movement_patterns(self, exercise_id: uuid.UUID) -> list[MovementPattern]:
         result = await self._session.execute(

@@ -1,0 +1,3964 @@
+[
+  {
+    "name": "90/90 растяжка",
+    "name_en": "90/90 Hip Stretch",
+    "source": "Ак Барс + Рубин",
+    "equipment_raw": [
+      "bodyweight"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "cooldown",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "мобильность бедра"
+    ],
+    "skill_tags_matched": [
+      "Мобильность"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": null,
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Dead Bug (Жук) + антиротация",
+    "name_en": null,
+    "source": "Base",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": "нет упомянутого оборудования в источнике -> bodyweight по умолчанию",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "intellect",
+      "strength"
+    ],
+    "skills_raw": [
+      "Игровое чтение",
+      "Контроль корпуса"
+    ],
+    "skill_tags_matched": [
+      "Игровое чтение"
+    ],
+    "skill_tags_unmatched": [
+      "Контроль корпуса"
+    ],
+    "description": "Учит держать нейтральный таз и противостоять разгибанию поясницы. Фундамент для всех силовых.",
+    "technique": "Ляг на спину, руки вверх, колени 90°. Прижми поясницу к полу. Медленно выпрями противоположные руку и ногу. Вернись и поменяй сторону. Поясница не должна отрываться.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Тяга к лицу",
+    "name_en": "Face Pull",
+    "source": "Ак Барс + Рубин",
+    "equipment_raw": [
+      "band",
+      "cable"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "band=home, cable=gym -> взят более консервативный (высокий) уровень",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "здоровье плеч",
+      "осанка"
+    ],
+    "skill_tags_matched": [],
+    "skill_tags_unmatched": [
+      "здоровье плеч",
+      "осанка"
+    ],
+    "description": "Внешняя ротация и задние дельты.",
+    "technique": "Тяни к лицу, локти высоко, разводи лопатки.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Антиротационный жим (Pallof)",
+    "name_en": "Pallof Press",
+    "source": "Ак Барс + Рубин",
+    "equipment_raw": [
+      "band",
+      "cable"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "band=home, cable=gym -> взят более консервативный (высокий) уровень",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "intellect",
+      "strength"
+    ],
+    "skills_raw": [
+      "силовая борьба",
+      "игровое чтение"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба",
+      "Игровое чтение"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Классика антиротации.",
+    "technique": "Резина сбоку, выжми руки вперёд, не поворачивай корпус.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: 3 разных заголовка на Pallof Press (см. #4/#7/#8 в отчёте)"
+  },
+  {
+    "name": "Y на наклонной скамье",
+    "name_en": "Prone Y Raise",
+    "source": "Рубин",
+    "equipment_raw": [
+      "dumbbells",
+      "incline_bench"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "incline_bench форсирует gym",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "здоровье плеч",
+      "осанка"
+    ],
+    "skill_tags_matched": [],
+    "skill_tags_unmatched": [
+      "здоровье плеч",
+      "осанка"
+    ],
+    "description": "Работа задних дельт и нижней части трапеций.",
+    "technique": "Лёжа лицом вниз, поднимай руки в форме Y.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Австралийские подтягивания",
+    "name_en": "Australian Pull-ups / Inverted Row",
+    "source": "Ак Барс",
+    "equipment_raw": [
+      "trx",
+      "rings",
+      "low_bar"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "осанка",
+      "силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "осанка"
+    ],
+    "description": "Горизонтальная тяга для начинающих.",
+    "technique": "Тело прямое, тянись грудью к рукоятям.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Антиротационный жим (Pallof) + варианты",
+    "name_en": null,
+    "source": "Рубин",
+    "equipment_raw": [
+      "резина",
+      "блок"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "резина=home, блок=gym -> взят более высокий уровень",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "intellect",
+      "strength"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Игровое чтение"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба",
+      "Игровое чтение"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Резина сбоку. Выжми руки вперёд и удержи. Не давай корпусу повернуться. Можно с дальней ногой вперёд.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: 3 разных заголовка на Pallof Press (см. #4/#7/#8 в отчёте)"
+  },
+  {
+    "name": "Антиротационный пресс с резиной (Pallof Press)",
+    "name_en": null,
+    "source": "Base",
+    "equipment_raw": [
+      "резина",
+      "блок"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "резина=home, блок=gym -> взят более высокий уровень",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "intellect",
+      "strength"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Игровое чтение"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба",
+      "Игровое чтение"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Классика антиротации. Учит прессу сопротивляться скручиванию.",
+    "technique": "Резина сбоку на уровне груди. Встань в устойчивую позицию. Выжми руки вперёд. Не давай корпусу разворачиваться. Задержись в вытянутом положении 1-2 сек.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: 3 разных заголовка на Pallof Press (см. #4/#7/#8 в отчёте)"
+  },
+  {
+    "name": "Берд-дог",
+    "name_en": "Bird Dog",
+    "source": "Рубин",
+    "equipment_raw": [
+      "bodyweight"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "intellect",
+      "strength"
+    ],
+    "skills_raw": [
+      "контроль корпуса"
+    ],
+    "skill_tags_matched": [],
+    "skill_tags_unmatched": [
+      "контроль корпуса"
+    ],
+    "description": null,
+    "technique": null,
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Берпи (умеренно)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "тело"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "endurance",
+      "agility"
+    ],
+    "skills_raw": [
+      "Общая выносливость"
+    ],
+    "skill_tags_matched": [
+      "Выносливость"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Присед -> упор лёжа -> отжимание (опционально) -> прыжок.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": "плиометрика/выносливость на грани; выбрано по явному тегу источника endurance",
+    "stimulus_type": "endurance",
+    "stimulus_type_proposed_note": "могло бы быть power (есть прыжок), но источник явно тегирует endurance/agility, не strength",
+    "movement_pattern": [
+      "squat",
+      "push",
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 12,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "похоже на существующее \"Бёрпи\" в БД (другое написание -- ё/е), возможный дубль"
+  },
+  {
+    "name": "Боковая планка",
+    "name_en": "Side Plank",
+    "source": "Все",
+    "equipment_raw": [
+      "bodyweight",
+      "bench"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "bench (складная лавка) -> home, см. общий список неоднозначных случаев",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "endurance"
+    ],
+    "skills_raw": [
+      "силовая борьба",
+      "баланс"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба",
+      "Баланс и устойчивость"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Латеральная стабилизация.",
+    "technique": "Опора на предплечье, тело прямое. Можно ногу на лавку.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": "изометрия",
+    "movement_pattern": [
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Боковой выпад",
+    "name_en": "Lateral Lunge",
+    "source": "Ак Барс + Рубин",
+    "equipment_raw": [
+      "bodyweight",
+      "dumbbells",
+      "kettlebell"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "катание",
+      "силовая борьба",
+      "мобильность"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Силовая борьба",
+      "Мобильность"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Развивает силу и мобильность в боковой плоскости.",
+    "technique": "Широкий шаг в сторону. Опустись на рабочую ногу, таз назад. Вторая нога почти прямая. Грудь вверх.",
+    "notes": "Можно на слайдере.",
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat",
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Боковой прыжок / скачок",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Катание",
+      "Взрывной старт"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Взрывной старт"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Прыжок в сторону с приземлением на внешнюю ногу. Контроль таза и колена.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": "плиометрика, хотя источник тегирует только agility",
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: два отдельных заголовка на боковой прыжок (см. #13/#14)"
+  },
+  {
+    "name": "Боковой скачок",
+    "name_en": "Lateral Bound",
+    "source": "Второй PDF + Ак Барс",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "катание",
+      "взрывной старт"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Взрывной старт"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Боковая мощность и стабилизация.",
+    "technique": "Мощный прыжок в сторону + пауза на внешней ноге.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: два отдельных заголовка на боковой прыжок (см. #13/#14)"
+  },
+  {
+    "name": "Болгарский присед",
+    "name_en": "Bulgarian Split Squat",
+    "source": "Ак Барс + Рубин + второй PDF",
+    "equipment_raw": [
+      "bodyweight",
+      "dumbbells",
+      "bench"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "катание",
+      "взрывной старт",
+      "силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Взрывной старт",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Усложнённая версия сплита. Задняя нога на лавке.",
+    "technique": "Задняя нога на лавке (шнурки вниз). Опустись до параллели бедра с полом. Корпус слегка наклонён вперёд. Отталкивайся пяткой передней ноги.",
+    "notes": "Одна из лучших для односторонней силы ног.",
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Ведение мяча / шайбы клюшкой (off-ice)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "клюшка + мяч",
+      "шайба"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "Round 2 (D): переклассифицировано bodyweight->home -- реальный инвентарь (клюшка/шайба), не 'тело без ничего'",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility",
+      "intellect"
+    ],
+    "skills_raw": [
+      "Обводка",
+      "Игровое чтение"
+    ],
+    "skill_tags_matched": [
+      "Обводка",
+      "Игровое чтение"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Разные виды ведения: узкое, широкое, змейка, одной рукой.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "непрерывный дриблинг-дрилл, оценён как timed drill, а не дискретные повторения",
+    "stimulus_type": "skill",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Велосипед интервалы",
+    "name_en": "Bike Intervals",
+    "source": "Все",
+    "equipment_raw": [
+      "bike"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "endurance"
+    ],
+    "skills_raw": [
+      "выносливость"
+    ],
+    "skill_tags_matched": [
+      "Выносливость"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": null,
+    "notes": "Классика -- работа / отдых до пульса 130.",
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "endurance",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 60,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Выпад назад с грифом (RPE 7-8)",
+    "name_en": null,
+    "source": "Рубин",
+    "equipment_raw": [
+      "гриф",
+      "гантели"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "гриф(barbell)=gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "Катание",
+      "Баланс",
+      "Взрывной старт"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Баланс и устойчивость",
+      "Взрывной старт"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Шагни назад. Опустись до касания коленом. Оттолкнись передней ногой. Держи корпус стабильным.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Голеностоп + резина",
+    "name_en": null,
+    "source": "Base, BaseFull",
+    "equipment_raw": [
+      "резина"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "warmup",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [],
+    "skill_tags_matched": [],
+    "skill_tags_unmatched": [],
+    "description": "Улучшает качество катания и снижает риск травм.",
+    "technique": "Закрепи резину, упирайся стопой и води голеностоп в разных направлениях с сопротивлением. 10-15 повторений.",
+    "notes": null,
+    "suitable_for_game_day": true,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": "источник явно даёт '10-15 повторений', это единственный текстовый override числа повторов",
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": "лёгкое сопротивление резиной классифицировано как mobility/активация, хотя exercise_type=sets_reps (текстовое число повторов важнее общего правила mobility->duration)",
+    "movement_pattern": [
+      "ankle_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 12,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": "источник даёт диапазон 10-15 повторений, взята середина (12), не сетка по умолчанию",
+    "duplicate_flag": null
+  },
+  {
+    "name": "Поза голубя",
+    "name_en": "Pigeon Stretch",
+    "source": "Все",
+    "equipment_raw": [
+      "bodyweight",
+      "bench"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "bench -> home, см. общий список",
+    "difficulty": "beginner",
+    "phase": "cooldown",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "мобильность бедра",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Мобильность",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": null,
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Горизонтальная тяга (TRX / кольца / низкий блок)",
+    "name_en": null,
+    "source": "Base",
+    "equipment_raw": [
+      "TRX",
+      "кольца",
+      "стол"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Осанка",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "Осанка"
+    ],
+    "description": "Отличная альтернатива подтягиваниям, особенно для начинающих.",
+    "technique": "Возьмись за рукояти, тело прямое как доска. Тянись грудью к рукоятям. Сведи лопатки. Не проваливай таз.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Гребля (Concept2 или тренажёр)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "гребной тренажёр"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "endurance",
+      "strength"
+    ],
+    "skills_raw": [
+      "Выносливость",
+      "Общая мощность"
+    ],
+    "skill_tags_matched": [
+      "Выносливость"
+    ],
+    "skill_tags_unmatched": [
+      "Общая мощность"
+    ],
+    "description": null,
+    "technique": "Ноги -> корпус -> руки. Обратный порядок на возврате.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "endurance",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull",
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 90,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "похоже на существующие \"Гребной тренажёр (лёгкий темп)\"/\"Гребной тренажёр интервалами\" в БД -- вероятный смысловой дубль"
+  },
+  {
+    "name": "Динамический выпад + открытие/закрытие бедра",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "тело"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "warmup",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Катание",
+      "Мобильность"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Мобильность"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Шагай в выпад и в нижней точке открывай или закрывай таз/корпус.",
+    "notes": null,
+    "suitable_for_game_day": true,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "переклассифицировано из sets_reps в duration для согласованности правила stimulus=mobility -> exercise_type=duration",
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": "динамическая активация бедра перед игрой, без сопротивления",
+    "movement_pattern": [
+      "squat",
+      "hip_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Дровосек",
+    "name_en": "Woodchop",
+    "source": "Рубин + Ак Барс",
+    "equipment_raw": [
+      "band",
+      "cable",
+      "medball"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "intellect"
+    ],
+    "skills_raw": [
+      "сила броска",
+      "силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Диагональная мощность.",
+    "technique": "Движение по диагонали сверху вниз или снизу вверх.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": "источник тегирует strength, но описание ('диагональная мощность') явно взрывное/ротационное -- классифицировано как power",
+    "movement_pattern": [
+      "rotation",
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Жим гантелей лёжа",
+    "name_en": null,
+    "source": "ALL, Base, BaseFull",
+    "equipment_raw": [
+      "гантели + скамья"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Базовый жим. Гантели дают больший диапазон и требуют стабилизации -- это плюс.",
+    "technique": "Ляг на скамью, стопы на полу. Гантели на уровне груди, локти под ~45 градусов. Выжми вверх до почти полного выпрямления. Опусти под контролем. Не отрывай таз и голову от скамьи.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "КОЛЛИЗИЯ ИМЕНИ: точное совпадение с уже существующим упражнением \"Жим гантелей лёжа\" в БД (unique constraint на Exercise.name)"
+  },
+  {
+    "name": "Жим гантелей на наклонной скамье",
+    "name_en": null,
+    "source": "Base",
+    "equipment_raw": [
+      "гантели + наклонная скамья"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "наклонная скамья -> incline_bench=gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Сила броска"
+    ],
+    "skill_tags_matched": [
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Больше загружает верхнюю часть груди и передние дельты. Хорошо переносится на бросок.",
+    "technique": "Аналогично горизонтальному жиму, но скамья под 30-45°.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Жим гантелей одной рукой",
+    "name_en": "Single-Arm Dumbbell Press",
+    "source": "Рубин",
+    "equipment_raw": [
+      "dumbbell",
+      "bench"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "intellect"
+    ],
+    "skills_raw": [
+      "сила броска",
+      "антиротация"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Жимающая сила + антиротация.",
+    "technique": "Жми одну гантель, не давай корпусу разворачиваться.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Жим лендмайн / антиротационный жим",
+    "name_en": null,
+    "source": "ALL, Base",
+    "equipment_raw": [
+      "гриф в углу + блины",
+      "резина"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "intellect"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Силовая борьба",
+      "Игровое чтение"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба",
+      "Игровое чтение"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Очень специфичное для хоккея упражнение. Учит давить и бороться с вращением.",
+    "technique": "Гриф одним концом в углу. Встань в спортивную стойку. Жми гриф от себя вверх и вперёд. Корпус не разворачивается -- сопротивляйся ротации. Можно делать с шагом.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Жим лёжа с темпом 6-0-0-0 (RPE 8)",
+    "name_en": null,
+    "source": "Рубин",
+    "equipment_raw": [
+      "штанга",
+      "гантели"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "штанга=gym присутствует среди альтернатив -> взят высокий уровень",
+    "difficulty": "advanced",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "6 секунд вниз -> быстро вверх. Лопатки сведены, ноги упираются в пол.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": "темповый жим -- дискретные повторы с медленным эксцентриком, не holds",
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 4,
+    "target_reps": 6,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Жим штанги лёжа",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "штанга + скамья"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Лопатки сведены. Ноги упираются в пол. Штанга опускается на нижнюю часть груди.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Жук + рол / статика",
+    "name_en": null,
+    "source": "Рубин",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "intellect",
+      "strength"
+    ],
+    "skills_raw": [
+      "Контроль корпуса"
+    ],
+    "skill_tags_matched": [],
+    "skill_tags_unmatched": [
+      "Контроль корпуса"
+    ],
+    "description": null,
+    "technique": "Классический dead bug. Можно добавить удержание или лёгкий рол.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: содержательно то же упражнение, что и \"Dead Bug (Жук) + антиротация\" (см. #2)"
+  },
+  {
+    "name": "Зашагивание на тумбу",
+    "name_en": "Step-up",
+    "source": "Ак Барс",
+    "equipment_raw": [
+      "box",
+      "dumbbells"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "box (стационарная тумба) -> gym",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "взрывной старт",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Одностороннее разгибание бедра.",
+    "technique": "Вся стопа на тумбе, оттолкнись пяткой, встань полностью.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat",
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Изометрический сплит-присед (макс. усилие)",
+    "name_en": null,
+    "source": "ALL, Рубин",
+    "equipment_raw": [
+      "своё тело",
+      "лёгкий вес"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "Катание",
+      "Взрывной старт",
+      "Силовая борьба",
+      "Баланс"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Взрывной старт",
+      "Силовая борьба",
+      "Баланс и устойчивость"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Статическое удержание в нижней точке сплита. Отлично учит контролю таза и колена.",
+    "technique": "Встань в глубокий выпад. Задний край почти касается пола. Держи позицию максимально сильно 3-5 секунд. Корпус прямой, таз квадратный.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": "изометрия",
+    "movement_pattern": [
+      "squat"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 5,
+    "numeric_defaults_proposed_note": "источник даёт диапазон 3-5 секунд, взята верхняя граница вместо сетки по умолчанию (intermediate/strength-iso = 45с)",
+    "duplicate_flag": null
+  },
+  {
+    "name": "Имитация броска с резиной",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "резина"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "intellect"
+    ],
+    "skills_raw": [
+      "Сила броска"
+    ],
+    "skill_tags_matched": [
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Закрепи резину сзади. Имитируй полный бросок с переносом веса.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": "источник тегирует strength, но описание -- взрывная имитация броска, ближе к power",
+    "movement_pattern": [
+      "rotation",
+      "push"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Комплекс голеностопа",
+    "name_en": "Ankle Complex",
+    "source": "Второй PDF + Рубин",
+    "equipment_raw": [
+      "bodyweight",
+      "band"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "warmup",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "катание",
+      "профилактика травм"
+    ],
+    "skill_tags_matched": [
+      "Катание"
+    ],
+    "skill_tags_unmatched": [
+      "профилактика травм"
+    ],
+    "description": "Обязательный прехаб для хоккеистов.",
+    "technique": "Повороты голеностопа; пальцы вверх / носки к себе; ходьба на носках; спринг-анкл (удержания и пружины); присед у стены с давлением большого пальца.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "комплекс из нескольких под-движений оценён как один таймированный круг",
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "ankle_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Копенгаген-планка (короткий рычаг)",
+    "name_en": null,
+    "source": "ALL, Base, BaseFull",
+    "equipment_raw": [
+      "лавка"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "lavка -> home, см. общий список",
+    "difficulty": "advanced",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Баланс",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба",
+      "Баланс и устойчивость",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Одно из лучших упражнений для приводящих мышц. Снижает риск травм паха.",
+    "technique": "Ляг на бок, верхняя нога на лавке. Подними таз, опираясь на предплечье и верхнюю ногу. Нижняя нога может быть согнута или висеть. Держи тело в прямой линии. Начни с коротких интервалов (15-20 сек).",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": "изометрия",
+    "movement_pattern": [
+      "core"
+    ],
+    "movement_pattern_proposed_note": "приводящие мышцы бедра -- отдельного тега нет, ближайший core",
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 20,
+    "numeric_defaults_proposed_note": "источник явно даёт стартовый диапазон 15-20с несмотря на difficulty=advanced (сетка дала бы 60с) -- взята верхняя граница текстового диапазона",
+    "duplicate_flag": null
+  },
+  {
+    "name": "Кошка-корова + дыхание",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "тело"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "cooldown",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Мобильность позвоночника"
+    ],
+    "skill_tags_matched": [
+      "Мобильность"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "На четвереньках. Поочерёдно прогиб и округление спины.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core"
+    ],
+    "movement_pattern_proposed_note": "нет отдельного тега для мобильности позвоночника -- ближайший core",
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "похоже на существующее \"Кошка-корова\" в БД -- вероятный смысловой дубль"
+  },
+  {
+    "name": "Круги руками + лопатки",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "тело",
+      "лёгкие гантели"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "альтернатива с гантелями -> home",
+    "difficulty": "beginner",
+    "phase": "cooldown",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Здоровье плеч",
+      "Сила броска"
+    ],
+    "skill_tags_matched": [
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [
+      "Здоровье плеч"
+    ],
+    "description": null,
+    "technique": "Большие и маленькие круги. Сведение/разведение лопаток.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "shoulder_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Латеральный выпад с гантелью на слайде",
+    "name_en": null,
+    "source": "Рубин",
+    "equipment_raw": [
+      "гантель + слайдер",
+      "полотенце"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "Катание (поперечное)",
+      "Мобильность",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Мобильность",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Одна нога на слайдере. Уезжай в сторону, сгибая опорную ногу. Вернись мощным приведением.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat",
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Марш с санями",
+    "name_en": "Sled March / Push",
+    "source": "Рубин + второй PDF",
+    "equipment_raw": [
+      "sled",
+      "heavy_band"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "sled -> gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "endurance"
+    ],
+    "skills_raw": [
+      "взрывной старт",
+      "силовая борьба",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Силовая борьба",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Горизонтальное усилие, близкое к катанию.",
+    "technique": "Низкий корпус, короткие мощные шаги.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "endurance",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 90,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Обратный выпад",
+    "name_en": "Reverse Lunge",
+    "source": "Ак Барс + Рубин",
+    "equipment_raw": [
+      "bodyweight",
+      "dumbbells",
+      "barbell"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "barbell -> gym (высший уровень среди альтернатив)",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "катание",
+      "баланс",
+      "взрывной старт"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Баланс и устойчивость",
+      "Взрывной старт"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Более безопасный вариант выпада для коленей.",
+    "technique": "Шагни назад, опустись, оттолкнись передней ногой.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Обратный дровосек",
+    "name_en": null,
+    "source": "Рубин",
+    "equipment_raw": [
+      "блок",
+      "резина"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "блок -> gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "intellect"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Антиротация"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Обратное диагональное движение (снизу вверх через тело).",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": "аналогично Дровосеку -- взрывное ротационное движение",
+    "movement_pattern": [
+      "rotation",
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Отведение бедра с резиной",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "мини-бэнд"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "warmup",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "Баланс",
+      "Катание",
+      "Стабильность колена"
+    ],
+    "skill_tags_matched": [
+      "Баланс и устойчивость",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [
+      "Стабильность колена"
+    ],
+    "description": null,
+    "technique": "Резина выше колен. Отводи ногу в сторону, не разворачивая таз. Можно стоя или на четвереньках.",
+    "notes": null,
+    "suitable_for_game_day": true,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "переклассифицировано в duration (правило stimulus=mobility -> duration)",
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": "источник тегирует strength, но это игровая активация с минимальным сопротивлением мини-бэндом -- ближе к определению mobility из ТЗ",
+    "movement_pattern": [
+      "hip_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Отжимания",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "тело"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "endurance"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Тело прямое. Локти ближе к корпусу. Грудь почти касается пола.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Отжимания на брусьях (если есть)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "брусья"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Опускайся до угла 90° в локтях. Не проваливай плечи.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Отжимания с ногами на возвышении",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "лавка",
+      "тумба"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "лавка/тумба -- некрупное возвышение, взято home",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Сила броска"
+    ],
+    "skill_tags_matched": [
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Ноги выше головы. Сложнее обычных отжиманий.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "push"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Планка",
+    "name_en": "Plank",
+    "source": "Все",
+    "equipment_raw": [
+      "bodyweight"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "endurance"
+    ],
+    "skills_raw": [
+      "силовая борьба",
+      "контроль корпуса"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "контроль корпуса"
+    ],
+    "description": "Базовая стабилизация.",
+    "technique": "Локти под плечами, тело -- прямая линия.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": "изометрия",
+    "movement_pattern": [
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "КОЛЛИЗИЯ ИМЕНИ: точное совпадение с уже существующим упражнением \"Планка\" в БД (unique constraint на Exercise.name)"
+  },
+  {
+    "name": "Подтягивания (нейтральный хват)",
+    "name_en": null,
+    "source": "ALL, Base, BaseFull",
+    "equipment_raw": [
+      "турник",
+      "TRX"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "endurance"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Общий контроль корпуса"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "Общий контроль корпуса"
+    ],
+    "description": "Одно из лучших упражнений верхнего тела. Нейтральный хват обычно комфортнее для плеч.",
+    "technique": "Возьмись за перекладину, руки чуть шире плеч. Напряги пресс и ягодицы. Тянись грудью к перекладине. Локти идут вниз и назад. Опустись полностью под контролем.",
+    "notes": "Если не получается: делай австралийские подтягивания или с резиной.",
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Подтягивания на TRX / кольцах",
+    "name_en": null,
+    "source": "Рубин + второй PDF",
+    "equipment_raw": [
+      "TRX",
+      "кольца"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Контроль корпуса"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "Контроль корпуса"
+    ],
+    "description": null,
+    "technique": "Тело прямое. Тянись грудью к рукоятям. Можно с темпом 2-1-x-1.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Подъём таза стоя (Hip Thrust standing / Good Morning лёгкий)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "резина",
+      "гриф"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "гриф -> gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Резина над коленями или гриф на плечах. Таз назад, потом мощно вперёд + сжатие ягодиц.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Поза голубя (активация перед игрой)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "тело",
+      "лавка"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "лавка -> home",
+    "difficulty": "beginner",
+    "phase": "warmup",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Мобильность бедра",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Мобильность",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Передняя нога согнута, задняя вытянута. Таз ровный. Дыши.",
+    "notes": null,
+    "suitable_for_game_day": true,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Приведение бедра с резиной",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "резина",
+      "кроссовер"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "кроссовер (блочный тренажёр) -> gym",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "Катание",
+      "Силовая борьба",
+      "Профилактика травм паха"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "Профилактика травм паха"
+    ],
+    "description": null,
+    "technique": "Резина сбоку. Приводи ногу к средней линии тела. Контролируй движение.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": "сопротивление резиной сочтено значимым, не минимальным -- иначе было бы mobility",
+    "movement_pattern": [
+      "hip_mobility"
+    ],
+    "movement_pattern_proposed_note": "нет отдельного тега для приведения бедра -- ближайший hip_mobility",
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Присед со штангой / гоблет-присед",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "штанга",
+      "гантель",
+      "гиря"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "штанга -> gym (высший уровень среди альтернатив)",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба",
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Базовое двустороннее упражнение. Гоблет проще для техники.",
+    "technique": "Ноги чуть шире плеч. Таз назад, грудь вверх. Опускайся до параллели или ниже. Колени в направлении носков.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Пронация / супинация кисти",
+    "name_en": null,
+    "source": "Второй PDF",
+    "equipment_raw": [
+      "гантель",
+      "резина",
+      "полотенце"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Хват",
+      "Контроль клюшки"
+    ],
+    "skill_tags_matched": [
+      "Обводка"
+    ],
+    "skill_tags_unmatched": [
+      "Хват"
+    ],
+    "description": null,
+    "technique": "Предплечье зафиксировано. Вращай кисть внутрь и наружу под контролем.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "skill",
+    "stimulus_type_proposed_note": "источник тегирует strength, но это тонкая моторика для контроля клюшки, а не силовая работа -- классифицировано как skill",
+    "movement_pattern": [
+      "wrist_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Прыжки через барьеры / линии",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "барьеры",
+      "линии на полу"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "небольшой спортивный инвентарь -- условно home",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Взрывной старт",
+      "Координация"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Координация и реакция"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Быстрые прыжки двумя ногами или одной. Акцент на частоту и мягкое приземление.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 6,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Прыжок барьер 1 нога + пауза",
+    "name_en": null,
+    "source": "Второй PDF",
+    "equipment_raw": [
+      "барьер",
+      "линия"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "условно home, см. выше",
+    "difficulty": "advanced",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Взрывной старт",
+      "Координация"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Координация и реакция"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Прыжок через барьер на одной ноге + обязательная пауза 1 сек в приземлении.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 4,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Прыжок в длину с места + пауза",
+    "name_en": null,
+    "source": "Base",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility",
+      "strength"
+    ],
+    "skills_raw": [
+      "Взрывной старт"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Простое и очень показательное упражнение для оценки и развития взрывной силы.",
+    "technique": "Ноги на ширине плеч. Мах руками назад + полуприсед. Резко выпрыгни вперёд как можно дальше. Приземлились мягко, задержись на 1 секунду.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion",
+      "squat"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Прыжок на одной ноге (на месте / вперёд)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Взрывной старт",
+      "Баланс",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Баланс и устойчивость",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Прыгай на одной ноге, приземляйся мягко и стабильно. Начинай с маленькой амплитуды.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 6,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Прыжок на тумбу (Box Jump)",
+    "name_en": null,
+    "source": "ALL, Base, BaseFull",
+    "equipment_raw": [
+      "тумба",
+      "надёжная платформа"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "стационарная тумба -> gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility",
+      "strength"
+    ],
+    "skills_raw": [
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Развивает взрывную мощность ног. Важно не гнаться за высотой, а за качеством приземления.",
+    "technique": "Встань на комфортном расстоянии от тумбы. Сделай полуприсед и резко выпрыгни вверх. Приземлились мягко на всю стопу, колени слегка согнуты. Встань в полный рост на тумбе. Спустись шагом (не спрыгивай постоянно).",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat",
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Прыжок на тумбу на одной ноге",
+    "name_en": "Single-Leg Box Jump",
+    "source": "Рубин",
+    "equipment_raw": [
+      "box"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "advanced",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "взрывной старт",
+      "баланс",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Баланс и устойчивость",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Односторонняя взрывная работа.",
+    "technique": "Прыжок и приземление на одну ногу.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat",
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 4,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Прыжок на тумбу 1 нога боком",
+    "name_en": null,
+    "source": "Рубин",
+    "equipment_raw": [
+      "тумба"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "advanced",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Катание",
+      "Взрывной старт",
+      "Баланс"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Взрывной старт",
+      "Баланс и устойчивость"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Боковой прыжок на одну ногу. Контроль таза и колена при приземлении.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 4,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Прыжок на тумбу 1 нога лицом",
+    "name_en": null,
+    "source": "Рубин",
+    "equipment_raw": [
+      "тумба"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "advanced",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility",
+      "strength"
+    ],
+    "skills_raw": [
+      "Взрывной старт",
+      "Катание",
+      "Баланс"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Катание",
+      "Баланс и устойчивость"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Оттолкнись одной ногой, приземлитесь на ту же ногу на тумбу. Мягкое приземление + стабилизация.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat",
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 4,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Раскатка на ролике / ab wheel",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "ролик"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "ab-ролик не входит в явный список -- отнесён к home",
+    "difficulty": "advanced",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Контроль корпуса",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "Контроль корпуса"
+    ],
+    "description": null,
+    "technique": "Выкатывайся только на то расстояние, где держишь поясницу. Не прогибайся.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 4,
+    "target_reps": 6,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: то же движение, что и \"Роллаут\" ниже по файлу (см. #64)"
+  },
+  {
+    "name": "Роллаут",
+    "name_en": "Ab Wheel / Rollout",
+    "source": "Рубин + Ак Барс",
+    "equipment_raw": [
+      "ab_wheel",
+      "swiss_ball"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "ab_wheel/swiss_ball не входят в явный список -- отнесены к home",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "контроль корпуса",
+      "силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "контроль корпуса"
+    ],
+    "description": "Антиразгибание на высоком уровне.",
+    "technique": "Выкатывайся только пока держишь нейтральную поясницу.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: то же движение, что и \"Раскатка на ролике / ab wheel\" выше по файлу (см. #63)"
+  },
+  {
+    "name": "Ротационный бросок медбола",
+    "name_en": "Rotational Med Ball Throw",
+    "source": "Ак Барс + Рубин + второй PDF",
+    "equipment_raw": [
+      "medball"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility",
+      "intellect"
+    ],
+    "skills_raw": [
+      "сила броска",
+      "силовая борьба",
+      "обводка"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба",
+      "Обводка"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Прямой перенос на бросок и борьбу.",
+    "technique": "Разгон через бедро и корпус, бросок в стену. Варианты: сплит, фронтальный, боком.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Ротация бедра (внутренняя/наружная)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "резина",
+      "тело"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "warmup",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Катание",
+      "Мобильность"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Мобильность"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Контролируемые вращения бедра. Можно сидя, лёжа или стоя.",
+    "notes": null,
+    "suitable_for_game_day": true,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Румынская тяга",
+    "name_en": "Romanian Deadlift",
+    "source": "Ак Барс + Рубин",
+    "equipment_raw": [
+      "barbell",
+      "dumbbells"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "barbell -> gym",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "сила броска",
+      "взрывной старт",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Базовая задняя цепь.",
+    "technique": "Ноги почти прямые. Таз назад, наклон от бёдер. Спина ровная. Ощущай растяжение бицепса бедра. Возврат ягодицами.",
+    "notes": "Отлично работает с темпом 6-0-0-0.",
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "КОЛЛИЗИЯ ИМЕНИ: точное совпадение с уже существующим упражнением \"Румынская тяга\" в БД (unique constraint на Exercise.name)"
+  },
+  {
+    "name": "Румынская тяга на одной ноге",
+    "name_en": "Single-Leg RDL",
+    "source": "Ак Барс + Рубин",
+    "equipment_raw": [
+      "bodyweight",
+      "dumbbells",
+      "kettlebell"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "катание",
+      "баланс",
+      "взрывной старт",
+      "сила броска"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Баланс и устойчивость",
+      "Взрывной старт",
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Лучшее упражнение для задней цепи и баланса.",
+    "technique": "Стоя на одной ноге, лёгкий изгиб в колене. Наклоняйся от бёдер, таз назад. Свободная нога уходит назад. Спина ровная. Возвращайся за счёт ягодицы опорной ноги.",
+    "notes": "Можно с паузой внизу и медленной эксцентрикой.",
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Румынская тяга с гантелями (темп 6-0-0-0)",
+    "name_en": null,
+    "source": "Рубин + второй PDF",
+    "equipment_raw": [
+      "гантели"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Классическая задняя цепь с акцентом на медленный спуск.",
+    "technique": "Ноги почти прямые. Таз назад, 6 секунд вниз. Спина ровная. Вверху мощно сожми ягодицы.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": "near-duplicate: третий вариант румынской тяги в файле (см. #67/#68)"
+  },
+  {
+    "name": "Русский твист (аккуратно)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "мяч",
+      "блин",
+      "тело"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "блин отнесён к home (не к gym)",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "intellect"
+    ],
+    "skills_raw": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Сила броска",
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Лёгкий наклон назад. Поворачивай корпус, а не только руки. Контроль.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "rotation",
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Сгибание-разгибание голеностопа",
+    "name_en": "Ankle Dorsiflexion / Plantarflexion",
+    "source": "Рубин",
+    "equipment_raw": [
+      "band",
+      "dumbbell"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "warmup",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility",
+      "strength"
+    ],
+    "skills_raw": [
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Сила и контроль голеностопа.",
+    "technique": "Полный диапазон, медленный контроль.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "переклассифицировано в duration для согласованности с правилом stimulus=mobility -> duration",
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": "лёгкое сопротивление резиной/гантелью для голеностопа классифицировано как активация, не силовая работа",
+    "movement_pattern": [
+      "ankle_mobility"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Скакалка",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "скакалка"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "не входит в явный список -- отнесена к home",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility",
+      "endurance"
+    ],
+    "skills_raw": [
+      "Катание",
+      "Координация",
+      "Выносливость"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Координация и реакция",
+      "Выносливость"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Прыжки на двух ногах, на одной, крест-накрест, высокие колени. Держи ритм.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "endurance",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 90,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Скорпион / грудной отдел",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "тело"
+    ],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "cooldown",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Мобильность груди и позвоночника"
+    ],
+    "skill_tags_matched": [
+      "Мобильность"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Лёжа на животе, отводи ногу в сторону с поворотом корпуса.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "mobility",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": "нет отдельного тега для мобильности грудного отдела позвоночника -- ближайшие core/rotation",
+    "target_sets": 2,
+    "target_reps": null,
+    "target_duration_seconds": 30,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Слалом с мячом / шайбой",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "конусы + клюшка"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": "Round 2 (D): переклассифицировано bodyweight->home -- реальный инвентарь (конусы/клюшка), не 'тело без ничего'",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility",
+      "intellect"
+    ],
+    "skills_raw": [
+      "Обводка",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Обводка",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Быстрое прохождение змейки с контролем шайбы/мяча.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "таймированный дриблинг-дрилл",
+    "stimulus_type": "skill",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 45,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Слэм медбола",
+    "name_en": "Med Ball Slam",
+    "source": "Рубин + второй PDF",
+    "equipment_raw": [
+      "medball"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "сила броска",
+      "мощность корпуса"
+    ],
+    "skill_tags_matched": [
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [
+      "мощность корпуса"
+    ],
+    "description": "Вертикальная мощность через всё тело.",
+    "technique": "Мяч над головой -> мощный удар в пол.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "core",
+      "rotation"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 6,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Сплит-присед",
+    "name_en": "Split Squat",
+    "source": "Ак Барс + Рубин + общий",
+    "equipment_raw": [
+      "bodyweight",
+      "dumbbells",
+      "barbell",
+      "safety_bar"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "barbell/safety_bar -> gym (высший уровень среди альтернатив)",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "катание",
+      "взрывной старт",
+      "силовая борьба",
+      "баланс"
+    ],
+    "skill_tags_matched": [
+      "Катание",
+      "Взрывной старт",
+      "Силовая борьба",
+      "Баланс и устойчивость"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Одностороннее приседание в выпаде. Учит контролировать таз и колено, убирает дисбаланс между ногами.",
+    "technique": "Встань в выпад, задняя нога на носке. Корпус прямой. Опустись до почти касания задним коленом пола. Переднее колено смотрит на носок, не заваливается внутрь. Оттолкнись передней ногой. Таз держи квадратным.",
+    "notes": "Можно с паузой внизу, медленной эксцентрикой, резиной над коленями.",
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Короткий спринт",
+    "name_en": "Short Sprint",
+    "source": "Все",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility",
+      "endurance"
+    ],
+    "skills_raw": [
+      "взрывной старт",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": null,
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "дистанционный спринт оценён как таймированное усилие",
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": "источник тегирует endurance/agility, но 10-20м -- явно максимально-скоростной короткий отрезок, классифицировано как power",
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 40,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Спрыгивание с тумбы + стабилизация",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "тумба"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "Баланс",
+      "Профилактика травм",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Баланс и устойчивость",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [
+      "Профилактика травм"
+    ],
+    "description": null,
+    "technique": "Спрыгни с тумбы и задержись в полуприседе 1-2 сек. Колени не заваливаются внутрь.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat",
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 5,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Теневой бой / имитация борьбы",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility",
+      "intellect"
+    ],
+    "skills_raw": [
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Имитация упоров, толчков, работы корпуса в низкой стойке.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "непрерывная имитационная работа оценена как таймированный раунд",
+    "stimulus_type": "skill",
+    "stimulus_type_proposed_note": "источник тегирует strength, но по сути это координационная имитация борьбы без сопротивления -- классифицировано как skill",
+    "movement_pattern": [
+      "push",
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 45,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Тяга верхнего блока / горизонтального блока",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "блочный тренажёр"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Осанка",
+      "Силовая борьба"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "Осанка"
+    ],
+    "description": null,
+    "technique": "Тяни к груди/животу. Своди лопатки. Не раскачивайся.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Тяга гантели в наклоне (Single-Arm Dumbbell Row)",
+    "name_en": null,
+    "source": "ALL, Base, BaseFull",
+    "equipment_raw": [
+      "гантель + лавка"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Сила броска",
+      "Осанка"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба",
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [
+      "Осанка"
+    ],
+    "description": "Одностороннее тяговое движение. Учит стабилизировать корпус и сильно развивает широчайшие и середину спины.",
+    "technique": "Упор одной рукой и коленом на лавку. Спина параллельна полу. Тяни гантель к бедру/нижней части живота. Локоть идёт назад, а не в сторону. В верхней точке сведи лопатку. Опусти под контролем.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Тяга резины к поясу / лицу",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "резина"
+    ],
+    "equipment_type": "home",
+    "equipment_type_proposed_note": null,
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "Осанка",
+      "Здоровье плеч",
+      "Сила броска"
+    ],
+    "skill_tags_matched": [
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [
+      "Осанка",
+      "Здоровье плеч"
+    ],
+    "description": null,
+    "technique": "Тяни к себе, разводя лопатки. Вариант «к лицу» -- локти высоко.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Тяга штанги в наклоне",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "штанга"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Осанка"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "Осанка"
+    ],
+    "description": null,
+    "technique": "Наклон ~45°. Тяни к низу живота. Спина ровная.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "pull",
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Фермерская прогулка",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "гантели",
+      "гири",
+      "треп-гриф"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "треп-гриф (trap bar) -> gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "endurance"
+    ],
+    "skills_raw": [
+      "Силовая борьба",
+      "Хват",
+      "Осанка"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба"
+    ],
+    "skill_tags_unmatched": [
+      "Хват",
+      "Осанка"
+    ],
+    "description": null,
+    "technique": "Иди ровно, плечи опущены, корпус напряжён. Не раскачивайся.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "endurance",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "locomotion",
+      "core"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 90,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Фронтальный присед (эксцентрика)",
+    "name_en": "Front Squat Eccentric",
+    "source": "Рубин",
+    "equipment_raw": [
+      "barbell",
+      "dumbbells",
+      "kettlebell"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "barbell -> gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "силовая борьба",
+      "взрывной старт",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Силовая борьба",
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Присед с очень медленным опусканием (6 сек).",
+    "technique": "6 секунд вниз -> быстро вверх. Грудь вверх, локти высоко.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": "темповый присед -- дискретные повторы",
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "squat"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Хамстринг на одной ноге (Nordic / с темпом)",
+    "name_en": null,
+    "source": "ALL, Рубин",
+    "equipment_raw": [
+      "партнёр",
+      "фиксация ног",
+      "тренажёр"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "вариант с тренажёром -> gym (консервативный выбор)",
+    "difficulty": "advanced",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Взрывной старт",
+      "Профилактика травм задней поверхности",
+      "Катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [
+      "Профилактика травм задней поверхности"
+    ],
+    "description": "Эксцентрическая работа бицепса бедра. Одна из лучших для профилактики травм.",
+    "technique": "Ноги зафиксированы. Медленно опускай корпус вперёд на 6 секунд, сохраняя прямую линию от колен до плеч. Возвращайся руками или сильно сокращая бицепс бедра.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": "эксцентрический nordic curl -- дискретные повторы",
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 4,
+    "target_reps": 6,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Челночный бег 5-10-5",
+    "name_en": "5-10-5 Shuttle",
+    "source": "Ак Барс + второй PDF",
+    "equipment_raw": [],
+    "equipment_type": "bodyweight",
+    "equipment_type_proposed_note": null,
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "agility"
+    ],
+    "skills_raw": [
+      "взрывной старт",
+      "координация",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Координация и реакция",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": null,
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "duration",
+    "exercise_type_proposed_note": "челночный забег на время оценён как таймированное усилие",
+    "stimulus_type": "power",
+    "stimulus_type_proposed_note": "источник тегирует agility, но это максимально-скоростной короткий забег -- классифицировано как power",
+    "movement_pattern": [
+      "locomotion"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": null,
+    "target_duration_seconds": 40,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Ягодичный мост",
+    "name_en": "Glute Bridge",
+    "source": "Ак Барс + Рубин + второй PDF",
+    "equipment_raw": [
+      "bodyweight",
+      "barbell",
+      "dumbbell"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "barbell -> gym (высший уровень среди альтернатив)",
+    "difficulty": "beginner",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "взрывной старт",
+      "сила броска",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Сила броска",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Базовое упражнение для ягодиц.",
+    "technique": "Лёжа на спине, стопы близко к ягодицам. Подними таз, сожми ягодицы вверху. Не прогибай сильно поясницу.",
+    "notes": "Варианты: на одной ноге, плечи на лавке, с паузой, с резиной.",
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 10,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Ягодичный мост на лавке (shoulders elevated)",
+    "name_en": null,
+    "source": "BaseFull",
+    "equipment_raw": [
+      "лавка + штанга",
+      "гантель"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "штанга среди альтернатив -> gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength"
+    ],
+    "skills_raw": [
+      "Взрывной старт",
+      "Сила броска"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Сила броска"
+    ],
+    "skill_tags_unmatched": [],
+    "description": null,
+    "technique": "Лопатки на лавке. Стопы на полу. Поднимай таз до прямой линии от колен до плеч.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  },
+  {
+    "name": "Ягодичный мост на одной ноге",
+    "name_en": "Single-Leg Glute Bridge",
+    "source": "Ак Барс + Рубин",
+    "equipment_raw": [
+      "bodyweight",
+      "barbell"
+    ],
+    "equipment_type": "gym",
+    "equipment_type_proposed_note": "barbell -> gym",
+    "difficulty": "intermediate",
+    "phase": "main",
+    "phase_proposed_note": "Round 2: поле phase отсутствовало в ТЗ, вычислено по правилу (game_day->warmup; голеностоп-прехаб->warmup; остальной stimulus_type=mobility->cooldown; иначе main), откалиброванному по существующим 64 упражнениям в БД",
+    "target_stats": [
+      "strength",
+      "agility"
+    ],
+    "skills_raw": [
+      "взрывной старт",
+      "баланс",
+      "катание"
+    ],
+    "skill_tags_matched": [
+      "Взрывной старт",
+      "Баланс и устойчивость",
+      "Катание"
+    ],
+    "skill_tags_unmatched": [],
+    "description": "Усложнённая версия моста.",
+    "technique": "Как обычный мост, но одна нога поднята. Пауза 1-3 сек вверху.",
+    "notes": null,
+    "suitable_for_game_day": false,
+    "exercise_type": "sets_reps",
+    "exercise_type_proposed_note": null,
+    "stimulus_type": "strength",
+    "stimulus_type_proposed_note": null,
+    "movement_pattern": [
+      "hip_hinge"
+    ],
+    "movement_pattern_proposed_note": null,
+    "target_sets": 3,
+    "target_reps": 8,
+    "target_duration_seconds": null,
+    "numeric_defaults_proposed_note": null,
+    "duplicate_flag": null
+  }
+]

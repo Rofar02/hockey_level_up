@@ -579,7 +579,9 @@ function ExerciseRow({
         <span className={`truncate text-sm ${compact ? '' : 'font-medium'} text-[#F5F7FA]`}>
           {exercise.name}
         </span>
-        <span className="text-xs text-[#8A94A6]">{TARGET_STAT_LABELS[exercise.target_stat]}</span>
+        <span className="text-xs text-[#8A94A6]">
+          {exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
+        </span>
       </div>
       {recommended && (
         <span className="shrink-0 rounded-full border border-accent-ice/40 px-2 py-0.5 text-[10px] text-accent-ice">
@@ -599,7 +601,7 @@ function FinalizedExercisesCard({ exercises }: { exercises: ExerciseRead[] }) {
           <div key={exercise.id} className="flex items-center justify-between gap-2 text-sm">
             <span className="truncate text-[#F5F7FA]">{exercise.name}</span>
             <span className="shrink-0 text-xs text-[#8A94A6]">
-              {TARGET_STAT_LABELS[exercise.target_stat]}
+              {exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
             </span>
           </div>
         ))}

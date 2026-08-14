@@ -28,6 +28,7 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
+    ExerciseTargetStat,
     MuscleGroup,
     TargetStat,
     TrainingPhase,
@@ -60,17 +61,36 @@ def _make_exercise(
     *,
     category: ExerciseCategory = ExerciseCategory.OFF_ICE,
     muscle_group: MuscleGroup | None = None,
-) -> Exercise:
-    return Exercise(
+) -> tuple[Exercise, ExerciseTargetStat]:
+    exercise = Exercise(
         id=uuid.uuid4(),
         name=name,
         category=category,
         phase=TrainingPhase.MAIN,
-        target_stat=target_stat,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
         muscle_group=muscle_group,
     )
+    return exercise, ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0)
+
+
+def _add_all(db_session, pairs: list[tuple[Exercise, ExerciseTargetStat]]) -> list[Exercise]:
+    db_session.add_all([e for e, _ in pairs])
+    db_session.add_all([s for _, s in pairs])
+    return [e for e, _ in pairs]
+
+
+def _isolate_candidates(service: ScheduleService, exercises: list[Exercise]) -> None:
+    """Make list_for_assembly return only this test's own exercises -- the
+    real dev DB now has a real seeded catalog (see the 90-exercise import)
+    that would otherwise leak extra same-stat/different-muscle-group
+    candidates into these pools and break the "no alternative exists"
+    assertions."""
+
+    async def fake_list_for_assembly(*, phase, equipment_access, category, suitable_for_game_day=None):
+        return [e for e in exercises if e.phase == phase and e.category == category]
+
+    service._exercises.list_for_assembly = fake_list_for_assembly
 
 
 @pytest.mark.asyncio
@@ -79,7 +99,7 @@ async def test_third_pick_in_a_row_avoids_repeated_group_when_alternative_exists
 ) -> None:
     user = _make_user()
     db_session.add(user)
-    exercises = [
+    exercises = _add_all(db_session, [
         _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.PUSH),
         _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.PUSH),
         # Alphabetically first for INTELLECT is also push -- without the
@@ -87,11 +107,11 @@ async def test_third_pick_in_a_row_avoids_repeated_group_when_alternative_exists
         # the first two. The rule should skip it in favor of "B-...-legs".
         _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.PUSH),
         _make_exercise("B-intellect-legs", TargetStat.INTELLECT, muscle_group=MuscleGroup.LEGS),
-    ]
-    db_session.add_all(exercises)
+    ])
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == ["A-strength-push", "A-agility-push", "B-intellect-legs"]
@@ -101,17 +121,17 @@ async def test_third_pick_in_a_row_avoids_repeated_group_when_alternative_exists
 async def test_third_pick_keeps_repeated_group_when_no_alternative(db_session) -> None:
     user = _make_user()
     db_session.add(user)
-    exercises = [
+    exercises = _add_all(db_session, [
         _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.PUSH),
         _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.PUSH),
         # Only candidate for INTELLECT is push too -- no alternative to fall
         # back on, so the slot must still be filled rather than skipped.
         _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.PUSH),
-    ]
-    db_session.add_all(exercises)
+    ])
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == ["A-strength-push", "A-agility-push", "A-intellect-push"]
@@ -124,15 +144,15 @@ async def test_on_ice_exercises_never_participate_in_muscle_balance(db_session) 
     # on_ice exercises always carry muscle_group=None -- the balance rule
     # must be a complete no-op for this category, identical to plain
     # round-robin.
-    exercises = [
+    exercises = _add_all(db_session, [
         _make_exercise("A-strength", TargetStat.STRENGTH, category=ExerciseCategory.ON_ICE),
         _make_exercise("A-agility", TargetStat.AGILITY, category=ExerciseCategory.ON_ICE),
         _make_exercise("A-intellect", TargetStat.INTELLECT, category=ExerciseCategory.ON_ICE),
-    ]
-    db_session.add_all(exercises)
+    ])
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
     picked = await service._pick_main(ExerciseCategory.ON_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == ["A-strength", "A-agility", "A-intellect"]
@@ -142,7 +162,7 @@ async def test_on_ice_exercises_never_participate_in_muscle_balance(db_session) 
 async def test_skill_tag_priority_wins_over_muscle_balance_on_conflict(db_session) -> None:
     user = _make_user()
     db_session.add(user)
-    exercises = [
+    exercises = _add_all(db_session, [
         _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.PUSH),
         _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.PUSH),
         # INTELLECT has a push candidate (tagged) and a legs candidate
@@ -151,8 +171,7 @@ async def test_skill_tag_priority_wins_over_muscle_balance_on_conflict(db_sessio
         # first -- balance must not reach past that to the legs exercise.
         _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.PUSH),
         _make_exercise("B-intellect-legs", TargetStat.INTELLECT, muscle_group=MuscleGroup.LEGS),
-    ]
-    db_session.add_all(exercises)
+    ])
 
     skill = Skill(id=uuid.uuid4(), name=f"Test skill {uuid.uuid4().hex[:8]}")
     db_session.add(skill)
@@ -170,6 +189,7 @@ async def test_skill_tag_priority_wins_over_muscle_balance_on_conflict(db_sessio
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == ["A-strength-push", "A-agility-push", "A-intellect-push"]

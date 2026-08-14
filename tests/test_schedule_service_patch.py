@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import (
     DayPlan,
     DaySessionType,
@@ -40,7 +40,6 @@ def _make_exercise(category: ExerciseCategory) -> Exercise:
         name=f"Exercise {uuid.uuid4().hex[:8]}",
         category=category,
         phase=TrainingPhase.MAIN,
-        target_stat=TargetStat.STRENGTH,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
     )

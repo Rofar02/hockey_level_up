@@ -40,32 +40,29 @@ def xp_to_next_level(level: int) -> int:
 async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
     user_id = uuid.UUID(payload["user_id"])
     exercise_id = payload["exercise_id"]
-    stat_type = TargetStat(payload["target_stat"])
+    stat_types = [TargetStat(value) for value in payload["target_stats"]]
     difficulty_level = payload["difficulty_level"]
 
+    # An exercise can now carry more than one target_stat (see
+    # ExerciseTargetStat) -- the base award (before per-stat diminishing
+    # returns/relevance) is split evenly across all of them, so a 2-stat
+    # exercise doesn't award twice what a 1-stat exercise at the same
+    # difficulty would. Each stat still gets its own diminishing_factor and
+    # relevance_multiplier below, computed independently, since those are
+    # legitimately per-(user, stat) and per-(exercise, stat) quantities, not
+    # something to also split.
+    base_gain = (difficulty_level * 0.5) / len(stat_types)
+
     async with AsyncSessionLocal() as session:
-        # Claimed first, in the same transaction the side-effect below
-        # commits in: at-least-once redelivery of this event finds its claim
-        # already here and returns without touching UserStat/StatHistory at
-        # all. If anything below raises, the whole transaction (including
-        # this claim) rolls back, so a genuine retry can still claim it.
+        # Claimed first, in the same transaction every stat's side-effect
+        # below commits in: at-least-once redelivery of this event finds its
+        # claim already here and returns without touching UserStat/
+        # StatHistory at all. If anything below raises, the whole
+        # transaction (including this claim) rolls back, so a genuine retry
+        # can still claim it -- one claim per event, not per stat, same
+        # idempotency granularity as before this became multi-stat.
         if not await try_claim(session, event_id, STAT_CONSUMER_HANDLER_NAME):
             return
-
-        # Pre-increment value, used only to shape this event's gain. Reading
-        # it outside the atomic upsert below means two concurrent events for
-        # the same user/stat can compute their gain off the same starting
-        # value -- both gains still land (the upsert itself stays atomic),
-        # just without seeing each other's diminishing returns. Same
-        # accepted tradeoff as the non-atomic XP level-up below.
-        current_value = (
-            await session.execute(
-                select(UserStat.current_value).where(
-                    UserStat.user_id == user_id, UserStat.stat_type == stat_type
-                )
-            )
-        ).scalar_one_or_none() or 0.0
-        diminishing_factor = 1 - (current_value / DIMINISHING_CAP)
 
         skill_ids = (
             await session.execute(
@@ -75,46 +72,62 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
             )
         ).scalars().all()
 
-        relevance_multiplier = BASE_MULTIPLIER
-        if skill_ids:
-            max_weight = (
+        for stat_type in stat_types:
+            # Pre-increment value, used only to shape this event's gain.
+            # Reading it outside the atomic upsert below means two
+            # concurrent events for the same user/stat can compute their
+            # gain off the same starting value -- both gains still land (the
+            # upsert itself stays atomic), just without seeing each other's
+            # diminishing returns. Same accepted tradeoff as the non-atomic
+            # XP level-up below.
+            current_value = (
                 await session.execute(
-                    select(func.max(SkillStatWeight.weight)).where(
-                        SkillStatWeight.skill_id.in_(skill_ids),
-                        SkillStatWeight.stat_type == stat_type,
+                    select(UserStat.current_value).where(
+                        UserStat.user_id == user_id, UserStat.stat_type == stat_type
                     )
                 )
-            ).scalar()
-            if max_weight is not None and max_weight > RELEVANCE_WEIGHT_THRESHOLD:
-                relevance_multiplier = RELEVANT_MULTIPLIER
+            ).scalar_one_or_none() or 0.0
+            diminishing_factor = 1 - (current_value / DIMINISHING_CAP)
 
-        gain = round(
-            difficulty_level * 0.5 * diminishing_factor * relevance_multiplier, 2
-        )
+            relevance_multiplier = BASE_MULTIPLIER
+            if skill_ids:
+                max_weight = (
+                    await session.execute(
+                        select(func.max(SkillStatWeight.weight)).where(
+                            SkillStatWeight.skill_id.in_(skill_ids),
+                            SkillStatWeight.stat_type == stat_type,
+                        )
+                    )
+                ).scalar()
+                if max_weight is not None and max_weight > RELEVANCE_WEIGHT_THRESHOLD:
+                    relevance_multiplier = RELEVANT_MULTIPLIER
 
-        upsert = pg_insert(UserStat).values(
-            user_id=user_id,
-            stat_type=stat_type,
-            current_value=gain,
-            last_updated_at=datetime.now(timezone.utc),
-        )
-        upsert = upsert.on_conflict_do_update(
-            constraint="uq_user_stats_user_stat_type",
-            set_={
-                "current_value": UserStat.current_value + upsert.excluded.current_value,
-                "last_updated_at": upsert.excluded.last_updated_at,
-            },
-        ).returning(UserStat.current_value)
-        new_value = (await session.execute(upsert)).scalar_one()
+            gain = round(base_gain * diminishing_factor * relevance_multiplier, 2)
 
-        session.add(
-            StatHistory(
+            upsert = pg_insert(UserStat).values(
                 user_id=user_id,
                 stat_type=stat_type,
-                value=new_value,
-                reason=f"quest_completed:{exercise_id}",
+                current_value=gain,
+                last_updated_at=datetime.now(timezone.utc),
             )
-        )
+            upsert = upsert.on_conflict_do_update(
+                constraint="uq_user_stats_user_stat_type",
+                set_={
+                    "current_value": UserStat.current_value + upsert.excluded.current_value,
+                    "last_updated_at": upsert.excluded.last_updated_at,
+                },
+            ).returning(UserStat.current_value)
+            new_value = (await session.execute(upsert)).scalar_one()
+
+            session.add(
+                StatHistory(
+                    user_id=user_id,
+                    stat_type=stat_type,
+                    value=new_value,
+                    reason=f"quest_completed:{exercise_id}",
+                )
+            )
+
         await session.commit()
 
 

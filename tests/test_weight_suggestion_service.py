@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import FitnessTier, User
@@ -39,7 +39,6 @@ def _make_exercise(
         name=f"Exercise {uuid.uuid4().hex[:8]}",
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
-        target_stat=TargetStat.STRENGTH,
         difficulty_level=3,
         equipment_type=equipment_type,
         tracks_weight=tracks_weight,

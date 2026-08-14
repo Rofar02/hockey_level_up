@@ -84,3 +84,24 @@ export function replaceExerciseMovementPatterns(
     accessToken,
   )
 }
+
+export function listExerciseTargetStats(
+  exerciseId: string,
+  accessToken: string,
+): Promise<TargetStat[]> {
+  return apiGet<TargetStat[]>(`/exercises/${exerciseId}/target-stats`, accessToken)
+}
+
+// List order becomes ExerciseTargetStat.order server-side -- index 0 is the
+// "primary" stat (see ExerciseRead.target_stats).
+export function replaceExerciseTargetStats(
+  exerciseId: string,
+  stats: TargetStat[],
+  accessToken: string,
+): Promise<TargetStat[]> {
+  return apiPutAuth<TargetStat[]>(
+    `/exercises/${exerciseId}/target-stats`,
+    { target_stats: stats },
+    accessToken,
+  )
+}
