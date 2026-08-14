@@ -1,9 +1,17 @@
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    ExerciseMovementPattern,
+    MovementPattern,
+    TargetStat,
+    TrainingPhase,
+)
 from app.schemas.exercise import ExerciseCreate
 
 
@@ -30,6 +38,26 @@ class ExerciseRepository:
 
         result = await self._session.execute(query.order_by(Exercise.name))
         return list(result.scalars().all())
+
+    async def list_movement_patterns(self, exercise_id: uuid.UUID) -> list[MovementPattern]:
+        result = await self._session.execute(
+            select(ExerciseMovementPattern.movement_pattern).where(
+                ExerciseMovementPattern.exercise_id == exercise_id
+            )
+        )
+        return list(result.scalars().all())
+
+    async def replace_movement_patterns(
+        self, exercise_id: uuid.UUID, patterns: list[MovementPattern]
+    ) -> None:
+        await self._session.execute(
+            delete(ExerciseMovementPattern).where(ExerciseMovementPattern.exercise_id == exercise_id)
+        )
+        for pattern in patterns:
+            self._session.add(
+                ExerciseMovementPattern(exercise_id=exercise_id, movement_pattern=pattern)
+            )
+        await self._session.flush()
 
     async def get_by_id(self, exercise_id: uuid.UUID) -> Exercise | None:
         return await self._session.get(Exercise, exercise_id)

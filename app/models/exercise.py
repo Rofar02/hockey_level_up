@@ -1,7 +1,17 @@
 import enum
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Float, Integer, String, Text, false
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -44,6 +54,31 @@ class MuscleGroup(enum.StrEnum):
     PULL = "pull"
     LEGS = "legs"
     CORE = "core"
+
+
+class StimulusType(enum.StrEnum):
+    STRENGTH = "strength"
+    POWER = "power"
+    ENDURANCE = "endurance"
+    SKILL = "skill"
+    MOBILITY = "mobility"
+
+
+class ExerciseType(enum.StrEnum):
+    SETS_REPS = "sets_reps"
+    DURATION = "duration"
+
+
+class MovementPattern(enum.StrEnum):
+    HIP_HINGE = "hip_hinge"
+    SQUAT = "squat"
+    PUSH = "push"
+    PULL = "pull"
+    ROTATION = "rotation"
+    ANKLE_MOBILITY = "ankle_mobility"
+    HIP_MOBILITY = "hip_mobility"
+    CORE = "core"
+    LOCOMOTION = "locomotion"
 
 
 class Exercise(Base):
@@ -92,6 +127,22 @@ class Exercise(Base):
         enum_column(MuscleGroup, "muscle_group"), nullable=True
     )
 
+    # Both nullable and unset on nearly every existing exercise -- NULL means
+    # "not yet classified", not a default value. Real classification is a
+    # manual product-owner pass (like muscle_group/suitable_for_game_day),
+    # not inferred here. stimulus_type feeds a future rest-time formula;
+    # exercise_type will eventually replace the implicit sets/reps-vs-
+    # duration discriminator below, but no CHECK constraint ties them
+    # together yet -- most rows have neither target_sets/target_reps nor
+    # target_duration_seconds set, so such a constraint isn't satisfiable
+    # until real volume data is backfilled.
+    stimulus_type: Mapped[StimulusType | None] = mapped_column(
+        enum_column(StimulusType, "stimulus_type"), nullable=True
+    )
+    exercise_type: Mapped[ExerciseType | None] = mapped_column(
+        enum_column(ExerciseType, "exercise_type"), nullable=True
+    )
+
     # Whether this exercise has a working weight at all (barbell/dumbbell/
     # machine work) -- gates both the weight-suggestion service and whether
     # SetCompletion rows for it are expected to carry weight_kg.
@@ -112,4 +163,27 @@ class Exercise(Base):
     # actually mark exercises suitable one at a time via the admin panel.
     suitable_for_game_day: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
+    )
+
+
+# Bare m2m tag, unlike SkillTag -- no per-pair metadata is needed, so this is
+# a plain association table (no relationship() on Exercise, consistent with
+# how SkillTag is accessed: explicit select()s via the repository, not ORM
+# collection traversal) managed as a full-replace set, not one-row CRUD.
+class ExerciseMovementPattern(Base):
+    __tablename__ = "exercise_movement_patterns"
+    __table_args__ = (
+        UniqueConstraint(
+            "exercise_id", "movement_pattern", name="uq_exercise_movement_patterns_exercise_pattern"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    movement_pattern: Mapped[MovementPattern] = mapped_column(
+        enum_column(MovementPattern, "movement_pattern"), nullable=False
     )

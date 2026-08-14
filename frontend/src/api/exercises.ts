@@ -1,5 +1,11 @@
-import { apiDeleteAuth, apiGet, apiPatchAuth, apiPostAuth } from './client'
-import type { ExerciseCategory, ExerciseRead, ExerciseWrite, TargetStat } from '../types/exercise'
+import { apiDeleteAuth, apiGet, apiPatchAuth, apiPostAuth, apiPutAuth } from './client'
+import type {
+  ExerciseCategory,
+  ExerciseRead,
+  ExerciseWrite,
+  MovementPattern,
+  TargetStat,
+} from '../types/exercise'
 import type { TrainingPhase } from '../types/schedule'
 import type { SuggestedWeightRead } from '../types/setCompletion'
 import type { SkillTagRead } from '../types/skill'
@@ -58,4 +64,23 @@ export function listExerciseSkillTags(
   accessToken: string,
 ): Promise<SkillTagRead[]> {
   return apiGet<SkillTagRead[]>(`/exercises/${exerciseId}/skill-tags`, accessToken)
+}
+
+export function listExerciseMovementPatterns(
+  exerciseId: string,
+  accessToken: string,
+): Promise<MovementPattern[]> {
+  return apiGet<MovementPattern[]>(`/exercises/${exerciseId}/movement-patterns`, accessToken)
+}
+
+export function replaceExerciseMovementPatterns(
+  exerciseId: string,
+  patterns: MovementPattern[],
+  accessToken: string,
+): Promise<MovementPattern[]> {
+  return apiPutAuth<MovementPattern[]>(
+    `/exercises/${exerciseId}/movement-patterns`,
+    { movement_patterns: patterns },
+    accessToken,
+  )
 }

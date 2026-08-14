@@ -15,8 +15,14 @@ import {
   EQUIPMENT_TYPE_LABELS,
   EXERCISE_CATEGORIES,
   EXERCISE_CATEGORY_LABELS,
+  EXERCISE_TYPES,
+  EXERCISE_TYPE_LABELS,
+  MOVEMENT_PATTERNS,
+  MOVEMENT_PATTERN_LABELS,
   MUSCLE_GROUPS,
   MUSCLE_GROUP_LABELS,
+  STIMULUS_TYPES,
+  STIMULUS_TYPE_LABELS,
   TARGET_STATS,
   TARGET_STAT_LABELS,
 } from '../../types/exercise'
@@ -24,8 +30,11 @@ import type {
   EquipmentType,
   ExerciseCategory,
   ExerciseRead,
+  ExerciseType,
   ExerciseWrite,
+  MovementPattern,
   MuscleGroup,
+  StimulusType,
   TargetStat,
 } from '../../types/exercise'
 import { TRAINING_PHASES } from '../../types/schedule'
@@ -51,6 +60,14 @@ const EQUIPMENT_OPTIONS = EQUIPMENT_TYPES.map((value) => ({
 const MUSCLE_GROUP_OPTIONS = MUSCLE_GROUPS.map((value) => ({
   value,
   label: MUSCLE_GROUP_LABELS[value],
+}))
+const STIMULUS_TYPE_OPTIONS = STIMULUS_TYPES.map((value) => ({
+  value,
+  label: STIMULUS_TYPE_LABELS[value],
+}))
+const EXERCISE_TYPE_OPTIONS = EXERCISE_TYPES.map((value) => ({
+  value,
+  label: EXERCISE_TYPE_LABELS[value],
 }))
 
 export function AdminExercisesPage() {
@@ -300,6 +317,12 @@ function ExerciseFormModal({
     exercise?.suitable_for_game_day ?? false,
   )
   const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | ''>(exercise?.muscle_group ?? '')
+  const [stimulusType, setStimulusType] = useState<StimulusType | ''>(
+    exercise?.stimulus_type ?? '',
+  )
+  const [exerciseType, setExerciseType] = useState<ExerciseType | ''>(
+    exercise?.exercise_type ?? '',
+  )
 
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -343,6 +366,8 @@ function ExerciseFormModal({
       bodyweight_ratio: bodyweightRatioValue,
       suitable_for_game_day: suitableForGameDay,
       muscle_group: muscleGroup === '' ? null : muscleGroup,
+      stimulus_type: stimulusType === '' ? null : stimulusType,
+      exercise_type: exerciseType === '' ? null : exerciseType,
     }
 
     setIsSaving(true)
@@ -425,6 +450,20 @@ function ExerciseFormModal({
             placeholder="Не применимо"
             value={muscleGroup}
             onChange={(event) => setMuscleGroup(event.target.value as MuscleGroup | '')}
+          />
+          <SelectField
+            label="Stimulus type"
+            options={STIMULUS_TYPE_OPTIONS}
+            placeholder="Не задано"
+            value={stimulusType}
+            onChange={(event) => setStimulusType(event.target.value as StimulusType | '')}
+          />
+          <SelectField
+            label="Exercise type"
+            options={EXERCISE_TYPE_OPTIONS}
+            placeholder="Не задано"
+            value={exerciseType}
+            onChange={(event) => setExerciseType(event.target.value as ExerciseType | '')}
           />
         </div>
 
@@ -521,7 +560,112 @@ function ExerciseFormModal({
       {currentExercise !== null && accessToken !== null && (
         <ExerciseSkillTagsSection exerciseId={currentExercise.id} accessToken={accessToken} />
       )}
+      {currentExercise !== null && accessToken !== null && (
+        <ExerciseMovementPatternsSection exerciseId={currentExercise.id} accessToken={accessToken} />
+      )}
     </AdminModal>
+  )
+}
+
+function ExerciseMovementPatternsSection({
+  exerciseId,
+  accessToken,
+}: {
+  exerciseId: string
+  accessToken: string
+}) {
+  const [selected, setSelected] = useState<Set<MovementPattern> | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    exercisesApi
+      .listExerciseMovementPatterns(exerciseId, accessToken)
+      .then((patterns) => {
+        if (!cancelled) {
+          setSelected(new Set(patterns))
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить паттерны.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exerciseId, accessToken])
+
+  function toggle(pattern: MovementPattern) {
+    setSelected((previous) => {
+      const next = new Set(previous ?? [])
+      if (next.has(pattern)) {
+        next.delete(pattern)
+      } else {
+        next.add(pattern)
+      }
+      return next
+    })
+  }
+
+  async function handleSave() {
+    if (selected === null) {
+      return
+    }
+    setSaveError(null)
+    setIsSaving(true)
+    try {
+      const saved = await exercisesApi.replaceExerciseMovementPatterns(
+        exerciseId,
+        Array.from(selected),
+        accessToken,
+      )
+      setSelected(new Set(saved))
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить паттерны.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
+      <h3 className="text-sm font-medium text-text-secondary">Двигательные паттерны</h3>
+      <FormError message={loadError} />
+
+      {selected !== null && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {MOVEMENT_PATTERNS.map((pattern) => (
+            <label
+              key={pattern}
+              className="flex items-center gap-2 text-sm text-text-primary"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(pattern)}
+                onChange={() => toggle(pattern)}
+                className="h-4 w-4"
+              />
+              {MOVEMENT_PATTERN_LABELS[pattern]}
+            </label>
+          ))}
+        </div>
+      )}
+
+      <Button
+        type="button"
+        variant="neutral"
+        isLoading={isSaving}
+        disabled={selected === null}
+        onClick={handleSave}
+        className="self-start"
+      >
+        Сохранить паттерны
+      </Button>
+      <FormError message={saveError} />
+    </div>
   )
 }
 

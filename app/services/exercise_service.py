@@ -4,7 +4,14 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    MovementPattern,
+    TargetStat,
+    TrainingPhase,
+)
 from app.repositories.exercise_repository import ExerciseRepository
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate
 
@@ -61,6 +68,19 @@ class ExerciseService:
             ) from exc
         await self._session.refresh(exercise)
         return exercise
+
+    async def list_movement_patterns(self, exercise_id: uuid.UUID) -> list[MovementPattern]:
+        await self.get_exercise(exercise_id)
+        return await self._exercises.list_movement_patterns(exercise_id)
+
+    async def replace_movement_patterns(
+        self, exercise_id: uuid.UUID, patterns: list[MovementPattern]
+    ) -> list[MovementPattern]:
+        await self.get_exercise(exercise_id)
+        unique_patterns = list(dict.fromkeys(patterns))
+        await self._exercises.replace_movement_patterns(exercise_id, unique_patterns)
+        await self._session.commit()
+        return unique_patterns
 
     async def delete_exercise(self, exercise_id: uuid.UUID) -> None:
         exercise = await self.get_exercise(exercise_id)

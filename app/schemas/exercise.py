@@ -3,7 +3,16 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.core.rest import rest_seconds_for
-from app.models.exercise import EquipmentType, ExerciseCategory, MuscleGroup, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    ExerciseCategory,
+    ExerciseType,
+    MovementPattern,
+    MuscleGroup,
+    StimulusType,
+    TargetStat,
+    TrainingPhase,
+)
 
 
 class ExerciseRead(BaseModel):
@@ -26,6 +35,8 @@ class ExerciseRead(BaseModel):
     bodyweight_ratio: float | None
     suitable_for_game_day: bool
     muscle_group: MuscleGroup | None
+    stimulus_type: StimulusType | None
+    exercise_type: ExerciseType | None
 
     # Computed, not stored -- see app.core.rest. Derived from target_reps
     # alone (None whenever target_sets/target_reps aren't both set), exposed
@@ -54,6 +65,8 @@ class ExerciseCreate(BaseModel):
     bodyweight_ratio: float | None = Field(default=None, gt=0)
     suitable_for_game_day: bool = False
     muscle_group: MuscleGroup | None = None
+    stimulus_type: StimulusType | None = None
+    exercise_type: ExerciseType | None = None
 
 
 class ExerciseUpdate(BaseModel):
@@ -73,6 +86,12 @@ class ExerciseUpdate(BaseModel):
     bodyweight_ratio: float | None = Field(default=None, gt=0)
     suitable_for_game_day: bool | None = None
     muscle_group: MuscleGroup | None = None
+    stimulus_type: StimulusType | None = None
+    exercise_type: ExerciseType | None = None
+
+
+class MovementPatternsReplace(BaseModel):
+    movement_patterns: list[MovementPattern]
 
 
 class SuggestedWeightRead(BaseModel):

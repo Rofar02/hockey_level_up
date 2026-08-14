@@ -75,6 +75,59 @@ export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
   core: 'Кор',
 }
 
+// Not yet classified on most exercises -- null is "not yet classified", not
+// a default. Feeds a future rest-time formula (not used yet).
+export const STIMULUS_TYPES = ['strength', 'power', 'endurance', 'skill', 'mobility'] as const
+export type StimulusType = (typeof STIMULUS_TYPES)[number]
+
+export const STIMULUS_TYPE_LABELS: Record<StimulusType, string> = {
+  strength: 'Сила',
+  power: 'Мощность',
+  endurance: 'Выносливость',
+  skill: 'Навык',
+  mobility: 'Мобильность',
+}
+
+// Will eventually replace the implicit target_sets/target_reps vs
+// target_duration_seconds discriminator -- not enforced yet, most exercises
+// are still unclassified (null).
+export const EXERCISE_TYPES = ['sets_reps', 'duration'] as const
+export type ExerciseType = (typeof EXERCISE_TYPES)[number]
+
+export const EXERCISE_TYPE_LABELS: Record<ExerciseType, string> = {
+  sets_reps: 'Подходы/повторения',
+  duration: 'Время',
+}
+
+// Multi-value tag (many per exercise), managed via dedicated
+// /exercises/{id}/movement-patterns endpoints, not part of
+// ExerciseRead/ExerciseWrite -- mirrors how skill tags are handled
+// separately from core exercise CRUD.
+export const MOVEMENT_PATTERNS = [
+  'hip_hinge',
+  'squat',
+  'push',
+  'pull',
+  'rotation',
+  'ankle_mobility',
+  'hip_mobility',
+  'core',
+  'locomotion',
+] as const
+export type MovementPattern = (typeof MOVEMENT_PATTERNS)[number]
+
+export const MOVEMENT_PATTERN_LABELS: Record<MovementPattern, string> = {
+  hip_hinge: 'Хип-хиндж',
+  squat: 'Присед',
+  push: 'Толчок',
+  pull: 'Тяга',
+  rotation: 'Ротация',
+  ankle_mobility: 'Мобильность голеностопа',
+  hip_mobility: 'Мобильность таза',
+  core: 'Кор',
+  locomotion: 'Локомоция',
+}
+
 export interface ExerciseRead {
   id: string
   name: string
@@ -93,6 +146,8 @@ export interface ExerciseRead {
   bodyweight_ratio: number | null
   suitable_for_game_day: boolean
   muscle_group: MuscleGroup | null
+  stimulus_type: StimulusType | null
+  exercise_type: ExerciseType | null
   // Computed server-side from target_reps (see app/core/rest.py) -- not a
   // stored field, and not part of ExerciseWrite below.
   rest_seconds: number | null
@@ -118,4 +173,6 @@ export interface ExerciseWrite {
   bodyweight_ratio: number | null
   suitable_for_game_day: boolean
   muscle_group: MuscleGroup | null
+  stimulus_type: StimulusType | null
+  exercise_type: ExerciseType | null
 }

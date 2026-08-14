@@ -1,5 +1,5 @@
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
-from app.models.exercise import Exercise
+from app.models.exercise import Exercise, ExerciseMovementPattern
 from app.models.friend import FriendRequest, FriendRequestStatus
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
@@ -31,6 +31,7 @@ __all__ = [
     "DayPlan",
     "DaySessionType",
     "Exercise",
+    "ExerciseMovementPattern",
     "FriendRequest",
     "FriendRequestStatus",
     "OutboxEvent",

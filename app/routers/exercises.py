@@ -5,10 +5,16 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.exercise import EquipmentType, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import EquipmentType, ExerciseCategory, MovementPattern, TargetStat, TrainingPhase
 from app.models.user import User
 from app.routers.deps import get_current_user, require_admin
-from app.schemas.exercise import ExerciseCreate, ExerciseRead, ExerciseUpdate, SuggestedWeightRead
+from app.schemas.exercise import (
+    ExerciseCreate,
+    ExerciseRead,
+    ExerciseUpdate,
+    MovementPatternsReplace,
+    SuggestedWeightRead,
+)
 from app.schemas.skill import SkillTagRead
 from app.services.exercise_service import ExerciseService
 from app.services.skill_service import SkillService
@@ -50,6 +56,27 @@ async def list_exercise_skill_tags(
     edit form, so its skill associations are visible/editable right there
     instead of only reachable per-skill under /skills/{id}/tags."""
     return await SkillService(session).list_tags_for_exercise(exercise_id)
+
+
+@router.get("/{exercise_id}/movement-patterns", response_model=list[MovementPattern])
+async def list_exercise_movement_patterns(
+    exercise_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).list_movement_patterns(exercise_id)
+
+
+@router.put("/{exercise_id}/movement-patterns", response_model=list[MovementPattern])
+async def replace_exercise_movement_patterns(
+    exercise_id: uuid.UUID,
+    body: MovementPatternsReplace,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).replace_movement_patterns(
+        exercise_id, body.movement_patterns
+    )
 
 
 @router.get("/{exercise_id}/suggested-weight", response_model=SuggestedWeightRead)
