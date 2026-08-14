@@ -16,3 +16,9 @@ venv/
 static/avatars/
 static/reference-articles/
 static/team-logos/
+
+# Live edge-nginx config, swapped by the deploy runbook between
+# deploy/nginx/bootstrap.conf and deploy/nginx/app.conf -- see
+# docs/deploy.md. Not a template, shouldn't be committed.
+deploy/nginx/active.conf
+.env.prod

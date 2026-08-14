@@ -53,3 +53,10 @@ a phone on the same Wi-Fi can reach the API via the PC's LAN IP. Drop it
 poetry run alembic revision --autogenerate -m "message"
 poetry run alembic upgrade head
 ```
+
+## Продакшен-деплой
+
+`icelevel.ru`, отдельный `docker-compose.prod.yml` (edge nginx + TLS,
+без публикации портов Postgres/RabbitMQ наружу, реальные секреты).
+Полный раннбук первого разворачивания и обновления через `git pull` —
+в [`docs/deploy.md`](docs/deploy.md).
