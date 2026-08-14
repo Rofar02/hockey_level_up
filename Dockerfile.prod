@@ -1,0 +1,59 @@
+# Production backend image -- multi-stage so the runtime image carries only
+# the installed venv, not poetry/build tooling. Companion to the dev
+# `Dockerfile` (which keeps --reload + bind-mounts); this one is what
+# docker-compose.prod.yml builds.
+FROM python:3.12-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    POETRY_NO_INTERACTION=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+RUN python -m venv /opt/venv
+RUN pip install --no-cache-dir poetry==2.2.1
+
+WORKDIR /app
+COPY pyproject.toml poetry.lock ./
+# --only main: skip the [tool.poetry.group.dev] deps (pytest/httpx/...) --
+# they have no reason to ship in the runtime image.
+RUN poetry install --only main --no-root
+
+
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+# Fixed uid so the named volumes mounted at the three upload dirs below
+# (see docker-compose.prod.yml) come out owned by this same uid regardless
+# of which host the image runs on.
+RUN groupadd --system --gid 10001 appuser \
+    && useradd --system --uid 10001 --gid appuser appuser
+
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY . .
+
+# Created (and chowned) before the named volumes are mounted over them at
+# container start -- Docker seeds a fresh named volume from whatever is at
+# that path in the image, ownership included, so this is what makes
+# uploads writable by the non-root user instead of ending up root-owned.
+RUN mkdir -p static/avatars static/reference-articles static/team-logos \
+    && chown -R appuser:appuser /app
+
+USER appuser
+EXPOSE 8000
+
+# --root-path /api tells FastAPI/Starlette every request actually arrived
+# under /api/... (nginx strips that prefix before proxying here) -- without
+# it, redirects and the OpenAPI schema's server URL would be built without
+# the prefix. --proxy-headers + --forwarded-allow-ips='*' makes uvicorn
+# trust X-Forwarded-Proto from the edge nginx, so request.url.scheme reads
+# "https" instead of "http" behind the proxy. `exec` replaces the shell so
+# SIGTERM reaches uvicorn directly for a clean lifespan shutdown (stops the
+# outbox relay / RabbitMQ consumer / reminder scheduler tasks properly
+# instead of being killed mid-flight).
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --root-path /api --proxy-headers --forwarded-allow-ips=*"]
