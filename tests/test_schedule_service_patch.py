@@ -51,7 +51,7 @@ async def test_patch_partial_success_skips_started_day_but_applies_the_rest(db_s
     db_session.add(user)
     await db_session.flush()
 
-    block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1, week_in_block=1)
+    block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1)
     db_session.add(block)
     await db_session.flush()
 

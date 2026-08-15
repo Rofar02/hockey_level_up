@@ -1,34 +1,38 @@
 """Rest-between-sets formula, computed on read (not a stored Exercise
-column): driven by how close to a rep max the working set is, not by
-periodization block phase -- low-rep near-max work needs 2-3+ minutes for
-the next set to be safe and effective regardless of which week of the
-block it falls in, while high-rep endurance work recovers in well under a
-minute.
+column): driven by stimulus_type and difficulty_level, not by how many reps
+the set happens to be written for -- strength/power work needs 2-3+ minutes
+for the next set to be safe and effective regardless of rep count, while
+endurance/mobility work recovers in under a minute. Supersedes the earlier
+target_reps-tiered version (backlog "Промпт 68 (отдых между подходами)"),
+which only ever produced a suggestion for the handful of exercises with
+target_sets/target_reps already filled in -- stimulus_type/difficulty_level
+are set on every exercise in the catalog now (see
+scripts/backfill_exercise_metadata.py), so this covers all of it.
 """
-_LOW_REPS_CEILING = 5
-_LOW_REPS_REST_SECONDS = 180
+from app.core.training_block import MAX_DIFFICULTY_LEVEL
+from app.models.exercise import StimulusType
 
-_MEDIUM_REPS_CEILING = 12
-_MEDIUM_REPS_REST_SECONDS = 90
+# (seconds at difficulty_level=1, seconds at difficulty_level=MAX_DIFFICULTY_LEVEL)
+# per stimulus_type, interpolated linearly in between -- "higher difficulty
+# -> a bit more rest" falls out of one rule instead of a separate step
+# function tacked on for difficulty>=3.
+_REST_RANGE_SECONDS: dict[StimulusType, tuple[int, int]] = {
+    StimulusType.STRENGTH: (120, 180),
+    StimulusType.POWER: (120, 180),
+    StimulusType.ENDURANCE: (30, 60),
+    StimulusType.SKILL: (60, 90),
+    StimulusType.MOBILITY: (15, 30),
+}
 
-_HIGH_REPS_REST_SECONDS = 45
 
-
-def rest_seconds_for(target_sets: int | None, target_reps: int | None) -> int | None:
-    """None whenever there's nothing to rest *between*: no sets structure at
-    all (target_sets is None), or a duration-based exercise with no rep
-    count -- this formula's three tiers are keyed on target_reps alone, so
-    a duration-only exercise (a plank hold, a timed sprint) isn't covered
-    and deliberately gets no suggested rest rather than a guessed one.
-
-    Takes the two raw values rather than an Exercise/ExerciseRead so it
-    works the same from either -- the ORM model and the read schema are
-    different classes that happen to share these two field names.
+def rest_seconds_for(stimulus_type: StimulusType | None, difficulty_level: int) -> int | None:
+    """None only when stimulus_type itself is unclassified -- difficulty_level
+    is a required column, so that half of the formula never has a
+    missing-data case the way stimulus_type still can (e.g. a brand-new
+    catalog entry nobody has classified yet).
     """
-    if target_sets is None or target_reps is None:
+    if stimulus_type is None:
         return None
-    if target_reps <= _LOW_REPS_CEILING:
-        return _LOW_REPS_REST_SECONDS
-    if target_reps <= _MEDIUM_REPS_CEILING:
-        return _MEDIUM_REPS_REST_SECONDS
-    return _HIGH_REPS_REST_SECONDS
+    low, high = _REST_RANGE_SECONDS[stimulus_type]
+    fraction = (difficulty_level - 1) / (MAX_DIFFICULTY_LEVEL - 1)
+    return round(low + (high - low) * fraction)

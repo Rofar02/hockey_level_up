@@ -8,20 +8,26 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.session_templates import get_phase_split
+from app.core.session_duration import compute_phase_split
 from app.core.training_block import (
     DIFFICULTY_PRIORITY_PREDICATES,
     MAIN_EXERCISE_COUNT_RANGE,
-    BlockPhase,
-    get_phase,
+    effective_difficulty_cap,
     max_difficulty_for_level,
 )
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    MovementPattern,
+    TargetStat,
+    TrainingPhase,
+)
 from app.models.schedule import (
+    BlockPhase,
     DayPlan,
     DaySessionType,
     SessionBlock,
-    TrainingBlock,
     TrainingSession,
     WeeklyPlan,
 )
@@ -29,7 +35,6 @@ from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.skill_repository import SkillRepository
-from app.repositories.training_block_repository import TrainingBlockRepository
 from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
 from app.schemas.exercise import exercise_to_read
 from app.schemas.schedule import (
@@ -42,6 +47,8 @@ from app.schemas.schedule import (
     WeeklyPlanPatchResult,
     WeeklyPlanRead,
 )
+from app.services.overload_service import OverloadService
+from app.services.training_block_service import TrainingBlockService
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +75,8 @@ class ScheduleService:
         self._schedule = ScheduleRepository(session)
         self._skills = SkillRepository(session)
         self._user_skill_preferences = UserSkillPreferenceRepository(session)
-        self._training_blocks = TrainingBlockRepository(session)
+        self._training_block_service = TrainingBlockService(session)
+        self._overload_service = OverloadService(session)
 
     async def create_weekly_plan(self, user: User, payload: WeeklyPlanCreate) -> WeeklyPlanRead:
         dates = [day.date for day in payload.days]
@@ -78,8 +86,8 @@ class ScheduleService:
             )
 
         target_week_start_date = min(dates)
-        training_block = await self._resolve_training_block(user, target_week_start_date)
-        block_phase = get_phase(training_block.week_in_block)
+        training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
+        block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
 
         weekly_plan = WeeklyPlan(
             user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
@@ -177,7 +185,9 @@ class ScheduleService:
 
         week_end = weekly_plan.week_start_date + timedelta(days=6)
         day_plans_by_date = {day_plan.date: day_plan for day_plan in weekly_plan.day_plans}
-        block_phase = await self._block_phase_for_weekly_plan(weekly_plan)
+        block_phase = await self._overload_service.apply_brakes(
+            user, await self._block_phase_for_weekly_plan(weekly_plan)
+        )
 
         conflicts: list[ScheduleConflictRead] = []
         for day_in in payload.days:
@@ -223,112 +233,25 @@ class ScheduleService:
         )
 
     async def _block_phase_for_weekly_plan(self, weekly_plan: WeeklyPlan) -> BlockPhase:
+        """Read-only: the phase whatever block this week is already tied to
+        is CURRENTLY at. Deliberately doesn't call
+        TrainingBlockService.resolve_active_block -- patching a specific
+        (possibly past or future) week shouldn't reach past that week's own
+        block to catch up whatever the globally *active* block is doing;
+        only declaring a brand-new week (create_weekly_plan) does that.
+        """
         block = None
         if weekly_plan.training_block_id is not None:
-            block = await self._training_blocks.get_by_id(weekly_plan.training_block_id)
+            block = await self._training_block_service.get_by_id(weekly_plan.training_block_id)
         # No block on record (shouldn't happen via any current code path) --
         # fall back to the same baseline a brand-new block starts at.
-        return get_phase(block.week_in_block) if block is not None else get_phase(1)
+        return block.phase if block is not None else BlockPhase.ACCUMULATION
 
     @staticmethod
     def _has_completed_block(day_plan: DayPlan) -> bool:
         if day_plan.training_session is None:
             return False
         return any(block.completed_at is not None for block in day_plan.training_session.blocks)
-
-    async def _resolve_training_block(
-        self, user: User, target_week_start_date: date
-    ) -> TrainingBlock:
-        """Resolve the user's periodization block for the week being declared,
-        advancing it only for calendar weeks that actually elapsed.
-
-        `anchor_week_start_date` is the real calendar week the block's
-        current `week_in_block` corresponds to. Advancing is driven by the
-        gap between that anchor and `target_week_start_date` -- in whole
-        weeks -- not by how many times this method gets called. Declaring
-        the same week twice (e.g. regenerating it) or declaring several
-        real weeks ahead in one call are both handled correctly; calling
-        this N times for N consecutive real weeks (the common case) still
-        advances by exactly 1 each time, same as before this method learned
-        about dates at all.
-        """
-        active = await self._training_blocks.get_active_for_user(user.id)
-        if active is None:
-            return await self._training_blocks.create(
-                TrainingBlock(
-                    user_id=user.id,
-                    block_number=1,
-                    week_in_block=1,
-                    anchor_week_start_date=target_week_start_date,
-                )
-            )
-
-        if active.anchor_week_start_date is None:
-            # Backfilled row with no WeeklyPlan on record (block existed
-            # before this column did, and was never actually used to plan a
-            # week) -- nothing to compute a gap from, so treat this call as
-            # the first real planning under it rather than guessing.
-            active.anchor_week_start_date = target_week_start_date
-            return active
-
-        if target_week_start_date == active.anchor_week_start_date:
-            # Re-declaring the already-known week (e.g. the user regenerates
-            # it) -- not a new calendar week, so nothing advances.
-            return active
-
-        if target_week_start_date < active.anchor_week_start_date:
-            # Declaring a week earlier than the block's known anchor. Not
-            # reachable through the normal UI flow (weeks are always
-            # declared forward), but a client could still send it. Known
-            # simplification: rewinding week_in_block would require knowing
-            # what it *was* at that earlier point, which this table doesn't
-            # keep -- so instead of guessing, leave the block untouched.
-            # That earlier week ends up assembled under the block's
-            # *current* phase, which may not be historically accurate, but
-            # is safe: nothing gets corrupted or double-advanced.
-            logger.warning(
-                "create_weekly_plan target_week_start_date=%s is before block %s's "
-                "anchor_week_start_date=%s -- leaving week_in_block unchanged, week will "
-                "use the block's current phase",
-                target_week_start_date,
-                active.id,
-                active.anchor_week_start_date,
-            )
-            return active
-
-        weeks_diff = (target_week_start_date - active.anchor_week_start_date).days // 7
-        for _ in range(weeks_diff):
-            active = await self._advance_one_week(user, active)
-
-        active.anchor_week_start_date = target_week_start_date
-        return active
-
-    async def _advance_one_week(self, user: User, active: TrainingBlock) -> TrainingBlock:
-        """Single step of the block-progression rule: bump week_in_block, or
-        roll over to a new block at week 4 -- unchanged from the original
-        one-call-one-step logic, just factored out so _resolve_training_block
-        can apply it exactly `weeks_diff` times instead of exactly once.
-
-        Hitting 4 (a just-completed deload week) retires the block and
-        starts a new one at block_number + 1 -- that specific transition is
-        also what flags the user for a norm-test retake (border of a
-        mesocycle is where the concept doc says a retest is "honest": not
-        exhausted, not stale).
-        """
-        if active.week_in_block < 4:
-            active.week_in_block += 1
-            return active
-
-        user.suggested_reassessment = True
-        # Same rollover trigger as the off-ice flag, but a separate flag --
-        # on-ice access is scheduled around rink time, so a player might
-        # retake one test well before/after the other. Neither test's
-        # gate (AssessmentService._check_gate) should close because the
-        # other one was just retaken.
-        user.suggested_onice_reassessment = True
-        return await self._training_blocks.create(
-            TrainingBlock(user_id=user.id, block_number=active.block_number + 1, week_in_block=1)
-        )
 
     async def _build_session_for_day(
         self, session_type: DaySessionType, user: User, block_phase: BlockPhase
@@ -395,24 +318,43 @@ class ScheduleService:
     async def _build_training_session(
         self, session_type: DaySessionType, user: User, block_phase: BlockPhase
     ) -> TrainingSession:
+        """MAIN is picked first and warmup/cooldown are chosen retrospectively
+        to match it (Phase 3) -- storage order of `blocks` is still
+        warmup/main/cooldown, only the *decision* order changed, so this
+        picks main before appending anything, then builds `blocks` in the
+        original display order once every pick is known.
+        """
         category = _SESSION_TYPE_TO_CATEGORY[session_type]
-        blocks: list[SessionBlock] = []
 
-        warmup = await self._pick_single(TrainingPhase.WARMUP, category, user, block_phase)
+        main_exercises = await self._pick_main(category, user, block_phase)
+        main_patterns = await self._movement_patterns_union(
+            [exercise.id for exercise in main_exercises]
+        )
+
+        warmup = await self._pick_single(
+            TrainingPhase.WARMUP, category, user, block_phase, preferred_patterns=main_patterns
+        )
+        cooldown = await self._pick_single(
+            TrainingPhase.COOLDOWN, category, user, block_phase, preferred_patterns=main_patterns
+        )
+
+        blocks: list[SessionBlock] = []
         if warmup is not None:
             blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=warmup.id, order=0))
 
-        main_exercises = await self._pick_main(category, user, block_phase)
         for i, exercise in enumerate(main_exercises):
             blocks.append(SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=i))
 
-        cooldown = await self._pick_single(TrainingPhase.COOLDOWN, category, user, block_phase)
         if cooldown is not None:
             blocks.append(
                 SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=cooldown.id, order=0)
             )
 
         return TrainingSession(blocks=blocks)
+
+    async def _movement_patterns_union(self, exercise_ids: list[uuid.UUID]) -> set[MovementPattern]:
+        by_exercise = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)
+        return {pattern for patterns in by_exercise.values() for pattern in patterns}
 
     async def _pick_single(
         self,
@@ -422,6 +364,7 @@ class ScheduleService:
         block_phase: BlockPhase,
         *,
         suitable_for_game_day: bool | None = None,
+        preferred_patterns: set[MovementPattern] | None = None,
     ) -> Exercise | None:
         """Warmup/cooldown: curated pool for the phase, filtered by the day's category.
 
@@ -433,6 +376,14 @@ class ScheduleService:
         difficulty<=2), falling back to the level-capped pool when nothing
         matches that preference -- never an empty result just because the
         preferred difficulty band is missing.
+
+        preferred_patterns (Phase 3) narrows the pool once more, last, to
+        exercises sharing at least one movement_pattern with the session's
+        already-picked MAIN exercises -- same fallback shape as every layer
+        above it: if nothing in the level/difficulty-narrowed pool overlaps,
+        fall back to that pool untouched rather than picking from outside
+        it. None/empty (GAME-day activation, which has no MAIN to match)
+        skips this layer entirely.
 
         suitable_for_game_day is None for every regular on/off-ice call --
         only _build_game_day_session passes True, to keep its physical
@@ -453,6 +404,17 @@ class ScheduleService:
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
         if difficulty_predicate is not None:
             candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
+
+        if preferred_patterns:
+            patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
+                [e.id for e in candidates]
+            )
+            matched = [
+                e
+                for e in candidates
+                if preferred_patterns.intersection(patterns_by_id.get(e.id, ()))
+            ]
+            candidates = matched or candidates
 
         return random.choice(candidates)
 
@@ -583,17 +545,21 @@ class ScheduleService:
         level_cap: int | None = None,
     ) -> list[Exercise]:
         """Hard difficulty ceiling from User.level (see max_difficulty_for_level),
-        applied at exercise-*assembly* time only -- never touches SessionBlocks
-        already saved into a plan, even if the user's level later makes one of
-        them ineligible for a fresh pick.
+        further lowered by the Phase 5 structural overload brake (see
+        app.core.training_block.effective_difficulty_cap) -- applied at
+        exercise-*assembly* time only -- never touches SessionBlocks
+        already saved into a plan, even if the user's level or throttle
+        later makes one of them ineligible for a fresh pick.
 
         Last-resort fallback: if nothing in `candidates` is under the cap
-        (e.g. a low-level user's catalog has no easy exercises for this
-        phase/category/stat), relax back to the full, uncapped `candidates`
-        rather than assembling an empty/broken plan -- and log it, since an
-        empty pool under the level cap is a catalog gap worth knowing about.
+        (e.g. a low-level or currently-throttled user's catalog has no easy
+        exercises for this phase/category/stat), relax back to the full,
+        uncapped `candidates` rather than assembling an empty/broken plan --
+        and log it, since an empty pool under the cap is a catalog gap
+        worth knowing about.
         """
-        cap = level_cap if level_cap is not None else max_difficulty_for_level(user.level)
+        level_cap = level_cap if level_cap is not None else max_difficulty_for_level(user.level)
+        cap = effective_difficulty_cap(level_cap, user.difficulty_throttle_steps)
         capped = [e for e in candidates if e.difficulty_level <= cap]
         if capped:
             return capped
@@ -706,7 +672,7 @@ class ScheduleService:
             return day_plan
 
         week_start = target_date - timedelta(days=target_date.weekday())
-        training_block = await self._resolve_training_block(user, week_start)
+        training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
         weekly_plan = WeeklyPlan(
             user_id=user.id, week_start_date=week_start, training_block_id=training_block.id
         )
@@ -773,11 +739,14 @@ class ScheduleService:
             if day.training_session is not None:
                 # GAME has no ExerciseCategory of its own (see
                 # _build_game_day_session) -- warmup-only by construction, so
-                # its split is fixed rather than looked up per category.
+                # its split is fixed rather than estimated from blocks that
+                # are all the same phase anyway.
                 if day.session_type == DaySessionType.GAME:
                     phase_split = {TrainingPhase.WARMUP: 1.0}
                 else:
-                    phase_split = get_phase_split(_SESSION_TYPE_TO_CATEGORY[day.session_type])
+                    phase_split = compute_phase_split(
+                        [(block.phase, block.exercise) for block in day.training_session.blocks]
+                    )
                 blocks_read = [
                     SessionBlockRead(
                         id=block.id,

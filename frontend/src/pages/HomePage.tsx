@@ -51,24 +51,25 @@ const MONTH_LABELS = [
 // the real mechanics from app/core/training_block.py (intensification biases
 // toward difficulty>=4, deload biases toward difficulty<=2 and shrinks the
 // main block to 1-2 exercises) but the wording itself needs a copy pass
-// before shipping.
+// before shipping. Phrased around "фаза" rather than "неделя" since Phase 4
+// made phase length session-count-driven, not a fixed calendar week.
 const BLOCK_PHASE_DESCRIPTIONS: Record<BlockPhase, string> = {
   accumulation:
     'Базовый этап блока: набираем общий объём тренировок без резких скачков сложности.',
   intensification:
-    'Сложность упражнений заметно растёт — это самая требовательная неделя блока. Следите за техникой.',
+    'Сложность упражнений заметно растёт — это самая требовательная фаза блока. Следите за техникой.',
   deload:
-    'Разгрузочная неделя перед новым блоком: упражнения проще, а нагрузки в основной части меньше. Время на восстановление.',
+    'Разгрузочная фаза перед новым блоком: упражнения проще, а нагрузки в основной части меньше. Время на восстановление.',
 }
 
 // Rest-day hint on TodayCard: during intensification (the highest-load
-// week, see BLOCK_PHASE_DESCRIPTIONS above) light movement speeds recovery
+// phase, see BLOCK_PHASE_DESCRIPTIONS above) light movement speeds recovery
 // more than full inactivity, so that phase gets a more specific nudge.
-// Accumulation/deload weeks, or no active block at all, get the same
+// Accumulation/deload phases, or no active block at all, get the same
 // simple text -- no phase-specific tuning needed there.
 function getRestDayHint(phase: BlockPhase | null): string {
   if (phase === 'intensification') {
-    return 'День отдыха. Лёгкая прогулка 20-30 минут поможет мышцам быстрее восстановиться после высокой нагрузки этой недели.'
+    return 'День отдыха. Лёгкая прогулка 20-30 минут поможет мышцам быстрее восстановиться после высокой нагрузки в этой фазе.'
   }
   return 'День отдыха. Дайте телу восстановиться.'
 }
@@ -575,10 +576,12 @@ function PeriodizationCard({ block }: { block: TrainingBlockRead }) {
             <i className="ti ti-info-circle text-sm" aria-hidden="true" />
           </button>
         </span>
-        <span className="font-mono text-accent-ice">{block.week_in_block}/4</span>
+        <span className="font-mono text-accent-ice">
+          {block.sessions_completed_in_phase}/{block.sessions_to_advance}
+        </span>
       </div>
       {infoOpen && <p className="text-xs text-[#8A94A6]">{description}</p>}
-      <ProgressBar value={block.week_in_block} max={4} />
+      <ProgressBar value={block.sessions_completed_in_phase} max={block.sessions_to_advance} />
     </div>
   )
 }

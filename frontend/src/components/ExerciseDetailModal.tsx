@@ -214,10 +214,10 @@ function alertRestDone() {
 
 // Auto-started by SetLogger right after a non-final set is saved (see
 // restState there) -- counts down from the exercise's computed
-// rest_seconds (app/core/rest.py's target_reps-based formula) and fires
-// alertRestDone + onDone once it reaches zero, so the next set's input
-// reappears on its own without another tap. "Пропустить" lets the athlete
-// end the rest early if they feel ready.
+// rest_seconds (app/core/rest.py's stimulus_type/difficulty_level formula)
+// and fires alertRestDone + onDone once it reaches zero, so the next set's
+// input reappears on its own without another tap. "Пропустить" lets the
+// athlete end the rest early if they feel ready.
 function RestTimer({ totalSeconds, onDone }: { totalSeconds: number; onDone: () => void }) {
   const [remaining, setRemaining] = useState(totalSeconds)
   const onDoneRef = useRef(onDone)

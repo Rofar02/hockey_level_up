@@ -9,6 +9,7 @@ export const BLOCK_PHASE_LABELS: Record<BlockPhase, string> = {
 
 export interface TrainingBlockRead {
   block_number: number
-  week_in_block: number
   phase: BlockPhase
+  sessions_completed_in_phase: number
+  sessions_to_advance: number
 }

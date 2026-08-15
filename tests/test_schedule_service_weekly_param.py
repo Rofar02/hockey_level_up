@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import (
+    BlockPhase,
     DayPlan,
     DaySessionType,
     SessionBlock,
@@ -70,8 +71,7 @@ async def _make_weekly_plan(
         id=uuid.uuid4(),
         user_id=user.id,
         block_number=block_number,
-        week_in_block=1,
-        anchor_week_start_date=week_start_date,
+        phase_started_at=week_start_date,
     )
     db_session.add(block)
     await db_session.flush()
@@ -304,9 +304,13 @@ def _full_week_payload(week_start_date: date) -> WeeklyPlanCreate:
 
 
 @pytest.mark.asyncio
-async def test_create_current_then_next_week_advances_periodization_by_one_and_both_are_gettable(
+async def test_create_current_then_next_week_does_not_advance_periodization_and_both_are_gettable(
     db_session,
 ) -> None:
+    """Phase 4: declaring weeks alone is no longer what drives periodization
+    (completed sessions are, see test_training_block_progression.py) -- two
+    create_weekly_plan calls in a row, with nothing completed in between,
+    must leave the block exactly where it started."""
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -319,15 +323,11 @@ async def test_create_current_then_next_week_advances_periodization_by_one_and_b
 
     await schedule.create_weekly_plan(user, _full_week_payload(this_monday))
     after_first = await blocks.get_current(user.id)
-    assert (after_first.block_number, after_first.week_in_block) == (1, 1)
+    assert (after_first.block_number, after_first.phase) == (1, BlockPhase.ACCUMULATION)
 
-    # Real next real week, declared right after -- must advance by exactly
-    # 1 step (the periodization-fix regression this used to get wrong: 2
-    # create_weekly_plan calls in a row used to advance by 2 regardless of
-    # how many real weeks separated them).
     await schedule.create_weekly_plan(user, _full_week_payload(next_monday))
     after_second = await blocks.get_current(user.id)
-    assert (after_second.block_number, after_second.week_in_block) == (1, 2)
+    assert (after_second.block_number, after_second.phase) == (1, BlockPhase.ACCUMULATION)
 
     # Both weeks are independently fetchable through the new endpoint, and
     # the current week is unaffected by next week having been declared.

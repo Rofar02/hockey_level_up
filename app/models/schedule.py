@@ -4,7 +4,6 @@ from datetime import date as date_
 from datetime import datetime
 
 from sqlalchemy import (
-    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -32,6 +31,12 @@ class DaySessionType(enum.StrEnum):
     GAME = "game"
 
 
+class BlockPhase(enum.StrEnum):
+    ACCUMULATION = "accumulation"
+    INTENSIFICATION = "intensification"
+    DELOAD = "deload"
+
+
 class WeeklyPlan(Base):
     __tablename__ = "weekly_plans"
     __table_args__ = (
@@ -55,20 +60,23 @@ class WeeklyPlan(Base):
 
 
 class TrainingBlock(Base):
-    """Periodization state for a user, mutated in place week-to-week.
+    """Periodization state for a user, mutated in place as real training
+    sessions complete (Phase 4) -- no longer calendar-driven.
 
-    `week_in_block` is bumped on the same row while it's < 4; hitting 4
-    (a completed deload week) retires the row and a new one starts at
-    block_number + 1 / week_in_block=1. "Active" block for a user is simply
-    the row with the highest `block_number` -- no separate flag needed.
+    `phase` advances accumulation -> intensification -> deload on the same
+    row once enough real (on/off-ice) sessions have completed since
+    `phase_started_at`, or that calendar ceiling has been hit regardless of
+    session count (see app.core.training_block.phase_transition_due).
+    Completing deload retires the row and a new one starts at
+    block_number + 1 / phase=ACCUMULATION. "Active" block for a user is
+    simply the row with the highest `block_number` -- no separate flag
+    needed. See TrainingBlockService.resolve_active_block for the
+    query-and-mutate logic driven by this state.
     """
 
     __tablename__ = "training_blocks"
     __table_args__ = (
         UniqueConstraint("user_id", "block_number", name="uq_training_blocks_user_block_number"),
-        CheckConstraint(
-            "week_in_block >= 1 AND week_in_block <= 4", name="ck_training_blocks_week_in_block_range"
-        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -78,16 +86,15 @@ class TrainingBlock(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     block_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    week_in_block: Mapped[int] = mapped_column(Integer, nullable=False)
-    # Which real calendar week (WeeklyPlan.week_start_date) week_in_block
-    # currently reflects. Lets _resolve_training_block tell "another
-    # create_weekly_plan call for the same week" apart from "a real week
-    # actually elapsed" -- advancing week_in_block is driven by calendar
-    # weeks between anchor and the newly-declared week, not by call count.
-    # Nullable for rows created before this column existed; see the
-    # backfill in the migration that adds it, and the None-handling in
-    # _resolve_training_block for rows backfill couldn't populate.
-    anchor_week_start_date: Mapped[date_ | None] = mapped_column(Date, nullable=True)
+    phase: Mapped[BlockPhase] = mapped_column(
+        enum_column(BlockPhase, "block_phase"), nullable=False, default=BlockPhase.ACCUMULATION
+    )
+    # When the CURRENT phase started -- both the lower bound for counting
+    # "sessions completed in this phase" (TrainingBlockRepository.
+    # count_completed_real_sessions) and the anchor for the calendar-ceiling
+    # fallback. Reset to today() every time phase advances (including the
+    # deload->new-block rollover, on the new row).
+    phase_started_at: Mapped[date_] = mapped_column(Date, nullable=False, default=date_.today)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

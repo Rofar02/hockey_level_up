@@ -27,7 +27,7 @@ from app.core.config import Settings
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, TrainingStreak, UserStat
-from app.models.schedule import TrainingBlock
+from app.models.schedule import BlockPhase, TrainingBlock
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight
 from app.models.user import User
 from app.routers.deps import require_premium
@@ -249,10 +249,11 @@ async def test_system_prompt_carries_real_user_context(db_session, monkeypatch) 
         )
     )
 
-    # Periodization phase: week_in_block=3 -> intensification (see
-    # app/core/training_block.get_phase).
+    # Periodization phase, persisted directly (Phase 4).
     db_session.add(
-        TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1, week_in_block=3)
+        TrainingBlock(
+            id=uuid.uuid4(), user_id=user.id, block_number=1, phase=BlockPhase.INTENSIFICATION
+        )
     )
 
     # Recent StatHistory with a reason.

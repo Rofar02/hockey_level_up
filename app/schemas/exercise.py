@@ -44,14 +44,14 @@ class ExerciseRead(BaseModel):
     stimulus_type: StimulusType | None
     exercise_type: ExerciseType | None
 
-    # Computed, not stored -- see app.core.rest. Derived from target_reps
-    # alone (None whenever target_sets/target_reps aren't both set), exposed
-    # here so every client reads the same rest suggestion without
-    # reimplementing the rep-range thresholds.
+    # Computed, not stored -- see app.core.rest. Derived from stimulus_type
+    # and difficulty_level (None only when stimulus_type is unclassified),
+    # exposed here so every client reads the same rest suggestion without
+    # reimplementing the stimulus_type/difficulty formula.
     @computed_field  # type: ignore[prop-decorator]
     @property
     def rest_seconds(self) -> int | None:
-        return rest_seconds_for(self.target_sets, self.target_reps)
+        return rest_seconds_for(self.stimulus_type, self.difficulty_level)
 
 
 # Every ExerciseRead must be built through here (or exercises_to_read for a

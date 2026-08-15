@@ -1,12 +1,13 @@
-"""Phase 9 periodization: block-phase from week_in_block, and how it biases
-exercise selection (difficulty preference + main-block exercise count).
+"""Periodization: what biases exercise selection per BlockPhase, and the
+pure decision rule for when a phase should advance (Phase 4 -- driven by
+completed real sessions, not calendar weeks; see
+TrainingBlockService.resolve_active_block for the DB-querying/mutating side
+of this).
 """
-import enum
 from collections.abc import Callable
 
 from app.models.exercise import Exercise
-
-WEEKS_PER_BLOCK = 4
+from app.models.schedule import BlockPhase
 
 _INTENSIFICATION_DIFFICULTY_FLOOR = 4
 _DELOAD_DIFFICULTY_CEILING = 2
@@ -30,20 +31,16 @@ def max_difficulty_for_level(level: int) -> int:
     return MAX_DIFFICULTY_LEVEL
 
 
-class BlockPhase(enum.StrEnum):
-    ACCUMULATION = "accumulation"
-    INTENSIFICATION = "intensification"
-    DELOAD = "deload"
+MIN_DIFFICULTY_LEVEL = 1
 
 
-def get_phase(week_in_block: int) -> BlockPhase:
-    if week_in_block in (1, 2):
-        return BlockPhase.ACCUMULATION
-    if week_in_block == 3:
-        return BlockPhase.INTENSIFICATION
-    if week_in_block == WEEKS_PER_BLOCK:
-        return BlockPhase.DELOAD
-    raise ValueError(f"week_in_block must be 1-4, got {week_in_block}")
+def effective_difficulty_cap(level_cap: int, difficulty_throttle_steps: int) -> int:
+    """Phase 5 structural brake: level_cap minus the user's current
+    throttle (see app.core.overload.compute_difficulty_throttle_steps),
+    floored at MIN_DIFFICULTY_LEVEL -- User.level/XP are never touched by
+    this, only which exercises are eligible to be picked right now.
+    """
+    return max(MIN_DIFFICULTY_LEVEL, level_cap - difficulty_throttle_steps)
 
 
 # Exercises a phase prefers, given a candidate pool for a single target_stat.
@@ -65,3 +62,44 @@ MAIN_EXERCISE_COUNT_RANGE: dict[BlockPhase, tuple[int, int]] = {
     BlockPhase.INTENSIFICATION: (4, 5),
     BlockPhase.DELOAD: (3, 4),
 }
+
+# Ordered mesocycle sequence -- DELOAD has no "next phase" (its completion
+# rolls over to a brand-new TrainingBlock instead, handled by
+# TrainingBlockService._advance).
+_PHASE_ORDER: tuple[BlockPhase, ...] = (BlockPhase.ACCUMULATION, BlockPhase.INTENSIFICATION, BlockPhase.DELOAD)
+
+# M in the spec: real (on/off-ice) sessions completed since phase_started_at
+# that trigger an advance, for BOTH accumulation->intensification and
+# intensification->deload. Chosen to roughly track
+# MAIN_EXERCISE_COUNT_RANGE[ACCUMULATION]'s upper bound -- about a week to a
+# week and a half of training at ordinary frequency.
+SESSIONS_TO_ADVANCE_PHASE = 6
+
+# N in the spec: soft calendar ceiling per phase, independent of session
+# count -- purely a safety net so a fully inactive user doesn't stay parked
+# in one phase forever. Applies uniformly to all three phases (including
+# deload's roll to a new block), not just accumulation.
+PHASE_CALENDAR_CEILING_WEEKS = 8
+
+
+def next_phase(phase: BlockPhase) -> BlockPhase | None:
+    """The phase after `phase` in a mesocycle, or None when `phase` is
+    DELOAD -- its completion rolls over to a new TrainingBlock rather than
+    to a "next phase" within this one.
+    """
+    index = _PHASE_ORDER.index(phase)
+    if index + 1 >= len(_PHASE_ORDER):
+        return None
+    return _PHASE_ORDER[index + 1]
+
+
+def phase_transition_due(*, sessions_completed_in_phase: int, weeks_since_phase_started: int) -> bool:
+    """True once either M real sessions have completed since the phase
+    started, or the phase has run longer than the calendar ceiling -- pure
+    decision rule, no DB access, so it's unit-testable on its own (the
+    DB-querying/mutating side lives in TrainingBlockService).
+    """
+    return (
+        sessions_completed_in_phase >= SESSIONS_TO_ADVANCE_PHASE
+        or weeks_since_phase_started >= PHASE_CALENDAR_CEILING_WEEKS
+    )

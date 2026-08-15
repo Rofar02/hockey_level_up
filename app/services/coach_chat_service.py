@@ -16,16 +16,17 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.training_block import BlockPhase, get_phase
+from app.core.training_block import SESSIONS_TO_ADVANCE_PHASE
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, UserStat
+from app.models.schedule import BlockPhase
 from app.models.user import User
 from app.repositories.coach_chat_repository import CoachChatRepository
 from app.repositories.progress_repository import ProgressRepository
-from app.repositories.training_block_repository import TrainingBlockRepository
 from app.schemas.coach_chat import CoachChatMessageRead
 from app.services.skill_service import SkillService
+from app.services.training_block_service import TrainingBlockService
 
 MODEL = "claude-haiku-4-5-20251001"
 
@@ -91,11 +92,16 @@ def _format_streak_section(current_streak: int) -> str:
     return f"Текущий стрик тренировок: {current_streak} дн. подряд."
 
 
-def _format_phase_section(phase: BlockPhase | None, week_in_block: int | None) -> str:
+def _format_phase_section(
+    phase: BlockPhase | None, sessions_completed: int, sessions_to_advance: int
+) -> str:
     if phase is None:
         return "Фаза периодизации: блок ещё не начат."
     label = PHASE_LABELS.get(phase, phase.value)
-    return f"Фаза периодизации: {label} (неделя {week_in_block} из блока)."
+    return (
+        f"Фаза периодизации: {label} "
+        f"({sessions_completed} из {sessions_to_advance} тренировок до смены фазы)."
+    )
 
 
 def _format_history_section(entries: list[StatHistory]) -> str:
@@ -128,7 +134,7 @@ class CoachChatService:
         self._session = session
         self._chat = CoachChatRepository(session)
         self._progress = ProgressRepository(session)
-        self._training_blocks = TrainingBlockRepository(session)
+        self._training_blocks = TrainingBlockService(session)
         self._skills = SkillService(session)
 
     async def send_message(self, user: User, message: str) -> CoachChatMessageRead:
@@ -199,9 +205,12 @@ class CoachChatService:
         streak = await self._progress.get_streak(user.id)
         streak_section = _format_streak_section(streak.current_streak if streak is not None else 0)
 
-        block = await self._training_blocks.get_active_for_user(user.id)
-        phase = get_phase(block.week_in_block) if block is not None else None
-        phase_section = _format_phase_section(phase, block.week_in_block if block is not None else None)
+        block = await self._training_blocks.resolve_active_block(user.id)
+        if block is not None:
+            sessions_completed = await self._training_blocks.count_sessions_completed_in_phase(block)
+            phase_section = _format_phase_section(block.phase, sessions_completed, SESSIONS_TO_ADVANCE_PHASE)
+        else:
+            phase_section = _format_phase_section(None, 0, SESSIONS_TO_ADVANCE_PHASE)
 
         recent_history = await self._progress.list_recent_history(user.id, RECENT_HISTORY_COUNT)
         history_section = _format_history_section(recent_history)

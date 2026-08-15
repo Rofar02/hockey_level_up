@@ -1,25 +1,70 @@
-"""Phase 9: TrainingBlock progression through POST /schedule/weekly.
+"""Phase 4: TrainingBlock phase progression driven by completed real
+sessions (not calendar weeks).
 
-Verifies the three behaviors called out for this change:
-  1. A user with no TrainingBlock at all gets block_number=1/week_in_block=1
-     on their very first weekly declaration.
-  2. Five consecutive weekly declarations progress
-     1/accum -> 2/accum -> 3/intens -> 4/deload -> (new block) 2/1/accum.
-  3. suggested_reassessment flips to True exactly on the week-4 -> new-block
-     transition (the 5th declaration), not before.
+Verifies:
+  1. A user with no TrainingBlock gets block_number=1/ACCUMULATION on their
+     very first weekly declaration, and repeated weekly declarations with no
+     sessions completed do NOT advance the phase on their own (the old
+     calendar-driven behavior this replaces).
+  2. Completing SESSIONS_TO_ADVANCE_PHASE real (on/off-ice) sessions since
+     phase_started_at advances accumulation -> intensification ->
+     deload -> (new block) accumulation, one step at a time.
+  3. suggested_reassessment/suggested_onice_reassessment flip to True
+     exactly on the deload -> new-block transition, not before.
+  4. The soft calendar ceiling (PHASE_CALENDAR_CEILING_WEEKS) advances a
+     phase even with zero completed sessions, once enough real time has
+     passed.
+  5. TrainingBlockService.resolve_active_block is idempotent and safe to
+     call repeatedly without double-advancing.
+
+Tests that need several real training days to pass between phase
+transitions use a `_Clock` and TrainingBlockService's injectable `today`
+param rather than the wall clock -- otherwise a session dated in the future
+(the only way to dodge WeeklyPlan's per-user-per-week uniqueness constraint
+without waiting for real days to pass) would never age out of the *next*
+phase's count once phase_started_at catches up to it.
 """
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
+from fastapi import HTTPException
 
-from app.core.training_block import BlockPhase
-from app.models.exercise import EquipmentType
-from app.models.schedule import DaySessionType, TrainingBlock
+from app.core.training_block import PHASE_CALENDAR_CEILING_WEEKS, SESSIONS_TO_ADVANCE_PHASE
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.schedule import (
+    BlockPhase,
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.user import User
 from app.schemas.schedule import DayPlanIn, WeeklyPlanCreate
 from app.services.schedule_service import ScheduleService
 from app.services.training_block_service import TrainingBlockService
+
+
+class _Clock:
+    """A controllable "today" -- ticking by whole weeks keeps every session
+    in its own WeeklyPlan calendar week (uq_weekly_plans_user_week), and
+    ticking by an extra day before each resolve() call keeps a phase's
+    phase_started_at strictly after that phase's own last session, so it
+    doesn't also get counted toward the next phase.
+    """
+
+    def __init__(self, start: date) -> None:
+        self.today = start
+
+    def tick_weeks(self, n: int = 1) -> date:
+        self.today += timedelta(weeks=n)
+        return self.today
+
+    def tick_days(self, n: int = 1) -> date:
+        self.today += timedelta(days=n)
+        return self.today
 
 
 def _make_user() -> User:
@@ -33,19 +78,69 @@ def _make_user() -> User:
     )
 
 
-def _week_payload(start: date) -> WeeklyPlanCreate:
-    days = [
-        DayPlanIn(
-            date=start + timedelta(days=i),
-            session_type=DaySessionType.OFF_ICE if i % 2 == 0 else DaySessionType.REST,
-        )
-        for i in range(7)
-    ]
+def _rest_week_payload(start: date) -> WeeklyPlanCreate:
+    """A week with no on/off-ice days at all -- isolates "declaring a week"
+    from "completing a session" so declaring alone can be asserted not to
+    advance the phase."""
+    days = [DayPlanIn(date=start + timedelta(days=i), session_type=DaySessionType.REST) for i in range(7)]
     return WeeklyPlanCreate(days=days)
 
 
+async def _complete_real_session(db_session, user: User, block: TrainingBlock, on_date: date) -> None:
+    """Creates and completes one off-ice TrainingSession under `block`,
+    dated `on_date`. Bypasses ScheduleService's own assembly (which needs a
+    seeded catalog) since this file only cares about counting completed
+    sessions, not what's inside them.
+    """
+    exercise = Exercise(
+        id=uuid.uuid4(),
+        name=f"exercise-{uuid.uuid4().hex[:8]}",
+        category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN,
+        difficulty_level=1,
+        equipment_type=EquipmentType.BODYWEIGHT,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+
+    weekly_plan = WeeklyPlan(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        week_start_date=on_date - timedelta(days=on_date.weekday()),
+        training_block_id=block.id,
+    )
+    weekly_plan.day_plans.append(
+        DayPlan(
+            id=uuid.uuid4(),
+            date=on_date,
+            session_type=DaySessionType.OFF_ICE,
+            training_session=TrainingSession(
+                id=uuid.uuid4(),
+                blocks=[
+                    SessionBlock(
+                        id=uuid.uuid4(),
+                        phase=TrainingPhase.MAIN,
+                        exercise_id=exercise.id,
+                        order=0,
+                        completed_at=datetime.now(timezone.utc),
+                    )
+                ],
+            ),
+        )
+    )
+    db_session.add(weekly_plan)
+    await db_session.flush()
+
+
+async def _complete_a_phase_worth_of_sessions(db_session, user: User, block: TrainingBlock, clock: _Clock) -> None:
+    for _ in range(SESSIONS_TO_ADVANCE_PHASE):
+        clock.tick_weeks(1)
+        await _complete_real_session(db_session, user, block, clock.today)
+    clock.tick_days(1)  # strictly after the last session's date
+
+
 @pytest.mark.asyncio
-async def test_five_consecutive_weeks_progress_block_and_flag_reassessment(db_session) -> None:
+async def test_declaring_weeks_alone_does_not_advance_the_phase(db_session) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -54,172 +149,115 @@ async def test_five_consecutive_weeks_progress_block_and_flag_reassessment(db_se
     blocks = TrainingBlockService(db_session)
 
     base = date(2026, 1, 5)
-    expected = [
-        (1, 1, BlockPhase.ACCUMULATION),
-        (1, 2, BlockPhase.ACCUMULATION),
-        (1, 3, BlockPhase.INTENSIFICATION),
-        (1, 4, BlockPhase.DELOAD),
-        (2, 1, BlockPhase.ACCUMULATION),
-    ]
+    for week_index in range(3):
+        await schedule.create_weekly_plan(user, _rest_week_payload(base + timedelta(days=7 * week_index)))
 
-    for week_index, (exp_block_number, exp_week_in_block, exp_phase) in enumerate(expected):
-        assert user.suggested_reassessment is False, f"week {week_index}: flag set too early"
-        assert user.suggested_onice_reassessment is False, f"week {week_index}: onice flag set too early"
-
-        await schedule.create_weekly_plan(user, _week_payload(base + timedelta(days=7 * week_index)))
-        current = await blocks.get_current(user.id)
-
-        assert (current.block_number, current.week_in_block, current.phase) == (
-            exp_block_number,
-            exp_week_in_block,
-            exp_phase,
-        ), f"week {week_index}"
-
-        if week_index == 4:
-            assert user.suggested_reassessment is True, "flag should flip on the week4->new-block transition"
-            # Same rollover trigger flips both flags together -- neither
-            # test's window opens/closes independently of the other's.
-            assert user.suggested_onice_reassessment is True
-        else:
-            assert user.suggested_reassessment is False
-            assert user.suggested_onice_reassessment is False
-
-
-# --- _resolve_training_block: anchor_week_start_date-driven advancement ---
-#
-# These call _resolve_training_block directly (same convention as
-# test_schedule_service_pick_main.py calling service._pick_main directly)
-# rather than going through create_weekly_plan, specifically to isolate the
-# advancement decision from WeeklyPlan's own (user_id, week_start_date)
-# unique constraint -- re-declaring a week that already has a saved
-# WeeklyPlan 409s at the DB level regardless of what _resolve_training_block
-# decides, which would make "redeclaring the same week doesn't advance"
-# untestable through the public API alone.
-
-
-@pytest.mark.asyncio
-async def test_same_week_redeclared_does_not_advance(db_session) -> None:
-    user = _make_user()
-    db_session.add(user)
-    await db_session.flush()
-
-    service = ScheduleService(db_session)
-    target = date(2026, 2, 2)
-
-    first = await service._resolve_training_block(user, target)
-    assert (first.block_number, first.week_in_block) == (1, 1)
-
-    second = await service._resolve_training_block(user, target)
-    assert second.id == first.id
-    assert (second.block_number, second.week_in_block) == (1, 1)
-
-
-@pytest.mark.asyncio
-async def test_next_week_advances_by_one(db_session) -> None:
-    user = _make_user()
-    db_session.add(user)
-    await db_session.flush()
-
-    service = ScheduleService(db_session)
-    base = date(2026, 2, 2)
-
-    await service._resolve_training_block(user, base)
-    result = await service._resolve_training_block(user, base + timedelta(days=7))
-
-    assert (result.block_number, result.week_in_block) == (1, 2)
-    assert result.anchor_week_start_date == base + timedelta(days=7)
-
-
-@pytest.mark.asyncio
-async def test_two_real_weeks_ahead_advances_by_two(db_session) -> None:
-    user = _make_user()
-    db_session.add(user)
-    await db_session.flush()
-
-    service = ScheduleService(db_session)
-    base = date(2026, 2, 2)
-
-    await service._resolve_training_block(user, base)  # (1, 1)
-    result = await service._resolve_training_block(user, base + timedelta(days=14))
-
-    # Jumping 2 real weeks in one call must advance 2 steps (1 -> 3), not 1.
-    assert (result.block_number, result.week_in_block) == (1, 3)
-    assert result.anchor_week_start_date == base + timedelta(days=14)
-
-
-@pytest.mark.asyncio
-async def test_multi_week_jump_rolls_over_mid_gap_and_flags_reassessment(db_session) -> None:
-    """A multi-week jump that crosses the week-4 boundary must roll over to
-    a new block_number *during* the gap, not just land wherever `+ weeks_diff`
-    would put week_in_block if rollover were ignored."""
-    user = _make_user()
-    db_session.add(user)
-    await db_session.flush()
-
-    service = ScheduleService(db_session)
-    base = date(2026, 2, 2)
-
-    await service._resolve_training_block(user, base)  # (1, 1)
-    await service._resolve_training_block(user, base + timedelta(days=7))  # (1, 2)
-    landed = await service._resolve_training_block(user, base + timedelta(days=14))  # (1, 3)
-    assert (landed.block_number, landed.week_in_block) == (1, 3)
+    current = await blocks.get_current(user.id)
+    assert (current.block_number, current.phase) == (1, BlockPhase.ACCUMULATION)
+    assert current.sessions_completed_in_phase == 0
     assert user.suggested_reassessment is False
-    assert user.suggested_onice_reassessment is False
 
-    # 2 real weeks ahead from week 3: step to 4, then roll over to (2, 1) --
-    # not "3 + 2 = 5" and not "stops at 4 without rolling over".
-    result = await service._resolve_training_block(user, base + timedelta(days=28))
 
-    assert (result.block_number, result.week_in_block) == (2, 1)
-    assert result.anchor_week_start_date == base + timedelta(days=28)
+@pytest.mark.asyncio
+async def test_completed_sessions_advance_through_every_phase_and_roll_over(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    clock = _Clock(date(2026, 1, 5))
+    block = await blocks.get_or_create_and_resolve(user.id, today=clock.today)
+    assert (block.block_number, block.phase) == (1, BlockPhase.ACCUMULATION)
+
+    # accumulation -> intensification
+    await _complete_a_phase_worth_of_sessions(db_session, user, block, clock)
+    block = await blocks.resolve_active_block(user.id, today=clock.today)
+    assert (block.block_number, block.phase) == (1, BlockPhase.INTENSIFICATION)
+    assert user.suggested_reassessment is False
+
+    # intensification -> deload
+    await _complete_a_phase_worth_of_sessions(db_session, user, block, clock)
+    block = await blocks.resolve_active_block(user.id, today=clock.today)
+    assert (block.block_number, block.phase) == (1, BlockPhase.DELOAD)
+    assert user.suggested_reassessment is False
+
+    # deload -> new block (2, ACCUMULATION), reassessment flags flip
+    await _complete_a_phase_worth_of_sessions(db_session, user, block, clock)
+    block = await blocks.resolve_active_block(user.id, today=clock.today)
+    assert (block.block_number, block.phase) == (2, BlockPhase.ACCUMULATION)
     assert user.suggested_reassessment is True
     assert user.suggested_onice_reassessment is True
 
 
 @pytest.mark.asyncio
-async def test_earlier_week_than_anchor_is_a_safe_noop(db_session) -> None:
+async def test_partial_progress_does_not_advance(db_session) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
 
-    service = ScheduleService(db_session)
-    base = date(2026, 2, 2)
+    blocks = TrainingBlockService(db_session)
+    clock = _Clock(date(2026, 2, 2))
+    block = await blocks.get_or_create_and_resolve(user.id, today=clock.today)
 
-    anchored = await service._resolve_training_block(user, base)
-    assert (anchored.block_number, anchored.week_in_block) == (1, 1)
+    for _ in range(SESSIONS_TO_ADVANCE_PHASE - 1):
+        clock.tick_weeks(1)
+        await _complete_real_session(db_session, user, block, clock.today)
 
-    result = await service._resolve_training_block(user, base - timedelta(days=7))
-
-    # Same row, nothing advanced or rewound -- anchor stays exactly what it
-    # was, not moved backward either.
-    assert result.id == anchored.id
-    assert (result.block_number, result.week_in_block) == (1, 1)
-    assert result.anchor_week_start_date == base
+    resolved = await blocks.resolve_active_block(user.id, today=clock.today)
+    assert resolved.phase == BlockPhase.ACCUMULATION
+    current = await blocks.get_current(user.id, today=clock.today)
+    assert current.sessions_completed_in_phase == SESSIONS_TO_ADVANCE_PHASE - 1
 
 
 @pytest.mark.asyncio
-async def test_backfilled_block_with_null_anchor_does_not_crash(db_session) -> None:
-    """Simulates a TrainingBlock row from before anchor_week_start_date
-    existed, for which the migration's backfill found no WeeklyPlan (so
-    anchor stayed NULL) -- must not raise, and must not guess how many
-    weeks elapsed."""
+async def test_calendar_ceiling_advances_phase_with_zero_completed_sessions(db_session) -> None:
+    """An inactive user (no completed sessions at all) must still advance
+    past a phase once it's run longer than the soft calendar ceiling --
+    the safety net this exists for."""
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
 
+    stale_start = date.today() - timedelta(weeks=PHASE_CALENDAR_CEILING_WEEKS + 1)
     block = TrainingBlock(
-        user_id=user.id, block_number=1, week_in_block=2, anchor_week_start_date=None
+        user_id=user.id, block_number=1, phase=BlockPhase.ACCUMULATION, phase_started_at=stale_start
     )
     db_session.add(block)
     await db_session.flush()
 
-    service = ScheduleService(db_session)
-    target = date(2026, 3, 2)
+    blocks = TrainingBlockService(db_session)
+    resolved = await blocks.resolve_active_block(user.id)
 
-    result = await service._resolve_training_block(user, target)
+    assert resolved.phase == BlockPhase.INTENSIFICATION
+    assert resolved.phase_started_at == date.today()
 
-    assert result.id == block.id
-    # Treated as the first real planning call under this block: anchors to
-    # the target week, but week_in_block is left exactly as it was.
-    assert result.week_in_block == 2
-    assert result.anchor_week_start_date == target
+
+@pytest.mark.asyncio
+async def test_resolve_active_block_is_idempotent(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    clock = _Clock(date(2026, 3, 2))
+    block = await blocks.get_or_create_and_resolve(user.id, today=clock.today)
+
+    await _complete_a_phase_worth_of_sessions(db_session, user, block, clock)
+
+    first = await blocks.resolve_active_block(user.id, today=clock.today)
+    second = await blocks.resolve_active_block(user.id, today=clock.today)
+
+    assert first.id == second.id
+    assert (first.phase, second.phase) == (BlockPhase.INTENSIFICATION, BlockPhase.INTENSIFICATION)
+
+
+@pytest.mark.asyncio
+async def test_get_current_404s_when_no_block_exists_yet(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    with pytest.raises(HTTPException) as exc_info:
+        await blocks.get_current(user.id)
+    assert exc_info.value.status_code == 404

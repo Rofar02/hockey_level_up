@@ -106,6 +106,16 @@ class User(Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
 
+    # Phase 5 structural overload brake: subtracted from
+    # max_difficulty_for_level(level) by ScheduleService._apply_level_cap,
+    # floored at 1 -- never touches level/XP itself (see
+    # app.services.overload_service). 0 = no throttle. Refreshed in place
+    # (derived fresh from recent session feedback history, not
+    # incrementally event-driven -- see app.core.overload) at the top of
+    # every session-assembly request, the same read-refresh-then-use shape
+    # as TrainingBlockService.resolve_active_block.
+    difficulty_throttle_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     # One-time welcome tour shown on first Home visit after onboarding --
     # never reset, so a re-login or a second device just sees Home directly.
     has_seen_onboarding_tour: Mapped[bool] = mapped_column(

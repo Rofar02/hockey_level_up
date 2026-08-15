@@ -1,27 +1,30 @@
 """app.core.rest.rest_seconds_for -- pure-function boundary checks, no DB
-needed. Same style as TestMaxDifficultyForLevel in
-test_level_difficulty_gate.py.
+needed. Same style as TestMaxDifficultyForLevel in test_level_difficulty_gate.py.
 """
 import pytest
 
 from app.core.rest import rest_seconds_for
+from app.models.exercise import StimulusType
 
 
 @pytest.mark.parametrize(
-    ("target_sets", "target_reps", "expected_seconds"),
+    ("stimulus_type", "difficulty_level", "expected_seconds"),
     [
-        (3, 1, 180),  # near-max single -> longest rest
-        (3, 5, 180),  # boundary: reps<=5 -> still the low-rep tier
-        (3, 6, 90),  # boundary: reps=6 -> the medium tier, not low
-        (4, 12, 90),  # boundary: reps<=12 -> still the medium-rep tier
-        (4, 13, 45),  # boundary: reps=13 -> the high-rep tier, not medium
-        (3, 20, 45),  # deep into endurance rep ranges -> shortest rest
-        (None, 10, None),  # no sets structure at all -> nothing to rest between
-        (3, None, None),  # duration-based exercise, no rep count -> not covered
-        (None, None, None),
+        (StimulusType.STRENGTH, 1, 120),  # low end of the range at difficulty 1
+        (StimulusType.STRENGTH, 5, 180),  # high end of the range at max difficulty
+        (StimulusType.STRENGTH, 3, 150),  # midpoint difficulty -> midpoint rest
+        (StimulusType.POWER, 1, 120),
+        (StimulusType.POWER, 5, 180),
+        (StimulusType.ENDURANCE, 1, 30),
+        (StimulusType.ENDURANCE, 5, 60),
+        (StimulusType.SKILL, 1, 60),
+        (StimulusType.SKILL, 5, 90),
+        (StimulusType.MOBILITY, 1, 15),
+        (StimulusType.MOBILITY, 5, 30),
+        (None, 3, None),  # unclassified exercise -> no suggestion, not a guess
     ],
 )
-def test_rest_seconds_for_tiers_and_boundaries(
-    target_sets: int | None, target_reps: int | None, expected_seconds: int | None
+def test_rest_seconds_for_stimulus_and_difficulty(
+    stimulus_type: StimulusType | None, difficulty_level: int, expected_seconds: int | None
 ) -> None:
-    assert rest_seconds_for(target_sets, target_reps) == expected_seconds
+    assert rest_seconds_for(stimulus_type, difficulty_level) == expected_seconds

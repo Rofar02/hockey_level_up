@@ -76,9 +76,7 @@ async def _seed_full_graph(db_session, user: User) -> dict:
     weekly_plan = WeeklyPlan(
         id=uuid.uuid4(), user_id=user.id, week_start_date=date.today(), day_plans=[day_plan]
     )
-    training_block = TrainingBlock(
-        id=uuid.uuid4(), user_id=user.id, block_number=1, week_in_block=1
-    )
+    training_block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1)
     user_stat = UserStat(id=uuid.uuid4(), user_id=user.id, stat_type=TargetStat.STRENGTH)
     stat_history = StatHistory(
         id=uuid.uuid4(),

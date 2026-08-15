@@ -126,6 +126,25 @@ class ExerciseRepository:
         )
         return list(result.scalars().all())
 
+    async def list_movement_patterns_by_exercise(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[MovementPattern]]:
+        """Bulk lookup for ScheduleService's warmup/cooldown-to-main matching
+        (Phase 3) -- mirrors list_target_stats_by_exercise's shape. An
+        exercise with no movement_pattern rows is simply absent from the
+        result, same as an exercise with no target_stats."""
+        if not exercise_ids:
+            return {}
+        result = await self._session.execute(
+            select(ExerciseMovementPattern.exercise_id, ExerciseMovementPattern.movement_pattern).where(
+                ExerciseMovementPattern.exercise_id.in_(exercise_ids)
+            )
+        )
+        by_exercise: dict[uuid.UUID, list[MovementPattern]] = defaultdict(list)
+        for exercise_id, pattern in result.all():
+            by_exercise[exercise_id].append(pattern)
+        return dict(by_exercise)
+
     async def replace_movement_patterns(
         self, exercise_id: uuid.UUID, patterns: list[MovementPattern]
     ) -> None:
