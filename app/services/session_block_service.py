@@ -10,6 +10,8 @@ from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.schedule_repository import ScheduleRepository
+from app.schemas.exercise import exercise_to_read
+from app.schemas.schedule import SessionBlockRead
 from app.services.training_party_service import TrainingPartyService
 
 BLOCK_COMPLETED_EVENT = "block_completed"
@@ -27,7 +29,7 @@ class SessionBlockService:
         self._parties = TrainingPartyService(session)
         self._exercises = ExerciseRepository(session)
 
-    async def complete_block(self, block_id: uuid.UUID, user: User) -> SessionBlock:
+    async def complete_block(self, block_id: uuid.UUID, user: User) -> SessionBlockRead:
         block = await self._schedule.get_session_block_with_owner(block_id)
         if block is None or block.session.day_plan.weekly_plan.user_id != user.id:
             raise HTTPException(
@@ -59,7 +61,17 @@ class SessionBlockService:
         )
         await self._maybe_publish_training_completed(block, user)
         await self._session.commit()
-        return block
+        # response_model=SessionBlockRead needs exercise.target_stats, which
+        # isn't a plain ORM attribute (see exercise_to_read's docstring) --
+        # returning `block` directly here 500s on every call since FastAPI's
+        # response validation can't populate it from from_attributes alone.
+        return SessionBlockRead(
+            id=block.id,
+            phase=block.phase,
+            order=block.order,
+            completed_at=block.completed_at,
+            exercise=exercise_to_read(block.exercise, target_stats),
+        )
 
     async def _maybe_publish_training_completed(self, block: SessionBlock, user: User) -> None:
         # Flush first so the count below sees *this* block's just-set
