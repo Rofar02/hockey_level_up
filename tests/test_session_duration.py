@@ -9,6 +9,7 @@ from app.core.session_duration import (
     SECONDS_PER_REP_ESTIMATE,
     compute_phase_split,
     estimate_block_duration_seconds,
+    estimate_session_duration_seconds,
 )
 
 # Mirrors app.core.session_duration._DEFAULT_BLOCK_SECONDS -- not imported
@@ -111,3 +112,23 @@ def test_compute_phase_split_omits_phases_with_no_blocks() -> None:
 
 def test_compute_phase_split_empty_blocks_returns_empty_dict() -> None:
     assert compute_phase_split([]) == {}
+
+
+def test_estimate_session_duration_seconds_sums_every_block_regardless_of_phase() -> None:
+    warmup = _make_exercise(exercise_type=ExerciseType.DURATION, target_duration_seconds=100)
+    main = _make_exercise(exercise_type=ExerciseType.DURATION, target_duration_seconds=300)
+    cooldown = _make_exercise(exercise_type=ExerciseType.DURATION, target_duration_seconds=100)
+
+    total = estimate_session_duration_seconds(
+        [
+            (TrainingPhase.WARMUP, warmup),
+            (TrainingPhase.MAIN, main),
+            (TrainingPhase.COOLDOWN, cooldown),
+        ]
+    )
+
+    assert total == 500
+
+
+def test_estimate_session_duration_seconds_empty_blocks_is_zero() -> None:
+    assert estimate_session_duration_seconds([]) == 0

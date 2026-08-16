@@ -37,6 +37,10 @@ export type TrainingPhase = (typeof TRAINING_PHASES)[number]
 export interface DayPlanIn {
   date: string
   session_type: DaySessionType
+  // ON_ICE only -- rink time is rented in a fixed block, so it's stated
+  // explicitly rather than derived from exercise selection like OFF_ICE's
+  // TrainingSessionRead.duration_seconds.
+  on_ice_minutes?: number | null
 }
 
 export interface WeeklyPlanCreate {
@@ -54,6 +58,7 @@ export interface SessionBlockRead {
 export interface TrainingSessionRead {
   id: string
   phase_split: Partial<Record<TrainingPhase, number>>
+  duration_seconds: number
   blocks: SessionBlockRead[]
 }
 
@@ -61,6 +66,7 @@ export interface DayPlanRead {
   id: string
   date: string
   session_type: DaySessionType
+  on_ice_minutes: number | null
   training_session: TrainingSessionRead | null
 }
 

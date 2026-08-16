@@ -123,6 +123,13 @@ class DayPlan(Base):
     session_type: Mapped[DaySessionType] = mapped_column(
         enum_column(DaySessionType, "day_session_type"), nullable=False
     )
+    # ON_ICE only: rink time is rented in a fixed block, so the user states
+    # it up front rather than it falling out of exercise selection the way
+    # OFF_ICE duration does (see app.core.session_duration). NULL for every
+    # other session_type. Not yet consumed by exercise selection -- content
+    # for ON_ICE waits on coach-provided materials -- but the column exists
+    # now so schema doesn't need to change again once that lands.
+    on_ice_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Set the moment a reminder push goes out for this day -- guards against
     # sending the same reminder twice across scheduler ticks (e.g. if a tick
     # runs slow and overlaps the next one).

@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.session_duration import compute_phase_split
+from app.core.session_duration import compute_phase_split, estimate_session_duration_seconds
 from app.core.training_block import (
     DIFFICULTY_PRIORITY_PREDICATES,
     MAIN_EXERCISE_COUNT_RANGE,
@@ -93,7 +93,11 @@ class ScheduleService:
             user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
         )
         for day_in in payload.days:
-            day_plan = DayPlan(date=day_in.date, session_type=day_in.session_type)
+            day_plan = DayPlan(
+                date=day_in.date,
+                session_type=day_in.session_type,
+                on_ice_minutes=day_in.on_ice_minutes,
+            )
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
                     day_in.session_type, user, block_phase
@@ -210,6 +214,7 @@ class ScheduleService:
                 continue
 
             day_plan.session_type = day_in.session_type
+            day_plan.on_ice_minutes = day_in.on_ice_minutes
             if day_plan.training_session is not None:
                 # Explicit delete + flush *before* attaching a replacement --
                 # TrainingSession.day_plan_id is unique, and simply
@@ -741,12 +746,12 @@ class ScheduleService:
                 # _build_game_day_session) -- warmup-only by construction, so
                 # its split is fixed rather than estimated from blocks that
                 # are all the same phase anyway.
+                block_pairs = [(block.phase, block.exercise) for block in day.training_session.blocks]
                 if day.session_type == DaySessionType.GAME:
                     phase_split = {TrainingPhase.WARMUP: 1.0}
                 else:
-                    phase_split = compute_phase_split(
-                        [(block.phase, block.exercise) for block in day.training_session.blocks]
-                    )
+                    phase_split = compute_phase_split(block_pairs)
+                duration_seconds = estimate_session_duration_seconds(block_pairs)
                 blocks_read = [
                     SessionBlockRead(
                         id=block.id,
@@ -762,6 +767,7 @@ class ScheduleService:
                 session_read = TrainingSessionRead(
                     id=day.training_session.id,
                     phase_split=phase_split,
+                    duration_seconds=duration_seconds,
                     blocks=blocks_read,
                 )
             day_reads.append(
@@ -769,6 +775,7 @@ class ScheduleService:
                     id=day.id,
                     date=day.date,
                     session_type=day.session_type,
+                    on_ice_minutes=day.on_ice_minutes,
                     training_session=session_read,
                 )
             )
