@@ -751,6 +751,12 @@ async def seed() -> None:
         for data in EXERCISES:
             if data["name"] in existing_names:
                 continue
+            # Guard against a duplicate name later in EXERCISES itself, not
+            # just ones already in the DB -- existing_names is a snapshot
+            # taken once above, so without adding to it here two identical
+            # entries in the same run both pass the check and the second
+            # insert hits the unique constraint on flush.
+            existing_names.add(data["name"])
             data = dict(data)
             target_stat = data.pop("target_stat")
             exercise = Exercise(**data)
