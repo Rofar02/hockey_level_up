@@ -82,9 +82,18 @@ nano .env
 
 ```bash
 openssl rand -base64 64 | tr -d '\n' && echo   # JWT_SECRET_KEY
-openssl rand -base64 32 | tr -d '\n' && echo   # POSTGRES_PASSWORD
-openssl rand -base64 32 | tr -d '\n' && echo   # RABBITMQ_PASSWORD
+openssl rand -hex 32 && echo                    # POSTGRES_PASSWORD
+openssl rand -hex 32 && echo                    # RABBITMQ_PASSWORD
 ```
+
+`POSTGRES_PASSWORD`/`RABBITMQ_PASSWORD` specifically as `-hex`, not
+`-base64`: `docker-compose.prod.yml` interpolates them straight into
+`DATABASE_URL`/`RABBITMQ_URL` (`postgresql+asyncpg://user:PASSWORD@host/db`)
+without URL-escaping, so a `/` or `+` from base64 output silently breaks
+the URL parser (seen live: RabbitMQ consumer failed to start with a
+`port can't be converted to integer` error, no crash, just silently
+disabled). Hex output (`0-9a-f`) can never contain a URL-special
+character. `JWT_SECRET_KEY` never goes into a URL, base64 is fine there.
 
 VAPID-пару (для push-уведомлений) сгенерировать отдельно (например,
 `npx web-push generate-vapid-keys` локально) и вставить
@@ -111,14 +120,22 @@ docker compose -f docker-compose.prod.yml up -d nginx
 ```
 
 Проверить, что `http://icelevel.ru` отвечает (текст про bootstrap). Затем
-выпустить сертификат:
+выпустить сертификат. Сервис `certbot` в `docker-compose.prod.yml`
+объявлен со своим `entrypoint` (бесконечный цикл `certbot renew`, для
+ежедневного автопродления) — он не читает аргументы командной строки,
+поэтому без `--entrypoint "certbot"` контейнер вместо разовой выписки
+просто запустит цикл продления навечно и зависнет:
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm certbot \
+docker compose -f docker-compose.prod.yml run --rm --entrypoint "certbot" certbot \
   certonly --webroot -w /var/www/certbot \
   -d icelevel.ru -d www.icelevel.ru \
   --email lexa95k@gmail.com --agree-tos --no-eff-email
 ```
+
+Если всё же запустили без `--entrypoint` и контейнер висит в `docker ps`
+дольше минуты — `docker stop <имя>` (он с `--rm`, удалится сам) и
+перезапустить команду выше, уже с `--entrypoint`.
 
 ## 6. Сертификат — боевой конфиг
 
