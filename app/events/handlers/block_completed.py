@@ -43,16 +43,6 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
     stat_types = [TargetStat(value) for value in payload["target_stats"]]
     difficulty_level = payload["difficulty_level"]
 
-    # An exercise can now carry more than one target_stat (see
-    # ExerciseTargetStat) -- the base award (before per-stat diminishing
-    # returns/relevance) is split evenly across all of them, so a 2-stat
-    # exercise doesn't award twice what a 1-stat exercise at the same
-    # difficulty would. Each stat still gets its own diminishing_factor and
-    # relevance_multiplier below, computed independently, since those are
-    # legitimately per-(user, stat) and per-(exercise, stat) quantities, not
-    # something to also split.
-    base_gain = (difficulty_level * 0.5) / len(stat_types)
-
     async with AsyncSessionLocal() as session:
         # Claimed first, in the same transaction every stat's side-effect
         # below commits in: at-least-once redelivery of this event finds its
@@ -63,6 +53,24 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
         # idempotency granularity as before this became multi-stat.
         if not await try_claim(session, event_id, STAT_CONSUMER_HANDLER_NAME):
             return
+
+        if not stat_types:
+            # An exercise with no ExerciseTargetStat rows yet (catalog entry
+            # not fully classified) -- nothing to credit. Commit anyway so
+            # the claim above sticks; without it, at-least-once redelivery
+            # would retry this same no-op event forever.
+            await session.commit()
+            return
+
+        # An exercise can now carry more than one target_stat (see
+        # ExerciseTargetStat) -- the base award (before per-stat diminishing
+        # returns/relevance) is split evenly across all of them, so a 2-stat
+        # exercise doesn't award twice what a 1-stat exercise at the same
+        # difficulty would. Each stat still gets its own diminishing_factor and
+        # relevance_multiplier below, computed independently, since those are
+        # legitimately per-(user, stat) and per-(exercise, stat) quantities, not
+        # something to also split.
+        base_gain = (difficulty_level * 0.5) / len(stat_types)
 
         skill_ids = (
             await session.execute(

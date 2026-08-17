@@ -136,6 +136,33 @@ async def test_stat_consumer_redelivery_applies_gain_only_once(real_user) -> Non
 
 
 @pytest.mark.asyncio
+async def test_stat_consumer_no_target_stats_is_a_safe_no_op(real_user) -> None:
+    # An exercise with no ExerciseTargetStat rows yet ships target_stats=[]
+    # in the outbox payload -- base_gain = (difficulty * 0.5) / len(stats)
+    # used to divide by zero here. Must commit the claim and return quietly
+    # instead of crashing (and dead-lettering the message).
+    event_id = uuid.uuid4()
+    # Built by hand, not via _payload(): its `stats or [TargetStat.STRENGTH]`
+    # default treats an explicit `stats=[]` the same as "unset", which is
+    # exactly the empty-list case this test needs to actually construct.
+    payload = {
+        "user_id": str(real_user.id),
+        "exercise_id": str(uuid.uuid4()),
+        "target_stats": [],
+        "difficulty_level": 4,
+    }
+    try:
+        await stat_consumer(payload, event_id)  # must not raise ZeroDivisionError
+        assert await _stat_value(real_user.id) is None
+        assert await _stat_history_count(real_user.id) == 0
+
+        await stat_consumer(payload, event_id)  # redelivery still a safe no-op
+        assert await _stat_value(real_user.id) is None
+    finally:
+        await _cleanup_processed_events(event_id)
+
+
+@pytest.mark.asyncio
 async def test_stat_consumer_two_different_events_both_apply(real_user) -> None:
     event_id_1, event_id_2 = uuid.uuid4(), uuid.uuid4()
     payload = _payload(real_user.id, difficulty_level=2)
