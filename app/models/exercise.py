@@ -121,7 +121,12 @@ class Exercise(Base):
     video_source_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     target_sets: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    target_reps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # A range, not a single number (Phase: double progression) -- reps
+    # personalize within [min, max] per session based on performance (see
+    # RepsSuggestionService); target_sets above stays a static catalog value,
+    # sets-count personalization is a separate, harder topic, not this one.
+    rep_range_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rep_range_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Anatomical push/pull/legs/core grouping, used only to softly balance
@@ -141,9 +146,9 @@ class Exercise(Base):
     # not inferred here. stimulus_type feeds a future rest-time formula;
     # exercise_type will eventually replace the implicit sets/reps-vs-
     # duration discriminator below, but no CHECK constraint ties them
-    # together yet -- most rows have neither target_sets/target_reps nor
-    # target_duration_seconds set, so such a constraint isn't satisfiable
-    # until real volume data is backfilled.
+    # together yet -- most rows have neither target_sets/rep_range_min/
+    # rep_range_max nor target_duration_seconds set, so such a constraint
+    # isn't satisfiable until real volume data is backfilled.
     stimulus_type: Mapped[StimulusType | None] = mapped_column(
         enum_column(StimulusType, "stimulus_type"), nullable=True
     )

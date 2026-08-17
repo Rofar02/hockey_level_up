@@ -6,6 +6,14 @@ existing catalog conventions for the same stimulus_type/difficulty_level,
 not sourced from a real training program -- flagged to the product owner
 for revision, not a substitute for one. Same idempotent full-overwrite shape
 as backfill_exercise_metadata.py: reruns after editing VOLUME below are safe.
+
+Historical note (Phase: П.1 double progression): target_reps was later
+replaced by a rep_range_min/rep_range_max pair -- see
+scripts/backfill_exercise_rep_ranges.py, which is what actually populates
+reps for sets_reps exercises now. This script no longer writes reps at all;
+the REPS values in VOLUME below are kept only as the original one-off
+per-exercise draft data this file was seeded with, in case they're useful
+input the next time someone hand-tunes a specific exercise's rep range.
 """
 import asyncio
 import sys
@@ -18,7 +26,7 @@ from sqlalchemy import select  # noqa: E402
 from app.db.session import AsyncSessionLocal  # noqa: E402
 from app.models.exercise import Exercise  # noqa: E402
 
-# name -> (target_sets, target_reps, target_duration_seconds)
+# name -> (target_sets, REPS -- no longer written, see module docstring, target_duration_seconds)
 VOLUME: dict[str, tuple[int | None, int | None, int | None]] = {
     "Активация плеч эспандером": (2, 15, None),
     "Бег на месте": (None, None, 60),
@@ -87,12 +95,11 @@ async def backfill() -> None:
             print(f"WARNING: {len(missing)} name(s) not found in DB, skipping: {sorted(missing)}")
 
         updated = 0
-        for name, (sets, reps, duration) in VOLUME.items():
+        for name, (sets, _reps, duration) in VOLUME.items():
             exercise = by_name.get(name)
             if exercise is None:
                 continue
             exercise.target_sets = sets
-            exercise.target_reps = reps
             exercise.target_duration_seconds = duration
             updated += 1
 

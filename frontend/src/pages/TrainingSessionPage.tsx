@@ -42,8 +42,11 @@ function estimateExerciseSeconds(exercise: ExerciseRead): number {
   if (exercise.target_duration_seconds !== null) {
     return exercise.target_duration_seconds
   }
-  if (exercise.target_sets !== null && exercise.target_reps !== null) {
-    return exercise.target_sets * exercise.target_reps * SECONDS_PER_REP_ESTIMATE
+  if (exercise.target_sets !== null && exercise.rep_range_min !== null && exercise.rep_range_max !== null) {
+    // Midpoint of the rep range (Phase: П.1 double progression) -- same
+    // approach as the backend's app.core.session_duration.
+    const avgReps = (exercise.rep_range_min + exercise.rep_range_max) / 2
+    return exercise.target_sets * avgReps * SECONDS_PER_REP_ESTIMATE
   }
   return DEFAULT_EXERCISE_SECONDS_ESTIMATE
 }
@@ -65,8 +68,8 @@ function isExerciseDone(block: SessionBlockRead, setCounts: Record<string, numbe
 const FEEDBACK_VISIBLE_MS = 2000
 
 function formatTargetVolume(exercise: ExerciseRead): string | null {
-  if (exercise.target_sets !== null && exercise.target_reps !== null) {
-    return `${exercise.target_sets} × ${exercise.target_reps}`
+  if (exercise.target_sets !== null && exercise.rep_range_min !== null && exercise.rep_range_max !== null) {
+    return `${exercise.target_sets} × ${exercise.rep_range_min}-${exercise.rep_range_max}`
   }
   if (exercise.target_duration_seconds !== null) {
     return `${exercise.target_duration_seconds} сек`

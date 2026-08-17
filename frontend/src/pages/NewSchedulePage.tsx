@@ -77,8 +77,8 @@ function formatEstimatedDuration(durationSeconds: number): string {
 // local there too) formatTargetVolume -- duplicated rather than imported
 // for the same reason PHASE_LABELS is.
 function formatTargetVolume(exercise: ExerciseRead): string | null {
-  if (exercise.target_sets !== null && exercise.target_reps !== null) {
-    return `${exercise.target_sets} × ${exercise.target_reps}`
+  if (exercise.target_sets !== null && exercise.rep_range_min !== null && exercise.rep_range_max !== null) {
+    return `${exercise.target_sets} × ${exercise.rep_range_min}-${exercise.rep_range_max}`
   }
   if (exercise.target_duration_seconds !== null) {
     return `${exercise.target_duration_seconds} сек`

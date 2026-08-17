@@ -13,11 +13,13 @@ from app.schemas.exercise import (
     ExerciseRead,
     ExerciseUpdate,
     MovementPatternsReplace,
+    SuggestedRepsRead,
     SuggestedWeightRead,
     TargetStatsReplace,
 )
 from app.schemas.skill import SkillTagRead
 from app.services.exercise_service import ExerciseService
+from app.services.reps_suggestion_service import RepsSuggestionService
 from app.services.skill_service import SkillService
 from app.services.weight_suggestion_service import WeightSuggestionService
 
@@ -108,6 +110,17 @@ async def get_suggested_weight(
     exercise = await ExerciseService(session).get_exercise(exercise_id)
     suggested = await WeightSuggestionService(session).suggest_weight(current_user, exercise)
     return SuggestedWeightRead(suggested_weight_kg=suggested)
+
+
+@router.get("/{exercise_id}/suggested-reps", response_model=SuggestedRepsRead)
+async def get_suggested_reps(
+    exercise_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    exercise = await ExerciseService(session).get_exercise(exercise_id)
+    suggested = await RepsSuggestionService(session).suggest_reps(current_user, exercise)
+    return SuggestedRepsRead(suggested_reps=suggested)
 
 
 @router.post("", response_model=ExerciseRead, status_code=status.HTTP_201_CREATED)

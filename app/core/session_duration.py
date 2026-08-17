@@ -1,7 +1,7 @@
 """Honest session-duration estimate, replacing the static SESSION_TEMPLATES
 percentages (app.core.session_templates, deleted) as the source of
 TrainingSessionRead.phase_split. Each block's seconds are estimated from its
-own exercise -- sets/reps blocks from target_sets/target_reps plus rest
+own exercise -- sets/reps blocks from target_sets/rep_range midpoint plus rest
 between sets (app.core.rest), duration blocks from target_duration_seconds
 directly -- and phase_split is the real proportion of a session's total
 estimated seconds each phase accounts for, instead of a fixed 15/75/10 split
@@ -21,12 +21,13 @@ SECONDS_PER_REP_ESTIMATE = 4
 # Flat fallback for a block whose exercise hasn't been programmed with real
 # numbers yet -- as of the Phase 1 metadata backfill, most of the catalog has
 # stimulus_type/exercise_type classified but still has target_sets/
-# target_reps/target_duration_seconds left NULL (that's a separate, much
-# larger "write actual set/rep/duration prescriptions for the whole catalog"
-# task). Falling back to a flat estimate here keeps phase_split from
-# dividing by zero or silently dropping unprogrammed blocks, at the cost of
-# being a guess for exactly the exercises that don't have real numbers yet --
-# once those numbers exist, this estimate is used less and less.
+# rep_range_min/rep_range_max/target_duration_seconds left NULL (that's a
+# separate, much larger "write actual set/rep/duration prescriptions for the
+# whole catalog" task). Falling back to a flat estimate here keeps
+# phase_split from dividing by zero or silently dropping unprogrammed
+# blocks, at the cost of being a guess for exactly the exercises that don't
+# have real numbers yet -- once those numbers exist, this estimate is used
+# less and less.
 _DEFAULT_BLOCK_SECONDS = 90
 
 
@@ -35,11 +36,15 @@ def estimate_block_duration_seconds(exercise: Exercise) -> int:
         return exercise.target_duration_seconds or _DEFAULT_BLOCK_SECONDS
 
     if exercise.exercise_type == ExerciseType.SETS_REPS:
-        if exercise.target_sets and exercise.target_reps:
+        if exercise.target_sets and exercise.rep_range_min and exercise.rep_range_max:
             rest = rest_seconds_for(exercise.stimulus_type, exercise.difficulty_level) or 0
-            work_seconds = exercise.target_sets * exercise.target_reps * SECONDS_PER_REP_ESTIMATE
+            # Midpoint of the rep range (Phase: П.1 double progression) --
+            # reps are now a [min, max] range per exercise, not a single
+            # target, so there's no one "the" rep count to multiply by.
+            avg_reps = (exercise.rep_range_min + exercise.rep_range_max) / 2
+            work_seconds = exercise.target_sets * avg_reps * SECONDS_PER_REP_ESTIMATE
             rest_seconds_total = (exercise.target_sets - 1) * rest
-            return work_seconds + rest_seconds_total
+            return round(work_seconds + rest_seconds_total)
         return _DEFAULT_BLOCK_SECONDS
 
     # exercise_type itself unclassified (nullable column, shouldn't happen

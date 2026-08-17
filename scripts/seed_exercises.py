@@ -577,7 +577,8 @@ EXERCISES: list[dict] = [
         "tracks_weight": True,
         "bodyweight_ratio": 0.35,
         "target_sets": 3,
-        "target_reps": 10,
+        "rep_range_min": 8,
+        "rep_range_max": 12,
     },
     {
         "name": "Планка",
@@ -640,12 +641,14 @@ EXERCISES: list[dict] = [
         "tracks_weight": True,
         "bodyweight_ratio": 1.0,
         "target_sets": 3,
-        "target_reps": 10,
+        "rep_range_min": 8,
+        "rep_range_max": 12,
     },
 ]
 
 # "Приседания со штангой" was already seeded in Phase 1, before
-# tracks_weight/bodyweight_ratio/target_sets/target_reps existed on Exercise
+# tracks_weight/bodyweight_ratio/target_sets/rep_range_min/rep_range_max
+# existed on Exercise
 # -- Exercise.name is unique, so it can't be re-created under the same name
 # with the new fields the request asked for. Filled in here instead of
 # inserting a near-duplicate row. difficulty_level is deliberately left at
@@ -668,7 +671,8 @@ FIELD_UPDATES: list[tuple[str, dict]] = [
             "tracks_weight": True,
             "bodyweight_ratio": 0.75,
             "target_sets": 3,
-            "target_reps": 8,
+            "rep_range_min": 6,
+            "rep_range_max": 10,
             "description": (
                 "Штанга лежит на верхней части трапеций, ноги на ширине "
                 "плеч, носки чуть развёрнуты наружу. Приседайте, отводя таз "

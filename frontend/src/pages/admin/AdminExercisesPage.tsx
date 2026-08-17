@@ -380,8 +380,11 @@ function ExerciseFormModal({
   const [targetSets, setTargetSets] = useState(
     exercise?.target_sets != null ? String(exercise.target_sets) : '',
   )
-  const [targetReps, setTargetReps] = useState(
-    exercise?.target_reps != null ? String(exercise.target_reps) : '',
+  const [repRangeMin, setRepRangeMin] = useState(
+    exercise?.rep_range_min != null ? String(exercise.rep_range_min) : '',
+  )
+  const [repRangeMax, setRepRangeMax] = useState(
+    exercise?.rep_range_max != null ? String(exercise.rep_range_max) : '',
   )
   const [targetDurationSeconds, setTargetDurationSeconds] = useState(
     exercise?.target_duration_seconds != null ? String(exercise.target_duration_seconds) : '',
@@ -436,7 +439,8 @@ function ExerciseFormModal({
       video_source_type: videoSourceType.trim() === '' ? null : videoSourceType.trim(),
       video_source_id: videoSourceId.trim() === '' ? null : videoSourceId.trim(),
       target_sets: parseOptionalInt(targetSets),
-      target_reps: parseOptionalInt(targetReps),
+      rep_range_min: parseOptionalInt(repRangeMin),
+      rep_range_max: parseOptionalInt(repRangeMax),
       target_duration_seconds: parseOptionalInt(targetDurationSeconds),
       tracks_weight: tracksWeight,
       bodyweight_ratio: bodyweightRatioValue,
@@ -547,7 +551,7 @@ function ExerciseFormModal({
           required
         />
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <TextField
             label="Подходы"
             type="number"
@@ -557,12 +561,20 @@ function ExerciseFormModal({
             onChange={(event) => setTargetSets(event.target.value)}
           />
           <TextField
-            label="Повторения"
+            label="Повторы, мин"
             type="number"
             numeric
             min={0}
-            value={targetReps}
-            onChange={(event) => setTargetReps(event.target.value)}
+            value={repRangeMin}
+            onChange={(event) => setRepRangeMin(event.target.value)}
+          />
+          <TextField
+            label="Повторы, макс"
+            type="number"
+            numeric
+            min={0}
+            value={repRangeMax}
+            onChange={(event) => setRepRangeMax(event.target.value)}
           />
           <TextField
             label="Длительность, сек"

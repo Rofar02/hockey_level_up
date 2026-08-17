@@ -40,6 +40,10 @@ export interface SuggestedWeightRead {
   suggested_weight_kg: number | null
 }
 
+export interface SuggestedRepsRead {
+  suggested_reps: number | null
+}
+
 export interface SetCompletionSummary {
   set_number: number
   weight_kg: number | null

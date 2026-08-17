@@ -88,9 +88,9 @@ export const STIMULUS_TYPE_LABELS: Record<StimulusType, string> = {
   mobility: 'Мобильность',
 }
 
-// Will eventually replace the implicit target_sets/target_reps vs
-// target_duration_seconds discriminator -- not enforced yet, most exercises
-// are still unclassified (null).
+// Will eventually replace the implicit target_sets/rep_range_min/
+// rep_range_max vs target_duration_seconds discriminator -- not enforced
+// yet, most exercises are still unclassified (null).
 export const EXERCISE_TYPES = ['sets_reps', 'duration'] as const
 export type ExerciseType = (typeof EXERCISE_TYPES)[number]
 
@@ -149,7 +149,8 @@ export interface ExerciseRead {
   video_source_type: string | null
   video_source_id: string | null
   target_sets: number | null
-  target_reps: number | null
+  rep_range_min: number | null
+  rep_range_max: number | null
   target_duration_seconds: number | null
   tracks_weight: boolean
   bodyweight_ratio: number | null
@@ -157,8 +158,9 @@ export interface ExerciseRead {
   muscle_group: MuscleGroup | null
   stimulus_type: StimulusType | null
   exercise_type: ExerciseType | null
-  // Computed server-side from target_reps (see app/core/rest.py) -- not a
-  // stored field, and not part of ExerciseWrite below.
+  // Computed server-side from stimulus_type/difficulty_level (see
+  // app/core/rest.py) -- not a stored field, and not part of ExerciseWrite
+  // below.
   rest_seconds: number | null
 }
 
@@ -175,7 +177,8 @@ export interface ExerciseWrite {
   video_source_type: string | null
   video_source_id: string | null
   target_sets: number | null
-  target_reps: number | null
+  rep_range_min: number | null
+  rep_range_max: number | null
   target_duration_seconds: number | null
   tracks_weight: boolean
   bodyweight_ratio: number | null

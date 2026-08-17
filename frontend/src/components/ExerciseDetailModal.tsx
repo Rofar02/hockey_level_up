@@ -20,8 +20,8 @@ import { hasExerciseTechnique } from '../utils/exerciseTechnique'
 // this codebase's convention of duplicating small stable helpers per call
 // site instead of centralizing every one of them.
 function formatTargetVolume(exercise: ExerciseRead): string | null {
-  if (exercise.target_sets !== null && exercise.target_reps !== null) {
-    return `${exercise.target_sets} × ${exercise.target_reps}`
+  if (exercise.target_sets !== null && exercise.rep_range_min !== null && exercise.rep_range_max !== null) {
+    return `${exercise.target_sets} × ${exercise.rep_range_min}-${exercise.rep_range_max}`
   }
   if (exercise.target_duration_seconds !== null) {
     return `${exercise.target_duration_seconds} сек`
@@ -273,12 +273,15 @@ function SetLogger({
 }) {
   const { user, updateUser } = useAuth()
   const targetSets = exercise.target_sets
+  const hasRepRange = exercise.rep_range_min !== null && exercise.rep_range_max !== null
   // Session-local guard, same reasoning as OnboardingTour's tourDismissed --
   // dismiss immediately regardless of whether the persist call below
   // succeeds, so a dropped request never leaves the hint stuck on screen.
   const [weightHintDismissed, setWeightHintDismissed] = useState(false)
   const [suggestedWeightKg, setSuggestedWeightKg] = useState<number | null>(null)
   const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(exercise.tracks_weight)
+  const [suggestedReps, setSuggestedReps] = useState<number | null>(null)
+  const [isLoadingRepsSuggestion, setIsLoadingRepsSuggestion] = useState(hasRepRange)
   const [isLoadingSets, setIsLoadingSets] = useState(true)
   const [completedSets, setCompletedSets] = useState<
     Record<number, Pick<SetCompletionSummary, 'weight_kg' | 'reps_completed'>>
@@ -325,6 +328,28 @@ function SetLogger({
         })
     }
 
+    if (hasRepRange) {
+      exercisesApi
+        .getSuggestedReps(exercise.id, accessToken)
+        .then((result) => {
+          if (cancelled) {
+            return
+          }
+          setSuggestedReps(result.suggested_reps)
+          if (result.suggested_reps !== null) {
+            setRepsInput(String(result.suggested_reps))
+          }
+        })
+        .catch(() => {
+          // Best-effort -- same fallback as the weight suggestion above.
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setIsLoadingRepsSuggestion(false)
+          }
+        })
+    }
+
     trainingSessionsApi
       .getExerciseSets(trainingSessionId, exercise.id, accessToken)
       .then((result) => {
@@ -351,7 +376,7 @@ function SetLogger({
     return () => {
       cancelled = true
     }
-  }, [exercise.id, exercise.tracks_weight, trainingSessionId, accessToken])
+  }, [exercise.id, exercise.tracks_weight, hasRepRange, trainingSessionId, accessToken])
 
   // First set_number (1..targetSets) without a logged record -- not just
   // Object.keys(completedSets).length + 1, in case rehydrated sets have a
@@ -422,7 +447,28 @@ function SetLogger({
       )
       setCompletedSets((previous) => ({ ...previous, [currentSetNumber]: result }))
       setWeightInput(result.suggested_weight_kg !== null ? String(result.suggested_weight_kg) : '')
-      setRepsInput('')
+
+      if (hasRepRange) {
+        // Re-prime the next set's reps field from a fresh suggestion rather
+        // than clearing it -- mirrors the weight field's own re-prime above,
+        // now that reps are a real double-progression suggestion instead of
+        // a dead placeholder.
+        setIsLoadingRepsSuggestion(true)
+        exercisesApi
+          .getSuggestedReps(exercise.id, accessToken)
+          .then((repsResult) => {
+            setSuggestedReps(repsResult.suggested_reps)
+            setRepsInput(repsResult.suggested_reps !== null ? String(repsResult.suggested_reps) : '')
+          })
+          .catch(() => {
+            setRepsInput('')
+          })
+          .finally(() => {
+            setIsLoadingRepsSuggestion(false)
+          })
+      } else {
+        setRepsInput('')
+      }
 
       // currentSetNumber is the set just saved (captured before this async
       // call started) -- if it's the last one, tick the exercise off
@@ -563,13 +609,23 @@ function SetLogger({
                       </span>
                     </div>
                   )}
-                  <CompactNumberField
-                    label="Повторы"
-                    value={repsInput}
-                    placeholder={exercise.target_reps !== null ? String(exercise.target_reps) : undefined}
-                    disabled={isSaving}
-                    onChange={setRepsInput}
-                  />
+                  <div className="flex flex-col gap-1">
+                    <CompactNumberField
+                      label="Повторы"
+                      value={repsInput}
+                      disabled={isLoadingRepsSuggestion || isSaving}
+                      onChange={setRepsInput}
+                    />
+                    {hasRepRange && (
+                      <span className="text-xs text-text-secondary">
+                        {isLoadingRepsSuggestion
+                          ? 'Загрузка предложения...'
+                          : suggestedReps !== null
+                            ? `Предложено системой: ${suggestedReps} (диапазон ${exercise.rep_range_min}-${exercise.rep_range_max})`
+                            : 'Нет предложения — введите повторы вручную'}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <FormError message={saveError} />

@@ -35,7 +35,8 @@ class ExerciseRead(BaseModel):
     video_source_type: str | None
     video_source_id: str | None
     target_sets: int | None
-    target_reps: int | None
+    rep_range_min: int | None
+    rep_range_max: int | None
     target_duration_seconds: int | None
     tracks_weight: bool
     bodyweight_ratio: float | None
@@ -74,7 +75,8 @@ def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> Exer
         video_source_type=exercise.video_source_type,
         video_source_id=exercise.video_source_id,
         target_sets=exercise.target_sets,
-        target_reps=exercise.target_reps,
+        rep_range_min=exercise.rep_range_min,
+        rep_range_max=exercise.rep_range_max,
         target_duration_seconds=exercise.target_duration_seconds,
         tracks_weight=exercise.tracks_weight,
         bodyweight_ratio=exercise.bodyweight_ratio,
@@ -101,7 +103,8 @@ class ExerciseCreate(BaseModel):
     video_source_type: str | None = None
     video_source_id: str | None = None
     target_sets: int | None = None
-    target_reps: int | None = None
+    rep_range_min: int | None = None
+    rep_range_max: int | None = None
     target_duration_seconds: int | None = None
     tracks_weight: bool = False
     bodyweight_ratio: float | None = Field(default=None, gt=0)
@@ -121,7 +124,8 @@ class ExerciseUpdate(BaseModel):
     video_source_type: str | None = None
     video_source_id: str | None = None
     target_sets: int | None = None
-    target_reps: int | None = None
+    rep_range_min: int | None = None
+    rep_range_max: int | None = None
     target_duration_seconds: int | None = None
     tracks_weight: bool | None = None
     bodyweight_ratio: float | None = Field(default=None, gt=0)
@@ -146,3 +150,10 @@ class SuggestedWeightRead(BaseModel):
     # track weight, the user hasn't set a body weight, or bodyweight_ratio
     # isn't configured for this exercise yet -- see WeightSuggestionService.
     suggested_weight_kg: float | None
+
+
+class SuggestedRepsRead(BaseModel):
+    # None whenever a suggestion can't be computed: the exercise isn't
+    # exercise_type=sets_reps, or its rep_range_min/max aren't both set yet
+    # (not backfilled) -- see RepsSuggestionService.
+    suggested_reps: int | None

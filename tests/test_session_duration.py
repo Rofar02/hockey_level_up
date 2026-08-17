@@ -32,7 +32,8 @@ def _make_exercise(
     stimulus_type: StimulusType | None = StimulusType.STRENGTH,
     difficulty_level: int = 1,
     target_sets: int | None = None,
-    target_reps: int | None = None,
+    rep_range_min: int | None = None,
+    rep_range_max: int | None = None,
     target_duration_seconds: int | None = None,
 ) -> Exercise:
     return Exercise(
@@ -45,7 +46,8 @@ def _make_exercise(
         exercise_type=exercise_type,
         stimulus_type=stimulus_type,
         target_sets=target_sets,
-        target_reps=target_reps,
+        rep_range_min=rep_range_min,
+        rep_range_max=rep_range_max,
         target_duration_seconds=target_duration_seconds,
     )
 
@@ -62,21 +64,26 @@ def test_duration_block_without_target_falls_back_to_default() -> None:
 
 def test_sets_reps_block_combines_work_and_rest() -> None:
     # difficulty_level=1, strength -> rest_seconds_for is the low end of its
-    # range (120s, see test_rest_formula.py).
+    # range (120s, see test_rest_formula.py). avg_reps is the range midpoint
+    # (Phase: П.1 double progression -- reps are a [min, max] range now).
     exercise = _make_exercise(
         exercise_type=ExerciseType.SETS_REPS,
         stimulus_type=StimulusType.STRENGTH,
         difficulty_level=1,
         target_sets=3,
-        target_reps=10,
+        rep_range_min=8,
+        rep_range_max=12,
     )
-    work = 3 * 10 * SECONDS_PER_REP_ESTIMATE
+    avg_reps = (8 + 12) / 2
+    work = 3 * avg_reps * SECONDS_PER_REP_ESTIMATE
     rest = 2 * 120
-    assert estimate_block_duration_seconds(exercise) == work + rest
+    assert estimate_block_duration_seconds(exercise) == round(work + rest)
 
 
 def test_sets_reps_block_without_numbers_falls_back_to_default() -> None:
-    exercise = _make_exercise(exercise_type=ExerciseType.SETS_REPS, target_sets=None, target_reps=None)
+    exercise = _make_exercise(
+        exercise_type=ExerciseType.SETS_REPS, target_sets=None, rep_range_min=None, rep_range_max=None
+    )
     assert estimate_block_duration_seconds(exercise) == _DEFAULT_BLOCK_SECONDS
 
 
