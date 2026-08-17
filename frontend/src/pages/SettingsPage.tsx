@@ -22,8 +22,8 @@ import { useAuth } from '../hooks/useAuth'
 import { getActivePushSubscription, isIos, isPushSupported, isStandalone, subscribeToPush } from '../push'
 import type { AssessmentStatus, OnIceAssessmentStatus } from '../types/assessment'
 import type { SkillOption } from '../types/skill'
-import { EQUIPMENT_CHOICES, REMINDER_PREFERENCE_LABELS } from '../types/user'
-import type { EquipmentAccess, ReminderPreference } from '../types/user'
+import { EQUIPMENT_CHOICES, REMINDER_PREFERENCE_LABELS, SEASON_PERIOD_CHOICES } from '../types/user'
+import type { EquipmentAccess, ReminderPreference, SeasonPeriod } from '../types/user'
 import { maxSkillPreferencesForLevel } from '../utils/skillPreferenceLimit'
 
 export function SettingsPage() {
@@ -45,6 +45,10 @@ export function SettingsPage() {
   const [equipment, setEquipment] = useState<EquipmentAccess | null>(user?.equipment_access ?? null)
   const [isSavingEquipment, setIsSavingEquipment] = useState(false)
   const [equipmentError, setEquipmentError] = useState<string | null>(null)
+
+  const [seasonPeriod, setSeasonPeriod] = useState<SeasonPeriod | null>(user?.season_period ?? null)
+  const [isSavingSeasonPeriod, setIsSavingSeasonPeriod] = useState(false)
+  const [seasonPeriodError, setSeasonPeriodError] = useState<string | null>(null)
 
   const [skills, setSkills] = useState<SkillOption[] | null>(null)
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set())
@@ -355,6 +359,25 @@ export function SettingsPage() {
     }
   }
 
+  async function handleSeasonPeriodSelect(value: SeasonPeriod) {
+    if (accessToken === null || value === seasonPeriod) {
+      return
+    }
+    const previous = seasonPeriod
+    setSeasonPeriodError(null)
+    setIsSavingSeasonPeriod(true)
+    setSeasonPeriod(value)
+    try {
+      const updated = await usersApi.updateProfile({ season_period: value }, accessToken)
+      updateUser(updated)
+    } catch (err) {
+      setSeasonPeriod(previous)
+      setSeasonPeriodError(err instanceof ApiError ? err.message : 'Не удалось сохранить выбор. Попробуйте ещё раз.')
+    } finally {
+      setIsSavingSeasonPeriod(false)
+    }
+  }
+
   async function toggleSkill(id: string) {
     if (accessToken === null) {
       return
@@ -527,6 +550,23 @@ export function SettingsPage() {
           ))}
         </div>
         <FormError message={equipmentError} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-medium text-[#8A94A6]">Период сезона</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {SEASON_PERIOD_CHOICES.map((option) => (
+            <ChoiceCard
+              key={option.value}
+              title={option.title}
+              description={option.description}
+              selected={seasonPeriod === option.value}
+              disabled={isSavingSeasonPeriod}
+              onClick={() => handleSeasonPeriodSelect(option.value)}
+            />
+          ))}
+        </div>
+        <FormError message={seasonPeriodError} />
       </section>
 
       <section className="flex flex-col gap-4">

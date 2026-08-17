@@ -6,7 +6,13 @@ import {
   apiPostMultipartAuth,
   apiPutAuth,
 } from './client'
-import type { EquipmentAccess, ReminderPreference, UserPublicRead, UserRead } from '../types/user'
+import type {
+  EquipmentAccess,
+  ReminderPreference,
+  SeasonPeriod,
+  UserPublicRead,
+  UserRead,
+} from '../types/user'
 import type { UserSkillPreference } from '../types/skill'
 
 export function updateEquipmentAccess(
@@ -22,6 +28,7 @@ export interface UserProfileUpdate {
   patronymic?: string | null
   jersey_number?: number | null
   reminder_preference?: ReminderPreference
+  season_period?: SeasonPeriod
   timezone?: string
   has_seen_weight_hint?: boolean
 }

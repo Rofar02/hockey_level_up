@@ -5,7 +5,7 @@ from zoneinfo import available_timezones
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.exercise import EquipmentType
-from app.models.user import Position, ReminderPreference
+from app.models.user import Position, ReminderPreference, SeasonPeriod
 
 
 class UserBase(BaseModel):
@@ -66,6 +66,7 @@ class UserRead(UserBase):
     level: int
     timezone: str
     reminder_preference: ReminderPreference
+    season_period: SeasonPeriod
     has_seen_onboarding_tour: bool
     has_seen_weight_hint: bool
     created_at: datetime
@@ -77,7 +78,8 @@ class UserPublicRead(BaseModel):
     Deliberately excludes weight/height (never included here regardless of
     relationship, per spec) and everything private on UserRead: email,
     is_admin, has_premium, equipment_access, timezone, reminder_preference,
-    has_seen_onboarding_tour, has_seen_weight_hint, friend_code.
+    season_period, has_seen_onboarding_tour, has_seen_weight_hint,
+    friend_code.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -103,6 +105,7 @@ class UserUpdate(BaseModel):
     jersey_number: int | None = Field(default=None, ge=0, le=99)
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     reminder_preference: ReminderPreference | None = None
+    season_period: SeasonPeriod | None = None
     has_seen_weight_hint: bool | None = None
 
     @field_validator("timezone")

@@ -11,7 +11,7 @@ from app.core.training_block import (
     phase_transition_due,
 )
 from app.models.schedule import TrainingBlock
-from app.models.user import User
+from app.models.user import SeasonPeriod, User
 from app.repositories.training_block_repository import TrainingBlockRepository
 from app.schemas.training_block import TrainingBlockRead
 
@@ -71,7 +71,9 @@ class TrainingBlockService:
         block = await self._blocks.get_active_for_user(user_id)
         if block is None:
             return None
-        return await self._catch_up(block, today or date.today())
+        user = await self._session.get(User, user_id)
+        season_period = user.season_period if user is not None else SeasonPeriod.OFFSEASON
+        return await self._catch_up(block, today or date.today(), season_period)
 
     async def get_or_create_and_resolve(
         self, user_id: uuid.UUID, *, today: date | None = None
@@ -88,12 +90,16 @@ class TrainingBlockService:
             TrainingBlock(user_id=user_id, block_number=1, phase_started_at=today or date.today())
         )
 
-    async def _catch_up(self, block: TrainingBlock, today: date) -> TrainingBlock:
+    async def _catch_up(
+        self, block: TrainingBlock, today: date, season_period: SeasonPeriod
+    ) -> TrainingBlock:
         while True:
             sessions_completed = await self.count_sessions_completed_in_phase(block)
             weeks_elapsed = (today - block.phase_started_at).days // 7
             if not phase_transition_due(
-                sessions_completed_in_phase=sessions_completed, weeks_since_phase_started=weeks_elapsed
+                sessions_completed_in_phase=sessions_completed,
+                weeks_since_phase_started=weeks_elapsed,
+                season_period=season_period,
             ):
                 return block
             block = await self._advance(block, today)

@@ -29,6 +29,13 @@ class ReminderPreference(enum.StrEnum):
     EVENING = "evening"
 
 
+class SeasonPeriod(enum.StrEnum):
+    OFFSEASON = "offseason"
+    PRESEASON = "preseason"
+    SEASON = "season"
+    PLAYOFFS = "playoffs"
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
@@ -157,6 +164,16 @@ class User(Base):
         enum_column(ReminderPreference, "reminder_preference"),
         nullable=False,
         server_default=ReminderPreference.NONE.value,
+    )
+
+    # Phase: П.4 seasonal mode -- manually chosen (no game-schedule access to
+    # detect it automatically), affects off-ice training volume and deload
+    # frequency during SEASON/PLAYOFFS (see app.core.training_block).
+    # OFFSEASON default is behaviorally inert, safe for existing rows.
+    season_period: Mapped[SeasonPeriod] = mapped_column(
+        enum_column(SeasonPeriod, "season_period"),
+        nullable=False,
+        server_default=SeasonPeriod.OFFSEASON.value,
     )
 
     # Set at registration time, only when the required consent checkbox was

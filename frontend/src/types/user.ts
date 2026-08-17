@@ -26,6 +26,21 @@ export const REMINDER_PREFERENCE_LABELS: Record<Exclude<ReminderPreference, 'non
   evening: 'Вечером накануне',
 }
 
+export const SEASON_PERIODS = ['offseason', 'preseason', 'season', 'playoffs'] as const
+export type SeasonPeriod = (typeof SEASON_PERIODS)[number]
+
+// No automatic detection (no access to the team's game schedule) -- the
+// user picks their own period in settings. Only "season"/"playoffs"
+// actually change training behavior server-side (lower off-ice volume,
+// more frequent deload weeks, playoffs more so than season) -- offseason/
+// preseason are stored but behaviorally inert for now.
+export const SEASON_PERIOD_CHOICES: { value: SeasonPeriod; title: string; description: string }[] = [
+  { value: 'offseason', title: 'Межсезонье', description: 'Общая физическая подготовка, восстановление' },
+  { value: 'preseason', title: 'Предсезонье', description: 'Подготовка к старту сезона' },
+  { value: 'season', title: 'Сезон', description: 'Регулярный сезон — тренировки чуть легче, разгрузки чаще' },
+  { value: 'playoffs', title: 'Плей-офф', description: 'Финальная часть сезона — тренировки легче, разгрузки заметно чаще' },
+]
+
 export interface UserRead {
   id: string
   username: string
@@ -52,6 +67,7 @@ export interface UserRead {
   level: number
   timezone: string
   reminder_preference: ReminderPreference
+  season_period: SeasonPeriod
   has_seen_onboarding_tour: boolean
   has_seen_weight_hint: boolean
   created_at: string

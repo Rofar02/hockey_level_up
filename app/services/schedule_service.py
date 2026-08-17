@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.session_duration import compute_phase_split, estimate_session_duration_seconds
 from app.core.training_block import (
     DIFFICULTY_PRIORITY_PREDICATES,
-    MAIN_EXERCISE_COUNT_RANGE,
     effective_difficulty_cap,
+    main_exercise_count_range,
     max_difficulty_for_level,
 )
 from app.models.exercise import (
@@ -534,6 +534,11 @@ class ScheduleService:
         next real boundary. training_block=None (e.g. patching a week
         whose block record is missing) skips this layer entirely, same as
         before this feature existed.
+
+        The count range itself can also be tightened before any of this
+        runs (Phase: П.4 seasonal mode) -- during the user's chosen
+        SEASON/PLAYOFFS period, off-ice volume is capped lower even in
+        accumulation, see app.core.training_block.main_exercise_count_range.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
@@ -541,7 +546,9 @@ class ScheduleService:
         if not candidates:
             return []
 
-        count_min, count_max = MAIN_EXERCISE_COUNT_RANGE[block_phase]
+        count_min, count_max = main_exercise_count_range(
+            block_phase, category=category, season_period=user.season_period
+        )
         count = random.randint(count_min, count_max)
 
         preferred_skill_ids = await self._user_skill_preferences.list_skill_ids_for_user(user.id)

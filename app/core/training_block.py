@@ -6,8 +6,9 @@ of this).
 """
 from collections.abc import Callable
 
-from app.models.exercise import Exercise
+from app.models.exercise import Exercise, ExerciseCategory
 from app.models.schedule import BlockPhase
+from app.models.user import SeasonPeriod
 
 _INTENSIFICATION_DIFFICULTY_FLOOR = 4
 _DELOAD_DIFFICULTY_CEILING = 2
@@ -93,15 +94,64 @@ def next_phase(phase: BlockPhase) -> BlockPhase | None:
     return _PHASE_ORDER[index + 1]
 
 
-def phase_transition_due(*, sessions_completed_in_phase: int, weeks_since_phase_started: int) -> bool:
+def main_exercise_count_range(
+    block_phase: BlockPhase, *, category: ExerciseCategory, season_period: SeasonPeriod
+) -> tuple[int, int]:
+    """MAIN_EXERCISE_COUNT_RANGE, tightened for off-ice training during the
+    two in-season periods (Phase: П.4) -- on-ice and offseason/preseason
+    are always unaffected.
+
+    Playoffs clamps to the DELOAD range outright, regardless of which
+    phase the block is actually in -- short, high-intensity period, volume
+    never exceeds what a deload week already allows.
+
+    Season is milder: assembles as if one phase further along toward
+    deload (accumulation borrows intensification's range, intensification
+    borrows deload's) via the same next_phase sequence above -- deload has
+    no next phase, so it stays at its own (already the floor).
+    """
+    if category != ExerciseCategory.OFF_ICE:
+        return MAIN_EXERCISE_COUNT_RANGE[block_phase]
+    if season_period == SeasonPeriod.PLAYOFFS:
+        return MAIN_EXERCISE_COUNT_RANGE[BlockPhase.DELOAD]
+    if season_period == SeasonPeriod.SEASON:
+        shifted_phase = next_phase(block_phase) or block_phase
+        return MAIN_EXERCISE_COUNT_RANGE[shifted_phase]
+    return MAIN_EXERCISE_COUNT_RANGE[block_phase]
+
+
+# Phase: П.4 seasonal mode. Three tiers of strictness -- offseason/preseason
+# behave exactly as before (no entry in either dict below), season shortens
+# both phase-transition thresholds by ~1.5x, playoffs by 2x -- short,
+# high-intensity, real games multiple times a week, so a full mesocycle
+# (and thus its DELOAD phase, "разгрузочная неделя" in the product spec)
+# recurs correspondingly more often.
+_SESSIONS_TO_ADVANCE_PHASE_BY_SEASON: dict[SeasonPeriod, int] = {
+    SeasonPeriod.SEASON: 4,
+    SeasonPeriod.PLAYOFFS: 3,
+}
+_PHASE_CALENDAR_CEILING_WEEKS_BY_SEASON: dict[SeasonPeriod, int] = {
+    SeasonPeriod.SEASON: 5,
+    SeasonPeriod.PLAYOFFS: 4,
+}
+
+
+def phase_transition_due(
+    *,
+    sessions_completed_in_phase: int,
+    weeks_since_phase_started: int,
+    season_period: SeasonPeriod = SeasonPeriod.OFFSEASON,
+) -> bool:
     """True once either M real sessions have completed since the phase
     started, or the phase has run longer than the calendar ceiling -- pure
     decision rule, no DB access, so it's unit-testable on its own (the
     DB-querying/mutating side lives in TrainingBlockService).
     """
+    sessions_threshold = _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON.get(season_period, SESSIONS_TO_ADVANCE_PHASE)
+    weeks_threshold = _PHASE_CALENDAR_CEILING_WEEKS_BY_SEASON.get(season_period, PHASE_CALENDAR_CEILING_WEEKS)
     return (
-        sessions_completed_in_phase >= SESSIONS_TO_ADVANCE_PHASE
-        or weeks_since_phase_started >= PHASE_CALENDAR_CEILING_WEEKS
+        sessions_completed_in_phase >= sessions_threshold
+        or weeks_since_phase_started >= weeks_threshold
     )
 
 

@@ -30,7 +30,11 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 from fastapi import HTTPException
 
-from app.core.training_block import PHASE_CALENDAR_CEILING_WEEKS, SESSIONS_TO_ADVANCE_PHASE
+from app.core.training_block import (
+    PHASE_CALENDAR_CEILING_WEEKS,
+    SESSIONS_TO_ADVANCE_PHASE,
+    _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON,
+)
 from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import (
     BlockPhase,
@@ -41,7 +45,7 @@ from app.models.schedule import (
     TrainingSession,
     WeeklyPlan,
 )
-from app.models.user import User
+from app.models.user import SeasonPeriod, User
 from app.schemas.schedule import DayPlanIn, WeeklyPlanCreate
 from app.services.schedule_service import ScheduleService
 from app.services.training_block_service import TrainingBlockService
@@ -67,7 +71,7 @@ class _Clock:
         return self.today
 
 
-def _make_user() -> User:
+def _make_user(*, season_period: SeasonPeriod = SeasonPeriod.OFFSEASON) -> User:
     unique = uuid.uuid4().hex[:8]
     return User(
         id=uuid.uuid4(),
@@ -75,6 +79,7 @@ def _make_user() -> User:
         email=f"block_{unique}@example.com",
         password_hash="irrelevant",
         equipment_access=EquipmentType.BODYWEIGHT,
+        season_period=season_period,
     )
 
 
@@ -190,6 +195,57 @@ async def test_completed_sessions_advance_through_every_phase_and_roll_over(db_s
     # the new block must inherit the injected `today`, not fall back to the
     # phase_started_at column's real-wall-clock default
     assert block.phase_started_at == clock.today
+
+
+@pytest.mark.asyncio
+async def test_playoffs_advances_the_phase_after_fewer_sessions(db_session) -> None:
+    """Phase: П.4 -- playoffs' own (lower) session threshold, not the
+    normal SESSIONS_TO_ADVANCE_PHASE."""
+    playoff_threshold = _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON[SeasonPeriod.PLAYOFFS]
+
+    user = _make_user(season_period=SeasonPeriod.PLAYOFFS)
+    db_session.add(user)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    clock = _Clock(date(2026, 1, 5))
+    block = await blocks.get_or_create_and_resolve(user.id, today=clock.today)
+    assert block.phase == BlockPhase.ACCUMULATION
+
+    for _ in range(playoff_threshold):
+        clock.tick_weeks(1)
+        await _complete_real_session(db_session, user, block, clock.today)
+    clock.tick_days(1)
+
+    block = await blocks.resolve_active_block(user.id, today=clock.today)
+    assert block.phase == BlockPhase.INTENSIFICATION
+
+
+@pytest.mark.asyncio
+async def test_season_advances_the_phase_after_fewer_sessions(db_session) -> None:
+    """Phase: П.4 -- season's own (lower, but milder than playoffs) session
+    threshold."""
+    season_threshold = _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON[SeasonPeriod.SEASON]
+    playoff_threshold = _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON[SeasonPeriod.PLAYOFFS]
+
+    user = _make_user(season_period=SeasonPeriod.SEASON)
+    db_session.add(user)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    clock = _Clock(date(2026, 1, 5))
+    block = await blocks.get_or_create_and_resolve(user.id, today=clock.today)
+    assert block.phase == BlockPhase.ACCUMULATION
+
+    for _ in range(season_threshold):
+        clock.tick_weeks(1)
+        await _complete_real_session(db_session, user, block, clock.today)
+    clock.tick_days(1)
+
+    block = await blocks.resolve_active_block(user.id, today=clock.today)
+    assert block.phase == BlockPhase.INTENSIFICATION
+    # milder than playoffs, i.e. more sessions required
+    assert season_threshold > playoff_threshold
 
 
 @pytest.mark.asyncio
