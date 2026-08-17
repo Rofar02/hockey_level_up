@@ -664,13 +664,13 @@ function EditableDayRow({
             </span>
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
             {SESSION_TYPE_OPTIONS.map((option) => (
               <button
                 key={option}
                 type="button"
                 onClick={() => onSelectType(option)}
-                className={`flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
+                className={`flex items-center justify-center gap-1.5 rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
                   row.sessionType === option
                     ? SESSION_TYPE_ACTIVE_CLASSES[option]
                     : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
