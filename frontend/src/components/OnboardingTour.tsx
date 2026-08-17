@@ -98,7 +98,13 @@ export function OnboardingTour({ onSkip, onComplete }: OnboardingTourProps) {
         <button
           type="button"
           onClick={onSkip}
-          className="absolute right-4 top-4 z-[1] px-2 py-1 text-sm text-text-secondary transition-colors hover:text-text-primary"
+          // z-10, not z-[1]: tied with the slide-content div right below
+          // (also z-[1], and a flex-1 box that stretches edge-to-edge
+          // behind this button's corner even though it renders nothing
+          // there) meant DOM order broke the tie in the content div's
+          // favor, silently swallowing every click on this button while
+          // its text still rendered fine underneath.
+          className="absolute right-4 top-4 z-10 px-2 py-1 text-sm text-text-secondary transition-colors hover:text-text-primary"
         >
           Пропустить
         </button>
