@@ -93,7 +93,21 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Email уже подтверждён"
             )
         raw_token = await self._tokens.create_token(user.id, AuthTokenPurpose.EMAIL_VERIFY)
-        await self._email.send_verification_email(user, raw_token)
+        # Unlike register()'s best-effort send (a failure there must never
+        # undo an already-created account) and request_password_reset's
+        # (which must stay silent either way to avoid leaking account
+        # existence), this is the one send the caller is directly waiting
+        # on and already knows their own email address for -- so a real
+        # delivery failure (Resend down, domain not verified, etc.) should
+        # surface as a clear error instead of an opaque 500.
+        try:
+            await self._email.send_verification_email(user, raw_token)
+        except Exception:
+            logger.exception("Failed to resend verification email for user_id=%s", user.id)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Не удалось отправить письмо. Попробуйте позже.",
+            ) from None
         await self._session.commit()
 
     async def confirm_email_verification(self, raw_token: str) -> User:

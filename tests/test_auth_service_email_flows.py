@@ -139,6 +139,21 @@ async def test_resend_refuses_when_already_verified(db_session, monkeypatch) -> 
 
 
 @pytest.mark.asyncio
+async def test_resend_raises_clear_error_on_send_failure(db_session, monkeypatch) -> None:
+    # Unlike register()'s and request_password_reset()'s best-effort sends
+    # (both must survive a delivery failure silently), this is the one
+    # send the caller is directly waiting on -- a Resend failure here must
+    # surface as a clean, translated error, not an opaque 500.
+    _install_fake_verification_send(monkeypatch)
+    user = await AuthService(db_session).register(_register_payload())
+
+    _install_failing_verification_send(monkeypatch)
+    with pytest.raises(HTTPException) as exc_info:
+        await AuthService(db_session).resend_verification_email(user)
+    assert exc_info.value.status_code == 502
+
+
+@pytest.mark.asyncio
 async def test_resend_issues_a_fresh_token(db_session, monkeypatch) -> None:
     first_capture = _install_fake_verification_send(monkeypatch)
     user = await AuthService(db_session).register(_register_payload())
