@@ -1,3 +1,11 @@
+import {
+  clearStoredTokens,
+  getStoredRefreshToken,
+  persistTokens,
+  SESSION_EXPIRED_EVENT,
+  TOKENS_REFRESHED_EVENT,
+} from './tokenStorage'
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 interface FastApiValidationError {
@@ -53,7 +61,54 @@ interface RequestOptions {
   accessToken?: string
 }
 
-async function request<T>(path: string, method: string, options: RequestOptions = {}): Promise<T> {
+interface RawTokenPair {
+  access_token: string
+  refresh_token: string
+}
+
+// Access tokens live 15 minutes (app/core/config.py); refresh tokens live
+// much longer. Without this, a SPA left open past 15 minutes starts failing
+// every request with 401 even though a valid refresh_token is sitting in
+// localStorage -- the user just sees "everything is broken" until a hard
+// reload. De-duped so concurrent 401s from several in-flight requests only
+// trigger one /auth/refresh call.
+let refreshInFlight: Promise<string> | null = null
+
+async function refreshAccessToken(): Promise<string> {
+  if (refreshInFlight === null) {
+    refreshInFlight = (async () => {
+      const storedRefreshToken = getStoredRefreshToken()
+      if (storedRefreshToken === null) {
+        throw new ApiError(401, 'No refresh token')
+      }
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: storedRefreshToken }),
+      })
+      const tokens = await handleResponse<RawTokenPair>(response)
+      persistTokens(tokens.access_token, tokens.refresh_token)
+      window.dispatchEvent(
+        new CustomEvent(TOKENS_REFRESHED_EVENT, {
+          detail: { accessToken: tokens.access_token, refreshToken: tokens.refresh_token },
+        }),
+      )
+      return tokens.access_token
+    })().finally(() => {
+      refreshInFlight = null
+    })
+  }
+
+  try {
+    return await refreshInFlight
+  } catch (err) {
+    clearStoredTokens()
+    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
+    throw err
+  }
+}
+
+function buildRequestInit(method: string, options: RequestOptions, accessToken: string | undefined): RequestInit {
   const headers: Record<string, string> = {}
   let requestBody: BodyInit | undefined
 
@@ -69,15 +124,29 @@ async function request<T>(path: string, method: string, options: RequestOptions 
     requestBody = JSON.stringify(options.body)
   }
 
-  if (options.accessToken !== undefined) {
-    headers.Authorization = `Bearer ${options.accessToken}`
+  if (accessToken !== undefined) {
+    headers.Authorization = `Bearer ${accessToken}`
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers,
-    body: requestBody,
-  })
+  return { method, headers, body: requestBody }
+}
+
+async function request<T>(path: string, method: string, options: RequestOptions = {}): Promise<T> {
+  const isAuthedRequest = options.accessToken !== undefined
+
+  let response = await fetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, options.accessToken))
+
+  if (response.status === 401 && isAuthedRequest) {
+    try {
+      const freshAccessToken = await refreshAccessToken()
+      response = await fetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, freshAccessToken))
+    } catch {
+      // Refresh failed (or there was no refresh token left) -- fall through
+      // and let the original 401 response produce the usual ApiError below.
+      // SESSION_EXPIRED_EVENT has already been dispatched by refreshAccessToken.
+    }
+  }
+
   return handleResponse<T>(response)
 }
 

@@ -3,22 +3,18 @@ import type { ReactNode } from 'react'
 import * as assessmentApi from '../api/assessment'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
+import {
+  clearStoredTokens,
+  getStoredAccessToken,
+  getStoredRefreshToken,
+  persistTokens,
+  SESSION_EXPIRED_EVENT,
+  TOKENS_REFRESHED_EVENT,
+} from '../api/tokenStorage'
+import type { TokensRefreshedDetail } from '../api/tokenStorage'
 import type { UserRead } from '../types/user'
 import { AuthContext } from './authContext'
 import type { AuthContextValue } from './authContext'
-
-const ACCESS_TOKEN_KEY = 'hlu_access_token'
-const REFRESH_TOKEN_KEY = 'hlu_refresh_token'
-
-function persistTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
-}
-
-function clearStoredTokens() {
-  localStorage.removeItem(ACCESS_TOKEN_KEY)
-  localStorage.removeItem(REFRESH_TOKEN_KEY)
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
@@ -49,8 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false
 
     async function restoreSession() {
-      const storedAccessToken = localStorage.getItem(ACCESS_TOKEN_KEY)
-      const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY)
+      const storedAccessToken = getStoredAccessToken()
+      const storedRefreshToken = getStoredRefreshToken()
       if (storedAccessToken === null || storedRefreshToken === null) {
         return
       }
@@ -98,6 +94,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(null)
     setUser(null)
     setHasAssessment(null)
+  }, [])
+
+  // client.ts refreshes an expired access token mid-request (see
+  // request()'s 401 handling) since it can't reach this context directly.
+  // These events keep in-memory state in sync with what it wrote to
+  // localStorage, so the next call doesn't pay for its own redundant
+  // refresh, and so an unrecoverable expiry (refresh token also rejected)
+  // logs the user out and bounces them to /login via ProtectedRoute instead
+  // of leaving every request silently 401ing until a hard reload.
+  useEffect(() => {
+    function handleTokensRefreshed(event: Event) {
+      const { accessToken: nextAccessToken } = (event as CustomEvent<TokensRefreshedDetail>).detail
+      setAccessToken(nextAccessToken)
+    }
+
+    function handleSessionExpired() {
+      setAccessToken(null)
+      setUser(null)
+      setHasAssessment(null)
+    }
+
+    window.addEventListener(TOKENS_REFRESHED_EVENT, handleTokensRefreshed)
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+    return () => {
+      window.removeEventListener(TOKENS_REFRESHED_EVENT, handleTokensRefreshed)
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+    }
   }, [])
 
   const markAssessmentComplete = useCallback(() => {
