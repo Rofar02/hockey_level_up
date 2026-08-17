@@ -116,51 +116,75 @@ export function AdminReferenceArticlesPage() {
       <FormError message={loadError} />
       {isLoading && <p className="text-sm text-text-secondary">Загрузка...</p>}
 
-      {!isLoading && articles !== null && (
-        <div className="overflow-x-auto rounded-md border border-white/10">
-          <table className="w-full min-w-[560px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
-                <th className="px-3 py-2 font-medium">Название</th>
-                <th className="px-3 py-2 font-medium">Категория</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {articles.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-3 py-6 text-center text-text-secondary">
-                    Пока нет статей.
-                  </td>
+      {!isLoading && articles !== null && articles.length === 0 && (
+        <p className="text-sm text-text-secondary">Пока нет статей.</p>
+      )}
+
+      {!isLoading && articles !== null && articles.length > 0 && (
+        <>
+          <div className="hidden overflow-hidden rounded-md border border-white/10 md:block">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
+                  <th className="px-3 py-2 font-medium">Название</th>
+                  <th className="px-3 py-2 font-medium">Категория</th>
+                  <th className="px-3 py-2 font-medium" />
                 </tr>
-              )}
-              {articles.map((article) => (
-                <tr key={article.id} className="border-b border-white/5 hover:bg-white/5">
-                  <td className="px-3 py-2 text-text-primary">{article.title}</td>
-                  <td className="px-3 py-2 text-text-secondary">{article.category}</td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(article)}
-                        className="text-accent-ice hover:underline"
-                      >
-                        Изменить
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(article)}
-                        className="text-accent-persimmon hover:underline"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {articles.map((article) => (
+                  <tr key={article.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="px-3 py-2 text-text-primary">{article.title}</td>
+                    <td className="px-3 py-2 text-text-secondary">{article.category}</td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(article)}
+                          className="text-accent-ice hover:underline"
+                        >
+                          Изменить
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(article)}
+                          className="text-accent-persimmon hover:underline"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 md:hidden">
+            {articles.map((article) => (
+              <div key={article.id} className="rounded-md border border-white/10 bg-dark-card p-3">
+                <p className="text-sm font-medium text-text-primary">{article.title}</p>
+                <p className="mt-0.5 text-xs text-text-secondary">{article.category}</p>
+                <div className="mt-2 flex gap-4 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => openEditForm(article)}
+                    className="text-accent-ice hover:underline"
+                  >
+                    Изменить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(article)}
+                    className="text-accent-persimmon hover:underline"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {isFormOpen && (

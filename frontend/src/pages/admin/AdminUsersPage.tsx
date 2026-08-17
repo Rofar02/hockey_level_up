@@ -147,64 +147,101 @@ export function AdminUsersPage() {
 
       {!isLoading && users !== null && (
         <>
-          <div className="overflow-x-auto rounded-md border border-white/10">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
-                  <th className="px-3 py-2 font-medium">Email</th>
-                  <th className="px-3 py-2 font-medium">Имя</th>
-                  <th className="px-3 py-2 font-medium">Уровень</th>
-                  <th className="px-3 py-2 font-medium">Админ</th>
-                  <th className="px-3 py-2 font-medium">Премиум</th>
-                  <th className="px-3 py-2 font-medium">Регистрация</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-6 text-center text-text-secondary">
-                      Ничего не найдено.
-                    </td>
-                  </tr>
-                )}
+          {users.length === 0 && <p className="text-sm text-text-secondary">Ничего не найдено.</p>}
+
+          {users.length > 0 && (
+            <>
+              <div className="hidden overflow-x-auto rounded-md border border-white/10 md:block">
+                <table className="w-full min-w-[720px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
+                      <th className="px-3 py-2 font-medium">Email</th>
+                      <th className="px-3 py-2 font-medium">Имя</th>
+                      <th className="px-3 py-2 font-medium">Уровень</th>
+                      <th className="px-3 py-2 font-medium">Админ</th>
+                      <th className="px-3 py-2 font-medium">Премиум</th>
+                      <th className="px-3 py-2 font-medium">Регистрация</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((user) => (
+                      <Fragment key={user.id}>
+                        <tr className="border-b border-white/5 hover:bg-white/5">
+                          <td className="px-3 py-2 text-text-primary">{user.email}</td>
+                          <td className="px-3 py-2 text-text-secondary">
+                            {[user.last_name, user.first_name].filter(Boolean).join(' ') || '—'}
+                          </td>
+                          <td className="px-3 py-2 font-mono text-text-secondary">{user.level}</td>
+                          <td className="px-3 py-2">
+                            <Switch
+                              checked={user.is_admin}
+                              disabled={savingUserIds.has(user.id)}
+                              onClick={() => toggleUserField(user, 'is_admin')}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <Switch
+                              checked={user.has_premium}
+                              disabled={savingUserIds.has(user.id)}
+                              onClick={() => toggleUserField(user, 'has_premium')}
+                            />
+                          </td>
+                          <td className="px-3 py-2 font-mono text-text-secondary">
+                            {formatRegisteredAt(user.created_at)}
+                          </td>
+                        </tr>
+                        {rowErrors[user.id] !== undefined && (
+                          <tr className="border-b border-white/5">
+                            <td colSpan={6} className="px-3 pb-2">
+                              <FormError message={rowErrors[user.id]} />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex flex-col gap-3 md:hidden">
                 {users.map((user) => (
-                  <Fragment key={user.id}>
-                    <tr className="border-b border-white/5 hover:bg-white/5">
-                      <td className="px-3 py-2 text-text-primary">{user.email}</td>
-                      <td className="px-3 py-2 text-text-secondary">
-                        {[user.last_name, user.first_name].filter(Boolean).join(' ') || '—'}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-text-secondary">{user.level}</td>
-                      <td className="px-3 py-2">
+                  <div key={user.id} className="rounded-md border border-white/10 bg-dark-card p-3">
+                    <p className="text-sm font-medium text-text-primary">{user.email}</p>
+                    <p className="mt-0.5 text-xs text-text-secondary">
+                      {[user.last_name, user.first_name].filter(Boolean).join(' ') || '—'}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-text-secondary">
+                      <span>Уровень: {user.level}</span>
+                      <span>Регистрация: {formatRegisteredAt(user.created_at)}</span>
+                    </div>
+                    <div className="mt-3 flex items-center gap-6">
+                      <div className="flex items-center gap-2">
                         <Switch
                           checked={user.is_admin}
                           disabled={savingUserIds.has(user.id)}
                           onClick={() => toggleUserField(user, 'is_admin')}
                         />
-                      </td>
-                      <td className="px-3 py-2">
+                        <span className="text-sm text-text-secondary">Админ</span>
+                      </div>
+                      <div className="flex items-center gap-2">
                         <Switch
                           checked={user.has_premium}
                           disabled={savingUserIds.has(user.id)}
                           onClick={() => toggleUserField(user, 'has_premium')}
                         />
-                      </td>
-                      <td className="px-3 py-2 font-mono text-text-secondary">
-                        {formatRegisteredAt(user.created_at)}
-                      </td>
-                    </tr>
+                        <span className="text-sm text-text-secondary">Премиум</span>
+                      </div>
+                    </div>
                     {rowErrors[user.id] !== undefined && (
-                      <tr className="border-b border-white/5">
-                        <td colSpan={6} className="px-3 pb-2">
-                          <FormError message={rowErrors[user.id]} />
-                        </td>
-                      </tr>
+                      <div className="mt-2">
+                        <FormError message={rowErrors[user.id]} />
+                      </div>
                     )}
-                  </Fragment>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </>
+          )}
 
           <div className="mt-4 flex items-center justify-between gap-4">
             <Button

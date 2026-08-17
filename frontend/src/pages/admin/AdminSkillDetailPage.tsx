@@ -253,27 +253,40 @@ function StatWeightsSection({
 
       {weights.length === 0 && <p className="text-sm text-text-secondary">Веса ещё не заданы.</p>}
       {weights.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-white/10">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
-                <th className="px-3 py-2 font-medium">Характеристика</th>
-                <th className="px-3 py-2 font-medium">Вес</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {weights.map((weight) => (
-                <StatWeightRow
-                  key={weight.id}
-                  weight={weight}
-                  onSave={handleUpdate}
-                  onDelete={() => handleDelete(weight)}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="hidden overflow-hidden rounded-md border border-white/10 md:block">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
+                  <th className="px-3 py-2 font-medium">Характеристика</th>
+                  <th className="px-3 py-2 font-medium">Вес</th>
+                  <th className="px-3 py-2 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {weights.map((weight) => (
+                  <StatWeightRow
+                    key={weight.id}
+                    weight={weight}
+                    onSave={handleUpdate}
+                    onDelete={() => handleDelete(weight)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 md:hidden">
+            {weights.map((weight) => (
+              <StatWeightCard
+                key={weight.id}
+                weight={weight}
+                onSave={handleUpdate}
+                onDelete={() => handleDelete(weight)}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {availableStats.length > 0 && (
@@ -306,15 +319,14 @@ function StatWeightsSection({
   )
 }
 
-function StatWeightRow({
-  weight,
-  onSave,
-  onDelete,
-}: {
-  weight: SkillStatWeightRead
-  onSave: (weight: SkillStatWeightRead, newValue: number) => Promise<string | null>
-  onDelete: () => void
-}) {
+// Shared by the table row (desktop/tablet) and card (mobile) presentations
+// below -- both need the same dirty/save/error state, just laid out
+// differently, so the stateful bits live here once rather than being
+// copy-pasted between a <tr> and a <div>.
+function useStatWeightEditor(
+  weight: SkillStatWeightRead,
+  onSave: (weight: SkillStatWeightRead, newValue: number) => Promise<string | null>,
+) {
   const [value, setValue] = useState(String(weight.weight))
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -334,6 +346,20 @@ function StatWeightRow({
       setError(failureMessage)
     }
   }
+
+  return { value, setValue, error, isSaving, isDirty, handleSave }
+}
+
+function StatWeightRow({
+  weight,
+  onSave,
+  onDelete,
+}: {
+  weight: SkillStatWeightRead
+  onSave: (weight: SkillStatWeightRead, newValue: number) => Promise<string | null>
+  onDelete: () => void
+}) {
+  const { value, setValue, error, isSaving, isDirty, handleSave } = useStatWeightEditor(weight, onSave)
 
   return (
     <tr className="border-b border-white/5 hover:bg-white/5">
@@ -370,6 +396,51 @@ function StatWeightRow({
         </div>
       </td>
     </tr>
+  )
+}
+
+function StatWeightCard({
+  weight,
+  onSave,
+  onDelete,
+}: {
+  weight: SkillStatWeightRead
+  onSave: (weight: SkillStatWeightRead, newValue: number) => Promise<string | null>
+  onDelete: () => void
+}) {
+  const { value, setValue, error, isSaving, isDirty, handleSave } = useStatWeightEditor(weight, onSave)
+
+  return (
+    <div className="rounded-md border border-white/10 bg-dark-card p-3">
+      <p className="text-sm font-medium text-text-primary">{TARGET_STAT_LABELS[weight.stat_type]}</p>
+      <div className="mt-2 flex flex-col gap-1">
+        <input
+          type="number"
+          min={0}
+          max={1}
+          step="0.01"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          className="w-24 rounded border border-white/10 bg-dark-bg px-2 py-1 font-mono text-text-primary focus:border-accent-ice focus:outline-none"
+        />
+        {error !== null && <span className="text-xs text-accent-persimmon">{error}</span>}
+      </div>
+      <div className="mt-2 flex gap-4 text-sm">
+        {isDirty && (
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="text-accent-ice hover:underline disabled:opacity-50"
+          >
+            Сохранить
+          </button>
+        )}
+        <button type="button" onClick={onDelete} className="text-accent-persimmon hover:underline">
+          Удалить
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -469,47 +540,78 @@ function MilestonesSection({
 
       {milestones.length === 0 && <p className="text-sm text-text-secondary">Пороги ещё не заданы.</p>}
       {milestones.length > 0 && (
-        <div className="overflow-hidden rounded-md border border-white/10">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
-                <th className="px-3 py-2 font-medium">Порог</th>
-                <th className="px-3 py-2 font-medium">Название</th>
-                <th className="px-3 py-2 font-medium">Описание</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {milestones.map((milestone) => (
-                <tr key={milestone.id} className="border-b border-white/5 hover:bg-white/5">
-                  <td className="px-3 py-2 font-mono text-text-primary">{milestone.threshold}</td>
-                  <td className="px-3 py-2 text-text-primary">{milestone.title}</td>
-                  <td className="max-w-xs truncate px-3 py-2 text-text-secondary" title={milestone.description}>
-                    {milestone.description}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(milestone)}
-                        className="text-accent-ice hover:underline"
-                      >
-                        Изменить
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(milestone)}
-                        className="text-accent-persimmon hover:underline"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </td>
+        <>
+          <div className="hidden overflow-hidden rounded-md border border-white/10 md:block">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
+                  <th className="px-3 py-2 font-medium">Порог</th>
+                  <th className="px-3 py-2 font-medium">Название</th>
+                  <th className="px-3 py-2 font-medium">Описание</th>
+                  <th className="px-3 py-2 font-medium" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {milestones.map((milestone) => (
+                  <tr key={milestone.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="px-3 py-2 font-mono text-text-primary">{milestone.threshold}</td>
+                    <td className="px-3 py-2 text-text-primary">{milestone.title}</td>
+                    <td
+                      className="max-w-xs truncate px-3 py-2 text-text-secondary"
+                      title={milestone.description}
+                    >
+                      {milestone.description}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(milestone)}
+                          className="text-accent-ice hover:underline"
+                        >
+                          Изменить
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(milestone)}
+                          className="text-accent-persimmon hover:underline"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 md:hidden">
+            {milestones.map((milestone) => (
+              <div key={milestone.id} className="rounded-md border border-white/10 bg-dark-card p-3">
+                <p className="font-mono text-xs text-text-secondary">Порог: {milestone.threshold}</p>
+                <p className="mt-1 text-sm font-medium text-text-primary">{milestone.title}</p>
+                <p className="mt-1 text-sm text-text-secondary">{milestone.description}</p>
+                <div className="mt-2 flex gap-4 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(milestone)}
+                    className="text-accent-ice hover:underline"
+                  >
+                    Изменить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(milestone)}
+                    className="text-accent-persimmon hover:underline"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-md border border-white/10 p-4">

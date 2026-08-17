@@ -191,67 +191,101 @@ export function AdminExercisesPage() {
       <FormError message={loadError} />
       {isLoading && <p className="text-sm text-text-secondary">Загрузка...</p>}
 
-      {!isLoading && exercises !== null && (
-        <div className="overflow-x-auto rounded-md border border-white/10">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
-                <th className="px-3 py-2 font-medium">Название</th>
-                <th className="px-3 py-2 font-medium">Категория</th>
-                <th className="px-3 py-2 font-medium">Фаза</th>
-                <th className="px-3 py-2 font-medium">Характеристика</th>
-                <th className="px-3 py-2 font-medium">Сложность</th>
-                <th className="px-3 py-2 font-medium">Инвентарь</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {exercises.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-text-secondary">
-                    Ничего не найдено.
-                  </td>
+      {!isLoading && exercises !== null && exercises.length === 0 && (
+        <p className="text-sm text-text-secondary">Ничего не найдено.</p>
+      )}
+
+      {!isLoading && exercises !== null && exercises.length > 0 && (
+        <>
+          <div className="hidden overflow-x-auto rounded-md border border-white/10 md:block">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/5 text-left text-text-secondary">
+                  <th className="px-3 py-2 font-medium">Название</th>
+                  <th className="px-3 py-2 font-medium">Категория</th>
+                  <th className="px-3 py-2 font-medium">Фаза</th>
+                  <th className="px-3 py-2 font-medium">Характеристика</th>
+                  <th className="px-3 py-2 font-medium">Сложность</th>
+                  <th className="px-3 py-2 font-medium">Инвентарь</th>
+                  <th className="px-3 py-2 font-medium" />
                 </tr>
-              )}
-              {exercises.map((exercise) => (
-                <tr key={exercise.id} className="border-b border-white/5 hover:bg-white/5">
-                  <td className="px-3 py-2 text-text-primary">{exercise.name}</td>
-                  <td className="px-3 py-2 text-text-secondary">
-                    {EXERCISE_CATEGORY_LABELS[exercise.category]}
-                  </td>
-                  <td className="px-3 py-2 text-text-secondary">{PHASE_LABELS[exercise.phase]}</td>
-                  <td className="px-3 py-2 text-text-secondary">
-                    {exercise.target_stats.length === 0
-                      ? '—'
-                      : exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-text-secondary">{exercise.difficulty_level}</td>
-                  <td className="px-3 py-2 text-text-secondary">
-                    {EQUIPMENT_TYPE_LABELS[exercise.equipment_type]}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => openEditForm(exercise)}
-                        className="text-accent-ice hover:underline"
-                      >
-                        Изменить
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(exercise)}
-                        className="text-accent-persimmon hover:underline"
-                      >
-                        Удалить
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {exercises.map((exercise) => (
+                  <tr key={exercise.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="px-3 py-2 text-text-primary">{exercise.name}</td>
+                    <td className="px-3 py-2 text-text-secondary">
+                      {EXERCISE_CATEGORY_LABELS[exercise.category]}
+                    </td>
+                    <td className="px-3 py-2 text-text-secondary">{PHASE_LABELS[exercise.phase]}</td>
+                    <td className="px-3 py-2 text-text-secondary">
+                      {exercise.target_stats.length === 0
+                        ? '—'
+                        : exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-text-secondary">{exercise.difficulty_level}</td>
+                    <td className="px-3 py-2 text-text-secondary">
+                      {EQUIPMENT_TYPE_LABELS[exercise.equipment_type]}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(exercise)}
+                          className="text-accent-ice hover:underline"
+                        >
+                          Изменить
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(exercise)}
+                          className="text-accent-persimmon hover:underline"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col gap-3 md:hidden">
+            {exercises.map((exercise) => (
+              <div key={exercise.id} className="rounded-md border border-white/10 bg-dark-card p-3">
+                <p className="text-sm font-medium text-text-primary">{exercise.name}</p>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
+                  <span>{EXERCISE_CATEGORY_LABELS[exercise.category]}</span>
+                  <span>{PHASE_LABELS[exercise.phase]}</span>
+                  <span>{EQUIPMENT_TYPE_LABELS[exercise.equipment_type]}</span>
+                  <span className="font-mono">Сложность: {exercise.difficulty_level}</span>
+                </div>
+                <p className="mt-1 text-xs text-text-secondary">
+                  {exercise.target_stats.length === 0
+                    ? '—'
+                    : exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
+                </p>
+                <div className="mt-2 flex gap-4 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => openEditForm(exercise)}
+                    className="text-accent-ice hover:underline"
+                  >
+                    Изменить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(exercise)}
+                    className="text-accent-persimmon hover:underline"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {isFormOpen && (

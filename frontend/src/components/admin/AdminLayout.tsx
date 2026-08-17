@@ -19,11 +19,11 @@ export function AdminLayout({ title, children }: { title: string; children: Reac
     <div className="min-h-svh bg-dark-bg text-text-primary">
       <header className="border-b border-white/10 bg-dark-card">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link to="/admin" className="font-semibold">
               Админ-панель
             </Link>
-            <nav className="flex gap-4 text-sm">
+            <nav className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.to}
