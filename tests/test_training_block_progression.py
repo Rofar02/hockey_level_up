@@ -187,6 +187,9 @@ async def test_completed_sessions_advance_through_every_phase_and_roll_over(db_s
     assert (block.block_number, block.phase) == (2, BlockPhase.ACCUMULATION)
     assert user.suggested_reassessment is True
     assert user.suggested_onice_reassessment is True
+    # the new block must inherit the injected `today`, not fall back to the
+    # phase_started_at column's real-wall-clock default
+    assert block.phase_started_at == clock.today
 
 
 @pytest.mark.asyncio

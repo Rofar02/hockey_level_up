@@ -107,5 +107,5 @@ class TrainingBlockService:
         user.suggested_reassessment = True
         user.suggested_onice_reassessment = True
         return await self._blocks.create(
-            TrainingBlock(user_id=block.user_id, block_number=block.block_number + 1)
+            TrainingBlock(user_id=block.user_id, block_number=block.block_number + 1, phase_started_at=today)
         )
