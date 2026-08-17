@@ -601,6 +601,7 @@ export function SettingsPage() {
           За 3 недели до этой даты объём тренировок начнёт снижаться, в последнюю неделю — резко.
         </p>
         <TextField
+          label="Дата"
           type="date"
           min={todayIso}
           value={tournamentDate ?? ''}
