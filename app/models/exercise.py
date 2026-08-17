@@ -89,6 +89,15 @@ class Exercise(Base):
         CheckConstraint(
             "difficulty_level >= 1 AND difficulty_level <= 5", name="ck_exercises_difficulty_level"
         ),
+        # enum_column() builds a VARCHAR-backed Enum with native_enum=False
+        # and no create_constraint=True, so nothing at the DB level stops an
+        # invalid string landing in exercise_type outside the app layer
+        # (raw SQL, a bad migration, a bulk import). NULL still passes --
+        # Postgres CHECK only fails on FALSE, never on NULL -- so this
+        # doesn't need its own "OR exercise_type IS NULL" clause.
+        CheckConstraint(
+            "exercise_type IN ('sets_reps', 'duration')", name="ck_exercises_exercise_type"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
