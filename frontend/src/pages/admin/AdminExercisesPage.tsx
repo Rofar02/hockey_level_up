@@ -76,6 +76,12 @@ export function AdminExercisesPage() {
   const [category, setCategory] = useState<ExerciseCategory | ''>('')
   const [phase, setPhase] = useState<TrainingPhase | ''>('')
   const [targetStat, setTargetStat] = useState<TargetStat | ''>('')
+  // Client-side only, unlike the three filters above -- GET /exercises has
+  // no stimulus_type/exercise_type query params on the backend, and with
+  // the catalog's current size (~150 rows, already fetched whole into
+  // state) a round trip for these two isn't worth adding API surface for.
+  const [stimulusType, setStimulusType] = useState<StimulusType | ''>('')
+  const [exerciseType, setExerciseType] = useState<ExerciseType | ''>('')
 
   const [exercises, setExercises] = useState<ExerciseRead[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -157,6 +163,12 @@ export function AdminExercisesPage() {
     }
   }
 
+  const filteredExercises = (exercises ?? []).filter(
+    (exercise) =>
+      (stimulusType === '' || exercise.stimulus_type === stimulusType)
+      && (exerciseType === '' || exercise.exercise_type === exerciseType),
+  )
+
   return (
     <AdminLayout title="Упражнения">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
@@ -182,6 +194,20 @@ export function AdminExercisesPage() {
             value={targetStat}
             onChange={(event) => setTargetStat(event.target.value as TargetStat | '')}
           />
+          <SelectField
+            label="Stimulus type"
+            options={STIMULUS_TYPE_OPTIONS}
+            placeholder="Все"
+            value={stimulusType}
+            onChange={(event) => setStimulusType(event.target.value as StimulusType | '')}
+          />
+          <SelectField
+            label="Exercise type"
+            options={EXERCISE_TYPE_OPTIONS}
+            placeholder="Все"
+            value={exerciseType}
+            onChange={(event) => setExerciseType(event.target.value as ExerciseType | '')}
+          />
         </div>
         <Button type="button" onClick={openCreateForm}>
           Добавить упражнение
@@ -191,11 +217,11 @@ export function AdminExercisesPage() {
       <FormError message={loadError} />
       {isLoading && <p className="text-sm text-text-secondary">Загрузка...</p>}
 
-      {!isLoading && exercises !== null && exercises.length === 0 && (
+      {!isLoading && exercises !== null && filteredExercises.length === 0 && (
         <p className="text-sm text-text-secondary">Ничего не найдено.</p>
       )}
 
-      {!isLoading && exercises !== null && exercises.length > 0 && (
+      {!isLoading && exercises !== null && filteredExercises.length > 0 && (
         <>
           <div className="hidden overflow-x-auto rounded-md border border-white/10 md:block">
             <table className="w-full min-w-[720px] border-collapse text-sm">
@@ -205,13 +231,15 @@ export function AdminExercisesPage() {
                   <th className="px-3 py-2 font-medium">Категория</th>
                   <th className="px-3 py-2 font-medium">Фаза</th>
                   <th className="px-3 py-2 font-medium">Характеристика</th>
+                  <th className="px-3 py-2 font-medium">Stimulus</th>
+                  <th className="px-3 py-2 font-medium">Exercise type</th>
                   <th className="px-3 py-2 font-medium">Сложность</th>
                   <th className="px-3 py-2 font-medium">Инвентарь</th>
                   <th className="px-3 py-2 font-medium" />
                 </tr>
               </thead>
               <tbody>
-                {exercises.map((exercise) => (
+                {filteredExercises.map((exercise) => (
                   <tr key={exercise.id} className="border-b border-white/5 hover:bg-white/5">
                     <td className="px-3 py-2 text-text-primary">{exercise.name}</td>
                     <td className="px-3 py-2 text-text-secondary">
@@ -222,6 +250,12 @@ export function AdminExercisesPage() {
                       {exercise.target_stats.length === 0
                         ? '—'
                         : exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
+                    </td>
+                    <td className="px-3 py-2 text-text-secondary">
+                      {exercise.stimulus_type === null ? '—' : STIMULUS_TYPE_LABELS[exercise.stimulus_type]}
+                    </td>
+                    <td className="px-3 py-2 text-text-secondary">
+                      {exercise.exercise_type === null ? '—' : EXERCISE_TYPE_LABELS[exercise.exercise_type]}
                     </td>
                     <td className="px-3 py-2 font-mono text-text-secondary">{exercise.difficulty_level}</td>
                     <td className="px-3 py-2 text-text-secondary">
@@ -252,7 +286,7 @@ export function AdminExercisesPage() {
           </div>
 
           <div className="flex flex-col gap-3 md:hidden">
-            {exercises.map((exercise) => (
+            {filteredExercises.map((exercise) => (
               <div key={exercise.id} className="rounded-md border border-white/10 bg-dark-card p-3">
                 <p className="text-sm font-medium text-text-primary">{exercise.name}</p>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
@@ -266,6 +300,14 @@ export function AdminExercisesPage() {
                     ? '—'
                     : exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
                 </p>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
+                  <span>
+                    Stimulus: {exercise.stimulus_type === null ? '—' : STIMULUS_TYPE_LABELS[exercise.stimulus_type]}
+                  </span>
+                  <span>
+                    Type: {exercise.exercise_type === null ? '—' : EXERCISE_TYPE_LABELS[exercise.exercise_type]}
+                  </span>
+                </div>
                 <div className="mt-2 flex gap-4 text-sm">
                   <button
                     type="button"
