@@ -68,6 +68,7 @@ export interface UserRead {
   timezone: string
   reminder_preference: ReminderPreference
   season_period: SeasonPeriod
+  tournament_date: string | null
   has_seen_onboarding_tour: boolean
   has_seen_weight_hint: boolean
   created_at: string

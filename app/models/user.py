@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Integer, String, false, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, Integer, String, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -175,6 +175,15 @@ class User(Base):
         nullable=False,
         server_default=SeasonPeriod.OFFSEASON.value,
     )
+
+    # Phase: П.5 tournament taper -- user-set target date for the deterministic
+    # taper override (see app.core.training_block.is_tapering/
+    # is_final_taper_week). An algorithm, not an AI-coach decision, per the
+    # product spec -- an AI coach could someday be the *interface* to set this
+    # field ("скажи тренеру про турнир 15 марта"), not the mechanism that
+    # computes taper behavior. Nullable, no default -- most users have no
+    # upcoming tournament to taper for.
+    tournament_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Set at registration time, only when the required consent checkbox was
     # checked (AuthService.register rejects the request with 400 otherwise)

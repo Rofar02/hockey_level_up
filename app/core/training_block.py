@@ -5,6 +5,7 @@ TrainingBlockService.resolve_active_block for the DB-querying/mutating side
 of this).
 """
 from collections.abc import Callable
+from datetime import date
 
 from app.models.exercise import Exercise, ExerciseCategory
 from app.models.schedule import BlockPhase
@@ -94,8 +95,42 @@ def next_phase(phase: BlockPhase) -> BlockPhase | None:
     return _PHASE_ORDER[index + 1]
 
 
+# Phase: П.5 tournament taper. 3 weeks (the middle of the handoff's
+# "2-4 weeks" range, same resolution style as MACROCYCLE_DELOAD_INTERVAL_
+# BLOCKS' "3 or 4 mesocycles"). The final week of that window gets its own,
+# sharper tier -- see main_exercise_count_range.
+TAPER_WINDOW_WEEKS = 3
+_TAPER_FINAL_WEEK_DAYS = 7
+
+
+def is_tapering(today: date, tournament_date: date | None) -> bool:
+    """True from TAPER_WINDOW_WEEKS out through the tournament date itself
+    (inclusive) -- pure decision rule, no DB access. False once the date
+    has passed (no retroactive tapering) or if none is set.
+    """
+    if tournament_date is None:
+        return False
+    days_until = (tournament_date - today).days
+    return 0 <= days_until < TAPER_WINDOW_WEEKS * 7
+
+
+def is_final_taper_week(today: date, tournament_date: date | None) -> bool:
+    """True during the final week of the taper window -- the sharp
+    volume-drop tier.
+    """
+    if tournament_date is None:
+        return False
+    days_until = (tournament_date - today).days
+    return 0 <= days_until < _TAPER_FINAL_WEEK_DAYS
+
+
 def main_exercise_count_range(
-    block_phase: BlockPhase, *, category: ExerciseCategory, season_period: SeasonPeriod
+    block_phase: BlockPhase,
+    *,
+    category: ExerciseCategory,
+    season_period: SeasonPeriod,
+    is_tapering: bool = False,
+    is_final_taper_week: bool = False,
 ) -> tuple[int, int]:
     """MAIN_EXERCISE_COUNT_RANGE, tightened for off-ice training during the
     two in-season periods (Phase: П.4) -- on-ice and offseason/preseason
@@ -109,9 +144,20 @@ def main_exercise_count_range(
     deload (accumulation borrows intensification's range, intensification
     borrows deload's) via the same next_phase sequence above -- deload has
     no next phase, so it stays at its own (already the floor).
+
+    Tournament taper (Phase: П.5) overrides season_period outright when
+    active, rather than combining with it -- the more specific, date-bound
+    signal wins. Same two-tier shape as season/playoffs above, reused
+    verbatim: the final taper week clamps to DELOAD's range, the earlier
+    part of the window borrows the next phase's range.
     """
     if category != ExerciseCategory.OFF_ICE:
         return MAIN_EXERCISE_COUNT_RANGE[block_phase]
+    if is_final_taper_week:
+        return MAIN_EXERCISE_COUNT_RANGE[BlockPhase.DELOAD]
+    if is_tapering:
+        shifted_phase = next_phase(block_phase) or block_phase
+        return MAIN_EXERCISE_COUNT_RANGE[shifted_phase]
     if season_period == SeasonPeriod.PLAYOFFS:
         return MAIN_EXERCISE_COUNT_RANGE[BlockPhase.DELOAD]
     if season_period == SeasonPeriod.SEASON:

@@ -1,7 +1,10 @@
 """app.core.training_block.next_phase / phase_transition_due /
-is_macrocycle_deload_block / main_exercise_count_range -- pure
-decision-rule checks, no DB needed. Same style as test_rest_formula.py.
+is_macrocycle_deload_block / main_exercise_count_range /
+is_tapering / is_final_taper_week -- pure decision-rule checks, no DB
+needed. Same style as test_rest_formula.py.
 """
+from datetime import date, timedelta
+
 import pytest
 
 from app.core.training_block import (
@@ -9,7 +12,10 @@ from app.core.training_block import (
     MAIN_EXERCISE_COUNT_RANGE,
     PHASE_CALENDAR_CEILING_WEEKS,
     SESSIONS_TO_ADVANCE_PHASE,
+    TAPER_WINDOW_WEEKS,
+    is_final_taper_week,
     is_macrocycle_deload_block,
+    is_tapering,
     main_exercise_count_range,
     next_phase,
     phase_transition_due,
@@ -175,3 +181,83 @@ def test_main_exercise_count_range(
 ) -> None:
     assert MAIN_EXERCISE_COUNT_RANGE[BlockPhase.ACCUMULATION] == (5, 6)  # pins the cases above
     assert main_exercise_count_range(block_phase, category=category, season_period=season_period) == expected
+
+
+# -- Phase: П.5 tournament taper --
+
+_TODAY = date(2026, 3, 1)
+
+
+@pytest.mark.parametrize(
+    ("tournament_date", "expected"),
+    [
+        (None, False),
+        (_TODAY + timedelta(days=TAPER_WINDOW_WEEKS * 7), False),  # exactly one day outside the window
+        (_TODAY + timedelta(days=TAPER_WINDOW_WEEKS * 7 - 1), True),  # just inside the window
+        (_TODAY + timedelta(days=7), True),  # inside the window, not the final week
+        (_TODAY, True),  # tournament is today -- still tapering
+        (_TODAY - timedelta(days=1), False),  # tournament already passed -- no retroactive taper
+    ],
+)
+def test_is_tapering(tournament_date: date | None, expected: bool) -> None:
+    assert TAPER_WINDOW_WEEKS == 3  # pins the parametrized cases above
+    assert is_tapering(_TODAY, tournament_date) == expected
+
+
+@pytest.mark.parametrize(
+    ("tournament_date", "expected"),
+    [
+        (None, False),
+        (_TODAY + timedelta(days=7), False),  # exactly one day outside the final week
+        (_TODAY + timedelta(days=6), True),  # just inside the final week
+        (_TODAY, True),  # tournament is today -- still the final week
+        (_TODAY - timedelta(days=1), False),  # tournament already passed
+        (_TODAY + timedelta(days=14), False),  # inside the taper window, but not the final week
+    ],
+)
+def test_is_final_taper_week(tournament_date: date | None, expected: bool) -> None:
+    assert is_final_taper_week(_TODAY, tournament_date) == expected
+
+
+def test_final_taper_week_clamps_to_deload_regardless_of_season(db_session=None) -> None:
+    # Even OFFSEASON (no season effect at all) must be overridden once the
+    # final taper week is active -- proves taper takes priority over
+    # season_period, not the other way around.
+    for block_phase in (BlockPhase.ACCUMULATION, BlockPhase.INTENSIFICATION, BlockPhase.DELOAD):
+        assert main_exercise_count_range(
+            block_phase,
+            category=ExerciseCategory.OFF_ICE,
+            season_period=SeasonPeriod.OFFSEASON,
+            is_tapering=True,
+            is_final_taper_week=True,
+        ) == (3, 4)
+
+
+def test_early_taper_window_shifts_phase_and_beats_playoffs() -> None:
+    # is_tapering=True (but not the final week) must win outright over
+    # season_period=PLAYOFFS, which would otherwise clamp straight to
+    # DELOAD -- taper overrides season entirely rather than combining.
+    assert main_exercise_count_range(
+        BlockPhase.ACCUMULATION,
+        category=ExerciseCategory.OFF_ICE,
+        season_period=SeasonPeriod.PLAYOFFS,
+        is_tapering=True,
+        is_final_taper_week=False,
+    ) == (4, 5)
+
+
+def test_taper_does_not_affect_on_ice() -> None:
+    assert main_exercise_count_range(
+        BlockPhase.ACCUMULATION,
+        category=ExerciseCategory.ON_ICE,
+        season_period=SeasonPeriod.OFFSEASON,
+        is_tapering=True,
+        is_final_taper_week=True,
+    ) == (5, 6)
+
+
+def test_no_taper_falls_back_to_season_period() -> None:
+    # is_tapering=False (the default) must not change existing П.4 behavior.
+    assert main_exercise_count_range(
+        BlockPhase.ACCUMULATION, category=ExerciseCategory.OFF_ICE, season_period=SeasonPeriod.SEASON
+    ) == (4, 5)

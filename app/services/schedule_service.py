@@ -12,6 +12,8 @@ from app.core.session_duration import compute_phase_split, estimate_session_dura
 from app.core.training_block import (
     DIFFICULTY_PRIORITY_PREDICATES,
     effective_difficulty_cap,
+    is_final_taper_week,
+    is_tapering,
     main_exercise_count_range,
     max_difficulty_for_level,
 )
@@ -274,19 +276,24 @@ class ScheduleService:
         user: User,
         block_phase: BlockPhase,
         training_block: TrainingBlock | None = None,
+        *,
+        today: date | None = None,
     ) -> TrainingSession:
         """Dispatch to the GAME-day builder (light activation only) or the
         regular on/off-ice builder -- the single place both
         create_weekly_plan and _patch_weekly_plan go through, so neither
         has to know GAME is a special case.
 
-        training_block (Phase: П.3) is only ever consumed by the regular
-        builder's _pick_main -- GAME days have no MAIN block at all, so
-        _build_game_day_session doesn't need it.
+        training_block (Phase: П.3) and today (Phase: П.5, tournament
+        taper) are only ever consumed by the regular builder's _pick_main
+        -- GAME days have no MAIN block at all, so _build_game_day_session
+        doesn't need either.
         """
         if session_type == DaySessionType.GAME:
             return await self._build_game_day_session(user, block_phase)
-        return await self._build_training_session(session_type, user, block_phase, training_block)
+        return await self._build_training_session(
+            session_type, user, block_phase, training_block, today=today
+        )
 
     async def _build_game_day_session(self, user: User, block_phase: BlockPhase) -> TrainingSession:
         """GAME day: light pre-game activation only -- no main block (no full
@@ -345,6 +352,8 @@ class ScheduleService:
         user: User,
         block_phase: BlockPhase,
         training_block: TrainingBlock | None = None,
+        *,
+        today: date | None = None,
     ) -> TrainingSession:
         """MAIN is picked first and warmup/cooldown are chosen retrospectively
         to match it (Phase 3) -- storage order of `blocks` is still
@@ -354,7 +363,9 @@ class ScheduleService:
         """
         category = _SESSION_TYPE_TO_CATEGORY[session_type]
 
-        main_exercises = await self._pick_main(category, user, block_phase, training_block=training_block)
+        main_exercises = await self._pick_main(
+            category, user, block_phase, training_block=training_block, today=today
+        )
         main_patterns = await self._movement_patterns_union(
             [exercise.id for exercise in main_exercises]
         )
@@ -460,6 +471,7 @@ class ScheduleService:
         block_phase: BlockPhase,
         *,
         training_block: TrainingBlock | None = None,
+        today: date | None = None,
     ) -> list[Exercise]:
         """Main: up to 5-6 exercises in accumulation, 4-5 in intensification,
         3-4 on a deload week (see MAIN_EXERCISE_COUNT_RANGE) for the day's
@@ -539,6 +551,14 @@ class ScheduleService:
         runs (Phase: П.4 seasonal mode) -- during the user's chosen
         SEASON/PLAYOFFS period, off-ice volume is capped lower even in
         accumulation, see app.core.training_block.main_exercise_count_range.
+
+        A user-set tournament_date (Phase: П.5 taper) overrides
+        season_period outright, on the same axis, for the final
+        TAPER_WINDOW_WEEKS before it -- see
+        app.core.training_block.is_tapering/is_final_taper_week. today
+        defaults to date.today() for every real caller, injectable purely
+        for deterministic tests/simulation, same shape as
+        TrainingBlockService.resolve_active_block's own `today` param.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
@@ -546,8 +566,13 @@ class ScheduleService:
         if not candidates:
             return []
 
+        resolved_today = today or date.today()
         count_min, count_max = main_exercise_count_range(
-            block_phase, category=category, season_period=user.season_period
+            block_phase,
+            category=category,
+            season_period=user.season_period,
+            is_tapering=is_tapering(resolved_today, user.tournament_date),
+            is_final_taper_week=is_final_taper_week(resolved_today, user.tournament_date),
         )
         count = random.randint(count_min, count_max)
 

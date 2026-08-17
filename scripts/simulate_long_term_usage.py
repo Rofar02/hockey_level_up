@@ -387,7 +387,7 @@ async def run_week(
         )
         if session_type != DaySessionType.REST:
             day_plan.training_session = await schedule_service._build_training_session(
-                session_type, user, block_phase, block
+                session_type, user, block_phase, block, today=monday
             )
         weekly_plan.day_plans.append(day_plan)
         day_entries.append((day_date, day_plan, session_type))

@@ -25,6 +25,7 @@ import type { SkillOption } from '../types/skill'
 import { EQUIPMENT_CHOICES, REMINDER_PREFERENCE_LABELS, SEASON_PERIOD_CHOICES } from '../types/user'
 import type { EquipmentAccess, ReminderPreference, SeasonPeriod } from '../types/user'
 import { maxSkillPreferencesForLevel } from '../utils/skillPreferenceLimit'
+import { toIsoDate } from '../utils/date'
 
 export function SettingsPage() {
   const { user, accessToken, logout, updateUser } = useAuth()
@@ -49,6 +50,11 @@ export function SettingsPage() {
   const [seasonPeriod, setSeasonPeriod] = useState<SeasonPeriod | null>(user?.season_period ?? null)
   const [isSavingSeasonPeriod, setIsSavingSeasonPeriod] = useState(false)
   const [seasonPeriodError, setSeasonPeriodError] = useState<string | null>(null)
+
+  const [tournamentDate, setTournamentDate] = useState<string | null>(user?.tournament_date ?? null)
+  const [isSavingTournamentDate, setIsSavingTournamentDate] = useState(false)
+  const [tournamentDateError, setTournamentDateError] = useState<string | null>(null)
+  const todayIso = toIsoDate(new Date())
 
   const [skills, setSkills] = useState<SkillOption[] | null>(null)
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set())
@@ -378,6 +384,26 @@ export function SettingsPage() {
     }
   }
 
+  async function handleTournamentDateChange(value: string) {
+    if (accessToken === null) {
+      return
+    }
+    const previous = tournamentDate
+    const next = value === '' ? null : value
+    setTournamentDateError(null)
+    setIsSavingTournamentDate(true)
+    setTournamentDate(next)
+    try {
+      const updated = await usersApi.updateProfile({ tournament_date: next }, accessToken)
+      updateUser(updated)
+    } catch (err) {
+      setTournamentDate(previous)
+      setTournamentDateError(err instanceof ApiError ? err.message : 'Не удалось сохранить дату. Попробуйте ещё раз.')
+    } finally {
+      setIsSavingTournamentDate(false)
+    }
+  }
+
   async function toggleSkill(id: string) {
     if (accessToken === null) {
       return
@@ -567,6 +593,21 @@ export function SettingsPage() {
           ))}
         </div>
         <FormError message={seasonPeriodError} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-medium text-[#8A94A6]">Дата турнира</h2>
+        <p className="text-xs text-[#8A94A6]">
+          За 3 недели до этой даты объём тренировок начнёт снижаться, в последнюю неделю — резко.
+        </p>
+        <TextField
+          type="date"
+          min={todayIso}
+          value={tournamentDate ?? ''}
+          disabled={isSavingTournamentDate}
+          onChange={(event) => handleTournamentDateChange(event.target.value)}
+        />
+        <FormError message={tournamentDateError} />
       </section>
 
       <section className="flex flex-col gap-4">

@@ -353,6 +353,8 @@ export function HomePage() {
 
             {trainingBlock !== null && <PeriodizationCard block={trainingBlock} />}
 
+            {user !== null && <TournamentTaperBanner tournamentDate={user.tournament_date} />}
+
             {leaderboardMe !== null && (
               <RatingRow me={leaderboardMe} onClick={() => navigate('/leaderboard')} />
             )}
@@ -552,6 +554,34 @@ function SkillsNearMilestoneCard({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// Mirrors app.core.training_block.TAPER_WINDOW_WEEKS / _TAPER_FINAL_WEEK_DAYS
+// -- display-only, the server is the source of truth for actual volume.
+const TAPER_WINDOW_DAYS = 21
+const TAPER_FINAL_WEEK_DAYS = 7
+
+function TournamentTaperBanner({ tournamentDate }: { tournamentDate: string | null }) {
+  if (tournamentDate === null) {
+    return null
+  }
+  const daysUntil = Math.floor(
+    (new Date(tournamentDate).getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000,
+  )
+  if (daysUntil < 0 || daysUntil >= TAPER_WINDOW_DAYS) {
+    return null
+  }
+  const isFinalWeek = daysUntil < TAPER_FINAL_WEEK_DAYS
+
+  return (
+    <div className={`flex flex-col gap-2 p-4 ${CARD_CLASS}`}>
+      <p className="text-xs text-accent-persimmon">
+        {isFinalWeek
+          ? `Финальная неделя перед турниром (через ${daysUntil} дн.) — объём тренировок снижен по максимуму.`
+          : `Подводка к турниру (через ${daysUntil} дн.) — объём тренировок постепенно снижается.`}
+      </p>
     </div>
   )
 }

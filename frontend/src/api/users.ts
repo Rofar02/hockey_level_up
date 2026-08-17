@@ -29,6 +29,7 @@ export interface UserProfileUpdate {
   jersey_number?: number | null
   reminder_preference?: ReminderPreference
   season_period?: SeasonPeriod
+  tournament_date?: string | null
   timezone?: string
   has_seen_weight_hint?: boolean
 }
