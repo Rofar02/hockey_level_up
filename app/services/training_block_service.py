@@ -4,7 +4,12 @@ from datetime import date
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.training_block import SESSIONS_TO_ADVANCE_PHASE, next_phase, phase_transition_due
+from app.core.training_block import (
+    SESSIONS_TO_ADVANCE_PHASE,
+    is_macrocycle_deload_block,
+    next_phase,
+    phase_transition_due,
+)
 from app.models.schedule import TrainingBlock
 from app.models.user import User
 from app.repositories.training_block_repository import TrainingBlockRepository
@@ -34,6 +39,7 @@ class TrainingBlockService:
             phase=block.phase,
             sessions_completed_in_phase=sessions_completed,
             sessions_to_advance=SESSIONS_TO_ADVANCE_PHASE,
+            is_macrocycle_deload=block.is_macrocycle_deload,
         )
 
     async def get_by_id(self, block_id: uuid.UUID) -> TrainingBlock | None:
@@ -106,6 +112,12 @@ class TrainingBlockService:
         user = await self._session.get(User, block.user_id)
         user.suggested_reassessment = True
         user.suggested_onice_reassessment = True
+        new_block_number = block.block_number + 1
         return await self._blocks.create(
-            TrainingBlock(user_id=block.user_id, block_number=block.block_number + 1, phase_started_at=today)
+            TrainingBlock(
+                user_id=block.user_id,
+                block_number=new_block_number,
+                phase_started_at=today,
+                is_macrocycle_deload=is_macrocycle_deload_block(new_block_number),
+            )
         )

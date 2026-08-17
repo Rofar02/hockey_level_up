@@ -11,7 +11,15 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, ExerciseType, TrainingPhase
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    BlockPhase,
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import User
 from app.services.reps_suggestion_service import RepsSuggestionService
@@ -95,6 +103,20 @@ async def _make_set_history(
                 completed_at=base + timedelta(seconds=index),
             )
         )
+    await db_session.flush()
+
+
+async def _make_active_block(
+    db_session, user: User, *, is_macrocycle_deload: bool, block_number: int = 4
+) -> None:
+    db_session.add(
+        TrainingBlock(
+            user_id=user.id,
+            block_number=block_number,
+            phase=BlockPhase.ACCUMULATION,
+            is_macrocycle_deload=is_macrocycle_deload,
+        )
+    )
     await db_session.flush()
 
 
@@ -271,3 +293,54 @@ async def test_missing_reps_completed_falls_back_to_range_minimum(db_session) ->
     result = await RepsSuggestionService(db_session).suggest_reps(user, exercise)
 
     assert result == 6
+
+
+# -- Phase: П.2 macrocycle deload --
+
+
+@pytest.mark.asyncio
+async def test_macrocycle_deload_floors_reps_ignoring_history_and_feedback(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise(rep_range_min=6, rep_range_max=12)
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_active_block(db_session, user, is_macrocycle_deload=True)
+    # Would normally bump toward the ceiling on good feedback -- the
+    # macrocycle floor must win outright, not stack with the bump.
+    await _make_set_history(
+        db_session, user, exercise, reps_per_set=[11], last_set_feedback=SetFeedback.EASY
+    )
+
+    result = await RepsSuggestionService(db_session).suggest_reps(user, exercise)
+
+    assert result == 6
+
+
+@pytest.mark.asyncio
+async def test_macrocycle_deload_floors_reps_with_no_history_at_all(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise(rep_range_min=6, rep_range_max=12)
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_active_block(db_session, user, is_macrocycle_deload=True)
+
+    result = await RepsSuggestionService(db_session).suggest_reps(user, exercise)
+
+    assert result == 6
+
+
+@pytest.mark.asyncio
+async def test_non_macrocycle_deload_block_is_unaffected(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise(rep_range_min=6, rep_range_max=12)
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_active_block(db_session, user, is_macrocycle_deload=False)
+    await _make_set_history(
+        db_session, user, exercise, reps_per_set=[11], last_set_feedback=SetFeedback.EASY
+    )
+
+    result = await RepsSuggestionService(db_session).suggest_reps(user, exercise)
+
+    # Normal bump path: 11 + 2 = 13, clamped to rep_range_max=12
+    assert result == 12

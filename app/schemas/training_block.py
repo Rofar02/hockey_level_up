@@ -13,3 +13,7 @@ class TrainingBlockRead(BaseModel):
     # count/threshold pair is still accurate progress information either way.
     sessions_completed_in_phase: int
     sessions_to_advance: int
+    # Phase: П.2 macrocycle deload -- true for a full-block recovery period
+    # (every 4th block, see app.core.training_block.is_macrocycle_deload_block),
+    # independent of `phase` above.
+    is_macrocycle_deload: bool

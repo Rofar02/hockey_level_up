@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,7 @@ from app.models.exercise import EquipmentType, Exercise, ExerciseType
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import FitnessTier, User
 from app.repositories.set_completion_repository import SetCompletionRepository
+from app.repositories.training_block_repository import TrainingBlockRepository
 
 _TIER_MULTIPLIER: dict[FitnessTier, float] = {
     FitnessTier.BEGINNER: 0.7,
@@ -42,6 +44,11 @@ _DETRAINING_COEFFICIENT_BY_WEEKS: list[tuple[int, float]] = [
     (4, 0.9),
 ]
 
+# Macrocycle deload (Phase: П.2): deeper than the steepest detraining
+# discount above (0.8) -- a scheduled recovery block should be unmistakably
+# lighter than "just been away 8 weeks", not the same number by coincidence.
+MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER = 0.7
+
 
 def _round_to_step(value: float, step: float) -> float:
     return round(value / step) * step
@@ -66,6 +73,7 @@ def _has_rep_range(exercise: Exercise) -> bool:
 class WeightSuggestionService:
     def __init__(self, session: AsyncSession) -> None:
         self._sets = SetCompletionRepository(session)
+        self._blocks = TrainingBlockRepository(session)
 
     async def suggest_weight(self, user: User, exercise: Exercise) -> float | None:
         if not exercise.tracks_weight:
@@ -77,6 +85,13 @@ class WeightSuggestionService:
         if last_set is not None:
             if last_set.weight_kg is None:
                 return None
+            if await self._is_macrocycle_deload(user.id):
+                # Floor only -- not further modulated by this session's
+                # feedback or a separate staleness discount, see
+                # MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER.
+                return _round_to_step(
+                    last_set.weight_kg * MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER, step
+                )
             adjustment = await self._feedback_adjustment(last_set, exercise)
             detraining = _detraining_coefficient(last_set.completed_at)
             return _round_to_step(last_set.weight_kg * adjustment * detraining, step)
@@ -120,3 +135,10 @@ class WeightSuggestionService:
         if last_set.feedback == SetFeedback.MAX:
             return _FEEDBACK_ADJUSTMENT[SetFeedback.MAX]
         return 1.0
+
+    async def _is_macrocycle_deload(self, user_id: uuid.UUID) -> bool:
+        """Phase: П.2. A pure read (TrainingBlockRepository.get_active_for_user
+        never mutates/advances, unlike TrainingBlockService.resolve_active_block)
+        -- safe to call from this read-only suggestion path."""
+        block = await self._blocks.get_active_for_user(user_id)
+        return block is not None and block.is_macrocycle_deload

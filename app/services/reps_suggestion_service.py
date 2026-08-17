@@ -1,9 +1,12 @@
+import uuid
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import Exercise, ExerciseType
 from app.models.set_completion import SetFeedback
 from app.models.user import User
 from app.repositories.set_completion_repository import SetCompletionRepository
+from app.repositories.training_block_repository import TrainingBlockRepository
 
 # Double progression (Phase: П.1): how many more reps to suggest than last
 # time, when the user didn't hit the top of the range with easy/normal
@@ -32,10 +35,17 @@ def _has_rep_range(exercise: Exercise) -> bool:
 class RepsSuggestionService:
     def __init__(self, session: AsyncSession) -> None:
         self._sets = SetCompletionRepository(session)
+        self._blocks = TrainingBlockRepository(session)
 
     async def suggest_reps(self, user: User, exercise: Exercise) -> int | None:
         if not _has_rep_range(exercise):
             return None
+
+        if await self._is_macrocycle_deload(user.id):
+            # Floor regardless of history -- same whether this is the
+            # user's first-ever set or their hundredth, so this skips the
+            # SetCompletion lookups entirely (Phase: П.2).
+            return exercise.rep_range_min
 
         last_set = await self._sets.get_last_for_user_exercise(user.id, exercise.id)
         if last_set is None:
@@ -59,3 +69,8 @@ class RepsSuggestionService:
         bump = _REPS_BUMP_BY_FEEDBACK[last_set.feedback]
         suggested = last_set.reps_completed + bump
         return max(exercise.rep_range_min, min(suggested, exercise.rep_range_max))
+
+    async def _is_macrocycle_deload(self, user_id: uuid.UUID) -> bool:
+        """Phase: П.2. Pure read, see WeightSuggestionService._is_macrocycle_deload."""
+        block = await self._blocks.get_active_for_user(user_id)
+        return block is not None and block.is_macrocycle_deload

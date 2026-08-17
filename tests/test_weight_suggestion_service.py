@@ -9,10 +9,21 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, ExerciseType, TrainingPhase
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    BlockPhase,
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import FitnessTier, User
-from app.services.weight_suggestion_service import WeightSuggestionService
+from app.services.weight_suggestion_service import (
+    MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER,
+    WeightSuggestionService,
+)
 
 
 def _make_user(
@@ -92,6 +103,20 @@ async def _make_set_history(
             reps_completed=reps_completed,
             feedback=feedback,
             completed_at=completed_at if completed_at is not None else datetime.now(timezone.utc),
+        )
+    )
+    await db_session.flush()
+
+
+async def _make_active_block(
+    db_session, user: User, *, is_macrocycle_deload: bool, block_number: int = 4
+) -> None:
+    db_session.add(
+        TrainingBlock(
+            user_id=user.id,
+            block_number=block_number,
+            phase=BlockPhase.ACCUMULATION,
+            is_macrocycle_deload=is_macrocycle_deload,
         )
     )
     await db_session.flush()
@@ -369,3 +394,103 @@ async def test_detraining_combines_multiplicatively_with_feedback_adjustment(db_
 
     # 40 * 1.05 (easy) * 0.8 (8+ week gap) = 33.6 -> nearest 2.5 = 32.5
     assert result == 32.5
+
+
+# -- Phase: П.2 macrocycle deload --
+
+
+@pytest.mark.asyncio
+async def test_macrocycle_deload_floors_weight_ignoring_feedback(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise(equipment_type=EquipmentType.GYM)
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_active_block(db_session, user, is_macrocycle_deload=True)
+    # MAX feedback would normally reduce weight further (x0.95) -- the
+    # macrocycle floor must win outright, not stack with it.
+    await _make_set_history(db_session, user, exercise, weight_kg=40.0, feedback=SetFeedback.MAX)
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    # 40 * 0.7 = 28.0 -> nearest 2.5 = 27.5
+    assert MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER == 0.7
+    assert result == 27.5
+
+
+@pytest.mark.asyncio
+async def test_macrocycle_deload_ignores_detraining_discount(db_session) -> None:
+    """A stale last set (would normally trigger the detraining discount)
+    must not stack with the macrocycle floor -- the floor multiplier alone
+    applies, not floor * detraining."""
+    user = _make_user()
+    exercise = _make_exercise(equipment_type=EquipmentType.GYM)
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_active_block(db_session, user, is_macrocycle_deload=True)
+    await _make_set_history(
+        db_session,
+        user,
+        exercise,
+        weight_kg=40.0,
+        feedback=None,
+        completed_at=datetime.now(timezone.utc) - timedelta(weeks=9),
+    )
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    # 40 * 0.7 = 28.0 -> nearest 2.5 = 27.5 (not 40 * 0.7 * 0.8)
+    assert result == 27.5
+
+
+@pytest.mark.asyncio
+async def test_macrocycle_deload_hitting_rep_range_top_does_not_grow_weight(db_session) -> None:
+    """Even the rep-range-aware growth path (hit the ceiling with good
+    feedback) is overridden by the macrocycle floor."""
+    user = _make_user()
+    exercise = _make_exercise(
+        equipment_type=EquipmentType.GYM,
+        exercise_type=ExerciseType.SETS_REPS,
+        rep_range_min=6,
+        rep_range_max=12,
+    )
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_active_block(db_session, user, is_macrocycle_deload=True)
+    await _make_set_history(
+        db_session, user, exercise, weight_kg=40.0, feedback=SetFeedback.EASY, reps_completed=12
+    )
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    assert result == 27.5
+
+
+@pytest.mark.asyncio
+async def test_macrocycle_deload_does_not_affect_first_time_formula(db_session) -> None:
+    """No history yet -- there's no accumulated weight to floor, so the
+    normal bodyweight-ratio formula is unaffected by is_macrocycle_deload."""
+    user = _make_user(weight=80.0, fitness_tier=FitnessTier.ADVANCED)
+    exercise = _make_exercise(bodyweight_ratio=0.5, equipment_type=EquipmentType.GYM)
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_active_block(db_session, user, is_macrocycle_deload=True)
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    # Same as test_first_time_uses_bodyweight_ratio_and_tier_multiplier
+    assert result == 52.5
+
+
+@pytest.mark.asyncio
+async def test_non_macrocycle_deload_block_is_unaffected(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise(equipment_type=EquipmentType.GYM)
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_active_block(db_session, user, is_macrocycle_deload=False)
+    await _make_set_history(db_session, user, exercise, weight_kg=40.0, feedback=SetFeedback.EASY)
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    # Normal feedback path (no rep range configured): 40 * 1.05 = 42.0 -> 42.5
+    assert result == 42.5

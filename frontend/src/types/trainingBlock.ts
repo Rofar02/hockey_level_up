@@ -12,4 +12,5 @@ export interface TrainingBlockRead {
   phase: BlockPhase
   sessions_completed_in_phase: number
   sessions_to_advance: number
+  is_macrocycle_deload: boolean
 }

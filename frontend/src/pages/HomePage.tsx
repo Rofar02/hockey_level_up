@@ -581,6 +581,12 @@ function PeriodizationCard({ block }: { block: TrainingBlockRead }) {
         </span>
       </div>
       {infoOpen && <p className="text-xs text-[#8A94A6]">{description}</p>}
+      {block.is_macrocycle_deload && (
+        <p className="text-xs text-accent-persimmon">
+          Восстановительный макроцикл — вес и повторы временно ниже обычного, чтобы вы отдохнули
+          перед следующим циклом роста.
+        </p>
+      )}
       <ProgressBar value={block.sessions_completed_in_phase} max={block.sessions_to_advance} />
     </div>
   )

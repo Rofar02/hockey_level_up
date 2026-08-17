@@ -4,12 +4,14 @@ from datetime import date as date_
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
     Index,
     Integer,
     UniqueConstraint,
+    false,
     func,
     text,
 )
@@ -72,6 +74,13 @@ class TrainingBlock(Base):
     simply the row with the highest `block_number` -- no separate flag
     needed. See TrainingBlockService.resolve_active_block for the
     query-and-mutate logic driven by this state.
+
+    `is_macrocycle_deload` (Phase: П.2) is set once at creation, on top of
+    the normal accumulation/intensification/deload phase cycle within the
+    block -- every 4th block is a full-block recovery period where
+    WeightSuggestionService/RepsSuggestionService suggest the floor of
+    whatever range/history they'd otherwise use, regardless of accumulated
+    progress. See app.core.training_block.is_macrocycle_deload_block.
     """
 
     __tablename__ = "training_blocks"
@@ -95,6 +104,9 @@ class TrainingBlock(Base):
     # fallback. Reset to today() every time phase advances (including the
     # deload->new-block rollover, on the new row).
     phase_started_at: Mapped[date_] = mapped_column(Date, nullable=False, default=date_.today)
+    is_macrocycle_deload: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

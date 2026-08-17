@@ -1,11 +1,14 @@
-"""app.core.training_block.next_phase / phase_transition_due -- pure
-decision-rule checks, no DB needed. Same style as test_rest_formula.py.
+"""app.core.training_block.next_phase / phase_transition_due /
+is_macrocycle_deload_block -- pure decision-rule checks, no DB needed. Same
+style as test_rest_formula.py.
 """
 import pytest
 
 from app.core.training_block import (
+    MACROCYCLE_DELOAD_INTERVAL_BLOCKS,
     PHASE_CALENDAR_CEILING_WEEKS,
     SESSIONS_TO_ADVANCE_PHASE,
+    is_macrocycle_deload_block,
     next_phase,
     phase_transition_due,
 )
@@ -46,3 +49,22 @@ def test_phase_transition_due(
         )
         == expected
     )
+
+
+@pytest.mark.parametrize(
+    ("block_number", "expected"),
+    [
+        (1, False),
+        (2, False),
+        (3, False),
+        (4, True),
+        (5, False),
+        (6, False),
+        (7, False),
+        (8, True),
+        (12, True),
+    ],
+)
+def test_is_macrocycle_deload_block(block_number: int, expected: bool) -> None:
+    assert MACROCYCLE_DELOAD_INTERVAL_BLOCKS == 4  # pins the parametrized cases above
+    assert is_macrocycle_deload_block(block_number) == expected

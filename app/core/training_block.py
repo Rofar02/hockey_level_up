@@ -103,3 +103,22 @@ def phase_transition_due(*, sessions_completed_in_phase: int, weeks_since_phase_
         sessions_completed_in_phase >= SESSIONS_TO_ADVANCE_PHASE
         or weeks_since_phase_started >= PHASE_CALENDAR_CEILING_WEEKS
     )
+
+
+# Phase: П.2 macrocycle deload. Every Nth completed mesocycle (TrainingBlock
+# rollover), the new block runs weight/reps suggestion at the floor of
+# whatever range/history it would otherwise use, regardless of accumulated
+# progress -- a full-block recovery period, distinct from the existing
+# per-block DELOAD phase above. Fixed at one concrete number, same style as
+# SESSIONS_TO_ADVANCE_PHASE/PHASE_CALENDAR_CEILING_WEEKS, rather than the
+# "3 or 4" range the original design note left open -- picked the wider end
+# to leave more room for real progress between recovery blocks.
+MACROCYCLE_DELOAD_INTERVAL_BLOCKS = 4
+
+
+def is_macrocycle_deload_block(block_number: int) -> bool:
+    """Whether `block_number` is a scheduled recovery block. Pure decision
+    rule, no DB access -- see TrainingBlockService._advance for where this
+    is called at block-creation time.
+    """
+    return block_number % MACROCYCLE_DELOAD_INTERVAL_BLOCKS == 0

@@ -255,6 +255,75 @@ async def test_resolve_active_block_is_idempotent(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_deload_rollover_onto_the_fourth_block_is_a_macrocycle_deload(db_session) -> None:
+    """Phase: П.2. Seeds directly at block_number=3/DELOAD (cheaper than
+    replaying 3 full mesocycles of session completions) -- rolling over from
+    there lands on block 4, which MACROCYCLE_DELOAD_INTERVAL_BLOCKS=4 marks
+    as a recovery block."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    clock = _Clock(date(2026, 4, 6))
+    block = TrainingBlock(
+        user_id=user.id, block_number=3, phase=BlockPhase.DELOAD, phase_started_at=clock.today
+    )
+    db_session.add(block)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    await _complete_a_phase_worth_of_sessions(db_session, user, block, clock)
+    resolved = await blocks.resolve_active_block(user.id, today=clock.today)
+
+    assert resolved.block_number == 4
+    assert resolved.is_macrocycle_deload is True
+
+
+@pytest.mark.asyncio
+async def test_deload_rollover_onto_the_fifth_block_is_not_a_macrocycle_deload(db_session) -> None:
+    """The block right after a recovery block is a normal one again."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    clock = _Clock(date(2026, 4, 6))
+    block = TrainingBlock(
+        user_id=user.id,
+        block_number=4,
+        phase=BlockPhase.DELOAD,
+        phase_started_at=clock.today,
+        is_macrocycle_deload=True,
+    )
+    db_session.add(block)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    await _complete_a_phase_worth_of_sessions(db_session, user, block, clock)
+    resolved = await blocks.resolve_active_block(user.id, today=clock.today)
+
+    assert resolved.block_number == 5
+    assert resolved.is_macrocycle_deload is False
+
+
+@pytest.mark.asyncio
+async def test_get_current_exposes_is_macrocycle_deload(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    block = TrainingBlock(
+        user_id=user.id, block_number=4, phase=BlockPhase.ACCUMULATION, is_macrocycle_deload=True
+    )
+    db_session.add(block)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    current = await blocks.get_current(user.id)
+
+    assert current.is_macrocycle_deload is True
+
+
+@pytest.mark.asyncio
 async def test_get_current_404s_when_no_block_exists_yet(db_session) -> None:
     user = _make_user()
     db_session.add(user)
