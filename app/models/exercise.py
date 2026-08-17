@@ -228,3 +228,53 @@ class ExerciseTargetStat(Base):
         enum_column(TargetStat, "target_stat"), nullable=False
     )
     order: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class UserMovementPatternVariant(Base):
+    """Phase: П.3 variant rotation. One row per (user, category, pattern) --
+    the exercise ScheduleService._pick_main currently holds stable for this
+    combination, and the block_number it was last confirmed/rotated at.
+    Held constant across sessions within the same TrainingBlock; rotated to
+    a fresh candidate at the boundary of a new (non-macrocycle-deload)
+    block; held through a macrocycle-deload block's boundary instead of
+    rotating (see is_macrocycle_deload_block) -- only block_number bumps in
+    that case, exercise_id stays. No relationship()s, same convention as
+    ExerciseMovementPattern/UserSkillPreference -- accessed only through
+    UserMovementPatternVariantRepository.
+
+    category is part of the key, not just movement_pattern, because
+    movement_pattern=locomotion is tagged on both on_ice and off_ice
+    exercises -- one pin per pattern alone would collide between an
+    on-ice and an off-ice session.
+    """
+
+    __tablename__ = "user_movement_pattern_variants"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "category", "movement_pattern",
+            name="uq_user_movement_pattern_variants_user_category_pattern",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    category: Mapped[ExerciseCategory] = mapped_column(
+        enum_column(ExerciseCategory, "exercise_category"), nullable=False
+    )
+    movement_pattern: Mapped[MovementPattern] = mapped_column(
+        enum_column(MovementPattern, "movement_pattern"), nullable=False
+    )
+    # No ondelete restriction unlike SetCompletion.exercise_id -- this is
+    # ephemeral pointer state with no history value, deleting the pinned
+    # exercise should just clear the pin (next pick creates a fresh one),
+    # not fail loudly.
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Which TrainingBlock.block_number this pin was last set/confirmed at --
+    # the versioning mechanism for "has a block boundary passed since this
+    # was pinned", not a real training_blocks FK (a block_number is only
+    # unique per-user, and blocks are frequently created/retired).
+    block_number: Mapped[int] = mapped_column(Integer, nullable=False)

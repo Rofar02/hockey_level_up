@@ -28,7 +28,7 @@ by hand, with an explicit simulated `today`:
 
     block = await training_block_service.get_or_create_and_resolve(user.id, today=week_monday)
     block_phase = await overload_service.apply_brakes(user, block.phase)
-    session = await schedule_service._build_training_session(session_type, user, block_phase)
+    session = await schedule_service._build_training_session(session_type, user, block_phase, block)
 
 `_build_training_session` is "private" but calling it directly from test/
 simulation code is already the established pattern in this codebase (see
@@ -387,7 +387,7 @@ async def run_week(
         )
         if session_type != DaySessionType.REST:
             day_plan.training_session = await schedule_service._build_training_session(
-                session_type, user, block_phase
+                session_type, user, block_phase, block
             )
         weekly_plan.day_plans.append(day_plan)
         day_entries.append((day_date, day_plan, session_type))

@@ -22,12 +22,14 @@ from app.models.exercise import (
     MovementPattern,
     TargetStat,
     TrainingPhase,
+    UserMovementPatternVariant,
 )
 from app.models.schedule import (
     BlockPhase,
     DayPlan,
     DaySessionType,
     SessionBlock,
+    TrainingBlock,
     TrainingSession,
     WeeklyPlan,
 )
@@ -35,6 +37,9 @@ from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.skill_repository import SkillRepository
+from app.repositories.user_movement_pattern_variant_repository import (
+    UserMovementPatternVariantRepository,
+)
 from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
 from app.schemas.exercise import exercise_to_read
 from app.schemas.schedule import (
@@ -75,6 +80,7 @@ class ScheduleService:
         self._schedule = ScheduleRepository(session)
         self._skills = SkillRepository(session)
         self._user_skill_preferences = UserSkillPreferenceRepository(session)
+        self._variants = UserMovementPatternVariantRepository(session)
         self._training_block_service = TrainingBlockService(session)
         self._overload_service = OverloadService(session)
 
@@ -100,7 +106,7 @@ class ScheduleService:
             )
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
-                    day_in.session_type, user, block_phase
+                    day_in.session_type, user, block_phase, training_block
                 )
             weekly_plan.day_plans.append(day_plan)
 
@@ -189,8 +195,9 @@ class ScheduleService:
 
         week_end = weekly_plan.week_start_date + timedelta(days=6)
         day_plans_by_date = {day_plan.date: day_plan for day_plan in weekly_plan.day_plans}
+        training_block = await self._training_block_for_weekly_plan(weekly_plan)
         block_phase = await self._overload_service.apply_brakes(
-            user, await self._block_phase_for_weekly_plan(weekly_plan)
+            user, training_block.phase if training_block is not None else BlockPhase.ACCUMULATION
         )
 
         conflicts: list[ScheduleConflictRead] = []
@@ -228,7 +235,7 @@ class ScheduleService:
 
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
-                    day_in.session_type, user, block_phase
+                    day_in.session_type, user, block_phase, training_block
                 )
 
         await self._session.commit()
@@ -237,20 +244,23 @@ class ScheduleService:
             weekly_plan=await self._to_read_schema(saved), conflicts=conflicts
         )
 
-    async def _block_phase_for_weekly_plan(self, weekly_plan: WeeklyPlan) -> BlockPhase:
-        """Read-only: the phase whatever block this week is already tied to
-        is CURRENTLY at. Deliberately doesn't call
-        TrainingBlockService.resolve_active_block -- patching a specific
-        (possibly past or future) week shouldn't reach past that week's own
-        block to catch up whatever the globally *active* block is doing;
-        only declaring a brand-new week (create_weekly_plan) does that.
+    async def _training_block_for_weekly_plan(self, weekly_plan: WeeklyPlan) -> TrainingBlock | None:
+        """Read-only: whatever block this week is already tied to.
+        Deliberately doesn't call TrainingBlockService.resolve_active_block --
+        patching a specific (possibly past or future) week shouldn't reach
+        past that week's own block to catch up whatever the globally
+        *active* block is doing; only declaring a brand-new week
+        (create_weekly_plan) does that.
+
+        None (shouldn't happen via any current code path) means no block on
+        record -- callers fall back to the same baseline a brand-new block
+        starts at (BlockPhase.ACCUMULATION), and variant rotation (Phase:
+        П.3) is simply skipped for this call since there's no block_number
+        to version a pin against.
         """
-        block = None
-        if weekly_plan.training_block_id is not None:
-            block = await self._training_block_service.get_by_id(weekly_plan.training_block_id)
-        # No block on record (shouldn't happen via any current code path) --
-        # fall back to the same baseline a brand-new block starts at.
-        return block.phase if block is not None else BlockPhase.ACCUMULATION
+        if weekly_plan.training_block_id is None:
+            return None
+        return await self._training_block_service.get_by_id(weekly_plan.training_block_id)
 
     @staticmethod
     def _has_completed_block(day_plan: DayPlan) -> bool:
@@ -259,15 +269,24 @@ class ScheduleService:
         return any(block.completed_at is not None for block in day_plan.training_session.blocks)
 
     async def _build_session_for_day(
-        self, session_type: DaySessionType, user: User, block_phase: BlockPhase
+        self,
+        session_type: DaySessionType,
+        user: User,
+        block_phase: BlockPhase,
+        training_block: TrainingBlock | None = None,
     ) -> TrainingSession:
         """Dispatch to the GAME-day builder (light activation only) or the
         regular on/off-ice builder -- the single place both
         create_weekly_plan and _patch_weekly_plan go through, so neither
-        has to know GAME is a special case."""
+        has to know GAME is a special case.
+
+        training_block (Phase: П.3) is only ever consumed by the regular
+        builder's _pick_main -- GAME days have no MAIN block at all, so
+        _build_game_day_session doesn't need it.
+        """
         if session_type == DaySessionType.GAME:
             return await self._build_game_day_session(user, block_phase)
-        return await self._build_training_session(session_type, user, block_phase)
+        return await self._build_training_session(session_type, user, block_phase, training_block)
 
     async def _build_game_day_session(self, user: User, block_phase: BlockPhase) -> TrainingSession:
         """GAME day: light pre-game activation only -- no main block (no full
@@ -321,7 +340,11 @@ class ScheduleService:
         return random.choice(candidates)
 
     async def _build_training_session(
-        self, session_type: DaySessionType, user: User, block_phase: BlockPhase
+        self,
+        session_type: DaySessionType,
+        user: User,
+        block_phase: BlockPhase,
+        training_block: TrainingBlock | None = None,
     ) -> TrainingSession:
         """MAIN is picked first and warmup/cooldown are chosen retrospectively
         to match it (Phase 3) -- storage order of `blocks` is still
@@ -331,7 +354,7 @@ class ScheduleService:
         """
         category = _SESSION_TYPE_TO_CATEGORY[session_type]
 
-        main_exercises = await self._pick_main(category, user, block_phase)
+        main_exercises = await self._pick_main(category, user, block_phase, training_block=training_block)
         main_patterns = await self._movement_patterns_union(
             [exercise.id for exercise in main_exercises]
         )
@@ -431,7 +454,12 @@ class ScheduleService:
         return random.choice(candidates)
 
     async def _pick_main(
-        self, category: ExerciseCategory, user: User, block_phase: BlockPhase
+        self,
+        category: ExerciseCategory,
+        user: User,
+        block_phase: BlockPhase,
+        *,
+        training_block: TrainingBlock | None = None,
     ) -> list[Exercise]:
         """Main: up to 5-6 exercises in accumulation, 4-5 in intensification,
         3-4 on a deload week (see MAIN_EXERCISE_COUNT_RANGE) for the day's
@@ -488,6 +516,24 @@ class ScheduleService:
         third pick in a row sharing the same off_ice muscle_group, but never
         widens the pool back out to do so -- so SkillTag priority still wins
         any real conflict between the two.
+
+        Before any of those three layers even run, variant stability
+        (Phase: П.3) can short-circuit a pattern's pick entirely: if the
+        user already has a UserMovementPatternVariant pinned for this
+        (category, pattern) and it's still in the level/difficulty-narrowed
+        pool, it's reused as-is for as long as `training_block` hasn't
+        crossed to a new block_number -- double progression (П.1) works
+        better on a stable exercise than one that changes every session.
+        Crossing into a fresh, non-macrocycle-deload block deliberately
+        excludes the outgoing variant from the pool before the three
+        priority layers run, guaranteeing an actual change rather than
+        leaving it to chance; crossing into a macrocycle-deload block
+        (П.2) holds the old variant instead of rotating -- a recovery
+        block isn't the moment to introduce something new -- and just
+        bumps the pin's block_number bookmark so rotation resumes at the
+        next real boundary. training_block=None (e.g. patching a week
+        whose block record is missing) skips this layer entirely, same as
+        before this feature existed.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
@@ -518,6 +564,12 @@ class ScheduleService:
             for pattern in patterns_by_exercise.get(exercise.id, ()):
                 by_pattern[pattern].append(exercise)
 
+        # Phase: П.3 variant stability -- one bulk fetch per call, keyed by
+        # pattern, mirroring priority_exercise_ids/patterns_by_exercise above.
+        existing_pins: dict[MovementPattern, UserMovementPatternVariant] = {}
+        if training_block is not None:
+            existing_pins = await self._variants.list_for_user_category(user.id, category)
+
         picked: list[Exercise] = []
         picked_ids: set[uuid.UUID] = set()
         patterns = list(MovementPattern)
@@ -539,10 +591,54 @@ class ScheduleService:
             if difficulty_predicate is not None:
                 pattern_pool = [e for e in pattern_pool if difficulty_predicate(e)] or pattern_pool
 
-            skill_pool = [e for e in pattern_pool if e.id in priority_exercise_ids] or pattern_pool
+            existing_pin = existing_pins.get(pattern)
+            pinned_exercise = None
+            if existing_pin is not None:
+                pinned_exercise = next(
+                    (e for e in pattern_pool if e.id == existing_pin.exercise_id), None
+                )
 
-            balanced_pool = self._apply_muscle_balance(skill_pool, picked)
-            choice = random.choice(balanced_pool)
+            use_pin = False
+            if pinned_exercise is not None:
+                same_block = existing_pin.block_number == training_block.block_number
+                hold_through_deload = training_block.is_macrocycle_deload
+                use_pin = same_block or hold_through_deload
+
+            if use_pin:
+                choice = pinned_exercise
+                if existing_pin.block_number != training_block.block_number:
+                    # Deload-hold: keep the variant, just bump the bookmark
+                    # so rotation resumes at the next non-deload boundary.
+                    existing_pin.block_number = training_block.block_number
+            else:
+                stat_pool = pattern_pool
+                # A real rotation boundary (not a first-ever pin, not a
+                # deload-hold) -- exclude the outgoing variant so the
+                # change is guaranteed, not just possible by luck.
+                if pinned_exercise is not None and len(pattern_pool) > 1:
+                    stat_pool = [
+                        e for e in pattern_pool if e.id != existing_pin.exercise_id
+                    ] or pattern_pool
+
+                skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
+                balanced_pool = self._apply_muscle_balance(skill_pool, picked)
+                choice = random.choice(balanced_pool)
+
+                if training_block is not None:
+                    if existing_pin is not None:
+                        existing_pin.exercise_id = choice.id
+                        existing_pin.block_number = training_block.block_number
+                    else:
+                        self._session.add(
+                            UserMovementPatternVariant(
+                                user_id=user.id,
+                                category=category,
+                                movement_pattern=pattern,
+                                exercise_id=choice.id,
+                                block_number=training_block.block_number,
+                            )
+                        )
+
             picked.append(choice)
             picked_ids.add(choice.id)
         return picked
