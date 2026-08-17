@@ -26,6 +26,7 @@ from app.db.session import AsyncSessionLocal
 from app.db.session import engine as app_engine
 from app.events.handlers.block_completed import (
     STAT_CONSUMER_HANDLER_NAME,
+    STREAK_CONSUMER_HANDLER_NAME,
     XP_CONSUMER_HANDLER_NAME,
     stat_consumer,
     streak_consumer,
@@ -282,5 +283,41 @@ async def test_streak_consumer_redelivery_claims_once(real_user) -> None:
         # Exactly one claim row -- the second call's try_claim found the
         # first one and short-circuited before touching the streak at all.
         assert claim_count == 1
+    finally:
+        await _cleanup_processed_events(event_id)
+
+
+@pytest.mark.asyncio
+async def test_streak_consumer_handles_a_deleted_user_without_crashing() -> None:
+    # No User row behind this user_id at all -- the TrainingStreak insert's
+    # IntegrityError here is a foreign-key violation, not the concurrent-
+    # insert race the except-IntegrityError branch was written for (that
+    # race is what a real account deletion racing an in-flight event looks
+    # like too: the user, and anything CASCADE-deleted with it, is already
+    # gone by the time this runs). The re-select in that branch used to call
+    # scalar_one(), which raised NoResultFound here instead of resolving it.
+    missing_user_id = uuid.uuid4()
+    event_id = uuid.uuid4()
+    payload = _payload(missing_user_id, difficulty_level=1)
+    try:
+        await streak_consumer(payload, event_id)  # must not raise NoResultFound
+
+        async with AsyncSessionLocal() as session:
+            streak = (
+                await session.execute(
+                    select(TrainingStreak).where(TrainingStreak.user_id == missing_user_id)
+                )
+            ).scalar_one_or_none()
+            claimed = (
+                await session.execute(
+                    select(ProcessedEvent).where(
+                        ProcessedEvent.event_id == event_id,
+                        ProcessedEvent.handler_name == STREAK_CONSUMER_HANDLER_NAME,
+                    )
+                )
+            ).scalar_one_or_none()
+
+        assert streak is None  # nothing left behind for a user that doesn't exist
+        assert claimed is not None  # but still claimed, so redelivery doesn't retry forever
     finally:
         await _cleanup_processed_events(event_id)

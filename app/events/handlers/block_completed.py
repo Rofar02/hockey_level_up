@@ -168,7 +168,21 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
                     .where(TrainingStreak.user_id == user_id)
                     .with_for_update()
                 )
-                streak = result.scalar_one()
+                # scalar_one_or_none(), not scalar_one(): the IntegrityError
+                # above isn't always the expected concurrent-insert race --
+                # it's also what a foreign-key violation looks like if the
+                # account behind user_id was deleted (UserService.delete_
+                # account, ON DELETE CASCADE) while this event was still
+                # in flight. That case leaves the re-select genuinely empty,
+                # not racing against a sibling insert, so scalar_one() raised
+                # NoResultFound instead of resolving it. Nothing to do for a
+                # user that no longer exists -- claim the event (so
+                # redelivery doesn't retry forever) and stop.
+                streak = result.scalar_one_or_none()
+                if streak is None:
+                    await try_claim(session, event_id, STREAK_CONSUMER_HANDLER_NAME)
+                    await session.commit()
+                    return
 
         # Claimed here rather than at the top of the function: the
         # IntegrityError fallback above can call session.rollback(), which
