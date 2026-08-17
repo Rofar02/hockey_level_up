@@ -22,7 +22,9 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
+    ExerciseMovementPattern,
     ExerciseTargetStat,
+    MovementPattern,
     TargetStat,
     TrainingPhase,
 )
@@ -81,6 +83,15 @@ async def test_block_order_is_unique_and_matches_warmup_main_cooldown_sequence(d
         [
             ExerciseTargetStat(exercise_id=main_strength.id, target_stat=TargetStat.STRENGTH, order=0),
             ExerciseTargetStat(exercise_id=main_agility.id, target_stat=TargetStat.AGILITY, order=0),
+        ]
+    )
+    # _pick_main now buckets by movement_pattern, not target_stat -- distinct
+    # patterns so both MAIN candidates get picked independently, same intent
+    # as their distinct target_stat tags above.
+    db_session.add_all(
+        [
+            ExerciseMovementPattern(exercise_id=main_strength.id, movement_pattern=MovementPattern.HIP_HINGE),
+            ExerciseMovementPattern(exercise_id=main_agility.id, movement_pattern=MovementPattern.SQUAT),
         ]
     )
     await db_session.flush()

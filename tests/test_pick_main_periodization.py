@@ -27,13 +27,28 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
+    ExerciseMovementPattern,
     ExerciseTargetStat,
+    MovementPattern,
     TargetStat,
     TrainingPhase,
 )
 from app.models.skill import Skill, SkillTag, UserSkillPreference
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
+
+# _pick_main now buckets by movement_pattern, not target_stat (see its
+# docstring) -- this file's `random.randint`-only monkeypatch leaves
+# `random.shuffle` real, so each scenario still needs every candidate's
+# pattern pool to end up a *singleton* after filtering (exactly as the old
+# target_stat pool already was here), which is why this maps 1:1 from the
+# stat "role" this file already uses rather than sharing one pattern across
+# unrelated exercises.
+_STAT_TO_PATTERN: dict[TargetStat, MovementPattern] = {
+    TargetStat.STRENGTH: MovementPattern.HIP_HINGE,
+    TargetStat.AGILITY: MovementPattern.SQUAT,
+    TargetStat.INTELLECT: MovementPattern.PUSH,
+}
 
 
 def _make_user() -> User:
@@ -67,6 +82,12 @@ def _stat(exercise: Exercise, target_stat: TargetStat) -> ExerciseTargetStat:
     return ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0)
 
 
+def _pattern(exercise: Exercise, target_stat: TargetStat) -> ExerciseMovementPattern:
+    return ExerciseMovementPattern(
+        exercise_id=exercise.id, movement_pattern=_STAT_TO_PATTERN[target_stat]
+    )
+
+
 async def _seed_candidates(db_session) -> dict[str, Exercise]:
     exercises = {
         "low_strength": _make_exercise("Low-strength", TargetStat.STRENGTH, 1),
@@ -84,6 +105,7 @@ async def _seed_candidates(db_session) -> dict[str, Exercise]:
     }
     db_session.add_all(exercises.values())
     db_session.add_all([_stat(exercises[key], stats[key]) for key in exercises])
+    db_session.add_all([_pattern(exercises[key], stats[key]) for key in exercises])
     await db_session.flush()
     return exercises
 
@@ -171,6 +193,11 @@ async def test_skilltag_priority_applies_within_the_difficulty_envelope(
         _stat(low, TargetStat.STRENGTH),
         _stat(high_untagged, TargetStat.STRENGTH),
         _stat(high_tagged, TargetStat.STRENGTH),
+    ])
+    db_session.add_all([
+        _pattern(low, TargetStat.STRENGTH),
+        _pattern(high_untagged, TargetStat.STRENGTH),
+        _pattern(high_tagged, TargetStat.STRENGTH),
     ])
     await db_session.flush()
 

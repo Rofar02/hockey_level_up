@@ -129,7 +129,12 @@ async def test_completing_a_party_training_block_advances_personal_streak(real_p
 
         bob_day_plan = await ScheduleRepository(session).get_day_plan_for_date(bob.id, TODAY)
         assert bob_day_plan is not None and bob_day_plan.training_session is not None
-        bob_block = bob_day_plan.training_session.blocks[0]
+        # blocks[0] would be a warmup now that replace_day_plan_content also
+        # picks one (see backlog item #2) -- the confirmed MAIN exercise is
+        # what this test actually means to complete.
+        bob_block = next(
+            b for b in bob_day_plan.training_session.blocks if b.phase == TrainingPhase.MAIN
+        )
 
         await SessionBlockService(session).complete_block(bob_block.id, bob)
 

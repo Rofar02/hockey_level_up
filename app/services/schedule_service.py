@@ -435,13 +435,31 @@ class ScheduleService:
     ) -> list[Exercise]:
         """Main: up to 5-6 exercises in accumulation, 4-5 in intensification,
         3-4 on a deload week (see MAIN_EXERCISE_COUNT_RANGE) for the day's
-        category, at most one per *primary* target stat (an exercise can
-        have more than one target_stat -- see ExerciseTargetStat -- but only
-        its order=0 stat counts for this diversity bucketing).
+        category, at most one per movement_pattern (an exercise can be
+        tagged with more than one pattern -- see ExerciseMovementPattern,
+        a plain membership tag with no "primary" -- so once an exercise is
+        picked it's excluded from every other pattern's pool too, not just
+        the one that picked it).
 
-        If fewer than `count` stats have candidates, returns fewer exercises
-        rather than repeating a stat. Three priority layers apply *within*
-        each stat's candidate pool, in this order:
+        This used to bucket by each exercise's *primary* target_stat
+        instead. Off-ice exercises only ever have 4 possible primary stats
+        (strength/agility/intellect/endurance -- on_ice_skating/
+        puck_handling are on-ice-only), which made 4 a hard ceiling on an
+        off-ice main block no matter what MAIN_EXERCISE_COUNT_RANGE said.
+        movement_pattern has 10 values and 94% of the off-ice MAIN catalog
+        is tagged, so the configured count is actually reachable now.
+        target_stat keeps being used for XP/reward attribution
+        (stat_consumer reads every row, not just a "primary" one) -- it
+        just stopped being the axis that limits how many exercises get
+        picked.
+
+        Patterns are shuffled before iterating (unlike target_stat's old
+        fixed enum order, which barely mattered across only 4 buckets but
+        would otherwise always favor the same first 5-6 of 10 patterns
+        every single session). If fewer than `count` patterns have
+        candidates, returns fewer exercises rather than repeating one.
+        Three priority layers apply *within* each pattern's candidate pool,
+        in this order:
 
           1. User.level difficulty cap (see _apply_level_cap) -- the hard
              ceiling on what the user is allowed at all, falling back to the
@@ -487,39 +505,46 @@ class ScheduleService:
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
         level_cap = max_difficulty_for_level(user.level)
 
-        # Bucketed by each exercise's *primary* target_stat (order=0) --
-        # an exercise with multiple stats still occupies exactly one bucket
-        # for diversity purposes, same as before this stat became multi-
-        # valued. An exercise with no target_stats at all (not yet tagged)
-        # is simply absent from every bucket.
-        primary_stats = await self._exercises.list_primary_target_stats(
+        # Bucketed by *every* movement_pattern an exercise is tagged with
+        # (membership, not a "primary" one -- ExerciseMovementPattern has no
+        # order column, unlike ExerciseTargetStat). An exercise with no
+        # patterns at all (not yet tagged) is simply absent from every
+        # bucket.
+        patterns_by_exercise = await self._exercises.list_movement_patterns_by_exercise(
             [exercise.id for exercise in candidates]
         )
-        by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
+        by_pattern: dict[MovementPattern, list[Exercise]] = defaultdict(list)
         for exercise in candidates:
-            stat = primary_stats.get(exercise.id)
-            if stat is not None:
-                by_stat[stat].append(exercise)
+            for pattern in patterns_by_exercise.get(exercise.id, ()):
+                by_pattern[pattern].append(exercise)
 
         picked: list[Exercise] = []
-        for stat in TargetStat:
+        picked_ids: set[uuid.UUID] = set()
+        patterns = list(MovementPattern)
+        random.shuffle(patterns)
+        for pattern in patterns:
             if len(picked) >= count:
                 break
-            stat_pool = by_stat.get(stat)
-            if not stat_pool:
+            # A multi-tagged exercise can appear under more than one
+            # pattern's bucket -- exclude whatever's already picked so the
+            # same exercise never fills two slots in one main block.
+            pattern_pool = [e for e in by_pattern.get(pattern, ()) if e.id not in picked_ids]
+            if not pattern_pool:
                 continue
 
-            stat_pool = self._apply_level_cap(
-                stat_pool, user, context=f"main/{category}/{stat}", level_cap=level_cap
+            pattern_pool = self._apply_level_cap(
+                pattern_pool, user, context=f"main/{category}/{pattern}", level_cap=level_cap
             )
 
             if difficulty_predicate is not None:
-                stat_pool = [e for e in stat_pool if difficulty_predicate(e)] or stat_pool
+                pattern_pool = [e for e in pattern_pool if difficulty_predicate(e)] or pattern_pool
 
-            skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
+            skill_pool = [e for e in pattern_pool if e.id in priority_exercise_ids] or pattern_pool
 
             balanced_pool = self._apply_muscle_balance(skill_pool, picked)
-            picked.append(random.choice(balanced_pool))
+            choice = random.choice(balanced_pool)
+            picked.append(choice)
+            picked_ids.add(choice.id)
         return picked
 
     @staticmethod
@@ -597,9 +622,10 @@ class ScheduleService:
 
     async def suggest_party_exercises(self, members: list[User], count: int) -> list[Exercise]:
         """Off-ice, MAIN-phase candidates every member in `members` can both
-        equip for and handle, spread across as many different primary
-        target_stat values as possible (never more than one exercise per
-        primary stat -- see _pick_main's docstring on what "primary" means).
+        equip for and handle, spread across as many different
+        movement_pattern values as possible (never more than one exercise
+        per pattern -- same membership-based bucketing as _pick_main, see
+        its docstring for why target_stat was replaced with this axis).
 
         On-ice is deliberately out of scope here: it isn't equipment-gated
         at all (see ExerciseRepository.list_for_assembly), so it wouldn't
@@ -643,26 +669,29 @@ class ScheduleService:
         cap = min(max_difficulty_for_level(member.level) for member in members)
         eligible = [exercise for exercise in eligible if exercise.difficulty_level <= cap]
 
-        # Same primary-stat bucketing as _pick_main -- see the comment there.
-        primary_stats = await self._exercises.list_primary_target_stats(
+        # Same movement_pattern membership-bucketing as _pick_main -- see the
+        # comment there.
+        patterns_by_exercise = await self._exercises.list_movement_patterns_by_exercise(
             [exercise.id for exercise in eligible]
         )
-        by_stat: dict[TargetStat, list[Exercise]] = defaultdict(list)
+        by_pattern: dict[MovementPattern, list[Exercise]] = defaultdict(list)
         for exercise in eligible:
-            stat = primary_stats.get(exercise.id)
-            if stat is not None:
-                by_stat[stat].append(exercise)
+            for pattern in patterns_by_exercise.get(exercise.id, ()):
+                by_pattern[pattern].append(exercise)
 
         picked: list[Exercise] = []
-        stats = list(TargetStat)
-        random.shuffle(stats)
-        for stat in stats:
+        picked_ids: set[uuid.UUID] = set()
+        patterns = list(MovementPattern)
+        random.shuffle(patterns)
+        for pattern in patterns:
             if len(picked) >= count:
                 break
-            stat_pool = by_stat.get(stat)
-            if not stat_pool:
+            pattern_pool = [e for e in by_pattern.get(pattern, ()) if e.id not in picked_ids]
+            if not pattern_pool:
                 continue
-            picked.append(random.choice(stat_pool))
+            choice = random.choice(pattern_pool)
+            picked.append(choice)
+            picked_ids.add(choice.id)
         return picked
 
     async def ensure_day_plan_for_date(self, user: User, target_date: date) -> DayPlan:
@@ -710,13 +739,22 @@ class ScheduleService:
         return next(dp for dp in weekly_plan.day_plans if dp.date == target_date)
 
     async def replace_day_plan_content(
-        self, day_plan: DayPlan, exercise_ids: list[uuid.UUID]
+        self, day_plan: DayPlan, exercise_ids: list[uuid.UUID], user: User
     ) -> None:
-        """Overwrite day_plan's TrainingSession with one MAIN-phase block per
-        exercise_id (in order) -- used to materialize a party's finalized
-        exercise set into a member's own plan, replacing whatever was there
-        (rest, a fresh REST placeholder from ensure_day_plan_for_date, or an
-        untouched personal session) exactly once per confirm/late-join.
+        """Overwrite day_plan's TrainingSession with the party's finalized
+        MAIN-phase exercises plus a warmup/cooldown picked for `user`
+        specifically -- same pattern-matching-against-MAIN approach
+        _build_training_session uses for solo sessions (Phase 3), narrowed
+        to this member's own equipment/level/current block phase. Used to
+        materialize a party's finalized exercise set into a member's own
+        plan, replacing whatever was there (rest, a fresh REST placeholder
+        from ensure_day_plan_for_date, or an untouched personal session)
+        exactly once per confirm/late-join.
+
+        A co-op session used to be MAIN-only, with no warmup/cooldown at
+        all -- every member picks their own here rather than sharing one,
+        since equipment/level/block phase can differ member to member even
+        though the MAIN exercises are identical for everyone.
 
         Same explicit delete-then-flush-then-attach as _patch_weekly_plan,
         and for the same reason: TrainingSession.day_plan_id is unique and
@@ -729,10 +767,37 @@ class ScheduleService:
             day_plan.training_session = None
 
         day_plan.session_type = DaySessionType.OFF_ICE
-        blocks = [
-            SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise_id, order=i)
-            for i, exercise_id in enumerate(exercise_ids)
-        ]
+
+        training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
+        block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
+        main_patterns = await self._movement_patterns_union(exercise_ids)
+        warmup = await self._pick_single(
+            TrainingPhase.WARMUP,
+            ExerciseCategory.OFF_ICE,
+            user,
+            block_phase,
+            preferred_patterns=main_patterns,
+        )
+        cooldown = await self._pick_single(
+            TrainingPhase.COOLDOWN,
+            ExerciseCategory.OFF_ICE,
+            user,
+            block_phase,
+            preferred_patterns=main_patterns,
+        )
+
+        # Same running-order idiom as _build_training_session -- order runs
+        # across the whole session, not reset per phase.
+        blocks: list[SessionBlock] = []
+        if warmup is not None:
+            blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=warmup.id, order=len(blocks)))
+        for exercise_id in exercise_ids:
+            blocks.append(SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise_id, order=len(blocks)))
+        if cooldown is not None:
+            blocks.append(
+                SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=cooldown.id, order=len(blocks))
+            )
+
         day_plan.training_session = TrainingSession(blocks=blocks)
         await self._session.flush()
 

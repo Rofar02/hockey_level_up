@@ -4,6 +4,10 @@ cumulative capability (gym implies home implies bodyweight, see
 _EQUIPMENT_REACH) rather than list_for_assembly's single-user exact match --
 see that method's docstring for why -- and difficulty is capped at the
 weakest member's ceiling, never relaxed.
+
+Diversity is bucketed by movement_pattern, not target_stat (see
+ScheduleService._pick_main's docstring for why) -- exercises below are
+tagged with ExerciseMovementPattern, not ExerciseTargetStat.
 """
 import uuid
 
@@ -13,19 +17,19 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
-    ExerciseTargetStat,
-    TargetStat,
+    ExerciseMovementPattern,
+    MovementPattern,
     TrainingPhase,
 )
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
 
-# _CLEAN_STATS no longer buys real isolation on its own -- the 90-exercise
+# _CLEAN_PATTERNS no longer buys real isolation on its own -- the 90-exercise
 # import (see static/exercise_import_review.json) added real off_ice/MAIN
-# exercises with INTELLECT among their target_stats, so every test below
-# now also stubs list_exercises via _isolate (see below) rather than
-# relying on any stat being untouched by the real catalog.
-_CLEAN_STATS = (TargetStat.INTELLECT, TargetStat.ON_ICE_SKATING, TargetStat.PUCK_HANDLING)
+# exercises tagged with these too, so every test below now also stubs
+# list_exercises via _isolate (see below) rather than relying on any pattern
+# being untouched by the real catalog.
+_CLEAN_PATTERNS = (MovementPattern.WRIST_MOBILITY, MovementPattern.SHOULDER_MOBILITY, MovementPattern.CORE)
 
 
 def _isolate(service: ScheduleService, exercises: dict) -> None:
@@ -60,13 +64,13 @@ def _make_user(**overrides) -> User:
     return User(**defaults)
 
 
-def _make_exercise(**overrides) -> tuple[Exercise, ExerciseTargetStat]:
-    # target_stat isn't a real Exercise field anymore (see
-    # ExerciseTargetStat) -- popped here and returned as a companion
-    # order=0 row the caller must also add to the session, since
-    # suggest_party_exercises now buckets on a real ExerciseTargetStat
-    # query, not an in-memory attribute.
-    target_stat = overrides.pop("target_stat", TargetStat.STRENGTH)
+def _make_exercise(**overrides) -> tuple[Exercise, ExerciseMovementPattern]:
+    # movement_pattern isn't a real Exercise field (see
+    # ExerciseMovementPattern) -- popped here and returned as a companion
+    # row the caller must also add to the session, since suggest_party_exercises
+    # now buckets on a real ExerciseMovementPattern query, not an in-memory
+    # attribute.
+    movement_pattern = overrides.pop("movement_pattern", MovementPattern.SQUAT)
     defaults = dict(
         id=uuid.uuid4(),
         name=f"Exercise {uuid.uuid4().hex[:8]}",
@@ -77,11 +81,11 @@ def _make_exercise(**overrides) -> tuple[Exercise, ExerciseTargetStat]:
     )
     defaults.update(overrides)
     exercise = Exercise(**defaults)
-    return exercise, ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0)
+    return exercise, ExerciseMovementPattern(exercise_id=exercise.id, movement_pattern=movement_pattern)
 
 
 def _add(db_session, *items) -> None:
-    """Add a mix of plain models, (Exercise, ExerciseTargetStat) pairs, and
+    """Add a mix of plain models, (Exercise, ExerciseMovementPattern) pairs, and
     lists of either to the session -- flattens pairs so callers can pass
     _make_exercise(...)'s return value directly alongside plain User rows."""
     flat: list = []
@@ -100,12 +104,15 @@ async def test_equipment_without_common_ground_excludes_gym_only_exercise(db_ses
     """A gym-only exercise is dropped once a bodyweight-only member is in the
     party, even though a gym member alone would see it -- the member without
     the equipment excludes it from the shared set. Both exercises share one
-    (clean) target_stat so they compete in the same stat pool -- proves the
-    exclusion is about equipment, not just "different stat got picked"."""
+    (clean) movement_pattern so they compete in the same pattern pool --
+    proves the exclusion is about equipment, not just "different pattern got
+    picked"."""
     gym_user = _make_user(equipment_access=EquipmentType.GYM)
     bodyweight_user = _make_user(equipment_access=EquipmentType.BODYWEIGHT)
-    gym_only, gym_only_stat = _make_exercise(equipment_type=EquipmentType.GYM, target_stat=_CLEAN_STATS[0])
-    _add(db_session, gym_user, bodyweight_user, (gym_only, gym_only_stat))
+    gym_only, gym_only_pattern = _make_exercise(
+        equipment_type=EquipmentType.GYM, movement_pattern=_CLEAN_PATTERNS[0]
+    )
+    _add(db_session, gym_user, bodyweight_user, (gym_only, gym_only_pattern))
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -122,10 +129,10 @@ async def test_equipment_common_ground_is_shared(db_session) -> None:
     it, unlike the gym-only case above."""
     gym_user = _make_user(equipment_access=EquipmentType.GYM)
     bodyweight_user = _make_user(equipment_access=EquipmentType.BODYWEIGHT)
-    shared_bodyweight, shared_bodyweight_stat = _make_exercise(
-        equipment_type=EquipmentType.BODYWEIGHT, target_stat=_CLEAN_STATS[0]
+    shared_bodyweight, shared_bodyweight_pattern = _make_exercise(
+        equipment_type=EquipmentType.BODYWEIGHT, movement_pattern=_CLEAN_PATTERNS[0]
     )
-    _add(db_session, gym_user, bodyweight_user, (shared_bodyweight, shared_bodyweight_stat))
+    _add(db_session, gym_user, bodyweight_user, (shared_bodyweight, shared_bodyweight_pattern))
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -138,8 +145,10 @@ async def test_equipment_common_ground_is_shared(db_session) -> None:
 @pytest.mark.asyncio
 async def test_gym_member_alone_gets_the_gym_exercise(db_session) -> None:
     gym_user = _make_user(equipment_access=EquipmentType.GYM)
-    gym_only, gym_only_stat = _make_exercise(equipment_type=EquipmentType.GYM, target_stat=_CLEAN_STATS[0])
-    _add(db_session, gym_user, (gym_only, gym_only_stat))
+    gym_only, gym_only_pattern = _make_exercise(
+        equipment_type=EquipmentType.GYM, movement_pattern=_CLEAN_PATTERNS[0]
+    )
+    _add(db_session, gym_user, (gym_only, gym_only_pattern))
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -154,13 +163,13 @@ async def test_difficulty_cap_uses_the_weakest_member(db_session) -> None:
     """level<8 caps difficulty at 2 (see max_difficulty_for_level) -- pairing
     a low-level member with a high-level one must still respect the low
     member's cap, never the high one's. Both exercises share one (clean)
-    target_stat so they compete in the same stat pool -- proves the
-    exclusion is about difficulty, not just "different stat got picked"."""
+    movement_pattern so they compete in the same pattern pool -- proves the
+    exclusion is about difficulty, not just "different pattern got picked"."""
     weak = _make_user(level=1)
     strong = _make_user(level=20)
-    easy, easy_stat = _make_exercise(difficulty_level=2, target_stat=_CLEAN_STATS[0])
-    hard, hard_stat = _make_exercise(difficulty_level=5, target_stat=_CLEAN_STATS[0])
-    _add(db_session, weak, strong, (easy, easy_stat), (hard, hard_stat))
+    easy, easy_pattern = _make_exercise(difficulty_level=2, movement_pattern=_CLEAN_PATTERNS[0])
+    hard, hard_pattern = _make_exercise(difficulty_level=5, movement_pattern=_CLEAN_PATTERNS[0])
+    _add(db_session, weak, strong, (easy, easy_pattern), (hard, hard_pattern))
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -172,10 +181,10 @@ async def test_difficulty_cap_uses_the_weakest_member(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_covers_distinct_target_stats(db_session) -> None:
+async def test_covers_distinct_movement_patterns(db_session) -> None:
     user = _make_user()
-    pairs = [_make_exercise(target_stat=stat) for stat in _CLEAN_STATS]
-    stat_by_id = {exercise.id: stat for (exercise, _), stat in zip(pairs, _CLEAN_STATS)}
+    pairs = [_make_exercise(movement_pattern=pattern) for pattern in _CLEAN_PATTERNS]
+    pattern_by_id = {exercise.id: pattern for (exercise, _), pattern in zip(pairs, _CLEAN_PATTERNS)}
     _add(db_session, user, pairs)
     await db_session.flush()
 
@@ -183,17 +192,17 @@ async def test_covers_distinct_target_stats(db_session) -> None:
     _isolate(service, {e.id: e for e, _ in pairs})
     suggested = await service.suggest_party_exercises([user], count=6)
 
-    stats = {stat_by_id[e.id] for e in suggested if e.id in stat_by_id}
-    assert stats == set(_CLEAN_STATS)
+    patterns = {pattern_by_id[e.id] for e in suggested if e.id in pattern_by_id}
+    assert patterns == set(_CLEAN_PATTERNS)
 
 
 @pytest.mark.asyncio
 async def test_on_ice_exercises_are_never_suggested(db_session) -> None:
     user = _make_user()
-    on_ice, on_ice_stat = _make_exercise(
-        category=ExerciseCategory.ON_ICE, target_stat=TargetStat.ON_ICE_SKATING
+    on_ice, on_ice_pattern = _make_exercise(
+        category=ExerciseCategory.ON_ICE, movement_pattern=MovementPattern.LOCOMOTION
     )
-    _add(db_session, user, (on_ice, on_ice_stat))
+    _add(db_session, user, (on_ice, on_ice_pattern))
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -207,8 +216,13 @@ async def test_on_ice_exercises_are_never_suggested(db_session) -> None:
 async def test_respects_count(db_session) -> None:
     user = _make_user()
     pairs = [
-        _make_exercise(target_stat=stat)
-        for stat in (TargetStat.STRENGTH, TargetStat.AGILITY, TargetStat.ENDURANCE, TargetStat.INTELLECT)
+        _make_exercise(movement_pattern=pattern)
+        for pattern in (
+            MovementPattern.HIP_HINGE,
+            MovementPattern.SQUAT,
+            MovementPattern.PULL,
+            MovementPattern.PUSH,
+        )
     ]
     _add(db_session, user, pairs)
     await db_session.flush()

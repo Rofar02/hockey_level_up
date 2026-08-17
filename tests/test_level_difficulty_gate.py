@@ -26,12 +26,25 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
+    ExerciseMovementPattern,
     ExerciseTargetStat,
+    MovementPattern,
     TargetStat,
     TrainingPhase,
 )
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
+
+# _pick_main now buckets by movement_pattern, not target_stat -- see
+# test_schedule_service_pick_main.py's identical mapping/rationale. This
+# file's tests only ever assert on picked *names*/*counts*, never on exact
+# pattern-iteration order, so no random.shuffle patch is needed here.
+_STAT_TO_PATTERN: dict[TargetStat, MovementPattern] = {
+    TargetStat.STRENGTH: MovementPattern.HIP_HINGE,
+    TargetStat.AGILITY: MovementPattern.SQUAT,
+    TargetStat.INTELLECT: MovementPattern.PUSH,
+    TargetStat.ENDURANCE: MovementPattern.PULL,
+}
 
 
 def _make_user(level: int) -> User:
@@ -59,6 +72,12 @@ def _make_exercise(name: str, target_stat: TargetStat, difficulty_level: int) ->
 
 def _stat(exercise: Exercise, target_stat: TargetStat) -> ExerciseTargetStat:
     return ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0)
+
+
+def _pattern(exercise: Exercise, target_stat: TargetStat) -> ExerciseMovementPattern:
+    return ExerciseMovementPattern(
+        exercise_id=exercise.id, movement_pattern=_STAT_TO_PATTERN[target_stat]
+    )
 
 
 def _isolate_candidates(service: ScheduleService, exercises: dict[str, Exercise]) -> None:
@@ -103,6 +122,12 @@ async def test_low_level_user_never_gets_difficulty_above_2(db_session) -> None:
         _stat(hard, TargetStat.STRENGTH),
         _stat(very_hard, TargetStat.STRENGTH),
     ])
+    db_session.add_all([
+        _pattern(easy, TargetStat.STRENGTH),
+        _pattern(mid_easy, TargetStat.STRENGTH),
+        _pattern(hard, TargetStat.STRENGTH),
+        _pattern(very_hard, TargetStat.STRENGTH),
+    ])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -132,6 +157,12 @@ async def test_mid_level_user_gets_up_to_3_not_4_or_5(db_session) -> None:
         _stat(hard, TargetStat.STRENGTH),
         _stat(very_hard, TargetStat.STRENGTH),
     ])
+    db_session.add_all([
+        _pattern(easy, TargetStat.STRENGTH),
+        _pattern(mid, TargetStat.STRENGTH),
+        _pattern(hard, TargetStat.STRENGTH),
+        _pattern(very_hard, TargetStat.STRENGTH),
+    ])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -157,6 +188,7 @@ async def test_high_level_user_can_get_any_difficulty(db_session) -> None:
     easy = _make_exercise("Easy", TargetStat.AGILITY, 1)
     db_session.add_all([very_hard, easy])
     db_session.add_all([_stat(very_hard, TargetStat.STRENGTH), _stat(easy, TargetStat.AGILITY)])
+    db_session.add_all([_pattern(very_hard, TargetStat.STRENGTH), _pattern(easy, TargetStat.AGILITY)])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -175,6 +207,7 @@ async def test_boundary_level_8_allows_difficulty_3_but_not_4(db_session) -> Non
     hard = _make_exercise("Hard", TargetStat.STRENGTH, 4)
     db_session.add_all([mid, hard])
     db_session.add_all([_stat(mid, TargetStat.STRENGTH), _stat(hard, TargetStat.STRENGTH)])
+    db_session.add_all([_pattern(mid, TargetStat.STRENGTH), _pattern(hard, TargetStat.STRENGTH)])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -198,6 +231,7 @@ async def test_boundary_level_15_is_uncapped_level_14_still_capped(
     hard = _make_exercise("Hard", TargetStat.STRENGTH, 5)
     db_session.add_all([mid, hard])
     db_session.add_all([_stat(mid, TargetStat.STRENGTH), _stat(hard, TargetStat.STRENGTH)])
+    db_session.add_all([_pattern(mid, TargetStat.STRENGTH), _pattern(hard, TargetStat.STRENGTH)])
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -233,6 +267,9 @@ async def test_level_cap_is_not_overridden_by_skilltag_priority(db_session) -> N
     db_session.add_all([
         _stat(easy_untagged, TargetStat.STRENGTH), _stat(hard_tagged, TargetStat.STRENGTH),
     ])
+    db_session.add_all([
+        _pattern(easy_untagged, TargetStat.STRENGTH), _pattern(hard_tagged, TargetStat.STRENGTH),
+    ])
     await db_session.flush()
 
     skill = Skill(id=uuid.uuid4(), name=f"Test skill {uuid.uuid4().hex[:8]}")
@@ -267,6 +304,7 @@ async def test_fallback_when_stat_has_nothing_under_the_cap(
     only_hard = _make_exercise("Only-hard", TargetStat.ENDURANCE, 5)
     db_session.add(only_hard)
     db_session.add(_stat(only_hard, TargetStat.ENDURANCE))
+    db_session.add(_pattern(only_hard, TargetStat.ENDURANCE))
     await db_session.flush()
 
     service = ScheduleService(db_session)

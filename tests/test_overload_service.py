@@ -18,7 +18,9 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
+    ExerciseMovementPattern,
     ExerciseTargetStat,
+    MovementPattern,
     TargetStat,
     TrainingPhase,
 )
@@ -261,6 +263,13 @@ async def test_structural_throttle_narrows_exercise_selection(db_session) -> Non
     db_session.add_all([
         ExerciseTargetStat(exercise_id=capped_out.id, target_stat=TargetStat.STRENGTH, order=0),
         ExerciseTargetStat(exercise_id=survives.id, target_stat=TargetStat.STRENGTH, order=0),
+    ])
+    # _pick_main now buckets by movement_pattern, not target_stat -- both
+    # need to share one so they still compete in the same pool, same intent
+    # as sharing TargetStat.STRENGTH above.
+    db_session.add_all([
+        ExerciseMovementPattern(exercise_id=capped_out.id, movement_pattern=MovementPattern.HIP_HINGE),
+        ExerciseMovementPattern(exercise_id=survives.id, movement_pattern=MovementPattern.HIP_HINGE),
     ])
     await db_session.flush()
 

@@ -10,7 +10,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi import HTTPException
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, MovementPattern, TrainingPhase
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
 from app.schemas.training_party import TrainingPartyCreate
@@ -123,8 +123,14 @@ async def test_confirm_materializes_same_exercise_ids_for_every_joined_member(db
         day_plan = await service._schedule.get_day_plan_for_date(user.id, TOMORROW)
         assert day_plan is not None
         assert day_plan.session_type == DaySessionType.OFF_ICE
-        exercise_ids = [b.exercise_id for b in day_plan.training_session.blocks]
-        assert exercise_ids == [exercise_a.id, exercise_b.id]
+        # Filtered to MAIN -- replace_day_plan_content also picks a
+        # warmup/cooldown per member now (see
+        # test_replace_day_plan_content_adds_warmup_and_cooldown), so the
+        # full blocks list isn't just the confirmed MAIN set anymore.
+        main_ids = [
+            b.exercise_id for b in day_plan.training_session.blocks if b.phase == TrainingPhase.MAIN
+        ]
+        assert main_ids == [exercise_a.id, exercise_b.id]
 
 
 @pytest.mark.asyncio
@@ -142,7 +148,10 @@ async def test_confirm_replaces_a_rest_day(db_session) -> None:
 
     day_plan = await service._schedule.get_day_plan_for_date(bob.id, TOMORROW)
     assert day_plan.session_type == DaySessionType.OFF_ICE
-    assert [b.exercise_id for b in day_plan.training_session.blocks] == [exercise.id]
+    main_ids = [
+        b.exercise_id for b in day_plan.training_session.blocks if b.phase == TrainingPhase.MAIN
+    ]
+    assert main_ids == [exercise.id]
 
 
 @pytest.mark.asyncio
@@ -163,7 +172,10 @@ async def test_confirm_builds_a_plan_from_scratch_when_member_has_none(db_sessio
     day_plan = await service._schedule.get_day_plan_for_date(bob.id, TOMORROW)
     assert day_plan is not None
     assert day_plan.session_type == DaySessionType.OFF_ICE
-    assert [b.exercise_id for b in day_plan.training_session.blocks] == [exercise.id]
+    main_ids = [
+        b.exercise_id for b in day_plan.training_session.blocks if b.phase == TrainingPhase.MAIN
+    ]
+    assert main_ids == [exercise.id]
 
 
 # -- join blocked by an already-completed training that day --
@@ -234,7 +246,10 @@ async def test_member_joining_after_finalization_gets_the_same_set(db_session) -
 
     carol_day_plan = await service._schedule.get_day_plan_for_date(carol.id, TOMORROW)
     assert carol_day_plan is not None
-    assert [b.exercise_id for b in carol_day_plan.training_session.blocks] == [exercise.id]
+    main_ids = [
+        b.exercise_id for b in carol_day_plan.training_session.blocks if b.phase == TrainingPhase.MAIN
+    ]
+    assert main_ids == [exercise.id]
 
 
 # -- suggest/confirm authorization --
@@ -257,6 +272,68 @@ async def test_only_creator_can_suggest_or_confirm(db_session) -> None:
     with pytest.raises(HTTPException) as exc_info:
         await service.confirm_exercises(bob, party.id, [exercise.id])
     assert exc_info.value.status_code == 403
+
+
+# -- warmup/cooldown --
+
+
+@pytest.mark.asyncio
+async def test_replace_day_plan_content_adds_warmup_and_cooldown(db_session) -> None:
+    """A co-op session used to be MAIN-only (see backlog item #2) -- now
+    every member also gets a warmup/cooldown of their own, same
+    pattern-matching-against-MAIN as a solo session's (Phase 3), picked
+    per-member rather than shared."""
+    alice = _make_user()
+    bob = _make_user()
+    main = _make_exercise(name="Confirmed main squat")
+    warmup = _make_exercise(name="Warmup squat mobility", phase=TrainingPhase.WARMUP)
+    cooldown = _make_exercise(name="Cooldown squat stretch", phase=TrainingPhase.COOLDOWN)
+    db_session.add_all([alice, bob, main, warmup, cooldown])
+    await db_session.flush()
+    party = await _make_party(db_session, alice, bob)
+
+    service = TrainingPartyService(db_session)
+    exercises_by_phase = {
+        TrainingPhase.MAIN: [main],
+        TrainingPhase.WARMUP: [warmup],
+        TrainingPhase.COOLDOWN: [cooldown],
+    }
+
+    async def fake_list_for_assembly(
+        *, phase, equipment_access, category=None, suitable_for_game_day=None
+    ):
+        return exercises_by_phase.get(phase, [])
+
+    async def fake_list_movement_patterns_by_exercise(exercise_ids):
+        return {
+            exercise.id: [MovementPattern.SQUAT]
+            for exercises in exercises_by_phase.values()
+            for exercise in exercises
+            if exercise.id in exercise_ids
+        }
+
+    service._schedule_service._exercises.list_for_assembly = fake_list_for_assembly
+    service._schedule_service._exercises.list_movement_patterns_by_exercise = (
+        fake_list_movement_patterns_by_exercise
+    )
+
+    await service.confirm_exercises(alice, party.id, [main.id])
+
+    for user in (alice, bob):
+        day_plan = await service._schedule.get_day_plan_for_date(user.id, TOMORROW)
+        blocks_by_phase = {b.phase: b.exercise_id for b in day_plan.training_session.blocks}
+        assert blocks_by_phase == {
+            TrainingPhase.WARMUP: warmup.id,
+            TrainingPhase.MAIN: main.id,
+            TrainingPhase.COOLDOWN: cooldown.id,
+        }
+        # storage order runs warmup -> main -> cooldown, same as a solo
+        # session's _build_training_session.
+        assert [b.phase for b in day_plan.training_session.blocks] == [
+            TrainingPhase.WARMUP,
+            TrainingPhase.MAIN,
+            TrainingPhase.COOLDOWN,
+        ]
 
 
 @pytest.mark.asyncio

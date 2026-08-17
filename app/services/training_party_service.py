@@ -5,6 +5,7 @@ from typing import NamedTuple
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.exercise import TrainingPhase
 from app.models.schedule import DayPlan, DaySessionType
 from app.models.training_party import TrainingParty, TrainingPartyMemberStatus, TrainingPartyStatus
 from app.models.user import User
@@ -393,7 +394,7 @@ class TrainingPartyService:
                 return  # already trained something else that day -- don't clobber it
         else:
             day_plan = await self._schedule_service.ensure_day_plan_for_date(member_user, target_date)
-        await self._schedule_service.replace_day_plan_content(day_plan, exercise_ids)
+        await self._schedule_service.replace_day_plan_content(day_plan, exercise_ids, member_user)
 
     async def _canonical_exercise_ids(self, party: TrainingParty) -> list[uuid.UUID]:
         """The finalized set, read back from whichever joined member's own
@@ -402,13 +403,25 @@ class TrainingPartyService:
         source of truth once exercises_finalized_at is set. Checks the
         creator first (present unless declined via a GAME day on their own
         target_date) and falls back to any other joined member's blocks.
+
+        Filtered to MAIN-phase blocks only -- replace_day_plan_content now
+        also attaches a warmup/cooldown picked per-member (so different
+        members can end up with different ones), which must never leak into
+        what confirm_exercises originally confirmed: this feeds both the
+        finalized-exercises read and _materialize_for_member for late
+        joiners, either of which would otherwise re-confirm a warmup/
+        cooldown exercise as if it were part of the shared MAIN set.
         """
         joined_users = await self._joined_users(party.id)
         joined_users.sort(key=lambda member_user: member_user.id != party.created_by)
         for member_user in joined_users:
             day_plan = await self._schedule.get_day_plan_for_date(member_user.id, party.target_date)
             if day_plan is not None and day_plan.training_session is not None:
-                blocks = day_plan.training_session.blocks
+                blocks = [
+                    block
+                    for block in day_plan.training_session.blocks
+                    if block.phase == TrainingPhase.MAIN
+                ]
                 if blocks:
                     return [block.exercise_id for block in blocks]
         return []

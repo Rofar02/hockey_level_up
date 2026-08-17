@@ -22,7 +22,9 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
+    ExerciseMovementPattern,
     ExerciseTargetStat,
+    MovementPattern,
     TargetStat,
     TrainingPhase,
 )
@@ -35,6 +37,22 @@ from app.services.schedule_service import ScheduleService
 def deterministic_random(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(random, "randint", lambda a, b: 3)
     monkeypatch.setattr(random, "choice", lambda pool: sorted(pool, key=lambda e: e.name)[0])
+    # _pick_main now shuffles movement_pattern iteration order (see its
+    # docstring) -- a no-op here keeps this file's assertions on exact pick
+    # order deterministic, same intent as the randint/choice patches above.
+    monkeypatch.setattr(random, "shuffle", lambda seq: None)
+
+
+# _pick_main now buckets by movement_pattern, not target_stat (see its
+# docstring) -- this maps each stat "role" this file already uses to a
+# distinct pattern in MovementPattern's declared order, so the no-shuffle
+# patch above still visits them target_stat-equivalent-first/second/third,
+# preserving every existing assertion's expected order.
+_STAT_TO_PATTERN: dict[TargetStat, MovementPattern] = {
+    TargetStat.STRENGTH: MovementPattern.HIP_HINGE,
+    TargetStat.AGILITY: MovementPattern.SQUAT,
+    TargetStat.INTELLECT: MovementPattern.PUSH,
+}
 
 
 def _make_user() -> User:
@@ -81,6 +99,12 @@ async def _seed_candidates(db_session) -> dict[str, Exercise]:
     db_session.add_all(exercises.values())
     db_session.add_all([
         ExerciseTargetStat(exercise_id=exercises[key].id, target_stat=stat, order=0)
+        for key, stat in _CANDIDATE_STATS.items()
+    ])
+    db_session.add_all([
+        ExerciseMovementPattern(
+            exercise_id=exercises[key].id, movement_pattern=_STAT_TO_PATTERN[stat]
+        )
         for key, stat in _CANDIDATE_STATS.items()
     ])
     await db_session.flush()

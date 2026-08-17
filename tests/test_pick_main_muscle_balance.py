@@ -28,7 +28,9 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
+    ExerciseMovementPattern,
     ExerciseTargetStat,
+    MovementPattern,
     MuscleGroup,
     TargetStat,
     TrainingPhase,
@@ -42,6 +44,19 @@ from app.services.schedule_service import ScheduleService
 def deterministic_random(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(random, "randint", lambda a, b: 3)
     monkeypatch.setattr(random, "choice", lambda pool: sorted(pool, key=lambda e: e.name)[0])
+    # _pick_main now shuffles movement_pattern iteration order (see its
+    # docstring) -- a no-op here keeps this file's assertions on exact pick
+    # order deterministic, same intent as the randint/choice patches above.
+    monkeypatch.setattr(random, "shuffle", lambda seq: None)
+
+
+# _pick_main now buckets by movement_pattern, not target_stat -- see
+# test_schedule_service_pick_main.py's identical mapping/rationale.
+_STAT_TO_PATTERN: dict[TargetStat, MovementPattern] = {
+    TargetStat.STRENGTH: MovementPattern.HIP_HINGE,
+    TargetStat.AGILITY: MovementPattern.SQUAT,
+    TargetStat.INTELLECT: MovementPattern.PUSH,
+}
 
 
 def _make_user() -> User:
@@ -61,7 +76,7 @@ def _make_exercise(
     *,
     category: ExerciseCategory = ExerciseCategory.OFF_ICE,
     muscle_group: MuscleGroup | None = None,
-) -> tuple[Exercise, ExerciseTargetStat]:
+) -> tuple[Exercise, ExerciseTargetStat, ExerciseMovementPattern]:
     exercise = Exercise(
         id=uuid.uuid4(),
         name=name,
@@ -71,13 +86,22 @@ def _make_exercise(
         equipment_type=EquipmentType.BODYWEIGHT,
         muscle_group=muscle_group,
     )
-    return exercise, ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0)
+    return (
+        exercise,
+        ExerciseTargetStat(exercise_id=exercise.id, target_stat=target_stat, order=0),
+        ExerciseMovementPattern(
+            exercise_id=exercise.id, movement_pattern=_STAT_TO_PATTERN[target_stat]
+        ),
+    )
 
 
-def _add_all(db_session, pairs: list[tuple[Exercise, ExerciseTargetStat]]) -> list[Exercise]:
-    db_session.add_all([e for e, _ in pairs])
-    db_session.add_all([s for _, s in pairs])
-    return [e for e, _ in pairs]
+def _add_all(
+    db_session, triples: list[tuple[Exercise, ExerciseTargetStat, ExerciseMovementPattern]]
+) -> list[Exercise]:
+    db_session.add_all([e for e, _, _ in triples])
+    db_session.add_all([s for _, s, _ in triples])
+    db_session.add_all([p for _, _, p in triples])
+    return [e for e, _, _ in triples]
 
 
 def _isolate_candidates(service: ScheduleService, exercises: list[Exercise]) -> None:
