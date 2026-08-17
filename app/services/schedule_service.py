@@ -343,16 +343,23 @@ class ScheduleService:
             TrainingPhase.COOLDOWN, category, user, block_phase, preferred_patterns=main_patterns
         )
 
+        # order runs across the whole session, not reset per phase (same
+        # len(blocks) idiom _build_game_day_session already uses below) --
+        # resetting it per phase left every session with warmup/main[0]/
+        # cooldown all sharing order=0, which made TrainingSession.blocks'
+        # order_by="SessionBlock.order" (a single global sort) fall back to
+        # whatever tiebreak order the DB happened to return them in instead
+        # of the intended warmup-then-main-then-cooldown sequence.
         blocks: list[SessionBlock] = []
         if warmup is not None:
-            blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=warmup.id, order=0))
+            blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=warmup.id, order=len(blocks)))
 
-        for i, exercise in enumerate(main_exercises):
-            blocks.append(SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=i))
+        for exercise in main_exercises:
+            blocks.append(SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=len(blocks)))
 
         if cooldown is not None:
             blocks.append(
-                SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=cooldown.id, order=0)
+                SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=cooldown.id, order=len(blocks))
             )
 
         return TrainingSession(blocks=blocks)
