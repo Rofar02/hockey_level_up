@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal'
 import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
 import { ExerciseTechnique } from '../components/ExerciseTechnique'
 import * as scheduleApi from '../api/schedule'
+import * as sessionBlocksApi from '../api/sessionBlocks'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { ExerciseRead } from '../types/exercise'
@@ -197,9 +198,14 @@ export function NewSchedulePage() {
   // day's expanded list. Deliberately a single top-level modal, not nested
   // inside DayPreviewModal or an inline panel's own modal: this app has no
   // precedent anywhere for one Modal opening from inside another.
+  // Holds the whole block (not just its exercise) plus which day it
+  // belongs to -- both needed by handleBlockCompleted below to call
+  // POST /session-blocks/{id}/complete and patch the right row's
+  // trainingSession.blocks once the last set is logged.
   const [selectedExercise, setSelectedExercise] = useState<{
-    exercise: ExerciseRead
+    block: SessionBlockRead
     trainingSessionId: string
+    dayIsoDate: string
   } | null>(null)
 
   useEffect(() => {
@@ -395,6 +401,44 @@ export function NewSchedulePage() {
     }
   }
 
+  // Mirrors TrainingSessionPage's handleComplete -- this is the same
+  // POST /session-blocks/{id}/complete call, just reached from a started
+  // day viewed via the weekly schedule instead of the dedicated session
+  // page. Without it, ExerciseDetailModal's SetLogger happily logs every
+  // set here (it's the same real component, not a read-only view), but the
+  // block itself never gets marked complete and the block_completed event
+  // (stat/XP/streak gain) never fires -- logging "through the Week page"
+  // silently didn't count.
+  async function handleBlockCompleted(dayIsoDate: string, block: SessionBlockRead) {
+    if (accessToken === null || block.completed_at !== null) {
+      return
+    }
+    setSubmitError(null)
+    try {
+      const updated = await sessionBlocksApi.completeSessionBlock(block.id, accessToken)
+      setRows((previous) =>
+        previous.map((row) => {
+          if (row.isoDate !== dayIsoDate || row.trainingSession === null) {
+            return row
+          }
+          const blocks = row.trainingSession.blocks.map((b) => (b.id === updated.id ? updated : b))
+          return {
+            ...row,
+            trainingSession: { ...row.trainingSession, blocks },
+            completionStatus: completionStatusFromBlocks(blocks),
+          }
+        }),
+      )
+    } catch (err) {
+      // Same 409-tolerant handling as TrainingSessionPage.handleComplete --
+      // already completed server-side (e.g. double-open race) isn't a real
+      // error, just a stale local block.completed_at.
+      if (!(err instanceof ApiError && err.status === 409)) {
+        setSubmitError(err instanceof ApiError ? err.message : 'Не удалось отметить упражнение.')
+      }
+    }
+  }
+
   const previewIndex = previewIsoDate !== null ? rows.findIndex((row) => row.isoDate === previewIsoDate) : -1
   const previewRow = previewIndex !== -1 ? rows[previewIndex] : null
   const todayIso = toIsoDate(new Date())
@@ -532,8 +576,12 @@ export function NewSchedulePage() {
                     {isExpanded && trainingSession !== null && (
                       <StartedDayExerciseList
                         trainingSession={trainingSession}
-                        onSelectExercise={(exercise) =>
-                          setSelectedExercise({ exercise, trainingSessionId: trainingSession.id })
+                        onSelectExercise={(block) =>
+                          setSelectedExercise({
+                            block,
+                            trainingSessionId: trainingSession.id,
+                            dayIsoDate: row.isoDate,
+                          })
                         }
                       />
                     )}
@@ -541,6 +589,7 @@ export function NewSchedulePage() {
                 )
               })}
             </div>
+            <FormError message={submitError} />
             <Button variant="neutral" onClick={handleStartEditing} className="self-end">
               Изменить план
             </Button>
@@ -611,10 +660,13 @@ export function NewSchedulePage() {
 
         {selectedExercise !== null && accessToken !== null && (
           <ExerciseDetailModal
-            exercise={selectedExercise.exercise}
+            exercise={selectedExercise.block.exercise}
             trainingSessionId={selectedExercise.trainingSessionId}
             accessToken={accessToken}
             onClose={() => setSelectedExercise(null)}
+            onLastSetCompleted={() =>
+              handleBlockCompleted(selectedExercise.dayIsoDate, selectedExercise.block)
+            }
           />
         )}
       </div>
@@ -715,7 +767,7 @@ function StartedDayExerciseList({
   onSelectExercise,
 }: {
   trainingSession: TrainingSessionRead
-  onSelectExercise: (exercise: ExerciseRead) => void
+  onSelectExercise: (block: SessionBlockRead) => void
 }) {
   const warmup = trainingSession.blocks.filter((block) => block.phase === 'warmup')
   const main = trainingSession.blocks.filter((block) => block.phase === 'main')
@@ -743,7 +795,7 @@ function StartedDayPhaseSection({
 }: {
   title: string
   blocks: SessionBlockRead[]
-  onSelectExercise: (exercise: ExerciseRead) => void
+  onSelectExercise: (block: SessionBlockRead) => void
 }) {
   return (
     <div className="flex flex-col gap-2">
@@ -755,7 +807,7 @@ function StartedDayPhaseSection({
             <button
               key={block.id}
               type="button"
-              onClick={() => onSelectExercise(block.exercise)}
+              onClick={() => onSelectExercise(block)}
               className="-mx-2 flex items-center justify-between gap-3 rounded px-2 py-1 text-left transition-colors hover:bg-white/5"
             >
               <span className="flex min-w-0 items-center gap-2">
