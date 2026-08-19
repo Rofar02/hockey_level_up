@@ -19,7 +19,7 @@ import { useAuth } from '../hooks/useAuth'
 import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { TargetStat } from '../types/exercise'
 import type { LeaderboardMeRead } from '../types/leaderboard'
-import type { TrainingStreakRead, UserStatRead } from '../types/progress'
+import type { ActivityCalendarDayRead, TrainingStreakRead, UserStatRead } from '../types/progress'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { DayPlanRead, WeeklyPlanRead } from '../types/schedule'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
@@ -109,23 +109,12 @@ function isSessionDayCompleted(day: DayPlanRead): boolean {
   return blocks !== undefined && blocks.length > 0 && blocks.every((block) => block.completed_at !== null)
 }
 
-// TODO: there is no per-day activity history endpoint yet -- only
-// TrainingStreak.last_activity_date (a single date) and the *current*
-// week's WeeklyPlanRead are available on the frontend. Days inside the
-// loaded current week are marked accurately from real block completion;
-// every other day can only be checked against last_activity_date. A real
-// "/users/me/activity-calendar"-style endpoint is needed before the
-// calendar can show a genuine month-long history.
-function hasKnownActivity(
-  iso: string,
-  weeklyPlan: WeeklyPlanRead | null,
-  streak: TrainingStreakRead | null,
-): boolean {
-  const day = weeklyPlan?.day_plans.find((candidate) => candidate.date === iso)
-  if (day !== undefined) {
-    return isSessionDayCompleted(day)
-  }
-  return streak?.last_activity_date === iso
+// Backed by GET /users/me/activity-calendar (2026-08-19) -- real
+// per-day completion history for whatever month is currently loaded,
+// not just the current week's WeeklyPlanRead plus a single
+// TrainingStreak.last_activity_date guess for every other day.
+function hasKnownActivity(iso: string, calendarData: Record<string, ActivityCalendarDayRead>): boolean {
+  return calendarData[iso]?.fully_completed === true
 }
 
 function topSkillsNearMilestone(skills: SkillSummaryRead[]): SkillSummaryRead[] {
@@ -157,6 +146,7 @@ export function HomePage() {
 
   const [calendarExpanded, setCalendarExpanded] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()))
+  const [calendarData, setCalendarData] = useState<Record<string, ActivityCalendarDayRead>>({})
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
 
   const [selectedStatType, setSelectedStatType] = useState<TargetStat | null>(null)
@@ -215,6 +205,35 @@ export function HomePage() {
     }
   }, [accessToken])
 
+  // Only fetched once the panel is actually open (not on every dashboard
+  // load) and refetched whenever the visible month changes -- one request
+  // per month, not one per day like a naive per-cell fetch would be.
+  useEffect(() => {
+    if (accessToken === null || !calendarExpanded) {
+      return
+    }
+    let cancelled = false
+    progressApi
+      .getMyActivityCalendar(toIsoDate(calendarMonth), accessToken)
+      .then((days) => {
+        if (cancelled) {
+          return
+        }
+        const byDate: Record<string, ActivityCalendarDayRead> = {}
+        for (const day of days) {
+          byDate[day.date] = day
+        }
+        setCalendarData(byDate)
+      })
+      .catch(() => {
+        // Best-effort -- a failed fetch just leaves this month's cells
+        // unhighlighted rather than taking down the rest of the dashboard.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, calendarExpanded, calendarMonth])
+
   async function openSkillModal(skillId: string) {
     setSelectedSkillId(skillId)
     if (skillDetails[skillId] !== undefined || accessToken === null) {
@@ -269,7 +288,7 @@ export function HomePage() {
   const selectedDayPlan =
     selectedDay !== null ? weeklyPlan?.day_plans.find((day) => day.date === toIsoDate(selectedDay)) : undefined
   const selectedDayHasActivity =
-    selectedDay !== null && hasKnownActivity(toIsoDate(selectedDay), weeklyPlan, streak)
+    selectedDay !== null && hasKnownActivity(toIsoDate(selectedDay), calendarData)
   const selectedSkillName = skills?.find((skill) => skill.id === selectedSkillId)?.name ?? ''
   const selectedStat =
     selectedStatType !== null ? (stats?.find((stat) => stat.stat_type === selectedStatType) ?? null) : null
@@ -327,8 +346,7 @@ export function HomePage() {
           <CalendarPanel
             month={calendarMonth}
             onMonthChange={setCalendarMonth}
-            weeklyPlan={weeklyPlan}
-            streak={streak}
+            calendarData={calendarData}
             onSelectDay={setSelectedDay}
           />
         )}
@@ -646,14 +664,12 @@ function RatingRow({ me, onClick }: { me: LeaderboardMeRead; onClick: () => void
 function CalendarPanel({
   month,
   onMonthChange,
-  weeklyPlan,
-  streak,
+  calendarData,
   onSelectDay,
 }: {
   month: Date
   onMonthChange: (month: Date) => void
-  weeklyPlan: WeeklyPlanRead | null
-  streak: TrainingStreakRead | null
+  calendarData: Record<string, ActivityCalendarDayRead>
   onSelectDay: (date: Date) => void
 }) {
   const cells = buildMonthGrid(month)
@@ -695,7 +711,7 @@ function CalendarPanel({
             return <div key={index} />
           }
           const iso = toIsoDate(date)
-          const active = hasKnownActivity(iso, weeklyPlan, streak)
+          const active = hasKnownActivity(iso, calendarData)
           const isToday = iso === todayIso
           return (
             <button
@@ -733,9 +749,12 @@ function DayDetailModal({
       {dayPlan === undefined && (
         <p className="text-sm text-[#8A94A6]">
           {dayHasActivity
-            ? // Known from TrainingStreak.last_activity_date only -- no
-              // per-block breakdown available outside the current week, see
-              // the hasKnownActivity TODO above.
+            ? // Known from GET /users/me/activity-calendar (real, not just
+              // the current week) -- but that endpoint only reports a
+              // per-day boolean, not a block-by-block breakdown, and
+              // dayPlan is only populated for days inside the currently
+              // loaded WeeklyPlan, so a completed day outside that week
+              // still can't show its exercise list here.
               'В этот день была тренировка, но детали пока недоступны.'
             : 'Тренировки не было.'}
         </p>

@@ -1,4 +1,5 @@
 import uuid
+from datetime import date, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Header, Query, UploadFile, status
@@ -10,7 +11,13 @@ from app.models.user import User
 from app.routers.deps import get_current_user, require_premium
 from app.schemas.analytics import AnalyticsSummaryRead
 from app.schemas.coach_chat import CoachChatMessageCreate, CoachChatMessageRead, CoachChatReplyRead
-from app.schemas.progress import StatHistoryPointRead, StatHistoryRead, TrainingStreakRead, UserStatRead
+from app.schemas.progress import (
+    ActivityCalendarDayRead,
+    StatHistoryPointRead,
+    StatHistoryRead,
+    TrainingStreakRead,
+    UserStatRead,
+)
 from app.schemas.push_subscription import (
     PushSubscriptionCreate,
     PushSubscriptionDelete,
@@ -171,6 +178,35 @@ async def get_my_streak(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await ProgressService(session).get_streak(current_user.id)
+
+
+def _month_bounds(month: date) -> tuple[date, date]:
+    """(first day, last day) of the calendar month `month` falls in --
+    factored out from get_my_activity_calendar so the December-wraparound
+    edge (next month is January of the *next* year) has its own test
+    instead of only being exercised indirectly through the endpoint."""
+    from_date = month.replace(day=1)
+    to_date = (
+        date(month.year, month.month + 1, 1) if month.month < 12 else date(month.year + 1, 1, 1)
+    ) - timedelta(days=1)
+    return from_date, to_date
+
+
+@router.get("/me/activity-calendar", response_model=list[ActivityCalendarDayRead])
+async def get_my_activity_calendar(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    month: date = Query(..., description="Any date within the target month"),
+):
+    """Real completion history for a calendar month -- replaces the
+    frontend's old fallback of "current week's WeeklyPlan + a single
+    TrainingStreak.last_activity_date marker" (see HomePage.tsx's own
+    comment on why that was a stand-in, not the real thing).
+    """
+    from_date, to_date = _month_bounds(month)
+    return await ProgressService(session).get_activity_calendar(
+        current_user.id, from_date=from_date, to_date=to_date
+    )
 
 
 @router.get("/me/skill-preferences", response_model=list[UserSkillPreferenceRead])

@@ -1,9 +1,26 @@
 import { apiGet } from './client'
 import type { TargetStat } from '../types/exercise'
-import type { StatHistoryPointRead, TrainingStreakRead, UserStatRead } from '../types/progress'
+import type {
+  ActivityCalendarDayRead,
+  StatHistoryPointRead,
+  TrainingStreakRead,
+  UserStatRead,
+} from '../types/progress'
 
 export function getMyStreak(accessToken: string): Promise<TrainingStreakRead> {
   return apiGet<TrainingStreakRead>('/users/me/streak', accessToken)
+}
+
+// `month` is any date within the target month (e.g. the first of the
+// month) -- the backend resolves the actual [from, to] range itself.
+export function getMyActivityCalendar(
+  month: string,
+  accessToken: string,
+): Promise<ActivityCalendarDayRead[]> {
+  return apiGet<ActivityCalendarDayRead[]>(
+    `/users/me/activity-calendar?month=${month}`,
+    accessToken,
+  )
 }
 
 export function getMyStats(accessToken: string): Promise<UserStatRead[]> {

@@ -9,9 +9,14 @@ from app.models.exercise import TargetStat
 from app.models.progress import TrainingStreak, UserStat
 from app.models.user import User
 from app.repositories.progress_repository import ProgressRepository
-from app.schemas.progress import StatHistoryPointRead, StatHistoryRead, UserStatRead
+from app.schemas.progress import (
+    ActivityCalendarDayRead,
+    StatHistoryPointRead,
+    StatHistoryRead,
+    UserStatRead,
+)
 from app.services.stat_service import get_effective_value, get_idle_days, is_decay_active
-from app.services.streak_service import has_missed_training_day
+from app.services.streak_service import has_missed_training_day, list_activity_calendar
 
 # All 4 stats are always included in rating_excess, even ones the user has
 # never trained (excess is then 0 - baseline, i.e. fully negative).
@@ -136,6 +141,21 @@ class ProgressService:
                     last_activity_date=streak.last_activity_date,
                 )
         return streak
+
+    async def get_activity_calendar(
+        self, user_id: uuid.UUID, *, from_date: date, to_date: date
+    ) -> list[ActivityCalendarDayRead]:
+        """Real per-day completion history for a date range, for a month
+        calendar -- see app.services.streak_service.list_activity_calendar
+        for why this exists (HomePage.tsx used to only know about the
+        currently-loaded week plus a single last_activity_date marker)."""
+        rows = await list_activity_calendar(self._session, user_id, from_date, to_date)
+        return [
+            ActivityCalendarDayRead(
+                date=row.date, session_type=row.session_type, fully_completed=row.fully_completed
+            )
+            for row in rows
+        ]
 
     @staticmethod
     def _to_stat_read(stat: UserStat, now: datetime) -> UserStatRead:

@@ -17,6 +17,7 @@ two genuinely different events both apply in full; and two different
 handlers claiming the same event_id don't block each other.
 """
 import uuid
+from datetime import date, datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -32,17 +33,30 @@ from app.events.handlers.block_completed import (
     streak_consumer,
     xp_consumer,
 )
-from app.models.exercise import TargetStat
+from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import StatHistory, TrainingStreak, UserStat
+from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
 
 
 def _payload(
-    user_id: uuid.UUID, *, difficulty_level: int, stats: list[TargetStat] | None = None
+    user_id: uuid.UUID,
+    *,
+    difficulty_level: int,
+    stats: list[TargetStat] | None = None,
+    session_block_id: uuid.UUID | None = None,
 ) -> dict:
     return {
         "user_id": str(user_id),
+        # A random, non-existent block by default -- fine for
+        # stat_consumer/xp_consumer tests below, which never read this key.
+        # streak_consumer's is_session_fully_completed treats "no such
+        # block" as not-fully-completed (skip crediting) rather than
+        # crashing, so this default is also a safe no-op for streak tests
+        # that don't care about the streak's value. Tests that DO assert a
+        # streak change pass a real, fully-completed block's id instead.
+        "session_block_id": str(session_block_id or uuid.uuid4()),
         "exercise_id": str(uuid.uuid4()),
         "target_stats": [s.value for s in (stats or [TargetStat.STRENGTH])],
         "difficulty_level": difficulty_level,
@@ -108,6 +122,46 @@ async def _stat_history_count(user_id: uuid.UUID) -> int:
             await session.execute(select(StatHistory).where(StatHistory.user_id == user_id))
         ).scalars().all()
         return len(rows)
+
+
+async def _seed_fully_completed_session(user_id: uuid.UUID) -> uuid.UUID:
+    """A TrainingSession scheduled for today with a single block, already
+    completed -- streak_consumer's 2026-08-19 fix requires the *whole*
+    session done (is_session_fully_completed) before crediting that day,
+    so streak tests need a real completed block to point session_block_id
+    at, not just a plausible-looking payload. Returns the block's id."""
+    async with AsyncSessionLocal() as session:
+        weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user_id, week_start_date=date.today())
+        session.add(weekly_plan)
+        await session.flush()
+        day_plan = DayPlan(
+            id=uuid.uuid4(),
+            weekly_plan_id=weekly_plan.id,
+            date=date.today(),
+            session_type=DaySessionType.OFF_ICE,
+        )
+        session.add(day_plan)
+        exercise = Exercise(
+            id=uuid.uuid4(),
+            name=f"Exercise {uuid.uuid4().hex[:8]}",
+            category=ExerciseCategory.OFF_ICE,
+            phase=TrainingPhase.MAIN,
+            difficulty_level=1,
+            equipment_type=EquipmentType.BODYWEIGHT,
+        )
+        session.add(exercise)
+        await session.flush()
+        block = SessionBlock(
+            id=uuid.uuid4(),
+            phase=TrainingPhase.MAIN,
+            exercise_id=exercise.id,
+            order=0,
+            completed_at=datetime.now(timezone.utc),
+        )
+        training_session = TrainingSession(id=uuid.uuid4(), day_plan_id=day_plan.id, blocks=[block])
+        session.add(training_session)
+        await session.commit()
+        return block.id
 
 
 async def _xp_level(user_id: uuid.UUID) -> tuple[int, int]:
@@ -212,6 +266,99 @@ async def test_stat_consumer_splits_base_gain_evenly_across_multiple_stats(real_
         await _cleanup_processed_events(single_event_id, multi_event_id)
 
 
+async def _seed_stat(user_id: uuid.UUID, stat: TargetStat, value: float) -> None:
+    async with AsyncSessionLocal() as session:
+        session.add(UserStat(user_id=user_id, stat_type=stat, current_value=value))
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_stat_consumer_gain_shrinks_as_the_stat_climbs(real_user) -> None:
+    """2026-08-19: "до 20 быстро, до 40 чуть медленнее... до 100 уже прям
+    тяжко" -- diminishing_factor = max(0, 1 - value/100) ** 2.2 must make the
+    same difficulty/exercise award a strictly smaller gain the higher the
+    stat already sits, not just a flat per-block amount."""
+    low_event_id, mid_event_id, high_event_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    try:
+        await _seed_stat(real_user.id, TargetStat.STRENGTH, 10.0)
+        await stat_consumer(_payload(real_user.id, difficulty_level=4), low_event_id)
+        low_gain = await _stat_value(real_user.id, TargetStat.STRENGTH) - 10.0
+
+        await _seed_stat(real_user.id, TargetStat.AGILITY, 60.0)
+        await stat_consumer(
+            _payload(real_user.id, difficulty_level=4, stats=[TargetStat.AGILITY]), mid_event_id
+        )
+        mid_gain = await _stat_value(real_user.id, TargetStat.AGILITY) - 60.0
+
+        await _seed_stat(real_user.id, TargetStat.ENDURANCE, 90.0)
+        await stat_consumer(
+            _payload(real_user.id, difficulty_level=4, stats=[TargetStat.ENDURANCE]), high_event_id
+        )
+        high_gain = await _stat_value(real_user.id, TargetStat.ENDURANCE) - 90.0
+
+        assert low_gain > mid_gain > high_gain > 0
+    finally:
+        await _cleanup_processed_events(low_event_id, mid_event_id, high_event_id)
+
+
+@pytest.mark.asyncio
+async def test_stat_consumer_never_pushes_a_stat_past_the_hard_cap(real_user) -> None:
+    event_id = uuid.uuid4()
+    try:
+        await _seed_stat(real_user.id, TargetStat.STRENGTH, 99.9)
+        await stat_consumer(_payload(real_user.id, difficulty_level=5), event_id)
+
+        assert await _stat_value(real_user.id, TargetStat.STRENGTH) <= 100.0
+    finally:
+        await _cleanup_processed_events(event_id)
+
+
+@pytest.mark.asyncio
+async def test_stat_consumer_result_is_order_independent_of_payload_stat_list(real_user) -> None:
+    """2026-08-18 fix: stat_consumer sorts payload["target_stats"] into a
+    canonical order before iterating, instead of trusting whatever order the
+    exercise's own ExerciseTargetStat rows happened to be in -- found via an
+    E2E stress test where two concurrent block_completed events for the same
+    user, from two exercises declaring an overlapping stat pair in opposite
+    order, deadlocked on UserStat's row locks (classic circular-wait: two
+    transactions grabbing the same two rows in opposite order). A canonical
+    sort means every invocation, for any exercise, locks a given user's
+    UserStat rows in the same order -- no more opposite-order pair exists to
+    deadlock on.
+
+    A single-process unit test can't reproduce the deadlock itself (that
+    needs two real concurrent transactions racing), so this instead locks
+    in the property the fix must preserve regardless of *input* order: two
+    disjoint stat pairs, one declared alphabetically and one declared
+    reverse-alphabetical, each still land the identical, correct per-stat
+    gain on a fresh (never-touched, no diminishing-returns skew) stat --
+    sorting internally must not silently reassign which stat gets which
+    gain just because the exercise happened to declare them backwards."""
+    forward_event_id = uuid.uuid4()
+    reverse_event_id = uuid.uuid4()
+    try:
+        # Forward: AGILITY < ENDURANCE alphabetically -- already sorted order.
+        forward_payload = _payload(
+            real_user.id, difficulty_level=4, stats=[TargetStat.AGILITY, TargetStat.ENDURANCE]
+        )
+        await stat_consumer(forward_payload, forward_event_id)
+        assert await _stat_value(real_user.id, TargetStat.AGILITY) == 1.0
+        assert await _stat_value(real_user.id, TargetStat.ENDURANCE) == 1.0
+
+        # Reverse: STRENGTH > INTELLECT alphabetically -- declared backwards.
+        # Both are fresh stats (never touched above), so this isolates
+        # "does declaring them backwards scramble which one gets the gain"
+        # from diminishing-returns effects entirely.
+        reverse_payload = _payload(
+            real_user.id, difficulty_level=4, stats=[TargetStat.STRENGTH, TargetStat.INTELLECT]
+        )
+        await stat_consumer(reverse_payload, reverse_event_id)
+        assert await _stat_value(real_user.id, TargetStat.STRENGTH) == 1.0
+        assert await _stat_value(real_user.id, TargetStat.INTELLECT) == 1.0
+    finally:
+        await _cleanup_processed_events(forward_event_id, reverse_event_id)
+
+
 @pytest.mark.asyncio
 async def test_xp_consumer_redelivery_applies_gain_only_once(real_user) -> None:
     event_id = uuid.uuid4()
@@ -258,7 +405,8 @@ async def test_stat_and_xp_handlers_claim_independently_for_the_same_event(real_
 @pytest.mark.asyncio
 async def test_streak_consumer_redelivery_claims_once(real_user) -> None:
     event_id = uuid.uuid4()
-    payload = _payload(real_user.id, difficulty_level=1)
+    block_id = await _seed_fully_completed_session(real_user.id)
+    payload = _payload(real_user.id, difficulty_level=1, session_block_id=block_id)
     try:
         await streak_consumer(payload, event_id)
         await streak_consumer(payload, event_id)  # redelivery

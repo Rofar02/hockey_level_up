@@ -13,7 +13,7 @@ from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.skill import SkillStatWeight, SkillTag
 from app.models.user import User
 from app.repositories.outbox_repository import OutboxRepository
-from app.services.streak_service import has_missed_training_day
+from app.services.streak_service import has_missed_training_day, is_session_fully_completed
 
 EVENT_TYPE = "block_completed"
 
@@ -25,7 +25,20 @@ LEVEL_UP_EVENT = "level_up"
 RELEVANCE_WEIGHT_THRESHOLD = 0.6
 RELEVANT_MULTIPLIER = 1.3
 BASE_MULTIPLIER = 1.0
-DIMINISHING_CAP = 120
+
+# Hard cap 100 (2026-08-19: "максимум характеристик не больше 100, набор
+# должен усложняться -- до 20 быстро, до 40 чуть медленнее... до 100 уже
+# прям тяжко"). factor = max(0, 1 - value/STAT_HARD_CAP) ** DIMINISHING_EXPONENT
+# instead of the old linear `1 - value/120`: a linear ramp slows down
+# evenly, an exponent > 1 keeps early gains fast (0->20 barely dented) while
+# stretching the last stretch (80->100) out asymptotically -- tuned via
+# scripts/tune_stat_curve.py against the same event-frequency numbers
+# scripts/simulate_long_term_usage.py's 'stable' scenario produced (see that
+# report): p=2.2 crosses 20 in ~3 weeks, 40 in ~8, 60 in ~15, 80 in ~32, and
+# doesn't realistically reach 100 in two years of steady training -- 100 is
+# meant to stay a asymptotic ceiling, not a normal-play target.
+STAT_HARD_CAP = 100.0
+DIMINISHING_EXPONENT = 2.2
 
 STAT_CONSUMER_HANDLER_NAME = "stat_consumer"
 STREAK_CONSUMER_HANDLER_NAME = "streak_consumer"
@@ -40,7 +53,19 @@ def xp_to_next_level(level: int) -> int:
 async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
     user_id = uuid.UUID(payload["user_id"])
     exercise_id = payload["exercise_id"]
-    stat_types = [TargetStat(value) for value in payload["target_stats"]]
+    # Sorted into a fixed, canonical order (not the exercise's own
+    # ExerciseTargetStat.order) -- found via E2E stress test 2026-08-18:
+    # two block_completed events for the same user, processed concurrently,
+    # each upsert their own stat_types in whatever order their exercise
+    # happened to declare them. If exercise A carries [strength, agility]
+    # and exercise B carries [agility, strength], the two transactions grab
+    # UserStat row locks in opposite order and Postgres deadlocks one of
+    # them. Sorting here means every concurrent invocation, for any
+    # exercise, always acquires this user's UserStat rows in the same
+    # order -- the standard fix for a lock-ordering deadlock, cheaper than
+    # serializing per-user and doesn't just mask the symptom the way a
+    # catch-and-retry would.
+    stat_types = sorted((TargetStat(value) for value in payload["target_stats"]), key=lambda s: s.value)
     difficulty_level = payload["difficulty_level"]
 
     async with AsyncSessionLocal() as session:
@@ -95,7 +120,7 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
                     )
                 )
             ).scalar_one_or_none() or 0.0
-            diminishing_factor = 1 - (current_value / DIMINISHING_CAP)
+            diminishing_factor = max(0.0, 1 - current_value / STAT_HARD_CAP) ** DIMINISHING_EXPONENT
 
             relevance_multiplier = BASE_MULTIPLIER
             if skill_ids:
@@ -121,7 +146,15 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
             upsert = upsert.on_conflict_do_update(
                 constraint="uq_user_stats_user_stat_type",
                 set_={
-                    "current_value": UserStat.current_value + upsert.excluded.current_value,
+                    # Clamped in SQL, not just relied on via the asymptotic
+                    # curve above -- the curve alone only makes gains *shrink*
+                    # near the cap, it never mathematically guarantees the
+                    # sum stays <= STAT_HARD_CAP, and two concurrent events for
+                    # the same stat (see the lock-ordering note above) could
+                    # otherwise both land and nudge a value just over it.
+                    "current_value": func.least(
+                        UserStat.current_value + upsert.excluded.current_value, STAT_HARD_CAP
+                    ),
                     "last_updated_at": upsert.excluded.last_updated_at,
                 },
             ).returning(UserStat.current_value)
@@ -190,6 +223,19 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
         # this point on nothing in this function rolls back, so the claim
         # and the streak mutation below always commit together.
         if not await try_claim(session, event_id, STREAK_CONSUMER_HANDLER_NAME):
+            return
+
+        # 2026-08-19 fix: this event fires on *every* completed block, not
+        # just the session's last one -- crediting the streak here
+        # unconditionally meant the very first block clicked that day
+        # (e.g. one warmup exercise) already counted as "trained today",
+        # a much looser bar than count_completed_real_sessions uses for
+        # periodization progression. Still claim the event above (so
+        # redelivery doesn't retry this same no-op forever), just skip the
+        # mutation until the block that actually finishes the session
+        # fires this same handler again.
+        if not await is_session_fully_completed(session, uuid.UUID(payload["session_block_id"])):
+            await session.commit()
             return
 
         if streak.last_activity_date == today:

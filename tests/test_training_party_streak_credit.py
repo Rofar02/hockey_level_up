@@ -129,20 +129,25 @@ async def test_completing_a_party_training_block_advances_personal_streak(real_p
 
         bob_day_plan = await ScheduleRepository(session).get_day_plan_for_date(bob.id, TODAY)
         assert bob_day_plan is not None and bob_day_plan.training_session is not None
-        # blocks[0] would be a warmup now that replace_day_plan_content also
-        # picks one (see backlog item #2) -- the confirmed MAIN exercise is
-        # what this test actually means to complete.
-        bob_block = next(
-            b for b in bob_day_plan.training_session.blocks if b.phase == TrainingPhase.MAIN
-        )
+        # replace_day_plan_content also picks a warmup/cooldown complex
+        # around the confirmed MAIN exercise (see backlog item #2) -- and
+        # since 2026-08-19, streak credit needs the *whole* session done
+        # (is_session_fully_completed), not just one block, so every block
+        # gets completed here, not only the MAIN one.
+        blocks = list(bob_day_plan.training_session.blocks)
+        assert any(b.phase == TrainingPhase.MAIN for b in blocks)
 
-        await SessionBlockService(session).complete_block(bob_block.id, bob)
+        block_service = SessionBlockService(session)
+        last_block_id = None
+        for block in blocks:
+            await block_service.complete_block(block.id, bob)
+            last_block_id = block.id
 
         outbox_row = (
             await session.execute(
                 select(OutboxEvent).where(
                     OutboxEvent.event_type == BLOCK_COMPLETED_EVENT,
-                    OutboxEvent.payload["session_block_id"].astext == str(bob_block.id),
+                    OutboxEvent.payload["session_block_id"].astext == str(last_block_id),
                 )
             )
         ).scalar_one()
@@ -151,8 +156,9 @@ async def test_completing_a_party_training_block_advances_personal_streak(real_p
 
     try:
         # This is the actual assertion: feeding the real block_completed
-        # payload from a party-materialized block through the real streak
-        # consumer moves TrainingStreak, not just "the API call succeeded".
+        # payload for the block that finishes a party-materialized session
+        # through the real streak consumer moves TrainingStreak, not just
+        # "the API call succeeded".
         await streak_consumer(payload, event_id)
 
         async with AsyncSessionLocal() as session:

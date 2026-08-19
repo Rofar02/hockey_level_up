@@ -176,6 +176,41 @@ async def test_planned_training_day_with_completed_block_is_not_missed(db_sessio
 
 
 @pytest.mark.asyncio
+async def test_partially_completed_session_still_counts_as_missed(db_session) -> None:
+    """2026-08-19 fix: a session with SOME blocks completed and others not
+    used to pass has_missed_training_day's old "any completed block"
+    check -- found live on a real account with only its warmup done (3/12
+    blocks) already counted as "trained that day". Now requires every
+    block in the session done, matching
+    TrainingBlockRepository.count_completed_real_sessions's definition of
+    a real completed session."""
+    user = _make_user()
+    exercise = _make_exercise()
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    day_plan = await _add_day_plan(
+        db_session, user.id, day_date=YESTERDAY, session_type=DaySessionType.OFF_ICE
+    )
+    completed_block = SessionBlock(
+        id=uuid.uuid4(),
+        phase=TrainingPhase.WARMUP,
+        exercise_id=exercise.id,
+        order=0,
+        completed_at=datetime.now(timezone.utc),
+    )
+    incomplete_block = SessionBlock(
+        id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=1
+    )  # completed_at left None
+    training_session = TrainingSession(
+        id=uuid.uuid4(), day_plan_id=day_plan.id, blocks=[completed_block, incomplete_block]
+    )
+    db_session.add(training_session)
+    await db_session.flush()
+
+    assert await has_missed_training_day(db_session, user.id, TWO_DAYS_AGO, TODAY) is True
+
+
+@pytest.mark.asyncio
 async def test_other_users_day_plans_are_not_considered(db_session) -> None:
     user = _make_user()
     other_user = _make_user()
