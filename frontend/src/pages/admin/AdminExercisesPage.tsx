@@ -25,6 +25,8 @@ import {
   STIMULUS_TYPE_LABELS,
   TARGET_STATS,
   TARGET_STAT_LABELS,
+  WARMUP_STAGES,
+  WARMUP_STAGE_LABELS,
 } from '../../types/exercise'
 import type {
   EquipmentType,
@@ -36,6 +38,7 @@ import type {
   MuscleGroup,
   StimulusType,
   TargetStat,
+  WarmupStage,
 } from '../../types/exercise'
 import { TRAINING_PHASES } from '../../types/schedule'
 import type { TrainingPhase } from '../../types/schedule'
@@ -68,6 +71,10 @@ const STIMULUS_TYPE_OPTIONS = STIMULUS_TYPES.map((value) => ({
 const EXERCISE_TYPE_OPTIONS = EXERCISE_TYPES.map((value) => ({
   value,
   label: EXERCISE_TYPE_LABELS[value],
+}))
+const WARMUP_STAGE_OPTIONS = WARMUP_STAGES.map((value) => ({
+  value,
+  label: WARMUP_STAGE_LABELS[value],
 }))
 
 export function AdminExercisesPage() {
@@ -245,7 +252,17 @@ export function AdminExercisesPage() {
                     <td className="px-3 py-2 text-text-secondary">
                       {EXERCISE_CATEGORY_LABELS[exercise.category]}
                     </td>
-                    <td className="px-3 py-2 text-text-secondary">{PHASE_LABELS[exercise.phase]}</td>
+                    <td className="px-3 py-2 text-text-secondary">
+                      {PHASE_LABELS[exercise.phase]}
+                      {exercise.phase === 'warmup' && exercise.warmup_stage === null && (
+                        <span
+                          className="ml-1.5 text-accent-persimmon"
+                          title="Без стадии разминки — никогда не попадёт в собранную разминку"
+                        >
+                          ⚠
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-text-secondary">
                       {exercise.target_stats.length === 0
                         ? '—'
@@ -291,7 +308,17 @@ export function AdminExercisesPage() {
                 <p className="text-sm font-medium text-text-primary">{exercise.name}</p>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
                   <span>{EXERCISE_CATEGORY_LABELS[exercise.category]}</span>
-                  <span>{PHASE_LABELS[exercise.phase]}</span>
+                  <span>
+                    {PHASE_LABELS[exercise.phase]}
+                    {exercise.phase === 'warmup' && exercise.warmup_stage === null && (
+                      <span
+                        className="ml-1 text-accent-persimmon"
+                        title="Без стадии разминки — никогда не попадёт в собранную разминку"
+                      >
+                        ⚠
+                      </span>
+                    )}
+                  </span>
                   <span>{EQUIPMENT_TYPE_LABELS[exercise.equipment_type]}</span>
                   <span className="font-mono">Сложность: {exercise.difficulty_level}</span>
                 </div>
@@ -403,6 +430,9 @@ function ExerciseFormModal({
   const [exerciseType, setExerciseType] = useState<ExerciseType | ''>(
     exercise?.exercise_type ?? '',
   )
+  const [warmupStage, setWarmupStage] = useState<WarmupStage | ''>(
+    exercise?.warmup_stage ?? '',
+  )
 
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -428,6 +458,12 @@ function ExerciseFormModal({
       setFormError('Коэффициент веса тела должен быть больше 0.')
       return
     }
+    if (phase === 'warmup' && warmupStage === '') {
+      setFormError(
+        'Укажите стадию разминки — без неё упражнение никогда не попадёт в собранную разминку.',
+      )
+      return
+    }
 
     const payload: ExerciseWrite = {
       name: name.trim(),
@@ -436,6 +472,10 @@ function ExerciseFormModal({
       phase,
       difficulty_level: difficulty,
       equipment_type: equipmentType,
+      // Only meaningful for phase=warmup -- forced null otherwise even if
+      // some stale value is still sitting in state, so switching phase away
+      // and back can't silently resurrect an unreviewed stage.
+      warmup_stage: phase === 'warmup' && warmupStage !== '' ? warmupStage : null,
       video_source_type: videoSourceType.trim() === '' ? null : videoSourceType.trim(),
       video_source_id: videoSourceId.trim() === '' ? null : videoSourceId.trim(),
       target_sets: parseOptionalInt(targetSets),
@@ -495,7 +535,7 @@ function ExerciseFormModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SelectField
             label="Категория"
             options={CATEGORY_OPTIONS}
@@ -507,7 +547,16 @@ function ExerciseFormModal({
             label="Фаза"
             options={PHASE_OPTIONS}
             value={phase}
-            onChange={(event) => setPhase(event.target.value as TrainingPhase)}
+            onChange={(event) => {
+              const nextPhase = event.target.value as TrainingPhase
+              setPhase(nextPhase)
+              // Stage only means anything for a warmup exercise -- clear it
+              // on the way out so it can't linger unseen and reappear if the
+              // phase is switched back later with a stale, unreviewed value.
+              if (nextPhase !== 'warmup') {
+                setWarmupStage('')
+              }
+            }}
             required
           />
           <SelectField
@@ -540,6 +589,23 @@ function ExerciseFormModal({
           />
         </div>
 
+        {phase === 'warmup' && (
+          <div className="flex flex-col gap-1.5 rounded border border-accent-persimmon/30 bg-accent-persimmon/5 p-3">
+            <SelectField
+              label="Стадия разминки"
+              options={WARMUP_STAGE_OPTIONS}
+              placeholder="Не задано"
+              value={warmupStage}
+              onChange={(event) => setWarmupStage(event.target.value as WarmupStage | '')}
+            />
+            <p className="text-xs text-text-secondary">
+              Комплекс разминки собирается по стадиям (миофасциальный релиз → подъём пульса →
+              суставная мобильность → активация → динамическая). Без стадии это упражнение
+              никогда не попадёт в собранную разминку — даже если всё остальное заполнено.
+            </p>
+          </div>
+        )}
+
         <TextField
           label="Сложность (1-5)"
           type="number"
@@ -551,7 +617,7 @@ function ExerciseFormModal({
           required
         />
 
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <TextField
             label="Подходы"
             type="number"
@@ -586,7 +652,7 @@ function ExerciseFormModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
             label="Тип источника видео"
             value={videoSourceType}
@@ -600,7 +666,7 @@ function ExerciseFormModal({
           />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-text-primary">
             <input
               type="checkbox"

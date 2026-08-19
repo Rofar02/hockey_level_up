@@ -132,6 +132,30 @@ export const MOVEMENT_PATTERN_LABELS: Record<MovementPattern, string> = {
   locomotion: 'Локомоция',
 }
 
+// The 5 stages of a warmup, in the order ScheduleService._pick_warmup_complex
+// walks them (soft tissue prep -> raise pulse/temperature -> joint mobility
+// -> muscle activation -> sport-specific dynamic movement) -- meaningless
+// outside phase=WARMUP. An exercise with phase=warmup and this left unset
+// never gets picked into the assembled warmup complex, no matter how it's
+// otherwise tagged -- see the AdminExercisesPage warning copy next to this
+// field.
+export const WARMUP_STAGES = [
+  'soft_tissue',
+  'raise',
+  'joint_mobility',
+  'activation',
+  'dynamic',
+] as const
+export type WarmupStage = (typeof WARMUP_STAGES)[number]
+
+export const WARMUP_STAGE_LABELS: Record<WarmupStage, string> = {
+  soft_tissue: 'Миофасциальный релиз',
+  raise: 'Подъём пульса',
+  joint_mobility: 'Суставная мобильность',
+  activation: 'Активация мышц',
+  dynamic: 'Динамическая (спортивная)',
+}
+
 export interface ExerciseRead {
   id: string
   name: string
@@ -158,6 +182,7 @@ export interface ExerciseRead {
   muscle_group: MuscleGroup | null
   stimulus_type: StimulusType | null
   exercise_type: ExerciseType | null
+  warmup_stage: WarmupStage | null
   // Computed server-side from stimulus_type/difficulty_level (see
   // app/core/rest.py) -- not a stored field, and not part of ExerciseWrite
   // below.
@@ -186,4 +211,5 @@ export interface ExerciseWrite {
   muscle_group: MuscleGroup | null
   stimulus_type: StimulusType | null
   exercise_type: ExerciseType | null
+  warmup_stage: WarmupStage | null
 }

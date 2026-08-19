@@ -13,6 +13,7 @@ from app.models.exercise import (
     StimulusType,
     TargetStat,
     TrainingPhase,
+    WarmupStage,
 )
 
 
@@ -44,6 +45,13 @@ class ExerciseRead(BaseModel):
     muscle_group: MuscleGroup | None
     stimulus_type: StimulusType | None
     exercise_type: ExerciseType | None
+    # Which of the 5 warmup stages this belongs to (see WarmupStage) --
+    # meaningless outside phase=WARMUP, but not enforced null elsewhere at
+    # the schema level, same "NULL means not yet classified" contract as
+    # stimulus_type/exercise_type above. ScheduleService._pick_warmup_complex
+    # never selects a WARMUP exercise with this unset -- see the admin form's
+    # own warning copy.
+    warmup_stage: WarmupStage | None
 
     # Computed, not stored -- see app.core.rest. Derived from stimulus_type
     # and difficulty_level (None only when stimulus_type is unclassified),
@@ -84,6 +92,7 @@ def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> Exer
         muscle_group=exercise.muscle_group,
         stimulus_type=exercise.stimulus_type,
         exercise_type=exercise.exercise_type,
+        warmup_stage=exercise.warmup_stage,
     )
 
 
@@ -112,6 +121,7 @@ class ExerciseCreate(BaseModel):
     muscle_group: MuscleGroup | None = None
     stimulus_type: StimulusType | None = None
     exercise_type: ExerciseType | None = None
+    warmup_stage: WarmupStage | None = None
 
 
 class ExerciseUpdate(BaseModel):
@@ -133,6 +143,7 @@ class ExerciseUpdate(BaseModel):
     muscle_group: MuscleGroup | None = None
     stimulus_type: StimulusType | None = None
     exercise_type: ExerciseType | None = None
+    warmup_stage: WarmupStage | None = None
 
 
 class MovementPatternsReplace(BaseModel):
