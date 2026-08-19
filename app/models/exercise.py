@@ -127,6 +127,16 @@ class MovementPattern(enum.StrEnum):
     WRIST_MOBILITY = "wrist_mobility"
     CORE = "core"
     LOCOMOTION = "locomotion"
+    # 2026-08-19: added for the handful of catalog exercises that are
+    # neither a strength/mobility movement nor without a slot at all --
+    # stick-skill drills (mirrors the "Обводка" skill) and general
+    # coordination/reaction/balance work (mirrors "Координация и реакция" --
+    # balance is folded in here rather than getting its own pattern, since
+    # this axis only needs to be as coarse as MAIN diversity/warmup-cooldown
+    # matching require, not as fine-grained as skill_tags, which still track
+    # balance as its own separate skill).
+    STICK_HANDLING = "stick_handling"
+    COORDINATION = "coordination"
 
 
 class Exercise(Base):

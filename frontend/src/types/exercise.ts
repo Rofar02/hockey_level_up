@@ -115,6 +115,12 @@ export const MOVEMENT_PATTERNS = [
   'wrist_mobility',
   'core',
   'locomotion',
+  // 2026-08-19: for exercises that are stick-skill or general coordination/
+  // reaction/balance work, not a strength/mobility movement -- see
+  // app/models/exercise.py's MovementPattern docstring for why balance
+  // folds into coordination here rather than getting its own value.
+  'stick_handling',
+  'coordination',
 ] as const
 export type MovementPattern = (typeof MOVEMENT_PATTERNS)[number]
 
@@ -130,6 +136,8 @@ export const MOVEMENT_PATTERN_LABELS: Record<MovementPattern, string> = {
   wrist_mobility: 'Мобильность запястья',
   core: 'Кор',
   locomotion: 'Локомоция',
+  stick_handling: 'Владение клюшкой',
+  coordination: 'Координация и реакция',
 }
 
 // The 5 stages of a warmup, in the order ScheduleService._pick_warmup_complex

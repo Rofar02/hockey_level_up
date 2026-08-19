@@ -170,6 +170,7 @@ docker compose -f docker-compose.prod.yml exec backend python scripts/seed_exerc
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_offseason_catalog_additions.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/retag_equipment_mistags.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/backfill_warmup_stages.py
+docker compose -f docker-compose.prod.yml exec backend python scripts/backfill_coordination_patterns.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skills.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skill_tags.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skill_milestones_skating.py
