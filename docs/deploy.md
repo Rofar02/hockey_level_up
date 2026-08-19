@@ -167,6 +167,9 @@ docker compose -f docker-compose.prod.yml logs -f backend
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_exercises.py
+docker compose -f docker-compose.prod.yml exec backend python scripts/seed_offseason_catalog_additions.py
+docker compose -f docker-compose.prod.yml exec backend python scripts/retag_equipment_mistags.py
+docker compose -f docker-compose.prod.yml exec backend python scripts/backfill_warmup_stages.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skills.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skill_tags.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skill_milestones_skating.py
@@ -174,6 +177,13 @@ docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skill
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skill_shot_accuracy.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_reference_articles.py
 ```
+
+Порядок в первых четырёх командах важен: `seed_offseason_catalog_additions.py`
+добавляет новые упражнения (должен идти после базового каталога),
+`retag_equipment_mistags.py`/`backfill_warmup_stages.py` правят уже
+существующие по имени строки, так что запускаются последними. Все скрипты
+идемпотентны (пропускают уже существующее) — безопасно перезапускать при
+повторном деплое, если каталог обновился.
 
 Затем зарегистрировать свой аккаунт через сам сайт (`https://icelevel.ru`) и
 назначить его админом:
