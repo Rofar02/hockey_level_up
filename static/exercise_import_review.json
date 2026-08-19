@@ -2,7 +2,7 @@
   {
     "name": "90/90 растяжка",
     "name_en": "90/90 Hip Stretch",
-    "source": "Ак Барс + Рубин",
+    "source": "Клуб A + Клуб B",
     "equipment_raw": [
       "bodyweight"
     ],
@@ -85,7 +85,7 @@
   {
     "name": "Тяга к лицу",
     "name_en": "Face Pull",
-    "source": "Ак Барс + Рубин",
+    "source": "Клуб A + Клуб B",
     "equipment_raw": [
       "band",
       "cable"
@@ -129,7 +129,7 @@
   {
     "name": "Антиротационный жим (Pallof)",
     "name_en": "Pallof Press",
-    "source": "Ак Барс + Рубин",
+    "source": "Клуб A + Клуб B",
     "equipment_raw": [
       "band",
       "cable"
@@ -174,7 +174,7 @@
   {
     "name": "Y на наклонной скамье",
     "name_en": "Prone Y Raise",
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "dumbbells",
       "incline_bench"
@@ -218,7 +218,7 @@
   {
     "name": "Австралийские подтягивания",
     "name_en": "Australian Pull-ups / Inverted Row",
-    "source": "Ак Барс",
+    "source": "Клуб A",
     "equipment_raw": [
       "trx",
       "rings",
@@ -263,7 +263,7 @@
   {
     "name": "Антиротационный жим (Pallof) + варианты",
     "name_en": null,
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "резина",
       "блок"
@@ -353,7 +353,7 @@
   {
     "name": "Берд-дог",
     "name_en": "Bird Dog",
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "bodyweight"
     ],
@@ -482,7 +482,7 @@
   {
     "name": "Боковой выпад",
     "name_en": "Lateral Lunge",
-    "source": "Ак Барс + Рубин",
+    "source": "Клуб A + Клуб B",
     "equipment_raw": [
       "bodyweight",
       "dumbbells",
@@ -570,7 +570,7 @@
   {
     "name": "Боковой скачок",
     "name_en": "Lateral Bound",
-    "source": "Второй PDF + Ак Барс",
+    "source": "Второй PDF + Клуб A",
     "equipment_raw": [],
     "equipment_type": "bodyweight",
     "equipment_type_proposed_note": null,
@@ -610,7 +610,7 @@
   {
     "name": "Болгарский присед",
     "name_en": "Bulgarian Split Squat",
-    "source": "Ак Барс + Рубин + второй PDF",
+    "source": "Клуб A + Клуб B + второй PDF",
     "equipment_raw": [
       "bodyweight",
       "dumbbells",
@@ -741,7 +741,7 @@
   {
     "name": "Выпад назад с грифом (RPE 7-8)",
     "name_en": null,
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "гриф",
       "гантели"
@@ -999,7 +999,7 @@
   {
     "name": "Дровосек",
     "name_en": "Woodchop",
-    "source": "Рубин + Ак Барс",
+    "source": "Клуб B + Клуб A",
     "equipment_raw": [
       "band",
       "cable",
@@ -1127,7 +1127,7 @@
   {
     "name": "Жим гантелей одной рукой",
     "name_en": "Single-Arm Dumbbell Press",
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "dumbbell",
       "bench"
@@ -1219,7 +1219,7 @@
   {
     "name": "Жим лёжа с темпом 6-0-0-0 (RPE 8)",
     "name_en": null,
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "штанга",
       "гантели"
@@ -1304,7 +1304,7 @@
   {
     "name": "Жук + рол / статика",
     "name_en": null,
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [],
     "equipment_type": "bodyweight",
     "equipment_type_proposed_note": null,
@@ -1343,7 +1343,7 @@
   {
     "name": "Зашагивание на тумбу",
     "name_en": "Step-up",
-    "source": "Ак Барс",
+    "source": "Клуб A",
     "equipment_raw": [
       "box",
       "dumbbells"
@@ -1388,7 +1388,7 @@
   {
     "name": "Изометрический сплит-присед (макс. усилие)",
     "name_en": null,
-    "source": "ALL, Рубин",
+    "source": "ALL, Клуб B",
     "equipment_raw": [
       "своё тело",
       "лёгкий вес"
@@ -1478,7 +1478,7 @@
   {
     "name": "Комплекс голеностопа",
     "name_en": "Ankle Complex",
-    "source": "Второй PDF + Рубин",
+    "source": "Второй PDF + Клуб B",
     "equipment_raw": [
       "bodyweight",
       "band"
@@ -1651,7 +1651,7 @@
   {
     "name": "Латеральный выпад с гантелью на слайде",
     "name_en": null,
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "гантель + слайдер",
       "полотенце"
@@ -1698,7 +1698,7 @@
   {
     "name": "Марш с санями",
     "name_en": "Sled March / Push",
-    "source": "Рубин + второй PDF",
+    "source": "Клуб B + второй PDF",
     "equipment_raw": [
       "sled",
       "heavy_band"
@@ -1744,7 +1744,7 @@
   {
     "name": "Обратный выпад",
     "name_en": "Reverse Lunge",
-    "source": "Ак Барс + Рубин",
+    "source": "Клуб A + Клуб B",
     "equipment_raw": [
       "bodyweight",
       "dumbbells",
@@ -1791,7 +1791,7 @@
   {
     "name": "Обратный дровосек",
     "name_en": null,
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "блок",
       "резина"
@@ -2097,7 +2097,7 @@
   {
     "name": "Подтягивания на TRX / кольцах",
     "name_en": null,
-    "source": "Рубин + второй PDF",
+    "source": "Клуб B + второй PDF",
     "equipment_raw": [
       "TRX",
       "кольца"
@@ -2578,7 +2578,7 @@
   {
     "name": "Прыжок на тумбу на одной ноге",
     "name_en": "Single-Leg Box Jump",
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "box"
     ],
@@ -2623,7 +2623,7 @@
   {
     "name": "Прыжок на тумбу 1 нога боком",
     "name_en": null,
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "тумба"
     ],
@@ -2667,7 +2667,7 @@
   {
     "name": "Прыжок на тумбу 1 нога лицом",
     "name_en": null,
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "тумба"
     ],
@@ -2756,7 +2756,7 @@
   {
     "name": "Роллаут",
     "name_en": "Ab Wheel / Rollout",
-    "source": "Рубин + Ак Барс",
+    "source": "Клуб B + Клуб A",
     "equipment_raw": [
       "ab_wheel",
       "swiss_ball"
@@ -2800,7 +2800,7 @@
   {
     "name": "Ротационный бросок медбола",
     "name_en": "Rotational Med Ball Throw",
-    "source": "Ак Барс + Рубин + второй PDF",
+    "source": "Клуб A + Клуб B + второй PDF",
     "equipment_raw": [
       "medball"
     ],
@@ -2889,7 +2889,7 @@
   {
     "name": "Румынская тяга",
     "name_en": "Romanian Deadlift",
-    "source": "Ак Барс + Рубин",
+    "source": "Клуб A + Клуб B",
     "equipment_raw": [
       "barbell",
       "dumbbells"
@@ -2934,7 +2934,7 @@
   {
     "name": "Румынская тяга на одной ноге",
     "name_en": "Single-Leg RDL",
-    "source": "Ак Барс + Рубин",
+    "source": "Клуб A + Клуб B",
     "equipment_raw": [
       "bodyweight",
       "dumbbells",
@@ -2983,7 +2983,7 @@
   {
     "name": "Румынская тяга с гантелями (темп 6-0-0-0)",
     "name_en": null,
-    "source": "Рубин + второй PDF",
+    "source": "Клуб B + второй PDF",
     "equipment_raw": [
       "гантели"
     ],
@@ -3073,7 +3073,7 @@
   {
     "name": "Сгибание-разгибание голеностопа",
     "name_en": "Ankle Dorsiflexion / Plantarflexion",
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "band",
       "dumbbell"
@@ -3244,7 +3244,7 @@
   {
     "name": "Слэм медбола",
     "name_en": "Med Ball Slam",
-    "source": "Рубин + второй PDF",
+    "source": "Клуб B + второй PDF",
     "equipment_raw": [
       "medball"
     ],
@@ -3289,7 +3289,7 @@
   {
     "name": "Сплит-присед",
     "name_en": "Split Squat",
-    "source": "Ак Барс + Рубин + общий",
+    "source": "Клуб A + Клуб B + общий",
     "equipment_raw": [
       "bodyweight",
       "dumbbells",
@@ -3694,7 +3694,7 @@
   {
     "name": "Фронтальный присед (эксцентрика)",
     "name_en": "Front Squat Eccentric",
-    "source": "Рубин",
+    "source": "Клуб B",
     "equipment_raw": [
       "barbell",
       "dumbbells",
@@ -3740,7 +3740,7 @@
   {
     "name": "Хамстринг на одной ноге (Nordic / с темпом)",
     "name_en": null,
-    "source": "ALL, Рубин",
+    "source": "ALL, Клуб B",
     "equipment_raw": [
       "партнёр",
       "фиксация ног",
@@ -3787,7 +3787,7 @@
   {
     "name": "Челночный бег 5-10-5",
     "name_en": "5-10-5 Shuttle",
-    "source": "Ак Барс + второй PDF",
+    "source": "Клуб A + второй PDF",
     "equipment_raw": [],
     "equipment_type": "bodyweight",
     "equipment_type_proposed_note": null,
@@ -3829,7 +3829,7 @@
   {
     "name": "Ягодичный мост",
     "name_en": "Glute Bridge",
-    "source": "Ак Барс + Рубин + второй PDF",
+    "source": "Клуб A + Клуб B + второй PDF",
     "equipment_raw": [
       "bodyweight",
       "barbell",
@@ -3918,7 +3918,7 @@
   {
     "name": "Ягодичный мост на одной ноге",
     "name_en": "Single-Leg Glute Bridge",
-    "source": "Ак Барс + Рубин",
+    "source": "Клуб A + Клуб B",
     "equipment_raw": [
       "bodyweight",
       "barbell"

@@ -15,7 +15,7 @@
 
 - **name:** 90/90 растяжка
 - **name_en:** 90/90 Hip Stretch
-- **source:** Ак Барс + Рубин
+- **source:** Клуб A + Клуб B
 - **equipment:** ["bodyweight"]
 - **difficulty:** beginner
 - **characteristics:** ["agility"]
@@ -49,7 +49,7 @@
 
 - **name:** Тяга к лицу
 - **name_en:** Face Pull
-- **source:** Ак Барс + Рубин
+- **source:** Клуб A + Клуб B
 - **equipment:** ["band", "cable"]
 - **difficulty:** beginner
 - **characteristics:** ["strength", "agility"]
@@ -66,7 +66,7 @@
 
 - **name:** Антиротационный жим (Pallof)
 - **name_en:** Pallof Press
-- **source:** Ак Барс + Рубин
+- **source:** Клуб A + Клуб B
 - **equipment:** ["band", "cable"]
 - **difficulty:** beginner
 - **characteristics:** ["intellect", "strength"]
@@ -81,7 +81,7 @@
 
 - **name:** Y на наклонной скамье
 - **name_en:** Prone Y Raise
-- **source:** Рубин
+- **source:** Клуб B
 - **equipment:** ["dumbbells", "incline_bench"]
 - **difficulty:** beginner
 - **characteristics:** ["strength", "agility"]
@@ -96,7 +96,7 @@
 
 - **name:** Австралийские подтягивания
 - **name_en:** Australian Pull-ups / Inverted Row
-- **source:** Ак Барс
+- **source:** Клуб A
 - **equipment:** ["trx", "rings", "low_bar"]
 - **difficulty:** beginner
 - **characteristics:** ["strength"]
@@ -107,9 +107,9 @@
 ---
 
 ## Антиротационный жим (Pallof) + варианты [difficulty: beginner [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Интеллект, Сила  
 **Навыки:** Силовая борьба, Игровое чтение  
 **Оборудование:** Резина / блок
@@ -146,7 +146,7 @@
 
 - **name:** Берд-дог
 - **name_en:** Bird Dog
-- **source:** Рубин
+- **source:** Клуб B
 - **equipment:** ["bodyweight"]
 - **difficulty:** beginner
 - **characteristics:** ["intellect", "strength"]
@@ -170,7 +170,7 @@
 ---
 
 ## Боковая планка [difficulty: beginner]
-*Источники: ALL, Base, BaseFull, Rubin*
+*Источники: ALL, Base, BaseFull, SourceB*
 
 - **name:** Боковая планка
 - **name_en:** Side Plank
@@ -189,7 +189,7 @@
 
 - **name:** Боковой выпад
 - **name_en:** Lateral Lunge
-- **source:** Ак Барс + Рубин
+- **source:** Клуб A + Клуб B
 - **equipment:** ["bodyweight", "dumbbells", "kettlebell"]
 - **difficulty:** beginner
 - **characteristics:** ["strength", "agility"]
@@ -218,11 +218,11 @@
 ---
 
 ## Боковой скачок + пауза [difficulty: intermediate]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
 - **name:** Боковой скачок
 - **name_en:** Lateral Bound
-- **source:** Второй PDF + Ак Барс
+- **source:** Второй PDF + Клуб A
 - **equipment:** []
 - **difficulty:** intermediate
 - **characteristics:** ["agility"]
@@ -233,11 +233,11 @@
 ---
 
 ## Болгарский присед [difficulty: intermediate]
-*Источники: ALL, Base, BaseFull, Rubin*
+*Источники: ALL, Base, BaseFull, SourceB*
 
 - **name:** Болгарский присед
 - **name_en:** Bulgarian Split Squat
-- **source:** Ак Барс + Рубин + второй PDF
+- **source:** Клуб A + Клуб B + второй PDF
 - **equipment:** ["bodyweight", "dumbbells", "bench"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength", "agility"]
@@ -280,9 +280,9 @@
 ---
 
 ## Выпад назад с грифом (RPE 7–8) [difficulty: intermediate [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Сила, Ловкость  
 **Навыки:** Катание, Баланс, Взрывной старт  
 **Оборудование:** Гриф / гантели
@@ -367,11 +367,11 @@
 ---
 
 ## Дровосек [difficulty: intermediate]
-*Источники: ALL, BaseFull, Rubin*
+*Источники: ALL, BaseFull, SourceB*
 
 - **name:** Дровосек
 - **name_en:** Woodchop
-- **source:** Рубин + Ак Барс
+- **source:** Клуб B + Клуб A
 - **equipment:** ["band", "cable", "medball"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength", "intellect"]
@@ -419,11 +419,11 @@
 ---
 
 ## Жим гантелей одной рукой лёжа [difficulty: intermediate]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
 - **name:** Жим гантелей одной рукой
 - **name_en:** Single-Arm Dumbbell Press
-- **source:** Рубин
+- **source:** Клуб B
 - **equipment:** ["dumbbell", "bench"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength", "intellect"]
@@ -455,9 +455,9 @@
 ---
 
 ## Жим лёжа с темпом 6-0-0-0 (RPE 8) [difficulty: advanced [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Сила  
 **Навыки:** Сила броска, Силовая борьба  
 **Оборудование:** Штанга / гантели
@@ -482,9 +482,9 @@
 ---
 
 ## Жук + рол / статика [difficulty: beginner [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Интеллект, Сила  
 **Навыки:** Контроль корпуса  
 **Оборудование:** —
@@ -500,7 +500,7 @@
 
 - **name:** Зашагивание на тумбу
 - **name_en:** Step-up
-- **source:** Ак Барс
+- **source:** Клуб A
 - **equipment:** ["box", "dumbbells"]
 - **difficulty:** beginner
 - **characteristics:** ["strength", "agility"]
@@ -513,9 +513,9 @@
 ---
 
 ## Изометрический сплит-присед (макс. усилие) [difficulty: intermediate [PROPOSED]]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Сила, Ловкость  
 **Навыки:** Катание, Взрывной старт, Силовая борьба, Баланс  
 **Оборудование:** Своё тело / лёгкий вес
@@ -541,11 +541,11 @@
 ---
 
 ## Комплекс на голеностоп (базовый) [difficulty: beginner]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
 - **name:** Комплекс голеностопа
 - **name_en:** Ankle Complex
-- **source:** Второй PDF + Рубин
+- **source:** Второй PDF + Клуб B
 - **equipment:** ["bodyweight", "band"]
 - **difficulty:** beginner
 - **characteristics:** ["agility"]
@@ -608,9 +608,9 @@
 ---
 
 ## Латеральный выпад с гантелью на слайде [difficulty: intermediate [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Сила, Ловкость  
 **Навыки:** Катание (поперечное), Мобильность, Силовая борьба  
 **Оборудование:** Гантель + слайдер / полотенце
@@ -622,11 +622,11 @@
 ---
 
 ## Марш / толкание саней [difficulty: intermediate]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
 - **name:** Марш с санями
 - **name_en:** Sled March / Push
-- **source:** Рубин + второй PDF
+- **source:** Клуб B + второй PDF
 - **equipment:** ["sled", "heavy_band"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength", "endurance"]
@@ -643,7 +643,7 @@
 
 - **name:** Обратный выпад
 - **name_en:** Reverse Lunge
-- **source:** Ак Барс + Рубин
+- **source:** Клуб A + Клуб B
 - **equipment:** ["bodyweight", "dumbbells", "barbell"]
 - **difficulty:** beginner
 - **characteristics:** ["strength", "agility"]
@@ -654,9 +654,9 @@
 ---
 
 ## Обратный дровосек [difficulty: intermediate [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Сила, Интеллект  
 **Навыки:** Сила броска, Антиротация  
 **Оборудование:** Блок / резина
@@ -762,9 +762,9 @@
 ---
 
 ## Подтягивания на TRX / кольцах [difficulty: intermediate [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин + второй PDF  
+**Источник:** Клуб B + второй PDF  
 **Характеристики:** Сила  
 **Навыки:** Силовая борьба, Контроль корпуса  
 **Оборудование:** TRX / кольца
@@ -829,7 +829,7 @@
 ---
 
 ## Пронация / супинация кисти [difficulty: beginner [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
 **Источник:** Второй PDF  
 **Характеристики:** Сила  
@@ -856,7 +856,7 @@
 ---
 
 ## Прыжок барьер 1 нога + пауза [difficulty: advanced [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
 **Источник:** Второй PDF  
 **Характеристики:** Ловкость  
@@ -928,7 +928,7 @@
 
 - **name:** Прыжок на тумбу на одной ноге
 - **name_en:** Single-Leg Box Jump
-- **source:** Рубин
+- **source:** Клуб B
 - **equipment:** ["box"]
 - **difficulty:** advanced
 - **characteristics:** ["agility"]
@@ -939,9 +939,9 @@
 ---
 
 ## Прыжок на тумбу 1 нога боком [difficulty: advanced [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Ловкость  
 **Навыки:** Катание, Взрывной старт, Баланс  
 **Оборудование:** Тумба
@@ -953,9 +953,9 @@
 ---
 
 ## Прыжок на тумбу 1 нога лицом [difficulty: advanced [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Ловкость, Сила  
 **Навыки:** Взрывной старт, Катание, Баланс  
 **Оборудование:** Тумба
@@ -982,11 +982,11 @@
 ---
 
 ## Роллаут [difficulty: intermediate]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
 - **name:** Роллаут
 - **name_en:** Ab Wheel / Rollout
-- **source:** Рубин + Ак Барс
+- **source:** Клуб B + Клуб A
 - **equipment:** ["ab_wheel", "swiss_ball"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength"]
@@ -999,11 +999,11 @@
 ---
 
 ## Ротационный бросок медбола [difficulty: intermediate]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
 - **name:** Ротационный бросок медбола
 - **name_en:** Rotational Med Ball Throw
-- **source:** Ак Барс + Рубин + второй PDF
+- **source:** Клуб A + Клуб B + второй PDF
 - **equipment:** ["medball"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength", "agility", "intellect"]
@@ -1031,7 +1031,7 @@
 
 - **name:** Румынская тяга
 - **name_en:** Romanian Deadlift
-- **source:** Ак Барс + Рубин
+- **source:** Клуб A + Клуб B
 - **equipment:** ["barbell", "dumbbells"]
 - **difficulty:** beginner
 - **characteristics:** ["strength"]
@@ -1052,7 +1052,7 @@
 
 - **name:** Румынская тяга на одной ноге
 - **name_en:** Single-Leg RDL
-- **source:** Ак Барс + Рубин
+- **source:** Клуб A + Клуб B
 - **equipment:** ["bodyweight", "dumbbells", "kettlebell"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength", "agility"]
@@ -1069,9 +1069,9 @@
 ---
 
 ## Румынская тяга с гантелями (темп 6-0-0-0) [difficulty: intermediate [PROPOSED]]
-*Источники: Rubin*
+*Источники: SourceB*
 
-**Источник:** Рубин + второй PDF  
+**Источник:** Клуб B + второй PDF  
 **Характеристики:** Сила  
 **Навыки:** Сила броска, Взрывной старт, Катание  
 **Оборудование:** Гантели
@@ -1101,7 +1101,7 @@
 
 - **name:** Сгибание-разгибание голеностопа
 - **name_en:** Ankle Dorsiflexion / Plantarflexion
-- **source:** Рубин
+- **source:** Клуб B
 - **equipment:** ["band", "dumbbell"]
 - **difficulty:** beginner
 - **characteristics:** ["agility", "strength"]
@@ -1159,7 +1159,7 @@
 
 - **name:** Слэм медбола
 - **name_en:** Med Ball Slam
-- **source:** Рубин + второй PDF
+- **source:** Клуб B + второй PDF
 - **equipment:** ["medball"]
 - **difficulty:** beginner
 - **characteristics:** ["strength", "agility"]
@@ -1174,7 +1174,7 @@
 
 - **name:** Сплит-присед
 - **name_en:** Split Squat
-- **source:** Ак Барс + Рубин + общий
+- **source:** Клуб A + Клуб B + общий
 - **equipment:** ["bodyweight", "dumbbells", "barbell", "safety_bar"]
 - **difficulty:** beginner
 - **characteristics:** ["strength", "agility"]
@@ -1333,11 +1333,11 @@
 ---
 
 ## Фронтальный присед с длинной эксцентрикой [difficulty: intermediate]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
 - **name:** Фронтальный присед (эксцентрика)
 - **name_en:** Front Squat Eccentric
-- **source:** Рубин
+- **source:** Клуб B
 - **equipment:** ["barbell", "dumbbells", "kettlebell"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength"]
@@ -1348,9 +1348,9 @@
 ---
 
 ## Хамстринг на одной ноге (Nordic / с темпом) [difficulty: advanced [PROPOSED]]
-*Источники: ALL, Rubin*
+*Источники: ALL, SourceB*
 
-**Источник:** Рубин  
+**Источник:** Клуб B  
 **Характеристики:** Сила  
 **Навыки:** Взрывной старт, Профилактика травм задней поверхности, Катание  
 **Оборудование:** Партнёр / фиксация ног / тренажёр
@@ -1367,7 +1367,7 @@
 
 - **name:** Челночный бег 5-10-5
 - **name_en:** 5-10-5 Shuttle
-- **source:** Ак Барс + второй PDF
+- **source:** Клуб A + второй PDF
 - **equipment:** []
 - **difficulty:** intermediate
 - **characteristics:** ["agility"]
@@ -1386,11 +1386,11 @@
 ---
 
 ## Ягодичный мост [difficulty: beginner]
-*Источники: ALL, Base, BaseFull, Rubin*
+*Источники: ALL, Base, BaseFull, SourceB*
 
 - **name:** Ягодичный мост
 - **name_en:** Glute Bridge
-- **source:** Ак Барс + Рубин + второй PDF
+- **source:** Клуб A + Клуб B + второй PDF
 - **equipment:** ["bodyweight", "barbell", "dumbbell"]
 - **difficulty:** beginner
 - **characteristics:** ["strength"]
@@ -1422,7 +1422,7 @@
 
 - **name:** Ягодичный мост на одной ноге
 - **name_en:** Single-Leg Glute Bridge
-- **source:** Ак Барс + Рубин
+- **source:** Клуб A + Клуб B
 - **equipment:** ["bodyweight", "barbell"]
 - **difficulty:** intermediate
 - **characteristics:** ["strength", "agility"]
