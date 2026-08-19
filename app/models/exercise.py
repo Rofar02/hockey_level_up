@@ -49,6 +49,21 @@ class EquipmentType(enum.StrEnum):
     BODYWEIGHT = "bodyweight"
 
 
+# What equipment_type values a user with this equipment_access can actually
+# train with -- cumulative capability (gym implies home implies bodyweight),
+# not an exact-match tier. A gym member can obviously still do a
+# bodyweight-only or home-tier move; equipment_access is the ceiling of what
+# they have, not the one tier they're confined to. Shared by
+# ExerciseRepository.list_for_assembly (solo/party-materialized session
+# assembly) and ScheduleService.suggest_party_exercises (party suggestion,
+# which additionally intersects this across every member).
+EQUIPMENT_REACH: dict[EquipmentType, frozenset[EquipmentType]] = {
+    EquipmentType.GYM: frozenset({EquipmentType.GYM, EquipmentType.HOME, EquipmentType.BODYWEIGHT}),
+    EquipmentType.HOME: frozenset({EquipmentType.HOME, EquipmentType.BODYWEIGHT}),
+    EquipmentType.BODYWEIGHT: frozenset({EquipmentType.BODYWEIGHT}),
+}
+
+
 class MuscleGroup(enum.StrEnum):
     PUSH = "push"
     PULL = "pull"
@@ -62,6 +77,37 @@ class StimulusType(enum.StrEnum):
     ENDURANCE = "endurance"
     SKILL = "skill"
     MOBILITY = "mobility"
+
+
+class WarmupStage(enum.StrEnum):
+    """Which stage of a proper warmup a WARMUP-phase exercise belongs to
+    (RAMP protocol: Raise-Activate-Mobilize-Potentiate, reordered to match
+    how the product actually sequences it -- soft tissue prep first, then
+    raise, joints, activation, sport-specific dynamic movement last).
+    NULL for every non-WARMUP exercise, and for WARMUP rows not yet
+    classified -- see scripts/backfill_warmup_stages.py.
+
+    SOFT_TISSUE is the only stage with zero bodyweight-tier exercises in
+    the catalog (foam roller/ball work inherently needs a tool) -- that's
+    accepted as the one stage that's simply absent for a bodyweight-only
+    user's warmup complex, not something patched around, since raise/
+    joint_mobility/activation/dynamic all have bodyweight coverage.
+    """
+
+    SOFT_TISSUE = "soft_tissue"
+    RAISE = "raise"
+    JOINT_MOBILITY = "joint_mobility"
+    ACTIVATION = "activation"
+    DYNAMIC = "dynamic"
+
+
+WARMUP_STAGE_ORDER: tuple[WarmupStage, ...] = (
+    WarmupStage.SOFT_TISSUE,
+    WarmupStage.RAISE,
+    WarmupStage.JOINT_MOBILITY,
+    WarmupStage.ACTIVATION,
+    WarmupStage.DYNAMIC,
+)
 
 
 class ExerciseType(enum.StrEnum):
@@ -154,6 +200,14 @@ class Exercise(Base):
     )
     exercise_type: Mapped[ExerciseType | None] = mapped_column(
         enum_column(ExerciseType, "exercise_type"), nullable=True
+    )
+
+    # Which stage of a proper warmup this belongs to -- see WarmupStage.
+    # NULL for every non-WARMUP exercise (meaningless there) and for WARMUP
+    # rows not yet classified, same "NULL means not yet classified" contract
+    # as stimulus_type/exercise_type above.
+    warmup_stage: Mapped[WarmupStage | None] = mapped_column(
+        enum_column(WarmupStage, "warmup_stage"), nullable=True
     )
 
     # Whether this exercise has a working weight at all (barbell/dumbbell/

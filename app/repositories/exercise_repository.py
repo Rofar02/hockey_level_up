@@ -5,6 +5,7 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import (
+    EQUIPMENT_REACH,
     EquipmentType,
     Exercise,
     ExerciseCategory,
@@ -187,7 +188,15 @@ class ExerciseRepository:
 
         equipment_access only constrains off_ice exercises -- on the ice, the
         player doesn't choose gym/home/bodyweight, so on_ice exercises are
-        never excluded by equipment.
+        never excluded by equipment. Off-ice uses cumulative reach (see
+        EQUIPMENT_REACH), not an exact-tier match -- a gym member can still
+        do a bodyweight-only or home-tier move, equipment_access is the
+        ceiling of what they have, not the one tier they're confined to.
+        Used to be an exact `equipment_type == equipment_access` match,
+        which starved gym/home users of the (often easier) exercises tagged
+        for a lower tier -- see suggest_party_exercises's docstring, which
+        already used cumulative reach for its own, different reason
+        (multi-member intersection) before this method caught up to it.
 
         suitable_for_game_day is None (no filter) for every regular on/off-ice
         session -- only ScheduleService._build_game_day_session's physical
@@ -202,7 +211,7 @@ class ExerciseRepository:
         query = query.where(
             or_(
                 Exercise.category == ExerciseCategory.ON_ICE,
-                Exercise.equipment_type == equipment_access,
+                Exercise.equipment_type.in_(EQUIPMENT_REACH[equipment_access]),
             )
         )
 
