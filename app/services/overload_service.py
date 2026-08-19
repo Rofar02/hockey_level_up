@@ -22,7 +22,7 @@ class OverloadService:
 
     async def apply_brakes(self, user: User, block_phase: BlockPhase) -> BlockPhase:
         """Refreshes user.difficulty_throttle_steps in place (structural
-        brake -- read later by ScheduleService._apply_level_cap) and
+        brake -- read later by ScheduleService._apply_difficulty_gate) and
         returns the EFFECTIVE block_phase for exercise assembly: forced to
         DELOAD if the tactical brake is currently engaged, otherwise
         `block_phase` unchanged.

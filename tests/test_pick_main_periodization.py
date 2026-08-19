@@ -33,6 +33,7 @@ from app.models.exercise import (
     TargetStat,
     TrainingPhase,
 )
+from app.models.progress import UserStat
 from app.models.skill import Skill, SkillTag, UserSkillPreference
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
@@ -88,6 +89,22 @@ def _pattern(exercise: Exercise, target_stat: TargetStat) -> ExerciseMovementPat
     )
 
 
+async def _seed_uncapped_stats(db_session, user: User) -> None:
+    """This file is about block-phase difficulty *preference*
+    (intensification/deload), not the readiness cap (see
+    tests/test_stat_difficulty_gate.py for that) -- so every stat this file
+    exercises (strength/agility/intellect) needs to already be in band 5
+    (uncapped), same role _make_user's old level=15 played before the
+    2026-08-18 switch from User.level to UserStat-based off-ice gating.
+    """
+    await db_session.flush()  # user itself must be committed before UserStat's FK can insert
+    db_session.add_all(
+        UserStat(user_id=user.id, stat_type=stat, current_value=90.0)
+        for stat in (TargetStat.STRENGTH, TargetStat.AGILITY, TargetStat.INTELLECT)
+    )
+    await db_session.flush()
+
+
 async def _seed_candidates(db_session) -> dict[str, Exercise]:
     exercises = {
         "low_strength": _make_exercise("Low-strength", TargetStat.STRENGTH, 1),
@@ -130,6 +147,7 @@ async def test_intensification_prefers_high_difficulty_with_fallback(
 ) -> None:
     user = _make_user()
     db_session.add(user)
+    await _seed_uncapped_stats(db_session, user)
     exercises = await _seed_candidates(db_session)
 
     calls: list[tuple[int, int]] = []
@@ -184,6 +202,7 @@ async def test_skilltag_priority_applies_within_the_difficulty_envelope(
     """Difficulty narrows first, SkillTag narrows further within that pool."""
     user = _make_user()
     db_session.add(user)
+    await _seed_uncapped_stats(db_session, user)
 
     low = _make_exercise("Low-strength", TargetStat.STRENGTH, 1)
     high_untagged = _make_exercise("High-strength-untagged", TargetStat.STRENGTH, 5)

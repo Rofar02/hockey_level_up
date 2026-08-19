@@ -10,7 +10,14 @@ from datetime import date, timedelta
 import pytest
 from fastapi import HTTPException
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, MovementPattern, TrainingPhase
+from app.models.exercise import (
+    EquipmentType,
+    Exercise,
+    ExerciseCategory,
+    MovementPattern,
+    TrainingPhase,
+    WarmupStage,
+)
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
 from app.schemas.training_party import TrainingPartyCreate
@@ -286,7 +293,9 @@ async def test_replace_day_plan_content_adds_warmup_and_cooldown(db_session) -> 
     alice = _make_user()
     bob = _make_user()
     main = _make_exercise(name="Confirmed main squat")
-    warmup = _make_exercise(name="Warmup squat mobility", phase=TrainingPhase.WARMUP)
+    warmup = _make_exercise(
+        name="Warmup squat mobility", phase=TrainingPhase.WARMUP, warmup_stage=WarmupStage.RAISE
+    )
     cooldown = _make_exercise(name="Cooldown squat stretch", phase=TrainingPhase.COOLDOWN)
     db_session.add_all([alice, bob, main, warmup, cooldown])
     await db_session.flush()

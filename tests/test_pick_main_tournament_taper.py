@@ -8,6 +8,7 @@ test_pick_main_season_period.py -- 5 distinct off-ice patterns so the
 unclamped range (5-6 in accumulation) would otherwise be fully reachable,
 making a lower observed count attributable only to the taper clamp.
 """
+import random
 import uuid
 from datetime import date, timedelta
 
@@ -108,11 +109,20 @@ async def test_final_taper_week_caps_off_ice_main_block_at_deload_range(db_sessi
 
 
 @pytest.mark.asyncio
-async def test_taper_beats_playoffs_outright(db_session) -> None:
+async def test_taper_beats_playoffs_outright(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Playoffs alone would clamp straight to DELOAD's (3, 4) -- an
     # in-window-but-not-final-week taper must override that down to the
     # milder season-style shift instead, proving taper wins outright
     # rather than the two being combined/compared.
+    #
+    # count = random.randint(4, 5) -- pin to the upper bound so this
+    # doesn't flake ~50% of the time on an unmocked coin flip (found
+    # 2026-08-18: this test failed intermittently in CI-style full-suite
+    # runs for exactly that reason).
+    monkeypatch.setattr(random, "randint", lambda a, b: b)
+
     user = _make_user(tournament_date=_TODAY + timedelta(days=14), season_period=SeasonPeriod.PLAYOFFS)
     db_session.add(user)
     exercises = await _seed_candidates(db_session, category=ExerciseCategory.OFF_ICE)

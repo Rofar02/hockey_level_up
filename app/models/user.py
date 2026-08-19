@@ -113,9 +113,10 @@ class User(Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
 
-    # Phase 5 structural overload brake: subtracted from
-    # max_difficulty_for_level(level) by ScheduleService._apply_level_cap,
-    # floored at 1 -- never touches level/XP itself (see
+    # Phase 5 structural overload brake: subtracted from whichever
+    # readiness cap ScheduleService._apply_difficulty_gate computed
+    # (off-ice: UserStat-based, on-ice: max_difficulty_for_level),
+    # floored at 1 -- never touches level/XP or UserStat itself (see
     # app.services.overload_service). 0 = no throttle. Refreshed in place
     # (derived fresh from recent session feedback history, not
     # incrementally event-driven -- see app.core.overload) at the top of

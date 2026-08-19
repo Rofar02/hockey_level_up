@@ -15,7 +15,17 @@ from app.schemas.assessment import (
     OnIceAssessmentTestIn,
 )
 
-SCRATCH_STARTING_VALUE = 30.0
+SCRATCH_STARTING_VALUE = 10.0
+
+# Hard ceiling on what run_test's real performance-based scoring can hand
+# out (2026-08-18 planning session: "тест сразу даёт дохрена характеристик
+# ... защита от читеров" -- an elite performer on day one still lands
+# mid-scale, not maxed, so difficulty_level=5 off-ice content (see
+# app.core.stat_difficulty) stays something earned through actual training
+# via stat_consumer's own growth, never handed out by the onboarding test
+# alone. A hard clamp, not a rescale -- score_from_value's own norm-table
+# scoring is untouched, this only clips the final result.
+TEST_RESULT_CAP = 50.0
 
 REASON_ASSESSMENT_INITIAL = "assessment_initial"
 REASON_ASSESSMENT_RETAKE = "assessment_retake"
@@ -51,26 +61,32 @@ class AssessmentService:
                 detail="age is required to run the fitness test",
             )
 
-        agility = float(score_from_value("long_jump_cm", user.age, body.long_jump_cm))
-        strength = float(
-            round(
-                (
-                    score_from_value("pushups_reps", user.age, body.pushups_reps)
-                    + score_from_value("squats_reps", user.age, body.squats_reps)
+        agility = min(TEST_RESULT_CAP, float(score_from_value("long_jump_cm", user.age, body.long_jump_cm)))
+        strength = min(
+            TEST_RESULT_CAP,
+            float(
+                round(
+                    (
+                        score_from_value("pushups_reps", user.age, body.pushups_reps)
+                        + score_from_value("squats_reps", user.age, body.squats_reps)
+                    )
+                    / 2
                 )
-                / 2
-            )
+            ),
         )
-        endurance = float(
-            round(
-                (
-                    score_from_value("plank_seconds", user.age, body.plank_seconds)
-                    + score_from_value("run_1km_seconds", user.age, body.run_1km_seconds)
+        endurance = min(
+            TEST_RESULT_CAP,
+            float(
+                round(
+                    (
+                        score_from_value("plank_seconds", user.age, body.plank_seconds)
+                        + score_from_value("run_1km_seconds", user.age, body.run_1km_seconds)
+                    )
+                    / 2
                 )
-                / 2
-            )
+            ),
         )
-        intellect = self._intellect_from_experience(user)
+        intellect = min(TEST_RESULT_CAP, self._intellect_from_experience(user))
 
         tier = self._tier_from_average(agility, strength, endurance)
         return await self._apply_assessment(user, agility, strength, endurance, intellect, tier)

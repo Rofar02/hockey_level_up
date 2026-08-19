@@ -27,6 +27,7 @@ from app.models.exercise import (
     MovementPattern,
     TargetStat,
     TrainingPhase,
+    WarmupStage,
 )
 from app.models.schedule import DaySessionType
 from app.models.user import User
@@ -51,7 +52,9 @@ def _make_user() -> User:
     )
 
 
-def _make_exercise(*, name: str, phase: TrainingPhase) -> Exercise:
+def _make_exercise(
+    *, name: str, phase: TrainingPhase, warmup_stage: WarmupStage | None = None
+) -> Exercise:
     return Exercise(
         id=uuid.uuid4(),
         name=name,
@@ -59,6 +62,7 @@ def _make_exercise(*, name: str, phase: TrainingPhase) -> Exercise:
         phase=phase,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
+        warmup_stage=warmup_stage,
     )
 
 
@@ -96,8 +100,15 @@ async def test_warmup_and_cooldown_prefer_exercise_sharing_main_pattern(db_sessi
     db_session.add(user)
 
     main = _make_exercise(name="AAA main squat", phase=TrainingPhase.MAIN)
-    warmup_match = _make_exercise(name="Z warmup squat mobility", phase=TrainingPhase.WARMUP)
-    warmup_other = _make_exercise(name="A warmup unrelated", phase=TrainingPhase.WARMUP)
+    # Same warmup_stage on both -- _pick_warmup_complex picks at most one
+    # exercise per stage, so this proves the pattern-matching one wins the
+    # stage rather than just "both get picked" (there's only one slot to win).
+    warmup_match = _make_exercise(
+        name="Z warmup squat mobility", phase=TrainingPhase.WARMUP, warmup_stage=WarmupStage.DYNAMIC
+    )
+    warmup_other = _make_exercise(
+        name="A warmup unrelated", phase=TrainingPhase.WARMUP, warmup_stage=WarmupStage.DYNAMIC
+    )
     cooldown_match = _make_exercise(name="Z cooldown squat stretch", phase=TrainingPhase.COOLDOWN)
     cooldown_other = _make_exercise(name="A cooldown unrelated", phase=TrainingPhase.COOLDOWN)
 
@@ -127,13 +138,18 @@ async def test_warmup_and_cooldown_prefer_exercise_sharing_main_pattern(db_sessi
         block_phase=BlockPhase.ACCUMULATION,
     )
 
-    picked_ids = {block.phase: block.exercise_id for block in session.blocks if block.phase != TrainingPhase.MAIN}
-    # "A warmup unrelated"/"A cooldown unrelated" sort first alphabetically
-    # and would win a plain name-sorted pick -- their absence here proves
-    # the pattern-overlap filter actually ran, not just "something got
-    # picked".
-    assert picked_ids[TrainingPhase.WARMUP] == warmup_match.id
-    assert picked_ids[TrainingPhase.COOLDOWN] == cooldown_match.id
+    # Both warmup candidates share one WarmupStage (DYNAMIC), which only
+    # ever yields one pick -- the pattern-matching one winning proves the
+    # pattern-overlap filter ran, not just "something got picked" (a plain
+    # name-sorted pick would pick "A warmup unrelated" instead).
+    warmup_ids = [b.exercise_id for b in session.blocks if b.phase == TrainingPhase.WARMUP]
+    assert warmup_ids == [warmup_match.id]
+
+    # Cooldown is sized to len(main_patterns) (here: 1, just SQUAT), so with
+    # only one slot to fill it's exactly the matching exercise, same as
+    # before this feature existed.
+    cooldown_ids = [b.exercise_id for b in session.blocks if b.phase == TrainingPhase.COOLDOWN]
+    assert cooldown_ids == [cooldown_match.id]
 
 
 @pytest.mark.asyncio
@@ -142,7 +158,9 @@ async def test_falls_back_to_full_pool_when_nothing_overlaps(db_session) -> None
     db_session.add(user)
 
     main = _make_exercise(name="AAA main squat", phase=TrainingPhase.MAIN)
-    warmup_only = _make_exercise(name="Z warmup unrelated", phase=TrainingPhase.WARMUP)
+    warmup_only = _make_exercise(
+        name="Z warmup unrelated", phase=TrainingPhase.WARMUP, warmup_stage=WarmupStage.RAISE
+    )
 
     exercises = {"main": main, "warmup_only": warmup_only}
     db_session.add_all(exercises.values())
@@ -175,8 +193,12 @@ async def test_movement_pattern_lives_in_the_real_table_too(db_session) -> None:
     db_session.add(user)
 
     main = _make_exercise(name="AAA real main squat", phase=TrainingPhase.MAIN)
-    warmup_match = _make_exercise(name="Z real warmup squat", phase=TrainingPhase.WARMUP)
-    warmup_other = _make_exercise(name="A real warmup unrelated", phase=TrainingPhase.WARMUP)
+    warmup_match = _make_exercise(
+        name="Z real warmup squat", phase=TrainingPhase.WARMUP, warmup_stage=WarmupStage.DYNAMIC
+    )
+    warmup_other = _make_exercise(
+        name="A real warmup unrelated", phase=TrainingPhase.WARMUP, warmup_stage=WarmupStage.DYNAMIC
+    )
     exercises = {"main": main, "warmup_match": warmup_match, "warmup_other": warmup_other}
     db_session.add_all(exercises.values())
     db_session.add(ExerciseTargetStat(exercise_id=main.id, target_stat=TargetStat.STRENGTH, order=0))
@@ -207,5 +229,7 @@ async def test_movement_pattern_lives_in_the_real_table_too(db_session) -> None:
         session_type=DaySessionType.OFF_ICE, user=user, block_phase=BlockPhase.ACCUMULATION
     )
 
+    # Same shared-stage shape as the fake-repository test above -- one slot,
+    # the matching exercise wins it.
     warmup_blocks = [b for b in session.blocks if b.phase == TrainingPhase.WARMUP]
     assert [b.exercise_id for b in warmup_blocks] == [warmup_match.id]

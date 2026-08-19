@@ -1,9 +1,9 @@
 """Phase 5 integration: OverloadRepository's real SQL aggregation,
 OverloadService.apply_brakes wiring both brakes together, and
-_apply_level_cap actually narrowing exercise selection once
+_apply_difficulty_gate actually narrowing exercise selection once
 user.difficulty_throttle_steps is nonzero.
 
-Same isolation/style conventions as test_level_difficulty_gate.py/
+Same isolation/style conventions as test_stat_difficulty_gate.py/
 test_schedule_service_pick_main.py.
 """
 import random
@@ -24,6 +24,7 @@ from app.models.exercise import (
     TargetStat,
     TrainingPhase,
 )
+from app.models.progress import UserStat
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import User
@@ -254,9 +255,14 @@ async def test_structural_throttle_narrows_exercise_selection(db_session) -> Non
     user = _make_user()
     user.difficulty_throttle_steps = 1
     db_session.add(user)
+    await db_session.flush()
+    # Off-ice difficulty is gated by UserStat now, not User.level (see
+    # tests/test_stat_difficulty_gate.py) -- strength=90 -> band 5,
+    # uncapped by the readiness cap alone, but throttle=1 should still
+    # exclude the difficulty-5 candidate on top of that.
+    db_session.add(UserStat(user_id=user.id, stat_type=TargetStat.STRENGTH, current_value=90.0))
+    await db_session.flush()
 
-    # level=20 -> uncapped by level alone (max_difficulty_for_level=5), but
-    # throttle=1 should still exclude the difficulty-5 candidate.
     capped_out = _make_exercise("Very-hard", TargetStat.STRENGTH, difficulty_level=5)
     survives = _make_exercise("Hard", TargetStat.STRENGTH, difficulty_level=4)
     db_session.add_all([capped_out, survives])

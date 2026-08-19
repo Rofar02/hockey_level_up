@@ -94,7 +94,16 @@ async def test_first_assessment_is_always_allowed_and_logs_initial_history(db_se
 
     assert {h.stat_type for h in off_ice} == OFF_ICE_STAT_TYPES
     assert all(h.reason == REASON_ASSESSMENT_INITIAL for h in off_ice)
-    assert all(h.value == SCRATCH_STARTING_VALUE for h in off_ice)
+    # Intellect isn't SCRATCH_STARTING_VALUE -- start_from_scratch computes
+    # it from years_of_experience (intellect_baseline) even on the "skip
+    # the real test" path, independent of the physical-stat placeholder.
+    # This test's user has no years_of_experience set (None -> 0 years),
+    # so intellect_baseline is just its base, 30.0 -- see
+    # app.config.expected_baseline.INTELLECT_BASE.
+    physical = [h for h in off_ice if h.stat_type != TargetStat.INTELLECT]
+    intellect = next(h for h in off_ice if h.stat_type == TargetStat.INTELLECT)
+    assert all(h.value == SCRATCH_STARTING_VALUE for h in physical)
+    assert intellect.value == 30.0
 
     assert {h.stat_type for h in on_ice} == ON_ICE_STAT_TYPES
     assert all(h.reason == REASON_ONICE_BASELINE_DEFAULT for h in on_ice)

@@ -2,13 +2,14 @@ import logging
 import random
 import uuid
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.session_duration import compute_phase_split, estimate_session_duration_seconds
+from app.core.stat_difficulty import UNCLASSIFIED_EXERCISE_CAP, max_difficulty_for_stat
 from app.core.training_block import (
     DIFFICULTY_PRIORITY_PREDICATES,
     effective_difficulty_cap,
@@ -18,7 +19,8 @@ from app.core.training_block import (
     max_difficulty_for_level,
 )
 from app.models.exercise import (
-    EquipmentType,
+    EQUIPMENT_REACH,
+    WARMUP_STAGE_ORDER,
     Exercise,
     ExerciseCategory,
     MovementPattern,
@@ -26,6 +28,7 @@ from app.models.exercise import (
     TrainingPhase,
     UserMovementPatternVariant,
 )
+from app.models.progress import UserStat
 from app.models.schedule import (
     BlockPhase,
     DayPlan,
@@ -37,6 +40,7 @@ from app.models.schedule import (
 )
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
+from app.repositories.progress_repository import ProgressRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.skill_repository import SkillRepository
 from app.repositories.user_movement_pattern_variant_repository import (
@@ -55,6 +59,7 @@ from app.schemas.schedule import (
     WeeklyPlanRead,
 )
 from app.services.overload_service import OverloadService
+from app.services.stat_service import get_effective_value
 from app.services.training_block_service import TrainingBlockService
 
 logger = logging.getLogger(__name__)
@@ -64,21 +69,26 @@ _SESSION_TYPE_TO_CATEGORY = {
     DaySessionType.OFF_ICE: ExerciseCategory.OFF_ICE,
 }
 
-# suggest_party_exercises-only: what equipment_type values a member with this
-# equipment_access can actually train with, as cumulative capability rather
-# than list_for_assembly's single-user exact match -- see that method's
-# docstring for why the two need different rules.
-_EQUIPMENT_REACH: dict[EquipmentType, frozenset[EquipmentType]] = {
-    EquipmentType.GYM: frozenset({EquipmentType.GYM, EquipmentType.HOME, EquipmentType.BODYWEIGHT}),
-    EquipmentType.HOME: frozenset({EquipmentType.HOME, EquipmentType.BODYWEIGHT}),
-    EquipmentType.BODYWEIGHT: frozenset({EquipmentType.BODYWEIGHT}),
-}
+# Warmup/cooldown as a short sequence instead of one exercise (product ask:
+# "always a proper warmup complex" + "cooldown should stretch what MAIN just
+# worked", 2026-08-18). Warmup picks one exercise per WarmupStage, in
+# WARMUP_STAGE_ORDER (soft tissue -> raise -> joint mobility -> activation
+# -> dynamic) -- see _pick_warmup_complex -- general readiness structured
+# like a real warmup, not muscle-specific. Cooldown is instead sized to how
+# many distinct movement_patterns MAIN actually hit (capped at
+# _COOLDOWN_SEQUENCE_MAX so a big accumulation-phase MAIN block doesn't blow
+# cooldown out to 6 stretches), so a session with 3 MAIN patterns gets 3
+# cooldown picks each preferring to match one of them, rather than 1 pick
+# that only happens to overlap one of them.
+_COOLDOWN_SEQUENCE_MAX = 4
+
 
 
 class ScheduleService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._exercises = ExerciseRepository(session)
+        self._progress = ProgressRepository(session)
         self._schedule = ScheduleRepository(session)
         self._skills = SkillRepository(session)
         self._user_skill_preferences = UserSkillPreferenceRepository(session)
@@ -343,7 +353,7 @@ class ScheduleService:
         if not candidates:
             return None
 
-        candidates = self._apply_level_cap(candidates, user, context="game/mental_prep")
+        candidates = await self._apply_difficulty_gate(candidates, user, context="game/mental_prep")
         return random.choice(candidates)
 
     async def _build_training_session(
@@ -370,11 +380,25 @@ class ScheduleService:
             [exercise.id for exercise in main_exercises]
         )
 
-        warmup = await self._pick_single(
-            TrainingPhase.WARMUP, category, user, block_phase, preferred_patterns=main_patterns
+        warmup_exercises = await self._pick_warmup_complex(
+            category,
+            user,
+            block_phase,
+            preferred_patterns=main_patterns,
         )
-        cooldown = await self._pick_single(
-            TrainingPhase.COOLDOWN, category, user, block_phase, preferred_patterns=main_patterns
+        # One cooldown pick per distinct pattern MAIN actually trained
+        # (capped) -- see _COOLDOWN_SEQUENCE_MAX's own comment. main_patterns
+        # empty (MAIN itself came back empty) still asks for
+        # _COOLDOWN_SEQUENCE_MAX so a broken/empty MAIN doesn't also zero
+        # out cooldown.
+        cooldown_count = min(_COOLDOWN_SEQUENCE_MAX, len(main_patterns)) or _COOLDOWN_SEQUENCE_MAX
+        cooldown_exercises = await self._pick_sequence(
+            TrainingPhase.COOLDOWN,
+            category,
+            user,
+            block_phase,
+            count=cooldown_count,
+            preferred_patterns=main_patterns,
         )
 
         # order runs across the whole session, not reset per phase (same
@@ -385,16 +409,14 @@ class ScheduleService:
         # whatever tiebreak order the DB happened to return them in instead
         # of the intended warmup-then-main-then-cooldown sequence.
         blocks: list[SessionBlock] = []
-        if warmup is not None:
-            blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=warmup.id, order=len(blocks)))
+        for exercise in warmup_exercises:
+            blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=exercise.id, order=len(blocks)))
 
         for exercise in main_exercises:
             blocks.append(SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=len(blocks)))
 
-        if cooldown is not None:
-            blocks.append(
-                SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=cooldown.id, order=len(blocks))
-            )
+        for exercise in cooldown_exercises:
+            blocks.append(SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=exercise.id, order=len(blocks)))
 
         return TrainingSession(blocks=blocks)
 
@@ -415,11 +437,12 @@ class ScheduleService:
         """Warmup/cooldown: curated pool for the phase, filtered by the day's category.
 
         equipment_access still narrows off_ice candidates but never excludes
-        on_ice ones (no equipment choice on the ice). User.level caps which
-        difficulty tier is even eligible (see _apply_level_cap), and *then*
-        the active block's phase biases difficulty within whatever that cap
-        allows (intensification prefers difficulty>=4, deload prefers
-        difficulty<=2), falling back to the level-capped pool when nothing
+        on_ice ones (no equipment choice on the ice). The readiness gate
+        caps which difficulty tier is even eligible (see
+        _apply_difficulty_gate -- off-ice: UserStat, on-ice: User.level),
+        and *then* the active block's phase biases difficulty within
+        whatever that cap allows (intensification prefers difficulty>=4,
+        deload prefers difficulty<=2), falling back to the capped pool when nothing
         matches that preference -- never an empty result just because the
         preferred difficulty band is missing.
 
@@ -445,7 +468,7 @@ class ScheduleService:
         if not candidates:
             return None
 
-        candidates = self._apply_level_cap(candidates, user, context=f"{phase}/{category}")
+        candidates = await self._apply_difficulty_gate(candidates, user, context=f"{phase}/{category}")
 
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
         if difficulty_predicate is not None:
@@ -463,6 +486,135 @@ class ScheduleService:
             candidates = matched or candidates
 
         return random.choice(candidates)
+
+    async def _pick_sequence(
+        self,
+        phase: TrainingPhase,
+        category: ExerciseCategory,
+        user: User,
+        block_phase: BlockPhase,
+        *,
+        count: int,
+        preferred_patterns: set[MovementPattern] | None = None,
+    ) -> list[Exercise]:
+        """Same candidate gathering/level-cap/difficulty-predicate layers as
+        _pick_single, but returns up to `count` distinct exercises instead of
+        one -- the warmup-complex/muscle-matched-cooldown feature. Exercises
+        sharing a movement_pattern with `preferred_patterns` fill the
+        sequence first (shuffled among themselves), the rest of the
+        level/difficulty-narrowed pool fills any remaining slots (also
+        shuffled) -- so a small pool never leaves a slot unfilled just
+        because fewer than `count` candidates happen to match a pattern.
+        Returns fewer than `count` (down to zero) if the pool itself is
+        smaller than that -- never repeats an exercise to pad the count.
+        """
+        candidates = await self._exercises.list_for_assembly(
+            phase=phase, equipment_access=user.equipment_access, category=category
+        )
+        if not candidates:
+            return []
+
+        candidates = await self._apply_difficulty_gate(candidates, user, context=f"{phase}/{category}/sequence")
+
+        difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
+        if difficulty_predicate is not None:
+            candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
+
+        matched: list[Exercise] = []
+        rest: list[Exercise] = list(candidates)
+        if preferred_patterns:
+            patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
+                [e.id for e in candidates]
+            )
+            matched = [
+                e
+                for e in candidates
+                if preferred_patterns.intersection(patterns_by_id.get(e.id, ()))
+            ]
+            matched_ids = {e.id for e in matched}
+            rest = [e for e in candidates if e.id not in matched_ids]
+
+        random.shuffle(matched)
+        random.shuffle(rest)
+
+        picked: list[Exercise] = []
+        for exercise in matched + rest:
+            if len(picked) >= count:
+                break
+            picked.append(exercise)
+        return picked
+
+    async def _pick_warmup_complex(
+        self,
+        category: ExerciseCategory,
+        user: User,
+        block_phase: BlockPhase,
+        *,
+        preferred_patterns: set[MovementPattern] | None = None,
+    ) -> list[Exercise]:
+        """A proper warmup: up to one exercise per WarmupStage, in
+        WARMUP_STAGE_ORDER (soft tissue prep -> raise pulse/temperature ->
+        joint mobility -> muscle activation -> sport-specific dynamic
+        movement) -- not a flat pool pick, so a session can't end up with
+        three joint-mobility drills and nothing raising the pulse.
+
+        A stage with no candidate in the level/difficulty-narrowed,
+        equipment-reachable pool (in practice: SOFT_TISSUE for a
+        bodyweight-only user -- foam roller/ball work has no zero-equipment
+        substitute in the catalog) is skipped outright rather than padded
+        with something from a different stage -- a shorter, honest complex
+        beats a technically-full one that lies about what stage it's in.
+        preferred_patterns narrows each stage's own pool the same way
+        _pick_sequence does, falling back to the stage's untouched pool
+        when nothing in it overlaps.
+
+        Exercises with warmup_stage=None (not yet classified -- see
+        scripts/backfill_warmup_stages.py) are invisible to every stage
+        bucket here and never get picked; that's a deliberate consequence
+        of this being stage-gated, not a bug -- an unclassified WARMUP
+        exercise simply isn't part of the complex until someone tags it.
+        """
+        candidates = await self._exercises.list_for_assembly(
+            phase=TrainingPhase.WARMUP, equipment_access=user.equipment_access, category=category
+        )
+        if not candidates:
+            return []
+
+        candidates = await self._apply_difficulty_gate(candidates, user, context=f"warmup/{category}/complex")
+
+        difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
+        if difficulty_predicate is not None:
+            candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
+
+        patterns_by_id: dict[uuid.UUID, tuple[MovementPattern, ...]] = {}
+        if preferred_patterns:
+            patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
+                [e.id for e in candidates]
+            )
+
+        picked: list[Exercise] = []
+        picked_ids: set[uuid.UUID] = set()
+        for stage in WARMUP_STAGE_ORDER:
+            stage_pool = [
+                e for e in candidates if e.warmup_stage == stage and e.id not in picked_ids
+            ]
+            if not stage_pool:
+                continue
+
+            pool = stage_pool
+            if preferred_patterns:
+                matched = [
+                    e
+                    for e in stage_pool
+                    if preferred_patterns.intersection(patterns_by_id.get(e.id, ()))
+                ]
+                pool = matched or stage_pool
+
+            choice = random.choice(pool)
+            picked.append(choice)
+            picked_ids.add(choice.id)
+
+        return picked
 
     async def _pick_main(
         self,
@@ -501,10 +653,12 @@ class ScheduleService:
         Three priority layers apply *within* each pattern's candidate pool,
         in this order:
 
-          1. User.level difficulty cap (see _apply_level_cap) -- the hard
-             ceiling on what the user is allowed at all, falling back to the
-             full stat pool (ignoring the cap, with a warning) only if the
-             stat has literally nothing under it;
+          1. Readiness cap (see _apply_difficulty_gate) -- off-ice: the
+             user's own effective value of each exercise's primary
+             characteristic (2026-08-18); on-ice: still User.level. The
+             hard ceiling on what the user is allowed at all, falling back
+             to the full stat pool (ignoring the cap, with a warning) only
+             if the stat has literally nothing under it;
           2. block-phase difficulty preference (intensification: >=4,
              deload: <=2) -- narrows the level-capped pool further, falling
              back to it if nothing matches;
@@ -581,7 +735,16 @@ class ScheduleService:
             exercise_ids=[exercise.id for exercise in candidates], skill_ids=preferred_skill_ids
         )
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
-        level_cap = max_difficulty_for_level(user.level)
+        # Precomputed once for the whole call (not per-pattern-loop-iteration
+        # below) -- see _apply_difficulty_gate's docstring for why passing
+        # these in matters here specifically: this is the one caller that
+        # calls it once per movement_pattern, not once total.
+        primary_stats = await self._exercises.list_primary_target_stats(
+            [exercise.id for exercise in candidates]
+        )
+        user_stats = {
+            stat.stat_type: stat for stat in await self._progress.list_user_stats(user.id)
+        }
 
         # Bucketed by *every* movement_pattern an exercise is tagged with
         # (membership, not a "primary" one -- ExerciseMovementPattern has no
@@ -616,8 +779,12 @@ class ScheduleService:
             if not pattern_pool:
                 continue
 
-            pattern_pool = self._apply_level_cap(
-                pattern_pool, user, context=f"main/{category}/{pattern}", level_cap=level_cap
+            pattern_pool = await self._apply_difficulty_gate(
+                pattern_pool,
+                user,
+                context=f"main/{category}/{pattern}",
+                user_stats=user_stats,
+                primary_stats=primary_stats,
             )
 
             if difficulty_predicate is not None:
@@ -701,38 +868,86 @@ class ScheduleService:
         varied = [e for e in pool if e.muscle_group is None or e.muscle_group != last_group]
         return varied or pool
 
-    @staticmethod
-    def _apply_level_cap(
+    async def _apply_difficulty_gate(
+        self,
         candidates: list[Exercise],
         user: User,
         *,
         context: str,
-        level_cap: int | None = None,
+        user_stats: dict[TargetStat, UserStat] | None = None,
+        primary_stats: dict[uuid.UUID, TargetStat] | None = None,
     ) -> list[Exercise]:
-        """Hard difficulty ceiling from User.level (see max_difficulty_for_level),
-        further lowered by the Phase 5 structural overload brake (see
-        app.core.training_block.effective_difficulty_cap) -- applied at
-        exercise-*assembly* time only -- never touches SessionBlocks
-        already saved into a plan, even if the user's level or throttle
-        later makes one of them ineligible for a fresh pick.
+        """Difficulty ceiling, split by category (2026-08-18 planning
+        session -- see app.core.stat_difficulty's module docstring for the
+        full "why"):
 
-        Last-resort fallback: if nothing in `candidates` is under the cap
-        (e.g. a low-level or currently-throttled user's catalog has no easy
-        exercises for this phase/category/stat), relax back to the full,
-        uncapped `candidates` rather than assembling an empty/broken plan --
-        and log it, since an empty pool under the cap is a catalog gap
-        worth knowing about.
+          - ON_ICE: unchanged, still User.level via max_difficulty_for_level
+            -- deliberately untouched pending a separate pass at the on-ice
+            assessment/stat pipeline.
+          - OFF_ICE: gated per-exercise by the *user's* effective (decay-
+            adjusted, see app.services.stat_service.get_effective_value)
+            value of that exercise's own primary (order=0) target_stat, via
+            app.core.stat_difficulty.max_difficulty_for_stat -- a strong-
+            legged, weak-armed user can be eligible for a heavy squat and
+            still capped on a heavy bench press in the same pick. An
+            exercise with no primary target_stat classified yet gets
+            UNCLASSIFIED_EXERCISE_CAP rather than a free pass.
+
+        Both branches still apply the Phase 5 structural overload brake
+        (effective_difficulty_cap) on top, and both still relax back to the
+        full, uncapped `candidates` (logged) if literally nothing survives
+        -- an empty pool under the cap is a catalog gap worth knowing
+        about, never a reason to leave a plan slot unfillable.
+
+        user_stats/primary_stats let a caller that loops per-candidate-pool
+        multiple times in one assembly (only _pick_main does, once per
+        movement_pattern) fetch both once up front and pass them in, rather
+        than re-querying the same user's stats and the same exercises'
+        primary target_stats on every loop iteration. Callers that pick
+        once (_pick_single/_pick_sequence/_pick_warmup_complex/
+        _pick_mental_prep) can omit both and this fetches them itself --
+        only ever queries for whichever of the two categories is actually
+        present in `candidates`.
         """
-        level_cap = level_cap if level_cap is not None else max_difficulty_for_level(user.level)
-        cap = effective_difficulty_cap(level_cap, user.difficulty_throttle_steps)
-        capped = [e for e in candidates if e.difficulty_level <= cap]
+        throttle = user.difficulty_throttle_steps
+        on_ice = [e for e in candidates if e.category == ExerciseCategory.ON_ICE]
+        off_ice = [e for e in candidates if e.category == ExerciseCategory.OFF_ICE]
+
+        capped: list[Exercise] = []
+
+        if on_ice:
+            level_cap = effective_difficulty_cap(max_difficulty_for_level(user.level), throttle)
+            capped.extend(e for e in on_ice if e.difficulty_level <= level_cap)
+
+        if off_ice:
+            if primary_stats is None:
+                primary_stats = await self._exercises.list_primary_target_stats(
+                    [e.id for e in off_ice]
+                )
+            if user_stats is None:
+                user_stats = {
+                    stat.stat_type: stat for stat in await self._progress.list_user_stats(user.id)
+                }
+            now = datetime.now(timezone.utc)
+            for exercise in off_ice:
+                stat_type = primary_stats.get(exercise.id)
+                if stat_type is None:
+                    stat_cap = UNCLASSIFIED_EXERCISE_CAP
+                else:
+                    user_stat = user_stats.get(stat_type)
+                    value = get_effective_value(user_stat, now) if user_stat is not None else 0.0
+                    stat_cap = max_difficulty_for_stat(value)
+                stat_cap = effective_difficulty_cap(stat_cap, throttle)
+                if exercise.difficulty_level <= stat_cap:
+                    capped.append(exercise)
+
         if capped:
             return capped
 
         logger.warning(
-            "No exercises with difficulty<=%s available for %s (user_id=%s, level=%s) -- "
+            "No exercises with difficulty under the readiness cap available for %s "
+            "(user_id=%s, level=%s -- irrelevant off-ice, see UserStat instead) -- "
             "falling back to the full difficulty range so the plan isn't left empty",
-            cap,
             context,
             user.id,
             user.level,
@@ -770,16 +985,22 @@ class ScheduleService:
         most one of two different values), even though someone with gym
         access can obviously still do a bodyweight-only move. Instead
         equipment_access is treated as cumulative capability via
-        _EQUIPMENT_REACH (gym implies home implies bodyweight) and an
+        EQUIPMENT_REACH (gym implies home implies bodyweight) and an
         exercise is eligible only if its equipment_type is reachable for
         *every* member -- the actual "intersection of what everyone can do".
 
-        Difficulty: capped at min(max_difficulty_for_level(m.level) for m in
-        members) -- the *weakest* member's ceiling -- and never relaxed past
-        that even if a stat ends up with no eligible candidates (unlike
-        _apply_level_cap's last-resort fallback for personal plans, which
-        would relax the cap rather than leave a slot unfilled). Overloading
-        someone is worse here than a shorter suggested list.
+        Difficulty (2026-08-18): per exercise, capped at the *weakest*
+        member's effective value of that exercise's own primary
+        target_stat, via app.core.stat_difficulty.max_difficulty_for_stat
+        -- same readiness-based gate _apply_difficulty_gate uses for a
+        personal plan's off-ice picks, just minimized across every member
+        instead of read from one user. Never relaxed past that even if a
+        pattern ends up with no eligible candidates (unlike
+        _apply_difficulty_gate's last-resort fallback for personal plans,
+        which would relax the cap rather than leave a slot unfilled).
+        Overloading someone is worse here than a shorter suggested list.
+        An exercise with no primary target_stat classified yet gets
+        UNCLASSIFIED_EXERCISE_CAP, same as a personal plan's off-ice pick.
         """
         if not members:
             return []
@@ -787,15 +1008,34 @@ class ScheduleService:
         candidates = await self._exercises.list_exercises(
             category=ExerciseCategory.OFF_ICE, phase=TrainingPhase.MAIN
         )
-        reachable_sets = [_EQUIPMENT_REACH[member.equipment_access] for member in members]
+        reachable_sets = [EQUIPMENT_REACH[member.equipment_access] for member in members]
         eligible = [
             exercise
             for exercise in candidates
             if all(exercise.equipment_type in reach for reach in reachable_sets)
         ]
 
-        cap = min(max_difficulty_for_level(member.level) for member in members)
-        eligible = [exercise for exercise in eligible if exercise.difficulty_level <= cap]
+        primary_stats = await self._exercises.list_primary_target_stats(
+            [exercise.id for exercise in eligible]
+        )
+        member_stats: list[dict[TargetStat, UserStat]] = [
+            {stat.stat_type: stat for stat in await self._progress.list_user_stats(member.id)}
+            for member in members
+        ]
+        now = datetime.now(timezone.utc)
+
+        def _cap_for(exercise: Exercise) -> int:
+            stat_type = primary_stats.get(exercise.id)
+            if stat_type is None:
+                return UNCLASSIFIED_EXERCISE_CAP
+            caps = []
+            for stats in member_stats:
+                user_stat = stats.get(stat_type)
+                value = get_effective_value(user_stat, now) if user_stat is not None else 0.0
+                caps.append(max_difficulty_for_stat(value))
+            return min(caps)
+
+        eligible = [exercise for exercise in eligible if exercise.difficulty_level <= _cap_for(exercise)]
 
         # Same movement_pattern membership-bucketing as _pick_main -- see the
         # comment there.
@@ -899,32 +1139,31 @@ class ScheduleService:
         training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
         block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
         main_patterns = await self._movement_patterns_union(exercise_ids)
-        warmup = await self._pick_single(
-            TrainingPhase.WARMUP,
+        warmup_exercises = await self._pick_warmup_complex(
             ExerciseCategory.OFF_ICE,
             user,
             block_phase,
             preferred_patterns=main_patterns,
         )
-        cooldown = await self._pick_single(
+        cooldown_count = min(_COOLDOWN_SEQUENCE_MAX, len(main_patterns)) or _COOLDOWN_SEQUENCE_MAX
+        cooldown_exercises = await self._pick_sequence(
             TrainingPhase.COOLDOWN,
             ExerciseCategory.OFF_ICE,
             user,
             block_phase,
+            count=cooldown_count,
             preferred_patterns=main_patterns,
         )
 
         # Same running-order idiom as _build_training_session -- order runs
         # across the whole session, not reset per phase.
         blocks: list[SessionBlock] = []
-        if warmup is not None:
-            blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=warmup.id, order=len(blocks)))
+        for exercise in warmup_exercises:
+            blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=exercise.id, order=len(blocks)))
         for exercise_id in exercise_ids:
             blocks.append(SessionBlock(phase=TrainingPhase.MAIN, exercise_id=exercise_id, order=len(blocks)))
-        if cooldown is not None:
-            blocks.append(
-                SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=cooldown.id, order=len(blocks))
-            )
+        for exercise in cooldown_exercises:
+            blocks.append(SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=exercise.id, order=len(blocks)))
 
         day_plan.training_session = TrainingSession(blocks=blocks)
         await self._session.flush()

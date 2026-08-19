@@ -27,6 +27,7 @@ from app.models.exercise import (
     MovementPattern,
     TargetStat,
     TrainingPhase,
+    WarmupStage,
 )
 from app.models.schedule import DaySessionType
 from app.models.user import User
@@ -59,6 +60,9 @@ def _make_exercise(*, name: str, phase: TrainingPhase) -> Exercise:
         phase=phase,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
+        # _pick_warmup_complex only picks WARMUP exercises with a stage set
+        # -- irrelevant for MAIN/COOLDOWN rows, harmless to set on all of them.
+        warmup_stage=WarmupStage.RAISE if phase == TrainingPhase.WARMUP else None,
     )
 
 
