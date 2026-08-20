@@ -313,9 +313,6 @@ function SetLogger({
             return
           }
           setSuggestedWeightKg(result.suggested_weight_kg)
-          if (result.suggested_weight_kg !== null) {
-            setWeightInput(String(result.suggested_weight_kg))
-          }
         })
         .catch(() => {
           // Best-effort -- the weight input just starts empty if this fails,
@@ -336,9 +333,6 @@ function SetLogger({
             return
           }
           setSuggestedReps(result.suggested_reps)
-          if (result.suggested_reps !== null) {
-            setRepsInput(String(result.suggested_reps))
-          }
         })
         .catch(() => {
           // Best-effort -- same fallback as the weight suggestion above.
@@ -446,22 +440,25 @@ function SetLogger({
         accessToken,
       )
       setCompletedSets((previous) => ({ ...previous, [currentSetNumber]: result }))
-      setWeightInput(result.suggested_weight_kg !== null ? String(result.suggested_weight_kg) : '')
+      // Next set's fields start blank, not pre-filled with the fresh
+      // suggestion -- an athlete who never touches the field must not have
+      // the system's own guess silently recorded as what they actually
+      // lifted (Stage 1.5, 2026-08-20 planning session). The number still
+      // shows as a placeholder + the hint line below, one tap away via
+      // "Совпадает".
+      setWeightInput('')
+      setSuggestedWeightKg(result.suggested_weight_kg)
 
       if (hasRepRange) {
-        // Re-prime the next set's reps field from a fresh suggestion rather
-        // than clearing it -- mirrors the weight field's own re-prime above,
-        // now that reps are a real double-progression suggestion instead of
-        // a dead placeholder.
         setIsLoadingRepsSuggestion(true)
+        setRepsInput('')
         exercisesApi
           .getSuggestedReps(exercise.id, accessToken)
           .then((repsResult) => {
             setSuggestedReps(repsResult.suggested_reps)
-            setRepsInput(repsResult.suggested_reps !== null ? String(repsResult.suggested_reps) : '')
           })
           .catch(() => {
-            setRepsInput('')
+            setSuggestedReps(null)
           })
           .finally(() => {
             setIsLoadingRepsSuggestion(false)
@@ -581,8 +578,9 @@ function SetLogger({
                       {showWeightHint && (
                         <div className="mb-1 flex flex-col gap-2 rounded border border-accent-ice/30 bg-accent-ice/5 px-3 py-2.5">
                           <p className="text-xs leading-relaxed text-text-secondary">
-                            Мы предлагаем вес автоматически, вы всегда можете поправить его. После
-                            подхода скажите, как ощущалось — в следующий раз подберём точнее.
+                            Мы подсказываем вес, но поле всегда пустое — впишите то, что реально
+                            подняли, или нажмите «Совпадает», если подсказка верна. После подхода
+                            скажите, как ощущалось — в следующий раз подберём точнее.
                           </p>
                           <Button
                             variant="neutral"
@@ -597,14 +595,26 @@ function SetLogger({
                         label="Вес"
                         unit="кг"
                         value={weightInput}
+                        placeholder={suggestedWeightKg !== null ? String(suggestedWeightKg) : undefined}
                         disabled={isLoadingSuggestion || isSaving}
                         onChange={setWeightInput}
                       />
-                      <span className="text-xs text-text-secondary">
+                      <span className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
                         {isLoadingSuggestion
                           ? 'Загрузка предложения...'
                           : suggestedWeightKg !== null
-                            ? `Предложено системой: ${suggestedWeightKg} кг`
+                            ? (
+                              <>
+                                <span>Сколько реально подняли? Предложено: {suggestedWeightKg} кг</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setWeightInput(String(suggestedWeightKg))}
+                                  className="text-accent-ice underline underline-offset-2 hover:text-text-primary"
+                                >
+                                  Совпадает
+                                </button>
+                              </>
+                            )
                             : 'Нет предложения — введите вес вручную'}
                       </span>
                     </div>
@@ -613,15 +623,30 @@ function SetLogger({
                     <CompactNumberField
                       label="Повторы"
                       value={repsInput}
+                      placeholder={suggestedReps !== null ? String(suggestedReps) : undefined}
                       disabled={isLoadingRepsSuggestion || isSaving}
                       onChange={setRepsInput}
                     />
                     {hasRepRange && (
-                      <span className="text-xs text-text-secondary">
+                      <span className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
                         {isLoadingRepsSuggestion
                           ? 'Загрузка предложения...'
                           : suggestedReps !== null
-                            ? `Предложено системой: ${suggestedReps} (диапазон ${exercise.rep_range_min}-${exercise.rep_range_max})`
+                            ? (
+                              <>
+                                <span>
+                                  Сколько реально сделали? Предложено: {suggestedReps} (диапазон{' '}
+                                  {exercise.rep_range_min}-{exercise.rep_range_max})
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setRepsInput(String(suggestedReps))}
+                                  className="text-accent-ice underline underline-offset-2 hover:text-text-primary"
+                                >
+                                  Совпадает
+                                </button>
+                              </>
+                            )
                             : 'Нет предложения — введите повторы вручную'}
                       </span>
                     )}
