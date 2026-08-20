@@ -153,6 +153,21 @@ class EquipmentItemsReplace(BaseModel):
     equipment_items: list[EquipmentItem]
 
 
+class ExerciseEquipmentRequirement(BaseModel):
+    """One row per off_ice exercise -- Stage 2.3 (2026-08-20 planning
+    session): bulk, non-admin-gated (see GET /exercises/equipment-
+    requirements) so the onboarding/profile inventory screen can compute
+    its live "unlocked N exercises" counter client-side, on every checkbox
+    tap, with no per-tap network round trip. Deliberately off_ice-only
+    (on_ice is never equipment-gated, see
+    ExerciseRepository.list_for_assembly) so the counter's denominator
+    only counts exercises that could actually change as the grid is
+    edited."""
+
+    exercise_id: uuid.UUID
+    equipment_items: list[EquipmentItem]
+
+
 class MuscleGroupWeight(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

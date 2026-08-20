@@ -88,6 +88,16 @@ export const EQUIPMENT_ITEM_LABELS: Record<EquipmentItem, string> = {
   medicine_ball: 'Медбол',
 }
 
+// GET /exercises/equipment-requirements -- Stage 2.3: bulk, not
+// admin-gated (unlike ExerciseRead, which doesn't carry this at all, see
+// EQUIPMENT_ITEMS above), so the onboarding/profile inventory screen can
+// compute its live "unlocked N exercises" counter client-side with no
+// per-tap network round trip. See utils/equipmentAvailability.ts.
+export interface ExerciseEquipmentRequirement {
+  exercise_id: string
+  equipment_items: EquipmentItem[]
+}
+
 // Detailed anatomical taxonomy (Stage 2.1, 2026-08-20 planning session) --
 // replaced the old push/pull/legs/core grouping, which couldn't tell a
 // squat from a lunge apart. Multi-value + weighted per exercise (see

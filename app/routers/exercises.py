@@ -11,6 +11,7 @@ from app.routers.deps import get_current_user, require_admin
 from app.schemas.exercise import (
     EquipmentItemsReplace,
     ExerciseCreate,
+    ExerciseEquipmentRequirement,
     ExerciseRead,
     ExerciseUpdate,
     MovementPatternsReplace,
@@ -41,6 +42,19 @@ async def list_exercises(
         phase=phase,
         target_stat=target_stat,
     )
+
+
+@router.get("/equipment-requirements", response_model=list[ExerciseEquipmentRequirement])
+async def list_exercise_equipment_requirements(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Bulk, not admin-gated (unlike GET .../{id}/equipment-items) -- lets
+    the onboarding/profile inventory screen compute its live "unlocked N
+    exercises" counter client-side. Must be registered before
+    GET /{exercise_id} below, or FastAPI would try to parse
+    "equipment-requirements" as a UUID path param."""
+    return await ExerciseService(session).list_equipment_requirements()
 
 
 @router.get("/{exercise_id}", response_model=ExerciseRead)

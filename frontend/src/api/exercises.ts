@@ -2,6 +2,7 @@ import { apiDeleteAuth, apiGet, apiPatchAuth, apiPostAuth, apiPutAuth } from './
 import type {
   EquipmentItem,
   ExerciseCategory,
+  ExerciseEquipmentRequirement,
   ExerciseRead,
   ExerciseWrite,
   MovementPattern,
@@ -24,6 +25,12 @@ export function getSuggestedReps(
   accessToken: string,
 ): Promise<SuggestedRepsRead> {
   return apiGet<SuggestedRepsRead>(`/exercises/${exerciseId}/suggested-reps`, accessToken)
+}
+
+export function listExerciseEquipmentRequirements(
+  accessToken: string,
+): Promise<ExerciseEquipmentRequirement[]> {
+  return apiGet<ExerciseEquipmentRequirement[]>('/exercises/equipment-requirements', accessToken)
 }
 
 // -- admin CRUD --

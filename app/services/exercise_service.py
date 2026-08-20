@@ -16,6 +16,7 @@ from app.models.exercise import (
 from app.repositories.exercise_repository import ExerciseRepository
 from app.schemas.exercise import (
     ExerciseCreate,
+    ExerciseEquipmentRequirement,
     ExerciseRead,
     ExerciseUpdate,
     MuscleGroupWeight,
@@ -142,6 +143,18 @@ class ExerciseService:
         await self._exercises.replace_muscle_groups(exercise_id, weights)
         await self._session.commit()
         return [MuscleGroupWeight(muscle_group=g, weight=w) for g, w in weights.items()]
+
+    async def list_equipment_requirements(self) -> list[ExerciseEquipmentRequirement]:
+        exercises = await self._exercises.list_exercises(category=ExerciseCategory.OFF_ICE)
+        by_exercise = await self._exercises.list_equipment_items_by_exercise(
+            [exercise.id for exercise in exercises]
+        )
+        return [
+            ExerciseEquipmentRequirement(
+                exercise_id=exercise.id, equipment_items=sorted(by_exercise.get(exercise.id, set()))
+            )
+            for exercise in exercises
+        ]
 
     async def list_equipment_items(self, exercise_id: uuid.UUID) -> list[EquipmentItem]:
         await self.get_exercise(exercise_id)

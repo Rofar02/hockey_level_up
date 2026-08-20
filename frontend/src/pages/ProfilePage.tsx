@@ -11,19 +11,21 @@ import { ProgressBar } from '../components/ui/ProgressBar'
 import { LockedSkillChip } from '../components/ui/SkillChip'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import * as authApi from '../api/auth'
+import * as exercisesApi from '../api/exercises'
 import * as progressApi from '../api/progress'
 import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
-import type { TargetStat } from '../types/exercise'
+import type { EquipmentItem, ExerciseEquipmentRequirement, TargetStat } from '../types/exercise'
 import type { UserStatRead } from '../types/progress'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { POSITION_LABELS } from '../types/user'
 import type { UserPublicRead } from '../types/user'
 import { getAvatarTierStyle } from '../utils/avatarTier'
 import { getDisplayName } from '../utils/displayName'
+import { countAvailableExercises } from '../utils/equipmentAvailability'
 import { transliterate } from '../utils/transliterate'
 
 const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
@@ -101,6 +103,12 @@ function OwnProfileView() {
   const [verificationResendResult, setVerificationResendResult] = useState<string | null>(null)
   const [verificationResendError, setVerificationResendError] = useState<string | null>(null)
 
+  // Stage 2.3: inventory showcase card below -- purely a summary of data
+  // already editable in Settings, so best-effort like the rest of this
+  // page's optional widgets rather than blocking isLoading on its own.
+  const [ownedItems, setOwnedItems] = useState<Set<EquipmentItem> | null>(null)
+  const [equipmentRequirements, setEquipmentRequirements] = useState<ExerciseEquipmentRequirement[] | null>(null)
+
   useEffect(() => {
     if (accessToken === null) {
       return
@@ -128,6 +136,29 @@ function OwnProfileView() {
         if (!cancelled) {
           setIsLoading(false)
         }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    Promise.all([
+      usersApi.getMyEquipmentItems(accessToken),
+      exercisesApi.listExerciseEquipmentRequirements(accessToken),
+    ])
+      .then(([items, requirements]) => {
+        if (!cancelled) {
+          setOwnedItems(new Set(items))
+          setEquipmentRequirements(requirements)
+        }
+      })
+      .catch(() => {
+        // Best-effort -- the showcase card just doesn't render.
       })
     return () => {
       cancelled = true
@@ -438,6 +469,30 @@ function OwnProfileView() {
           <span className="font-medium text-[#F5F7FA]">Навыки</span>
           <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
         </button>
+      )}
+
+      {ownedItems !== null && equipmentRequirements !== null && (
+        <Link
+          to="/settings"
+          className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4`}
+        >
+          <div>
+            <p className="font-medium text-[#F5F7FA]">Инвентарь</p>
+            <p className="text-sm text-[#8A94A6]">
+              {user?.has_gym_access === true
+                ? 'Тренажёрный зал'
+                : ownedItems.size === 0
+                  ? 'Только тело'
+                  : `Предметов: ${ownedItems.size}`}
+              {' — доступно '}
+              {countAvailableExercises(equipmentRequirements, user?.has_gym_access ?? false, ownedItems)}
+              {' из '}
+              {equipmentRequirements.length}
+              {' упражнений'}
+            </p>
+          </div>
+          <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
+        </Link>
       )}
 
       {isSkillsOverviewOpen && unlockedSkills !== null && lockedSkills !== null && (

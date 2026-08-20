@@ -14,6 +14,7 @@ import { TextField } from '../components/ui/TextField'
 import { AssessmentTestForm } from './onboarding/AssessmentTestForm'
 import { OnIceAssessmentTestForm } from './onboarding/OnIceAssessmentTestForm'
 import * as assessmentApi from '../api/assessment'
+import * as exercisesApi from '../api/exercises'
 import * as pushApi from '../api/push'
 import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
@@ -22,10 +23,11 @@ import { useAuth } from '../hooks/useAuth'
 import { getActivePushSubscription, isIos, isPushSupported, isStandalone, subscribeToPush } from '../push'
 import type { AssessmentStatus, OnIceAssessmentStatus } from '../types/assessment'
 import { EQUIPMENT_ITEMS, EQUIPMENT_ITEM_LABELS } from '../types/exercise'
-import type { EquipmentItem } from '../types/exercise'
+import type { EquipmentItem, ExerciseEquipmentRequirement } from '../types/exercise'
 import type { SkillOption } from '../types/skill'
 import { REMINDER_PREFERENCE_LABELS, SEASON_PERIOD_CHOICES } from '../types/user'
 import type { ReminderPreference, SeasonPeriod } from '../types/user'
+import { TYPICAL_HOME_PRESET, countAvailableExercises } from '../utils/equipmentAvailability'
 import { maxSkillPreferencesForLevel } from '../utils/skillPreferenceLimit'
 import { toIsoDate } from '../utils/date'
 
@@ -52,6 +54,7 @@ export function SettingsPage() {
   const [ownedItems, setOwnedItems] = useState<Set<EquipmentItem> | null>(null)
   const [ownedItemsLoadError, setOwnedItemsLoadError] = useState<string | null>(null)
   const [ownedItemsSaveError, setOwnedItemsSaveError] = useState<string | null>(null)
+  const [equipmentRequirements, setEquipmentRequirements] = useState<ExerciseEquipmentRequirement[] | null>(null)
 
   const [seasonPeriod, setSeasonPeriod] = useState<SeasonPeriod | null>(user?.season_period ?? null)
   const [isSavingSeasonPeriod, setIsSavingSeasonPeriod] = useState(false)
@@ -123,6 +126,26 @@ export function SettingsPage() {
             err instanceof ApiError ? err.message : 'Не удалось загрузить инвентарь.',
           )
         }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    exercisesApi
+      .listExerciseEquipmentRequirements(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setEquipmentRequirements(result)
+        }
+      })
+      .catch(() => {
+        // Best-effort -- the toggles still work without a live counter.
       })
     return () => {
       cancelled = true
@@ -418,6 +441,31 @@ export function SettingsPage() {
     }
   }
 
+  async function applyHomePreset() {
+    if (accessToken === null) {
+      return
+    }
+    const previousGymAccess = hasGymAccess
+    const previousItems = ownedItems
+    setGymAccessError(null)
+    setOwnedItemsSaveError(null)
+    setHasGymAccess(false)
+    setOwnedItems(new Set(TYPICAL_HOME_PRESET))
+    try {
+      if (hasGymAccess) {
+        const updated = await usersApi.updateProfile({ has_gym_access: false }, accessToken)
+        updateUser(updated)
+      }
+      await usersApi.replaceMyEquipmentItems(Array.from(TYPICAL_HOME_PRESET), accessToken)
+    } catch (err) {
+      setHasGymAccess(previousGymAccess)
+      setOwnedItems(previousItems)
+      setOwnedItemsSaveError(
+        err instanceof ApiError ? err.message : 'Не удалось сохранить выбор. Попробуйте ещё раз.',
+      )
+    }
+  }
+
   async function handleSeasonPeriodSelect(value: SeasonPeriod) {
     if (accessToken === null || value === seasonPeriod) {
       return
@@ -616,6 +664,19 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-medium text-[#8A94A6]">Оборудование</h2>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            type="button"
+            variant="neutral"
+            onClick={() => handleGymAccessSelect(true)}
+            disabled={isSavingGymAccess}
+          >
+            Зал
+          </Button>
+          <Button type="button" variant="neutral" onClick={applyHomePreset} disabled={isSavingGymAccess}>
+            Типичный домашний набор
+          </Button>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <ChoiceCard
             title="Тренажёрный зал"
@@ -654,6 +715,13 @@ export function SettingsPage() {
             )}
             <FormError message={ownedItemsSaveError} />
           </>
+        )}
+
+        {equipmentRequirements !== null && ownedItems !== null && (
+          <p className="text-sm text-accent-ice">
+            Доступно {countAvailableExercises(equipmentRequirements, hasGymAccess, ownedItems)} из{' '}
+            {equipmentRequirements.length} упражнений
+          </p>
         )}
       </section>
 
