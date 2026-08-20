@@ -36,9 +36,4 @@ export function countExercisesUsingItem(
 // A reasonable common home setup -- one of the two quick presets ("Зал"
 // is the other, see EquipmentStep.tsx/SettingsPage.tsx), not meant to be
 // exhaustive of every possible home gym.
-export const TYPICAL_HOME_PRESET: readonly EquipmentItem[] = [
-  'dumbbells',
-  'resistance_band',
-  'pull_up_bar',
-  'jump_rope',
-]
+export const TYPICAL_HOME_PRESET: readonly EquipmentItem[] = ['dumbbells', 'resistance_band', 'jump_rope']

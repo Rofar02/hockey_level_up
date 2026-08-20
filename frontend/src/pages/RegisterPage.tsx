@@ -29,7 +29,6 @@ export function RegisterPage() {
   const [password, setPassword] = useState('')
   const [lastName, setLastName] = useState('')
   const [firstName, setFirstName] = useState('')
-  const [patronymic, setPatronymic] = useState('')
   const [jerseyNumber, setJerseyNumber] = useState('')
   const [height, setHeight] = useState('')
   const [weight, setWeight] = useState('')
@@ -66,7 +65,6 @@ export function RegisterPage() {
         last_name: lastName,
         first_name: firstName,
         jersey_number: parsedJerseyNumber,
-        patronymic: patronymic.trim() === '' ? undefined : patronymic,
         height: toOptionalNumber(height),
         weight: toOptionalNumber(weight),
         age: toOptionalNumber(age),
@@ -150,14 +148,6 @@ export function RegisterPage() {
             />
           </div>
           <TextField
-            label="Отчество (необязательно)"
-            name="patronymic"
-            autoComplete="additional-name"
-            value={patronymic}
-            onChange={(event) => setPatronymic(event.target.value)}
-            maxLength={100}
-          />
-          <TextField
             label="Игровой номер"
             name="jersey_number"
             type="number"
@@ -198,7 +188,7 @@ export function RegisterPage() {
               onChange={(event) => setAge(event.target.value)}
             />
             <TextField
-              label="Стаж, лет"
+              label="Стаж в хоккее, лет"
               name="years_of_experience"
               type="number"
               numeric

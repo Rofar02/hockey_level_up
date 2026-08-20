@@ -17,7 +17,11 @@ EXPERIENCE_BONUS_CAP = 30.0
 
 # Same base/rate as AssessmentService's starting-intellect formula -- kept
 # here as the single source of truth, AssessmentService delegates to it.
-INTELLECT_BASE = 30.0
+# Matches AssessmentService.SCRATCH_STARTING_VALUE (10.0) so a user with no
+# hockey experience starts every stat, intellect included, from the same
+# floor -- with the cap unchanged, the max (10+30=40) still lines up with
+# the 18-29 AGE_BASELINE above.
+INTELLECT_BASE = 10.0
 INTELLECT_BONUS_PER_YEAR = 2.0
 INTELLECT_BONUS_CAP = 30.0
 
