@@ -499,34 +499,6 @@ function OwnProfileView() {
         </div>
       )}
 
-      {!isLoading && user !== null && !user.email_verified && (
-        <div className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-4`}>
-          <div className="flex items-center gap-2">
-            <i className="ti ti-mail-exclamation text-lg text-accent-persimmon" aria-hidden="true" />
-            <span className="text-sm font-medium text-[#F5F7FA]">Email не подтверждён</span>
-          </div>
-          {verificationResendResult === null ? (
-            <>
-              <p className="text-sm text-[#8A94A6]">
-                Проверьте почту {user.email} и перейдите по ссылке из письма.
-              </p>
-              <Button
-                type="button"
-                variant="neutral"
-                isLoading={isResendingVerification}
-                onClick={handleResendVerification}
-                className="self-start !px-3 !py-1.5 !text-xs"
-              >
-                Отправить письмо ещё раз
-              </Button>
-              <FormError message={verificationResendError} />
-            </>
-          ) : (
-            <p className="text-sm text-accent-ice">{verificationResendResult}</p>
-          )}
-        </div>
-      )}
-
       {/* 3 equal-width quick-action buttons in one row, directly under the
           profile card and spanning the same width -- a compact "character
           sheet" action bar instead of three separate stacked cards. Each
@@ -565,6 +537,34 @@ function OwnProfileView() {
           </button>
         )}
       </div>
+
+      {!isLoading && user !== null && !user.email_verified && (
+        <div className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-4`}>
+          <div className="flex items-center gap-2">
+            <i className="ti ti-mail-exclamation text-lg text-accent-persimmon" aria-hidden="true" />
+            <span className="text-sm font-medium text-[#F5F7FA]">Email не подтверждён</span>
+          </div>
+          {verificationResendResult === null ? (
+            <>
+              <p className="text-sm text-[#8A94A6]">
+                Проверьте почту {user.email} и перейдите по ссылке из письма.
+              </p>
+              <Button
+                type="button"
+                variant="neutral"
+                isLoading={isResendingVerification}
+                onClick={handleResendVerification}
+                className="self-start !px-3 !py-1.5 !text-xs"
+              >
+                Отправить письмо ещё раз
+              </Button>
+              <FormError message={verificationResendError} />
+            </>
+          ) : (
+            <p className="text-sm text-accent-ice">{verificationResendResult}</p>
+          )}
+        </div>
+      )}
 
       {openDetailsTab !== null && unlockedSkills !== null && lockedSkills !== null && (
         <ProfileDetailsModal
