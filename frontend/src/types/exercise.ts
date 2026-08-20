@@ -100,6 +100,27 @@ export interface ExerciseEquipmentRequirement {
   equipment_items: EquipmentItem[]
 }
 
+// GET /exercises/catalog-health -- Stage 3 (2026-08-20 planning session):
+// admin-only, one row per exercise with at least one classification gap
+// that causes it to silently drop out of (or wrongly stay eligible for)
+// selection. `missing` values: "primary_target_stat", "movement_pattern",
+// "warmup_stage", "equipment_for_tracked_weight" -- see the backend
+// CatalogHealthIssue schema's own docstring for what each one means.
+export const CATALOG_HEALTH_ISSUE_LABELS: Record<string, string> = {
+  primary_target_stat: 'Нет основной характеристики',
+  movement_pattern: 'Нет паттерна движения',
+  warmup_stage: 'Нет стадии разминки',
+  equipment_for_tracked_weight: 'Отслеживает вес, но без инвентаря',
+}
+
+export interface CatalogHealthIssue {
+  exercise_id: string
+  name: string
+  category: ExerciseCategory
+  phase: TrainingPhase
+  missing: string[]
+}
+
 // Detailed anatomical taxonomy (Stage 2.1, 2026-08-20 planning session) --
 // replaced the old push/pull/legs/core grouping, which couldn't tell a
 // squat from a lunge apart. Multi-value + weighted per exercise (see

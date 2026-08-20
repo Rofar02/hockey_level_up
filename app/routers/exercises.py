@@ -9,6 +9,7 @@ from app.models.exercise import EquipmentItem, ExerciseCategory, MovementPattern
 from app.models.user import User
 from app.routers.deps import get_current_user, require_admin
 from app.schemas.exercise import (
+    CatalogHealthIssue,
     EquipmentItemsReplace,
     ExerciseCreate,
     ExerciseEquipmentRequirement,
@@ -55,6 +56,20 @@ async def list_exercise_equipment_requirements(
     GET /{exercise_id} below, or FastAPI would try to parse
     "equipment-requirements" as a UUID path param."""
     return await ExerciseService(session).list_equipment_requirements()
+
+
+@router.get("/catalog-health", response_model=list[CatalogHealthIssue])
+async def list_catalog_health_issues(
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Stage 3 (2026-08-20 planning session): admin-only visibility into
+    exercises with a classification gap that makes them silently drop out
+    of (or wrongly stay eligible for) selection -- see CatalogHealthIssue's
+    own docstring for what each `missing` value means. Must be registered
+    before GET /{exercise_id} below, same reason as
+    /equipment-requirements above."""
+    return await ExerciseService(session).list_catalog_health_issues()
 
 
 @router.get("/{exercise_id}", response_model=ExerciseRead)

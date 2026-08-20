@@ -15,6 +15,7 @@ from app.models.exercise import (
 )
 from app.repositories.exercise_repository import ExerciseRepository
 from app.schemas.exercise import (
+    CatalogHealthIssue,
     ExerciseCreate,
     ExerciseEquipmentRequirement,
     ExerciseRead,
@@ -155,6 +156,50 @@ class ExerciseService:
             )
             for exercise in exercises
         ]
+
+    async def list_catalog_health_issues(self) -> list[CatalogHealthIssue]:
+        """Stage 3 (2026-08-20 planning session) -- see CatalogHealthIssue's
+        own docstring for exactly what each `missing` value means and why.
+        Three bulk lookups plus one Python pass, same "fetch once, compute
+        in Python" shape as ScheduleService._pick_main -- no per-exercise
+        query, so this stays cheap even as the catalog grows.
+        """
+        exercises = await self._exercises.list_exercises()
+        exercise_ids = [exercise.id for exercise in exercises]
+        primary_stats = await self._exercises.list_primary_target_stats(exercise_ids)
+        patterns_by_exercise = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)
+        equipment_by_exercise = await self._exercises.list_equipment_items_by_exercise(exercise_ids)
+
+        issues: list[CatalogHealthIssue] = []
+        for exercise in exercises:
+            missing: list[str] = []
+            if (
+                exercise.category == ExerciseCategory.OFF_ICE
+                and exercise.id not in primary_stats
+            ):
+                missing.append("primary_target_stat")
+            if not patterns_by_exercise.get(exercise.id):
+                missing.append("movement_pattern")
+            if exercise.phase == TrainingPhase.WARMUP and exercise.warmup_stage is None:
+                missing.append("warmup_stage")
+            if (
+                exercise.category == ExerciseCategory.OFF_ICE
+                and exercise.tracks_weight
+                and not equipment_by_exercise.get(exercise.id)
+            ):
+                missing.append("equipment_for_tracked_weight")
+
+            if missing:
+                issues.append(
+                    CatalogHealthIssue(
+                        exercise_id=exercise.id,
+                        name=exercise.name,
+                        category=exercise.category,
+                        phase=exercise.phase,
+                        missing=missing,
+                    )
+                )
+        return issues
 
     async def list_equipment_items(self, exercise_id: uuid.UUID) -> list[EquipmentItem]:
         await self.get_exercise(exercise_id)

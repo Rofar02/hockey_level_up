@@ -1,5 +1,6 @@
 import { apiDeleteAuth, apiGet, apiPatchAuth, apiPostAuth, apiPutAuth } from './client'
 import type {
+  CatalogHealthIssue,
   EquipmentItem,
   ExerciseCategory,
   ExerciseEquipmentRequirement,
@@ -31,6 +32,10 @@ export function listExerciseEquipmentRequirements(
   accessToken: string,
 ): Promise<ExerciseEquipmentRequirement[]> {
   return apiGet<ExerciseEquipmentRequirement[]>('/exercises/equipment-requirements', accessToken)
+}
+
+export function listCatalogHealthIssues(accessToken: string): Promise<CatalogHealthIssue[]> {
+  return apiGet<CatalogHealthIssue[]>('/exercises/catalog-health', accessToken)
 }
 
 // -- admin CRUD --

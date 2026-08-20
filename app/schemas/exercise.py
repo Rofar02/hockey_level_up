@@ -168,6 +168,44 @@ class ExerciseEquipmentRequirement(BaseModel):
     equipment_items: list[EquipmentItem]
 
 
+class CatalogHealthIssue(BaseModel):
+    """One row per exercise with at least one classification gap that
+    causes it to silently drop out of (or wrongly stay eligible for)
+    selection -- Stage 3 (2026-08-20 planning session), admin-gated (see
+    GET /exercises/catalog-health), replacing manual SQL auditing as new
+    classification axes (muscle groups, equipment) landed in Stage 2 and
+    multiplied the ways an exercise can go quietly under-classified.
+
+    `missing` values and exactly what each one means:
+      - "primary_target_stat": no order=0 ExerciseTargetStat row. Off_ice
+        only -- ScheduleService._apply_difficulty_gate treats this as
+        app.core.stat_difficulty.UNCLASSIFIED_EXERCISE_CAP (1), so any
+        exercise above difficulty_level 1 becomes near-invisible to
+        selection for effectively every user.
+      - "movement_pattern": no ExerciseMovementPattern row at all --
+        ScheduleService._pick_main/_pick_sequence bucket candidates by
+        pattern, so an untagged exercise never appears in any bucket,
+        on_ice or off_ice.
+      - "warmup_stage": phase=warmup with warmup_stage still NULL --
+        _pick_warmup_complex fills one slot per WarmupStage in
+        WARMUP_STAGE_ORDER, so an untagged warmup exercise can never be
+        selected for any stage.
+      - "equipment_for_tracked_weight": off_ice, tracks_weight=true, zero
+        ExerciseEquipmentItem rows. Deliberately narrower than "any
+        off_ice exercise with zero equipment tags" -- most real off_ice
+        exercises are legitimately bodyweight-only (245/368 checked
+        2026-08-20), so that blanket check would be almost pure noise.
+        A tracked-weight exercise with nothing to hold/load is the actual
+        content gap worth flagging.
+    """
+
+    exercise_id: uuid.UUID
+    name: str
+    category: ExerciseCategory
+    phase: TrainingPhase
+    missing: list[str]
+
+
 class MuscleGroupWeight(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

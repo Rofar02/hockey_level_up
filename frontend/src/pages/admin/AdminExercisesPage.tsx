@@ -11,6 +11,7 @@ import * as skillsApi from '../../api/skills'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import {
+  CATALOG_HEALTH_ISSUE_LABELS,
   EQUIPMENT_ITEMS,
   EQUIPMENT_ITEM_LABELS,
   EXERCISE_CATEGORIES,
@@ -29,6 +30,7 @@ import {
   WARMUP_STAGE_LABELS,
 } from '../../types/exercise'
 import type {
+  CatalogHealthIssue,
   EquipmentItem,
   ExerciseCategory,
   ExerciseRead,
@@ -94,6 +96,13 @@ export function AdminExercisesPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Stage 3 (2026-08-20 planning session): fetched once, independently of
+  // the category/phase/target_stat filters above -- a health issue can
+  // exist in a category the admin currently isn't looking at, and this is
+  // small (one row per *problem* exercise, not the whole catalog).
+  const [catalogHealthIssues, setCatalogHealthIssues] = useState<CatalogHealthIssue[] | null>(null)
+  const [healthOnly, setHealthOnly] = useState(false)
+
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingExercise, setEditingExercise] = useState<ExerciseRead | null>(null)
 
@@ -132,6 +141,31 @@ export function AdminExercisesPage() {
       cancelled = true
     }
   }, [accessToken, category, phase, targetStat])
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    exercisesApi
+      .listCatalogHealthIssues(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setCatalogHealthIssues(result)
+        }
+      })
+      .catch(() => {
+        // Non-fatal -- the exercise list itself already loaded/loads
+        // independently above; the health column/filter just stays empty.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
+  const issuesByExerciseId = new Map(
+    (catalogHealthIssues ?? []).map((issue) => [issue.exercise_id, issue.missing]),
+  )
 
   function openCreateForm() {
     setEditingExercise(null)
@@ -173,7 +207,8 @@ export function AdminExercisesPage() {
   const filteredExercises = (exercises ?? []).filter(
     (exercise) =>
       (stimulusType === '' || exercise.stimulus_type === stimulusType)
-      && (exerciseType === '' || exercise.exercise_type === exerciseType),
+      && (exerciseType === '' || exercise.exercise_type === exerciseType)
+      && (!healthOnly || (issuesByExerciseId.get(exercise.id)?.length ?? 0) > 0),
   )
 
   return (
@@ -215,6 +250,15 @@ export function AdminExercisesPage() {
             value={exerciseType}
             onChange={(event) => setExerciseType(event.target.value as ExerciseType | '')}
           />
+          <label className="flex items-center gap-2 self-end pb-2 text-sm text-text-secondary">
+            <input
+              type="checkbox"
+              checked={healthOnly}
+              onChange={(event) => setHealthOnly(event.target.checked)}
+            />
+            Только с проблемами каталога
+            {catalogHealthIssues !== null && ` (${catalogHealthIssues.length})`}
+          </label>
         </div>
         <Button type="button" onClick={openCreateForm}>
           Добавить упражнение
@@ -241,6 +285,7 @@ export function AdminExercisesPage() {
                   <th className="px-3 py-2 font-medium">Stimulus</th>
                   <th className="px-3 py-2 font-medium">Exercise type</th>
                   <th className="px-3 py-2 font-medium">Сложность</th>
+                  <th className="px-3 py-2 font-medium">Здоровье</th>
                   <th className="px-3 py-2 font-medium" />
                 </tr>
               </thead>
@@ -274,6 +319,18 @@ export function AdminExercisesPage() {
                       {exercise.exercise_type === null ? '—' : EXERCISE_TYPE_LABELS[exercise.exercise_type]}
                     </td>
                     <td className="px-3 py-2 font-mono text-text-secondary">{exercise.difficulty_level}</td>
+                    <td className="px-3 py-2 text-accent-persimmon">
+                      {(issuesByExerciseId.get(exercise.id) ?? []).length === 0
+                        ? <span className="text-text-secondary">—</span>
+                        : (
+                          <span title={(issuesByExerciseId.get(exercise.id) ?? [])
+                            .map((code) => CATALOG_HEALTH_ISSUE_LABELS[code] ?? code)
+                            .join('; ')}
+                          >
+                            ⚠ {(issuesByExerciseId.get(exercise.id) ?? []).length}
+                          </span>
+                        )}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex justify-end gap-3">
                         <button
@@ -330,6 +387,13 @@ export function AdminExercisesPage() {
                     Type: {exercise.exercise_type === null ? '—' : EXERCISE_TYPE_LABELS[exercise.exercise_type]}
                   </span>
                 </div>
+                {(issuesByExerciseId.get(exercise.id) ?? []).length > 0 && (
+                  <p className="mt-1 text-xs text-accent-persimmon">
+                    ⚠ {(issuesByExerciseId.get(exercise.id) ?? [])
+                      .map((code) => CATALOG_HEALTH_ISSUE_LABELS[code] ?? code)
+                      .join('; ')}
+                  </p>
+                )}
                 <div className="mt-2 flex gap-4 text-sm">
                   <button
                     type="button"
