@@ -383,15 +383,16 @@ class ScheduleService:
         main_exercises = await self._pick_main(
             category, user, block_phase, training_block=training_block, today=today
         )
-        main_patterns = await self._movement_patterns_union(
-            [exercise.id for exercise in main_exercises]
-        )
+        main_exercise_ids = [exercise.id for exercise in main_exercises]
+        main_patterns = await self._movement_patterns_union(main_exercise_ids)
+        main_muscle_groups = await self._muscle_groups_union(main_exercise_ids)
 
         warmup_exercises = await self._pick_warmup_complex(
             category,
             user,
             block_phase,
             preferred_patterns=main_patterns,
+            preferred_muscle_groups=main_muscle_groups,
         )
         # One cooldown pick per distinct pattern MAIN actually trained
         # (capped) -- see _COOLDOWN_SEQUENCE_MAX's own comment. main_patterns
@@ -406,6 +407,7 @@ class ScheduleService:
             block_phase,
             count=cooldown_count,
             preferred_patterns=main_patterns,
+            preferred_muscle_groups=main_muscle_groups,
         )
 
         # order runs across the whole session, not reset per phase (same
@@ -430,6 +432,15 @@ class ScheduleService:
     async def _movement_patterns_union(self, exercise_ids: list[uuid.UUID]) -> set[MovementPattern]:
         by_exercise = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)
         return {pattern for patterns in by_exercise.values() for pattern in patterns}
+
+    async def _muscle_groups_union(self, exercise_ids: list[uuid.UUID]) -> set[MuscleGroup]:
+        """Stage 2.5: same shape as _movement_patterns_union -- every muscle
+        group MAIN's picks load between them, the primary "what should
+        warmup/cooldown target" signal for _pick_warmup_complex/
+        _pick_sequence (see their own docstrings for the fallback chain to
+        preferred_patterns)."""
+        by_exercise = await self._exercises.list_muscle_groups_by_exercise(exercise_ids)
+        return {group for groups in by_exercise.values() for group in groups}
 
     async def _pick_single(
         self,
@@ -504,17 +515,33 @@ class ScheduleService:
         *,
         count: int,
         preferred_patterns: set[MovementPattern] | None = None,
+        preferred_muscle_groups: set[MuscleGroup] | None = None,
     ) -> list[Exercise]:
         """Same candidate gathering/level-cap/difficulty-predicate layers as
         _pick_single, but returns up to `count` distinct exercises instead of
-        one -- the warmup-complex/muscle-matched-cooldown feature. Exercises
-        sharing a movement_pattern with `preferred_patterns` fill the
-        sequence first (shuffled among themselves), the rest of the
-        level/difficulty-narrowed pool fills any remaining slots (also
-        shuffled) -- so a small pool never leaves a slot unfilled just
-        because fewer than `count` candidates happen to match a pattern.
-        Returns fewer than `count` (down to zero) if the pool itself is
-        smaller than that -- never repeats an exercise to pad the count.
+        one -- the warmup-complex/muscle-matched-cooldown feature.
+
+        Stage 2.5 (2026-08-20 planning session): the "what should this
+        target" signal is muscle groups actually loaded by MAIN
+        (preferred_muscle_groups), not movement_pattern overlap -- more
+        honest for "stretch what MAIN just worked" than "shares a squat/
+        hip_hinge/etc label" ever was. preferred_patterns is kept as a
+        fallback, not dropped: checked against the real catalog before
+        writing this, zero exercises have any ExerciseMuscleGroup row yet
+        (Stage 2.1 shipped the taxonomy tonight, retagging is Stage 4's
+        job) -- muscle-matching alone would silently never match anything
+        today. So the real order is: muscle-group intersection first: if
+        that finds nothing (either no ExerciseMuscleGroup data yet, or
+        this session's MAIN genuinely doesn't overlap this pool),
+        movement_pattern intersection next; if that's also empty, every
+        exercise in the level/difficulty-narrowed pool is equally
+        eligible. Whichever tier finds a non-empty "matched" set fills the
+        sequence first (shuffled among themselves), the rest of the pool
+        fills any remaining slots (also shuffled) -- so a small pool never
+        leaves a slot unfilled just because fewer than `count` candidates
+        happen to match. Returns fewer than `count` (down to zero) if the
+        pool itself is smaller than that -- never repeats an exercise to
+        pad the count.
         """
         candidates = await self._exercises.list_for_assembly(
             phase=phase, user=user, category=category
@@ -529,8 +556,16 @@ class ScheduleService:
             candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
 
         matched: list[Exercise] = []
-        rest: list[Exercise] = list(candidates)
-        if preferred_patterns:
+        if preferred_muscle_groups:
+            muscle_groups_by_id = await self._exercises.list_muscle_groups_by_exercise(
+                [e.id for e in candidates]
+            )
+            matched = [
+                e
+                for e in candidates
+                if preferred_muscle_groups.intersection(muscle_groups_by_id.get(e.id, set()))
+            ]
+        if not matched and preferred_patterns:
             patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
                 [e.id for e in candidates]
             )
@@ -539,8 +574,9 @@ class ScheduleService:
                 for e in candidates
                 if preferred_patterns.intersection(patterns_by_id.get(e.id, ()))
             ]
-            matched_ids = {e.id for e in matched}
-            rest = [e for e in candidates if e.id not in matched_ids]
+
+        matched_ids = {e.id for e in matched}
+        rest = [e for e in candidates if e.id not in matched_ids]
 
         random.shuffle(matched)
         random.shuffle(rest)
@@ -559,6 +595,7 @@ class ScheduleService:
         block_phase: BlockPhase,
         *,
         preferred_patterns: set[MovementPattern] | None = None,
+        preferred_muscle_groups: set[MuscleGroup] | None = None,
     ) -> list[Exercise]:
         """A proper warmup: up to one exercise per WarmupStage, in
         WARMUP_STAGE_ORDER (soft tissue prep -> raise pulse/temperature ->
@@ -572,9 +609,14 @@ class ScheduleService:
         substitute in the catalog) is skipped outright rather than padded
         with something from a different stage -- a shorter, honest complex
         beats a technically-full one that lies about what stage it's in.
-        preferred_patterns narrows each stage's own pool the same way
-        _pick_sequence does, falling back to the stage's untouched pool
-        when nothing in it overlaps.
+
+        preferred_muscle_groups (Stage 2.5, 2026-08-20 planning session)
+        narrows each stage's own pool first, same fallback-to-untouched
+        shape _pick_sequence uses -- see that method's docstring for why
+        this, not preferred_patterns, is the primary signal now, and why
+        preferred_patterns still runs as the next fallback rather than
+        being dropped (zero real ExerciseMuscleGroup data yet, checked
+        against the catalog before writing this).
 
         Exercises with warmup_stage=None (not yet classified -- see
         scripts/backfill_warmup_stages.py) are invisible to every stage
@@ -594,6 +636,11 @@ class ScheduleService:
         if difficulty_predicate is not None:
             candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
 
+        muscle_groups_by_id: dict[uuid.UUID, set[MuscleGroup]] = {}
+        if preferred_muscle_groups:
+            muscle_groups_by_id = await self._exercises.list_muscle_groups_by_exercise(
+                [e.id for e in candidates]
+            )
         patterns_by_id: dict[uuid.UUID, tuple[MovementPattern, ...]] = {}
         if preferred_patterns:
             patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
@@ -609,14 +656,20 @@ class ScheduleService:
             if not stage_pool:
                 continue
 
-            pool = stage_pool
-            if preferred_patterns:
-                matched = [
+            pool = []
+            if preferred_muscle_groups:
+                pool = [
+                    e
+                    for e in stage_pool
+                    if preferred_muscle_groups.intersection(muscle_groups_by_id.get(e.id, set()))
+                ]
+            if not pool and preferred_patterns:
+                pool = [
                     e
                     for e in stage_pool
                     if preferred_patterns.intersection(patterns_by_id.get(e.id, ()))
                 ]
-                pool = matched or stage_pool
+            pool = pool or stage_pool
 
             choice = random.choice(pool)
             picked.append(choice)
@@ -1284,11 +1337,13 @@ class ScheduleService:
         training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
         block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
         main_patterns = await self._movement_patterns_union(exercise_ids)
+        main_muscle_groups = await self._muscle_groups_union(exercise_ids)
         warmup_exercises = await self._pick_warmup_complex(
             ExerciseCategory.OFF_ICE,
             user,
             block_phase,
             preferred_patterns=main_patterns,
+            preferred_muscle_groups=main_muscle_groups,
         )
         cooldown_count = min(_COOLDOWN_SEQUENCE_MAX, len(main_patterns)) or _COOLDOWN_SEQUENCE_MAX
         cooldown_exercises = await self._pick_sequence(
@@ -1298,6 +1353,7 @@ class ScheduleService:
             block_phase,
             count=cooldown_count,
             preferred_patterns=main_patterns,
+            preferred_muscle_groups=main_muscle_groups,
         )
 
         # Same running-order idiom as _build_training_session -- order runs
