@@ -62,6 +62,7 @@ CLASSIFICATION: dict[str, str] = {
     "Перевёрнутый reach (перевёрнутая тяга)": "joint_mobility",
     "Суставная гимнастика": "joint_mobility",
     "Суставная разминка (вращения)": "joint_mobility",
+    "Комплекс суставной гимнастики": "joint_mobility",
     "Комплекс голеностопа": "joint_mobility",
     "Поза голубя (активация перед игрой)": "joint_mobility",
     "Ротация бедра (внутренняя/наружная)": "joint_mobility",

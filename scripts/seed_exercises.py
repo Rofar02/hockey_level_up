@@ -333,7 +333,15 @@ EXERCISES: list[dict] = [
         "name": "Комплекс суставной гимнастики",
         "description": PLACEHOLDER_DESCRIPTION,
         "category": "off_ice",
-        "phase": "main",
+        # Was "main" -- a real, user-reported bug: this is joint-mobility
+        # warmup content (same as its two siblings "Суставная гимнастика"/
+        # "Суставная разминка (вращения)", both correctly "warmup"), not
+        # MAIN accessory work, but it kept getting assembled into MAIN
+        # blocks because _pick_main's role 4 has no filter beyond phase
+        # itself. See scripts/fix_joint_gymnastics_phase.py for the
+        # existing-DB fix and scripts/backfill_warmup_stages.py for the
+        # matching warmup_stage classification.
+        "phase": "warmup",
         "target_stat": "agility",
         "difficulty_level": 2,
         "equipment_type": "bodyweight",

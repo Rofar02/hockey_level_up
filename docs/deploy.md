@@ -167,6 +167,7 @@ docker compose -f docker-compose.prod.yml logs -f backend
 
 ```bash
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_exercises.py
+docker compose -f docker-compose.prod.yml exec backend python scripts/fix_joint_gymnastics_phase.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_offseason_catalog_additions.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/backfill_warmup_stages.py
 docker compose -f docker-compose.prod.yml exec backend python scripts/backfill_coordination_patterns.py
@@ -179,12 +180,14 @@ docker compose -f docker-compose.prod.yml exec backend python scripts/seed_skill
 docker compose -f docker-compose.prod.yml exec backend python scripts/seed_reference_articles.py
 ```
 
-Порядок в первых трёх командах важен: `seed_offseason_catalog_additions.py`
-добавляет новые упражнения (должен идти после базового каталога),
-`backfill_warmup_stages.py` правит уже существующие по имени строки, так что
-запускается последним. Все скрипты идемпотентны (пропускают уже
-существующее) — безопасно перезапускать при повторном деплое, если каталог
-обновился.
+Порядок в первых командах важен: `fix_joint_gymnastics_phase.py` правит одну
+строку по имени (была `phase=main` вместо `warmup` — реальный баг, упражнение
+попадало в основную часть тренировки), поэтому идёт сразу после базового
+каталога; `seed_offseason_catalog_additions.py` добавляет новые упражнения
+(тоже должен идти после базового каталога); `backfill_warmup_stages.py`
+правит уже существующие по имени строки, так что запускается последним. Все
+скрипты идемпотентны (пропускают уже существующее) — безопасно
+перезапускать при повторном деплое, если каталог обновился.
 
 `retag_equipment_mistags.py` (упомянутый в более старых версиях этого файла)
 удалён 2026-08-20 вместе с самим полем `equipment_type` (Этап 2.2 —
