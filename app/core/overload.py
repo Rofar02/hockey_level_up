@@ -12,6 +12,19 @@ MIN_FEEDBACK_SETS_FOR_SIGNAL = 3
 _HARD_OR_MAX_OVERLOAD_RATIO = 0.5
 _MAX_ONLY_OVERLOAD_RATIO = 0.25
 
+# Stage 2.4's own plan text (2026-08-20 planning session): a POWER-archetype
+# set (Exercise.stimulus_type == StimulusType.POWER) subjectively feels
+# harder than a STRENGTH set carrying the same objective load -- "one
+# correction factor in the existing formula", not a separate mechanism.
+# Applied in OverloadRepository.list_recent_session_feedback_counts to that
+# set's contribution to hard_count/max_count before classify_session ever
+# sees it (so this module doesn't need to know about exercises at all) --
+# HARD/MAX feedback on a POWER set counts as half a HARD/MAX toward the
+# overload ratio, not a full one. total_with_feedback (the denominator) is
+# never discounted -- a POWER set still logged real feedback, this only
+# softens how much a *hard-feeling* one weighs toward "you're overloaded".
+POWER_DAY_FEEDBACK_DISCOUNT = 0.5
+
 
 class SessionSignal(enum.Enum):
     """Ephemeral per-request classification -- never persisted, so this is
@@ -21,10 +34,17 @@ class SessionSignal(enum.Enum):
     OK = "ok"
 
 
-def classify_session(*, hard_count: int, max_count: int, total_with_feedback: int) -> SessionSignal | None:
+def classify_session(
+    *, hard_count: float, max_count: float, total_with_feedback: int
+) -> SessionSignal | None:
     """None when the session has too little feedback to mean anything
     (< MIN_FEEDBACK_SETS_FOR_SIGNAL) -- callers must drop it from both
     brakes' windows entirely, not treat it as a neutral/OK data point.
+
+    hard_count/max_count are floats, not plain set-counts, since
+    POWER_DAY_FEEDBACK_DISCOUNT above means a POWER-archetype set's HARD/MAX
+    feedback can contribute half a "count" rather than a whole one --
+    total_with_feedback stays an exact integer set-count (never discounted).
     """
     if total_with_feedback < MIN_FEEDBACK_SETS_FOR_SIGNAL:
         return None

@@ -20,6 +20,7 @@ from app.models.exercise import (
     ExerciseMovementPattern,
     ExerciseTargetStat,
     MovementPattern,
+    StimulusType,
     TargetStat,
     TrainingPhase,
 )
@@ -43,13 +44,19 @@ def _make_user() -> User:
     )
 
 
-def _make_exercise(name: str, target_stat: TargetStat, difficulty_level: int = 1) -> Exercise:
+def _make_exercise(
+    name: str,
+    target_stat: TargetStat,
+    difficulty_level: int = 1,
+    stimulus_type: StimulusType | None = None,
+) -> Exercise:
     return Exercise(
         id=uuid.uuid4(),
         name=name,
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=difficulty_level,
+        stimulus_type=stimulus_type,
     )
 
 
@@ -59,10 +66,14 @@ async def _seed_session(
     *,
     session_date: date,
     feedback_by_exercise: dict[str, SetFeedback],
+    stimulus_type_by_exercise: dict[str, StimulusType] | None = None,
 ) -> TrainingSession:
     """A real off-ice TrainingSession on `session_date`, with one SetCompletion
     (set_number=1) per entry in feedback_by_exercise -- each carrying that
     feedback value, so total_with_feedback == len(feedback_by_exercise).
+    stimulus_type_by_exercise (optional, same keys) tags that exercise's own
+    stimulus_type -- for POWER_DAY_FEEDBACK_DISCOUNT tests; unset keys stay
+    stimulus_type=None (not yet classified), same as every other test here.
     """
     weekly_plan = WeeklyPlan(
         id=uuid.uuid4(),
@@ -72,7 +83,11 @@ async def _seed_session(
     blocks = []
     set_completions = []
     for i, (exercise_name, feedback) in enumerate(feedback_by_exercise.items()):
-        exercise = _make_exercise(f"{exercise_name}-{uuid.uuid4().hex[:6]}", TargetStat.STRENGTH)
+        exercise = _make_exercise(
+            f"{exercise_name}-{uuid.uuid4().hex[:6]}",
+            TargetStat.STRENGTH,
+            stimulus_type=(stimulus_type_by_exercise or {}).get(exercise_name),
+        )
         db_session.add(exercise)
         await db_session.flush()
         blocks.append(SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=i))
@@ -285,3 +300,53 @@ async def test_structural_throttle_narrows_exercise_selection(db_session) -> Non
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == ["Hard"]
+
+
+@pytest.mark.asyncio
+async def test_repository_discounts_hard_max_feedback_from_power_exercises(db_session) -> None:
+    """Stage 2.4's own plan text (2026-08-20 planning session): a POWER-day
+    set subjectively feels harder than a STRENGTH set at the same objective
+    load, so its HARD/MAX feedback should count for less toward the
+    overload ratio -- see POWER_DAY_FEEDBACK_DISCOUNT."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    await _seed_session(
+        db_session, user, session_date=date(2026, 1, 5),
+        feedback_by_exercise={"a": SetFeedback.HARD, "b": SetFeedback.HARD, "c": SetFeedback.MAX},
+        stimulus_type_by_exercise={"a": StimulusType.POWER, "b": StimulusType.POWER, "c": StimulusType.POWER},
+    )
+
+    repo = OverloadRepository(db_session)
+    counts = await repo.list_recent_session_feedback_counts(user.id, limit=10)
+    # 2 HARD + 1 MAX, all POWER-discounted to 0.5 each -> 1.0 + 0.5 = 1.5.
+    assert counts == [(1.0, 0.5, 3)]
+
+
+@pytest.mark.asyncio
+async def test_apply_brakes_power_discount_can_prevent_tactical_engagement(db_session) -> None:
+    """Same 2-overload-sessions-in-a-row shape as
+    test_apply_brakes_tactical_forces_deload_on_two_overload_sessions, but
+    every set is on a POWER exercise -- the discount pulls the ratio below
+    _HARD_OR_MAX_OVERLOAD_RATIO (2 HARD/4 = 0.5 undiscounted -> 1.0/4 = 0.25
+    discounted), so neither session classifies as overload and the
+    tactical brake never engages."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    for i, d in enumerate([date(2026, 1, 5), date(2026, 1, 12)]):
+        await _seed_session(
+            db_session, user, session_date=d,
+            feedback_by_exercise={
+                f"a{i}": SetFeedback.HARD, f"b{i}": SetFeedback.HARD,
+                f"c{i}": SetFeedback.NORMAL, f"d{i}": SetFeedback.NORMAL,
+            },
+            stimulus_type_by_exercise={f"a{i}": StimulusType.POWER, f"b{i}": StimulusType.POWER},
+        )
+
+    service = OverloadService(db_session)
+    effective_phase = await service.apply_brakes(user, BlockPhase.ACCUMULATION)
+
+    assert effective_phase == BlockPhase.ACCUMULATION
