@@ -136,6 +136,7 @@ export const MUSCLE_GROUPS = [
   'shoulders',
   'core',
   'calves',
+  'forearms',
 ] as const
 export type MuscleGroup = (typeof MUSCLE_GROUPS)[number]
 
@@ -148,6 +149,7 @@ export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
   shoulders: 'Плечи',
   core: 'Кор',
   calves: 'Икры',
+  forearms: 'Предплечья',
 }
 
 export interface MuscleGroupWeight {

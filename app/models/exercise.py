@@ -95,6 +95,14 @@ class MuscleGroup(enum.StrEnum):
     SHOULDERS = "shoulders"
     CORE = "core"
     CALVES = "calves"
+    # Added 2026-08-20: grip/wrist/forearm work (stick-handling, and as a
+    # secondary synergist on pull/hinge exercises) had no honest home in
+    # the original 8 -- it was getting folded into back/chest/core/
+    # shoulders, which made both the muscle-load avatar and the catalog's
+    # real ExerciseMuscleGroup tagging misrepresent what those exercises
+    # actually load. No migration needed -- VARCHAR-backed (see
+    # app.db.enum_column), same as the earlier movement-pattern additions.
+    FOREARMS = "forearms"
 
 
 class StimulusType(enum.StrEnum):

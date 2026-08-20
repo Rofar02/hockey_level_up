@@ -16,22 +16,29 @@ import type { MuscleLoadRead } from '../types/progress'
 // abs-upper/lower at full strength, obliques a bit less, hip-flexor less
 // still -- a graduated spread, not a flat block).
 //
-// Full-avatar coverage: every library id maps to one of our 8 groups now,
-// including the ones a first pass left permanently gray (arms/hands/
-// forearms/elbows -> back or chest depending on which movement chain they
-// belong to; knees -> quads/hamstrings; feet/tibialis-anterior -> calves;
-// neck/nape -> back). The one deliberate exception is head/face -- there's
-// no S&C muscle group there to honestly show, forcing a mapping would be
-// decorative, not informative.
+// Full-avatar coverage: every library id maps to one of our 9 groups now
+// (8 + forearms, added 2026-08-20 -- see MuscleGroup.FOREARMS), including
+// the ones a first pass left permanently gray (knees -> quads/hamstrings;
+// feet/tibialis-anterior -> calves; neck/nape -> back). The one deliberate
+// exception is head/face -- there's no S&C muscle group there to honestly
+// show, forcing a mapping would be decorative, not informative.
 //
 // Judgment calls worth naming:
 //  - adductors (inner thigh) -> glutes (hip-stabilizing, closer fit than
 //    quads/hamstrings), lower weight as a secondary mover there.
 //  - hip-flexor -> core, lower weight (no better bucket exists).
-//  - triceps/forearm-extensors/elbow (front) -> chest, biceps/forearm-
-//    flexors/elbow (back)/hand/forearm (front, ungranulated) -> back --
-//    split by which movement chain (push vs pull) actually recruits them,
-//    all at reduced weight since they're synergists, not the prime mover.
+//  - triceps (front) -> chest, biceps (back) -> back -- kept there, not
+//    moved to forearms, on the strength of a real S&C convention: they're
+//    push/pull-chain synergists, not grip muscles, at reduced weight since
+//    they're synergists, not the prime mover.
+//  - hand/forearm/elbow (front+back, both views) -> forearms, all as one
+//    group (2026-08-20 fix) -- previously split across back/chest as
+//    push/pull synergists the same way biceps/triceps are, which was
+//    wrong for hands specifically: grip has no push/pull chain affiliation
+//    the way an elbow flexor/extensor does, so "clicking your hand shows
+//    Спина" read as arbitrary, not explainable. hand gets full weight
+//    (the region most likely to actually get clicked), forearm close
+//    behind, elbow lower as a joint region rather than a muscle belly.
 //  - knee (front) -> quads, knee (back) -> hamstrings; tibialis-anterior
 //    and feet -> calves -- nearest lower-leg group, reduced weight.
 const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number>> = {
@@ -66,8 +73,6 @@ const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number
     'triceps-lateral-left': 0.35,
     'triceps-long-right': 0.35,
     'triceps-lateral-right': 0.35,
-    'forearm-extensors-left': 0.3,
-    'forearm-extensors-right': 0.3,
   },
   back: {
     'traps-upper-left': 1.0, 'traps-mid-left': 1.0, 'traps-lower-left': 1.0,
@@ -79,11 +84,14 @@ const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number
     'lower-back-erectors-right': 0.9, 'lower-back-ql-right': 0.9,
     'neck-left': 0.4, 'neck-right': 0.4, nape: 0.4,
     'biceps-left': 0.35, 'biceps-right': 0.35,
-    'forearm-left': 0.3, 'forearm-right': 0.3,
-    'forearm-flexors-left': 0.3, 'forearm-flexors-right': 0.3,
-    'elbow-left': 0.3, 'elbow-right': 0.3,
-    'hand-left': 0.25, 'hand-right': 0.25,
-    'hand-back-left': 0.25, 'hand-back-right': 0.25,
+  },
+  forearms: {
+    'hand-left': 1.0, 'hand-right': 1.0,
+    'hand-back-left': 1.0, 'hand-back-right': 1.0,
+    'forearm-left': 0.8, 'forearm-right': 0.8,
+    'forearm-flexors-left': 0.8, 'forearm-flexors-right': 0.8,
+    'forearm-extensors-left': 0.8, 'forearm-extensors-right': 0.8,
+    'elbow-left': 0.4, 'elbow-right': 0.4,
   },
   shoulders: {
     'shoulder-front-left': 1.0, 'shoulder-side-left': 1.0,
