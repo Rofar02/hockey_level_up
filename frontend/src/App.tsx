@@ -89,148 +89,51 @@ function App() {
           </OnboardingRoute>
         }
       />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <HomePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/schedule/new"
-        element={
-          <ProtectedRoute>
-            <NewSchedulePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/training/:dayPlanId"
-        element={
-          <ProtectedRoute>
-            <TrainingSessionPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <ProfilePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile/:userId"
-        element={
-          <ProtectedRoute>
-            <ProfilePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/friends"
-        element={
-          <ProtectedRoute>
-            <FriendsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/training-parties"
-        element={
-          <ProtectedRoute>
-            <TrainingPartiesPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/training-parties/:partyId"
-        element={
-          <ProtectedRoute>
-            <TrainingPartyDetailPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <SettingsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/leaderboard"
-        element={
-          <ProtectedRoute>
-            <LeaderboardPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/teams"
-        element={
-          <ProtectedRoute>
-            <TeamsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/teams/leaderboard"
-        element={
-          <ProtectedRoute>
-            <TeamRankingPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/teams/:teamId"
-        element={
-          <ProtectedRoute>
-            <TeamDetailPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/analytics"
-        element={
-          <ProtectedRoute>
+      {/* Pathless layout route -- ProtectedRoute renders once (BottomNav
+          included) and stays mounted across every navigation among these
+          children, matched through its own <Outlet/>. See that
+          component's docstring for why this replaced one <ProtectedRoute>
+          wrapper per page. */}
+      <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/schedule/new" element={<NewSchedulePage />} />
+        <Route path="/training/:dayPlanId" element={<TrainingSessionPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/profile/:userId" element={<ProfilePage />} />
+        <Route path="/friends" element={<FriendsPage />} />
+        <Route path="/training-parties" element={<TrainingPartiesPage />} />
+        <Route path="/training-parties/:partyId" element={<TrainingPartyDetailPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/teams" element={<TeamsPage />} />
+        <Route path="/teams/leaderboard" element={<TeamRankingPage />} />
+        <Route path="/teams/:teamId" element={<TeamDetailPage />} />
+        <Route
+          path="/analytics"
+          element={
             <Suspense fallback={<RouteLoadingFallback />}>
               <AnalyticsPage />
             </Suspense>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/coach"
-        element={
-          <ProtectedRoute>
+          }
+        />
+        <Route
+          path="/coach"
+          element={
             <Suspense fallback={<RouteLoadingFallback />}>
               <CoachPage />
             </Suspense>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/reference"
-        element={
-          <ProtectedRoute>
-            <ReferencePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/reference/:articleId"
-        element={
-          <ProtectedRoute>
+          }
+        />
+        <Route path="/reference" element={<ReferencePage />} />
+        <Route
+          path="/reference/:articleId"
+          element={
             <Suspense fallback={<RouteLoadingFallback />}>
               <ReferenceArticleDetailPage />
             </Suspense>
-          </ProtectedRoute>
-        }
-      />
+          }
+        />
+      </Route>
       <Route
         path="/admin"
         element={
