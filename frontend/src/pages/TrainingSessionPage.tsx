@@ -307,6 +307,17 @@ export function TrainingSessionPage() {
     }
   }
 
+  // Stage 1.5 (2026-08-20 planning session, "тренажёр занят"): the modal
+  // itself owns the API call/loading/error state (see ExerciseDetailModal's
+  // handleReplace) -- this just syncs the two bits of page state that need
+  // to know the block's exercise changed: the block list behind the modal,
+  // and selectedExercise so the open modal immediately shows the new
+  // exercise's own name/technique/sets instead of the outgoing one's.
+  function handleExerciseReplaced(updated: SessionBlockRead) {
+    setBlocks((previous) => previous?.map((b) => (b.id === updated.id ? updated : b)) ?? previous)
+    setSelectedExercise(updated.exercise)
+  }
+
   if (loadError !== null) {
     return (
       <div className="relative min-h-svh overflow-hidden">
@@ -467,6 +478,14 @@ export function TrainingSessionPage() {
           onLastSetCompleted={
             selectedBlock !== null && selectedBlock.completed_at === null
               ? () => handleComplete(selectedBlock)
+              : undefined
+          }
+          blockId={
+            selectedBlock !== null && selectedBlock.completed_at === null ? selectedBlock.id : undefined
+          }
+          onReplaced={
+            selectedBlock !== null && selectedBlock.completed_at === null
+              ? handleExerciseReplaced
               : undefined
           }
         />

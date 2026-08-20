@@ -77,6 +77,37 @@ _SESSION_TYPE_TO_CATEGORY = {
     DaySessionType.OFF_ICE: ExerciseCategory.OFF_ICE,
 }
 
+# _pick_main's four role pattern-sets, pulled out to module level so
+# replace_block_exercise (Stage 1.5, 2026-08-20 planning session -- manual
+# single-slot swap, "тренажёр занят") can determine "which role is this MAIN
+# exercise in" without duplicating the literal pattern lists a second time.
+# Role 4 (accessories) has no fixed set of its own -- it's everything these
+# three don't claim, computed by _role_patterns_for below.
+_EXPLOSIVE_PATTERNS: tuple[MovementPattern, ...] = (
+    MovementPattern.LOCOMOTION, MovementPattern.STICK_HANDLING, MovementPattern.COORDINATION,
+)
+_LOWER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.SQUAT, MovementPattern.HIP_HINGE)
+_UPPER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.PUSH, MovementPattern.PULL)
+
+
+def _role_patterns_for(patterns: set[MovementPattern]) -> frozenset[MovementPattern]:
+    """Which of _pick_main's four roles `patterns` (a replaced exercise's own
+    tags) belongs to, as that role's full pattern set -- e.g. a HIP_HINGE
+    exercise maps to {SQUAT, HIP_HINGE} (role 2 as a whole), not just
+    {HIP_HINGE}, so a squat is an acceptable substitute for a hip hinge and
+    vice versa, same as _pick_main treats that role's slot. Falls through to
+    role 4 (every pattern not claimed by roles 1-3) for anything else,
+    including a completely untagged exercise (empty `patterns`)."""
+    if patterns & set(_EXPLOSIVE_PATTERNS):
+        return frozenset(_EXPLOSIVE_PATTERNS)
+    if patterns & set(_LOWER_BODY_PATTERNS):
+        return frozenset(_LOWER_BODY_PATTERNS)
+    if patterns & set(_UPPER_BODY_PATTERNS):
+        return frozenset(_UPPER_BODY_PATTERNS)
+    return frozenset(MovementPattern) - frozenset(_EXPLOSIVE_PATTERNS) - frozenset(
+        _LOWER_BODY_PATTERNS
+    ) - frozenset(_UPPER_BODY_PATTERNS)
+
 # Warmup/cooldown as a short sequence instead of one exercise (product ask:
 # "always a proper warmup complex" + "cooldown should stretch what MAIN just
 # worked", 2026-08-18). Warmup picks one exercise per WarmupStage, in
@@ -453,8 +484,16 @@ class ScheduleService:
         *,
         suitable_for_game_day: bool | None = None,
         preferred_patterns: set[MovementPattern] | None = None,
+        exclude_ids: set[uuid.UUID] | None = None,
     ) -> Exercise | None:
         """Warmup/cooldown: curated pool for the phase, filtered by the day's category.
+
+        exclude_ids (Stage 1.5, 2026-08-20 planning session: manual
+        single-slot replacement) drops specific exercise ids from the pool
+        before anything else runs -- unset for every fresh-assembly caller,
+        only replace_block_exercise passes it, to keep the outgoing
+        exercise and every other exercise already in today's session out of
+        the substitute pool.
 
         Equipment (Stage 2.2: has_gym_access + owned items) still narrows
         off_ice candidates but never excludes on_ice ones (no equipment
@@ -486,6 +525,8 @@ class ScheduleService:
             category=category,
             suitable_for_game_day=suitable_for_game_day,
         )
+        if exclude_ids:
+            candidates = [e for e in candidates if e.id not in exclude_ids]
         if not candidates:
             return None
 
@@ -1012,9 +1053,7 @@ class ScheduleService:
             return choice
 
         # Role 1: explosive/skill, while fresh.
-        explosive_patterns = [
-            MovementPattern.LOCOMOTION, MovementPattern.STICK_HANDLING, MovementPattern.COORDINATION,
-        ]
+        explosive_patterns = list(_EXPLOSIVE_PATTERNS)
         random.shuffle(explosive_patterns)
         used_role1_pattern: MovementPattern | None = None
         for pattern in explosive_patterns:
@@ -1030,8 +1069,8 @@ class ScheduleService:
         # Roles 2-3: lower-body then upper-body strength, each pattern
         # resolving its own day archetype independently.
         for role_patterns, prefer_unilateral in (
-            ([MovementPattern.SQUAT, MovementPattern.HIP_HINGE], True),
-            ([MovementPattern.PUSH, MovementPattern.PULL], False),
+            (list(_LOWER_BODY_PATTERNS), True),
+            (list(_UPPER_BODY_PATTERNS), False),
         ):
             random.shuffle(role_patterns)
             for pattern in role_patterns:
@@ -1063,6 +1102,60 @@ class ScheduleService:
             await pick_for_pattern(pattern, archetype=None, use_muscle_context=True)
 
         return picked
+
+    async def _pick_main_replacement(
+        self,
+        category: ExerciseCategory,
+        user: User,
+        block_phase: BlockPhase,
+        *,
+        role_patterns: frozenset[MovementPattern],
+        exclude_ids: set[uuid.UUID],
+        loaded_muscle_groups: set[MuscleGroup],
+    ) -> Exercise | None:
+        """Stage 1.5 (2026-08-20 planning session): the MAIN half of
+        replace_block_exercise's manual single-slot swap -- a deliberately
+        simpler, one-shot cousin of _pick_main's pick_for_pattern (no
+        variant-pin bookkeeping, no archetype resolution: this is an ad-hoc
+        override of one exercise in one already-assembled session, not a
+        change to the automatic rotation's own state). Layers, in order:
+        readiness/difficulty gate (same as pick_for_pattern) -> narrow to
+        `role_patterns` (falls back to the gated pool if nothing matches --
+        e.g. an under-tagged catalog corner) -> _apply_muscle_balance
+        against every muscle group already loaded elsewhere in today's
+        session (falls back the same way). exclude_ids always includes at
+        least the outgoing exercise and every other exercise already in
+        this session, so the swap can't just hand back the same pick or
+        create a duplicate.
+        """
+        candidates = await self._exercises.list_for_assembly(
+            phase=TrainingPhase.MAIN, user=user, category=category
+        )
+        candidates = [e for e in candidates if e.id not in exclude_ids]
+        if not candidates:
+            return None
+
+        candidates = await self._apply_difficulty_gate(
+            candidates, user, context=f"replace/main/{category}"
+        )
+        difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
+        if difficulty_predicate is not None:
+            candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
+
+        patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
+            [e.id for e in candidates]
+        )
+        pool = [
+            e for e in candidates if role_patterns.intersection(patterns_by_id.get(e.id, ()))
+        ] or candidates
+
+        if loaded_muscle_groups:
+            muscle_groups_by_id = await self._exercises.list_muscle_groups_by_exercise(
+                [e.id for e in pool]
+            )
+            pool = self._apply_muscle_balance(pool, loaded_muscle_groups, muscle_groups_by_id)
+
+        return random.choice(pool)
 
     @staticmethod
     def _apply_muscle_balance(
@@ -1408,6 +1501,78 @@ class ScheduleService:
 
         day_plan.training_session = TrainingSession(blocks=blocks)
         await self._session.flush()
+
+    async def replace_block_exercise(self, block_id: uuid.UUID, user: User) -> SessionBlockRead:
+        """Stage 1.5 (2026-08-20 planning session, "тренажёр занят"): a
+        manual, single-slot swap -- not a session regenerate, the point is
+        replacing exactly one exercise without disturbing anything else the
+        user has already seen or started. MAIN blocks substitute within the
+        outgoing exercise's own role (_role_patterns_for -- explosive/
+        lower-body/upper-body/accessory, matching _pick_main's own role
+        split) and stay aware of every muscle group already loaded by the
+        rest of today's session (_pick_main_replacement); WARMUP/COOLDOWN
+        blocks substitute by movement_pattern via the existing _pick_single,
+        since roles/archetypes are a MAIN-only concept there's nothing role-
+        based to match on. Deliberately never touches
+        UserMovementPatternVariant -- this is an ad-hoc override of one
+        session, not a change to the automatic rotation's own state, so a
+        later fresh assembly still rotates as if this swap never happened.
+        """
+        block = await self._schedule.get_session_block_with_owner(block_id)
+        if block is None or block.session.day_plan.weekly_plan.user_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session block not found"
+            )
+        if block.completed_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="already completed"
+            )
+
+        training_session = await self._schedule.get_training_session_with_owner(block.session_id)
+        sibling_exercise_ids = [b.exercise_id for b in training_session.blocks if b.id != block.id]
+        exclude_ids = {block.exercise_id, *sibling_exercise_ids}
+
+        category = block.exercise.category
+        training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
+        block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
+        current_patterns = set(await self._exercises.list_movement_patterns(block.exercise_id))
+
+        if block.phase == TrainingPhase.MAIN:
+            role_patterns = _role_patterns_for(current_patterns)
+            loaded_muscle_groups = await self._muscle_groups_union(sibling_exercise_ids)
+            new_exercise = await self._pick_main_replacement(
+                category,
+                user,
+                block_phase,
+                role_patterns=role_patterns,
+                exclude_ids=exclude_ids,
+                loaded_muscle_groups=loaded_muscle_groups,
+            )
+        else:
+            new_exercise = await self._pick_single(
+                block.phase,
+                category,
+                user,
+                block_phase,
+                preferred_patterns=current_patterns,
+                exclude_ids=exclude_ids,
+            )
+
+        if new_exercise is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="No substitute exercise available"
+            )
+
+        block.exercise_id = new_exercise.id
+        await self._session.commit()
+        target_stats = await self._exercises.list_target_stats(new_exercise.id)
+        return SessionBlockRead(
+            id=block.id,
+            phase=block.phase,
+            order=block.order,
+            completed_at=block.completed_at,
+            exercise=exercise_to_read(new_exercise, target_stats),
+        )
 
     async def _to_read_schema(self, weekly_plan: WeeklyPlan) -> WeeklyPlanRead:
         exercise_ids = [

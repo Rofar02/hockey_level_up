@@ -5,12 +5,14 @@ import { FormError } from './ui/FormError'
 import { Modal } from './ui/Modal'
 import { ExerciseTechnique } from './ExerciseTechnique'
 import * as exercisesApi from '../api/exercises'
+import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as setCompletionsApi from '../api/setCompletions'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { ExerciseRead } from '../types/exercise'
+import type { SessionBlockRead } from '../types/schedule'
 import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletion'
 import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
 import { hasExerciseTechnique } from '../utils/exerciseTechnique'
@@ -67,6 +69,8 @@ export function ExerciseDetailModal({
   accessToken,
   onClose,
   onLastSetCompleted,
+  blockId,
+  onReplaced,
 }: {
   exercise: ExerciseRead
   trainingSessionId: string
@@ -78,12 +82,45 @@ export function ExerciseDetailModal({
   // wrong. Just forwarded to SetLogger as-is; this component's own logic
   // doesn't otherwise change.
   onLastSetCompleted?: () => void
+  // Stage 1.5 (2026-08-20 planning session, "тренажёр занят"): both must be
+  // supplied together to show the "Заменить упражнение" button -- omitted
+  // by NewSchedulePage's call site for now (a started day viewed from the
+  // weekly schedule isn't necessarily *today*, and that page's more nested
+  // state doesn't yet have a place to route the update), so the button
+  // simply doesn't render there rather than needing a second wiring pass.
+  blockId?: string
+  onReplaced?: (updated: SessionBlockRead) => void
 }) {
   const [activeTab, setActiveTab] = useState<ExerciseModalTab>('sets')
+  const [isReplacing, setIsReplacing] = useState(false)
+  const [replaceError, setReplaceError] = useState<string | null>(null)
 
   const targetVolume = formatTargetVolume(exercise)
   const hasSets = exercise.target_sets !== null
   const hasTechnique = hasExerciseTechnique(exercise)
+  const canReplace = blockId !== undefined && onReplaced !== undefined
+
+  async function handleReplace() {
+    if (blockId === undefined || onReplaced === undefined || isReplacing) {
+      return
+    }
+    setIsReplacing(true)
+    setReplaceError(null)
+    try {
+      const updated = await sessionBlocksApi.replaceSessionBlockExercise(blockId, accessToken)
+      onReplaced(updated)
+    } catch (err) {
+      setReplaceError(
+        err instanceof ApiError && err.status === 409
+          ? 'Нет доступной замены для этого упражнения.'
+          : err instanceof ApiError
+            ? err.message
+            : 'Не удалось заменить упражнение.',
+      )
+    } finally {
+      setIsReplacing(false)
+    }
+  }
 
   // Both tabs always show, on every exercise -- this is the app's standard
   // exercise-modal shape now, not conditional on which exercises happen to
@@ -128,6 +165,20 @@ export function ExerciseDetailModal({
           ) : (
             <p className="text-sm text-text-secondary">Описание техники пока не добавлено.</p>
           ))}
+
+        {canReplace && (
+          <div className="flex flex-col gap-1.5 border-t border-white/5 pt-3">
+            <button
+              type="button"
+              onClick={handleReplace}
+              disabled={isReplacing}
+              className="self-start text-sm text-accent-ice hover:underline disabled:opacity-50"
+            >
+              {isReplacing ? 'Подбираем замену...' : 'Заменить упражнение'}
+            </button>
+            <FormError message={replaceError} />
+          </div>
+        )}
       </div>
     </Modal>
   )
