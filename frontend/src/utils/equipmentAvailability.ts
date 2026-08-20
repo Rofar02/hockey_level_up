@@ -19,6 +19,20 @@ export function countAvailableExercises(
   ).length
 }
 
+// How many exercises require this specific item (regardless of what else
+// they also require, and regardless of whether the user owns it) --
+// the "как в играх, нажимая на предмет — сколько упражнений оно
+// добавляет" inventory-tab detail count. Deliberately the simple "used by"
+// count, not a marginal "how many NEWLY become available if I add just
+// this one" figure -- that would depend on the rest of the owned set in a
+// way that's more confusing than useful in a per-item detail view.
+export function countExercisesUsingItem(
+  requirements: ExerciseEquipmentRequirement[],
+  item: EquipmentItem,
+): number {
+  return requirements.filter((requirement) => requirement.equipment_items.includes(item)).length
+}
+
 // A reasonable common home setup -- one of the two quick presets ("Зал"
 // is the other, see EquipmentStep.tsx/SettingsPage.tsx), not meant to be
 // exhaustive of every possible home gym.

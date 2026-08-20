@@ -6,61 +6,118 @@ import type { MuscleLoadRead } from '../types/progress'
 // left/right zone ids (see node_modules/body-muscles/dist/data/
 // muscles.front.js and muscles.back.js for the authoritative id list --
 // there's no published full list in the library's own README, only the
-// naming convention). Several library ids always map to the same one of
-// our groups since our taxonomy doesn't track laterality or the library's
-// finer subdivisions (e.g. traps vs lats both read as our single "back"
-// value).
+// naming convention).
 //
-// Deliberately unmapped, left permanently neutral on the chart: head,
-// face, neck, biceps/forearm/elbow/hand (front+back), knee, foot -- our
-// 8-value taxonomy has no bucket for arms/hands/feet/knees at all (see
-// MUSCLE_GROUPS in types/exercise.ts), so there's nothing honest to show
-// there rather than force-fitting them into a group that doesn't
-// anatomically match.
+// Each entry is a WEIGHT (0-1), not a flat membership list -- a region's
+// displayed intensity is `load.intensity * weight`, so within one group
+// the primary mover(s) render at full intensity and secondary/synergist
+// regions render visibly lighter, instead of one uniform-colored blob
+// across everything the group touches (e.g. training "core" lights up
+// abs-upper/lower at full strength, obliques a bit less, hip-flexor less
+// still -- a graduated spread, not a flat block).
 //
-// Two judgment calls worth naming: adductors (inner thigh) map to
-// "glutes" rather than "quads"/"hamstrings" -- both are hip-stabilizing
-// muscles, the closer anatomical fit of the two. hip-flexor maps to
-// "core" for the same reason -- no better bucket exists among our 8.
-const MUSCLE_LIBRARY_IDS_BY_GROUP: Record<MuscleGroup, string[]> = {
-  quads: ['quads-left', 'quads-right'],
-  hamstrings: [
-    'hamstrings-medial-left',
-    'hamstrings-lateral-left',
-    'hamstrings-medial-right',
-    'hamstrings-lateral-right',
-  ],
-  glutes: [
-    'gluteus-medius-left',
-    'gluteus-maximus-left',
-    'gluteus-medius-right',
-    'gluteus-maximus-right',
-    'adductors-left',
-    'adductors-right',
-  ],
-  chest: ['chest-upper-left', 'chest-lower-left', 'chest-upper-right', 'chest-lower-right'],
-  back: [
-    'traps-upper-left', 'traps-mid-left', 'traps-lower-left',
-    'traps-upper-right', 'traps-mid-right', 'traps-lower-right',
-    'lats-upper-left', 'lats-mid-left', 'lats-lower-left',
-    'lats-upper-right', 'lats-mid-right', 'lats-lower-right',
-    'spine', 'lower-back-erectors-left', 'lower-back-ql-left',
-    'lower-back-erectors-right', 'lower-back-ql-right',
-  ],
-  shoulders: [
-    'shoulder-front-left', 'shoulder-side-left',
-    'shoulder-front-right', 'shoulder-side-right',
-    'deltoid-rear-left', 'deltoid-rear-right',
-  ],
-  core: [
-    'abs-upper-left', 'abs-lower-left', 'serratus-anterior-left', 'obliques-left',
-    'abs-upper-right', 'abs-lower-right', 'serratus-anterior-right', 'obliques-right',
-    'hip-flexor-left', 'hip-flexor-right',
-  ],
-  calves: [
-    'calves-gastroc-medial-left', 'calves-gastroc-lateral-left', 'calves-soleus-left',
-    'calves-gastroc-medial-right', 'calves-gastroc-lateral-right', 'calves-soleus-right',
-  ],
+// Full-avatar coverage: every library id maps to one of our 8 groups now,
+// including the ones a first pass left permanently gray (arms/hands/
+// forearms/elbows -> back or chest depending on which movement chain they
+// belong to; knees -> quads/hamstrings; feet/tibialis-anterior -> calves;
+// neck/nape -> back). The one deliberate exception is head/face -- there's
+// no S&C muscle group there to honestly show, forcing a mapping would be
+// decorative, not informative.
+//
+// Judgment calls worth naming:
+//  - adductors (inner thigh) -> glutes (hip-stabilizing, closer fit than
+//    quads/hamstrings), lower weight as a secondary mover there.
+//  - hip-flexor -> core, lower weight (no better bucket exists).
+//  - triceps/forearm-extensors/elbow (front) -> chest, biceps/forearm-
+//    flexors/elbow (back)/hand/forearm (front, ungranulated) -> back --
+//    split by which movement chain (push vs pull) actually recruits them,
+//    all at reduced weight since they're synergists, not the prime mover.
+//  - knee (front) -> quads, knee (back) -> hamstrings; tibialis-anterior
+//    and feet -> calves -- nearest lower-leg group, reduced weight.
+const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number>> = {
+  quads: {
+    'quads-left': 1.0,
+    'quads-right': 1.0,
+    'knee-left': 0.3,
+    'knee-right': 0.3,
+  },
+  hamstrings: {
+    'hamstrings-medial-left': 1.0,
+    'hamstrings-lateral-left': 1.0,
+    'hamstrings-medial-right': 1.0,
+    'hamstrings-lateral-right': 1.0,
+    'knee-back-left': 0.3,
+    'knee-back-right': 0.3,
+  },
+  glutes: {
+    'gluteus-maximus-left': 1.0,
+    'gluteus-maximus-right': 1.0,
+    'gluteus-medius-left': 0.8,
+    'gluteus-medius-right': 0.8,
+    'adductors-left': 0.5,
+    'adductors-right': 0.5,
+  },
+  chest: {
+    'chest-upper-left': 1.0,
+    'chest-lower-left': 1.0,
+    'chest-upper-right': 1.0,
+    'chest-lower-right': 1.0,
+    'triceps-long-left': 0.35,
+    'triceps-lateral-left': 0.35,
+    'triceps-long-right': 0.35,
+    'triceps-lateral-right': 0.35,
+    'forearm-extensors-left': 0.3,
+    'forearm-extensors-right': 0.3,
+  },
+  back: {
+    'traps-upper-left': 1.0, 'traps-mid-left': 1.0, 'traps-lower-left': 1.0,
+    'traps-upper-right': 1.0, 'traps-mid-right': 1.0, 'traps-lower-right': 1.0,
+    'lats-upper-left': 1.0, 'lats-mid-left': 1.0, 'lats-lower-left': 1.0,
+    'lats-upper-right': 1.0, 'lats-mid-right': 1.0, 'lats-lower-right': 1.0,
+    spine: 0.9,
+    'lower-back-erectors-left': 0.9, 'lower-back-ql-left': 0.9,
+    'lower-back-erectors-right': 0.9, 'lower-back-ql-right': 0.9,
+    'neck-left': 0.4, 'neck-right': 0.4, nape: 0.4,
+    'biceps-left': 0.35, 'biceps-right': 0.35,
+    'forearm-left': 0.3, 'forearm-right': 0.3,
+    'forearm-flexors-left': 0.3, 'forearm-flexors-right': 0.3,
+    'elbow-left': 0.3, 'elbow-right': 0.3,
+    'hand-left': 0.25, 'hand-right': 0.25,
+    'hand-back-left': 0.25, 'hand-back-right': 0.25,
+  },
+  shoulders: {
+    'shoulder-front-left': 1.0, 'shoulder-side-left': 1.0,
+    'shoulder-front-right': 1.0, 'shoulder-side-right': 1.0,
+    'deltoid-rear-left': 1.0, 'deltoid-rear-right': 1.0,
+  },
+  core: {
+    'abs-upper-left': 1.0, 'abs-lower-left': 1.0,
+    'abs-upper-right': 1.0, 'abs-lower-right': 1.0,
+    'obliques-left': 0.8, 'obliques-right': 0.8,
+    'serratus-anterior-left': 0.6, 'serratus-anterior-right': 0.6,
+    'hip-flexor-left': 0.5, 'hip-flexor-right': 0.5,
+  },
+  calves: {
+    'calves-gastroc-medial-left': 1.0, 'calves-gastroc-lateral-left': 1.0, 'calves-soleus-left': 1.0,
+    'calves-gastroc-medial-right': 1.0, 'calves-gastroc-lateral-right': 1.0, 'calves-soleus-right': 1.0,
+    'tibialis-anterior-left': 0.4, 'tibialis-anterior-right': 0.4,
+    'foot-left': 0.3, 'foot-right': 0.3,
+    'foot-back-left': 0.3, 'foot-back-right': 0.3,
+  },
+}
+
+// Reverse lookup for click-to-detail (MuscleLoadChart's onMuscleClick) --
+// which of our 8 groups "owns" a given library id. Built once from the
+// weight map above rather than maintained separately, so the two can
+// never drift out of sync with each other.
+const GROUP_BY_LIBRARY_ID: Record<string, MuscleGroup> = Object.fromEntries(
+  (Object.entries(MUSCLE_LIBRARY_WEIGHTS_BY_GROUP) as [MuscleGroup, Record<string, number>][]).flatMap(
+    ([group, weights]) => Object.keys(weights).map((libraryId) => [libraryId, group]),
+  ),
+)
+
+export function muscleGroupForLibraryId(libraryId: string): MuscleGroup | null {
+  return GROUP_BY_LIBRARY_ID[libraryId] ?? null
 }
 
 // The plan's own 5-stage bucketing of the continuous 0-10 intensity the
@@ -99,11 +156,18 @@ export interface BodyMusclesState {
 }
 
 export function buildBodyMusclesState(loads: MuscleLoadRead[]): BodyMusclesState {
+  const intensityByGroup = new Map(loads.map((load) => [load.muscle_group, load.intensity]))
   const state: BodyMusclesState = {}
-  for (const load of loads) {
-    const libraryIds = MUSCLE_LIBRARY_IDS_BY_GROUP[load.muscle_group]
-    for (const libraryId of libraryIds) {
-      state[libraryId] = { intensity: load.intensity, selected: false }
+  for (const [group, weights] of Object.entries(MUSCLE_LIBRARY_WEIGHTS_BY_GROUP) as [
+    MuscleGroup,
+    Record<string, number>,
+  ][]) {
+    const intensity = intensityByGroup.get(group)
+    if (intensity === undefined) {
+      continue
+    }
+    for (const [libraryId, weight] of Object.entries(weights)) {
+      state[libraryId] = { intensity: intensity * weight, selected: false }
     }
   }
   return state

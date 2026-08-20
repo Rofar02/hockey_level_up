@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { BodyChart, ViewSide } from 'body-muscles'
 import type { MuscleLoadRead } from '../types/progress'
+import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '../types/exercise'
 import {
   MUSCLE_LOAD_STAGES,
   MUSCLE_LOAD_STAGE_LABELS,
   buildBodyMusclesState,
+  muscleGroupForLibraryId,
+  muscleLoadStage,
 } from '../utils/muscleLoad'
 
 // Approximate yellow->orange->red swatches for the legend, matching the
@@ -32,6 +35,13 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<BodyChart | null>(null)
   const [view, setView] = useState<ViewSide>(ViewSide.FRONT)
+  // Kept in a ref, not state -- read only from inside the onMuscleClick
+  // closure below, which is bound once at chart construction time (see the
+  // mount-only effect's own comment) and would otherwise see a stale
+  // `loads` from whichever render first mounted the chart.
+  const loadsRef = useRef(loads)
+  loadsRef.current = loads
+  const [clickedGroup, setClickedGroup] = useState<MuscleGroup | null>(null)
 
   useEffect(() => {
     if (containerRef.current === null) {
@@ -40,6 +50,12 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
     const chart = new BodyChart(containerRef.current, {
       view,
       bodyState: buildBodyMusclesState(loads),
+      onMuscleClick: (libraryId: string) => {
+        const group = muscleGroupForLibraryId(libraryId)
+        if (group !== null) {
+          setClickedGroup(group)
+        }
+      },
     })
     chartRef.current = chart
     return () => {
@@ -56,6 +72,10 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
   useEffect(() => {
     chartRef.current?.update({ view, bodyState: buildBodyMusclesState(loads) })
   }, [view, loads])
+
+  const clickedLoad =
+    clickedGroup === null ? null : (loadsRef.current.find((load) => load.muscle_group === clickedGroup) ?? null)
+  const clickedIntensity = clickedLoad?.intensity ?? 0
 
   return (
     <div className="flex flex-col gap-3">
@@ -84,6 +104,24 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
         </button>
       </div>
       <div ref={containerRef} className="mx-auto w-full max-w-[280px]" />
+      {clickedGroup !== null && (
+        <div className="flex items-start justify-between gap-3 rounded-md border border-white/10 bg-dark-card px-3 py-2">
+          <div>
+            <p className="text-sm font-medium text-text-primary">{MUSCLE_GROUP_LABELS[clickedGroup]}</p>
+            <p className="text-xs text-text-secondary">
+              {MUSCLE_LOAD_STAGE_LABELS[muscleLoadStage(clickedIntensity)]} · {clickedIntensity.toFixed(1)}/10
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setClickedGroup(null)}
+            className="text-text-secondary hover:text-text-primary"
+            aria-label="Закрыть"
+          >
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5">
         {MUSCLE_LOAD_STAGES.map((stage) => (
           <div key={stage} className="flex items-center gap-1.5">

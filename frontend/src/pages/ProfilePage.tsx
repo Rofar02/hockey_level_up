@@ -18,7 +18,13 @@ import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
+import {
+  EQUIPMENT_ITEMS,
+  EQUIPMENT_ITEM_LABELS,
+  TARGET_STATS,
+  TARGET_STAT_DESCRIPTIONS,
+  TARGET_STAT_LABELS,
+} from '../types/exercise'
 import type { EquipmentItem, ExerciseEquipmentRequirement, TargetStat } from '../types/exercise'
 import type { MuscleLoadRead, UserStatRead } from '../types/progress'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
@@ -26,7 +32,8 @@ import { POSITION_LABELS } from '../types/user'
 import type { UserPublicRead } from '../types/user'
 import { getAvatarTierStyle } from '../utils/avatarTier'
 import { getDisplayName } from '../utils/displayName'
-import { countAvailableExercises } from '../utils/equipmentAvailability'
+import { countAvailableExercises, countExercisesUsingItem } from '../utils/equipmentAvailability'
+import { EQUIPMENT_ICONS, EQUIPMENT_ITEM_DESCRIPTIONS } from '../utils/equipmentIcons'
 import { transliterate } from '../utils/transliterate'
 
 const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
@@ -174,6 +181,36 @@ function OwnProfileView() {
       cancelled = true
     }
   }, [accessToken])
+
+  const [inventoryToggleError, setInventoryToggleError] = useState<string | null>(null)
+
+  // Game-inventory tab: toggling one item's owned state from inside the
+  // detail panel, full-replace under the hood (same PUT endpoint Settings
+  // uses) since that's the only shape the backend offers -- optimistic
+  // local update first, roll back on failure rather than waiting on the
+  // round trip before the icon visually responds.
+  async function handleToggleEquipmentItem(item: EquipmentItem) {
+    if (accessToken === null || ownedItems === null) {
+      return
+    }
+    const wasOwned = ownedItems.has(item)
+    const next = new Set(ownedItems)
+    if (wasOwned) {
+      next.delete(item)
+    } else {
+      next.add(item)
+    }
+    setOwnedItems(next)
+    setInventoryToggleError(null)
+    try {
+      await usersApi.replaceMyEquipmentItems(Array.from(next), accessToken)
+    } catch (err) {
+      setOwnedItems(ownedItems)
+      setInventoryToggleError(
+        err instanceof ApiError ? err.message : 'Не удалось обновить инвентарь.',
+      )
+    }
+  }
 
   useEffect(() => {
     if (accessToken === null) {
@@ -490,52 +527,44 @@ function OwnProfileView() {
         </div>
       )}
 
-      {!isLoading && skills !== null && (
-        <button
-          type="button"
-          onClick={() => setOpenDetailsTab('skills')}
-          className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left`}
-        >
-          <span className="font-medium text-[#F5F7FA]">Навыки</span>
-          <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
-        </button>
-      )}
+      {/* 3 equal-width quick-action buttons in one row, directly under the
+          profile card and spanning the same width -- a compact "character
+          sheet" action bar instead of three separate stacked cards. Each
+          just opens ProfileDetailsModal on its own tab. */}
+      <div className="grid grid-cols-3 gap-2">
+        {!isLoading && skills !== null && (
+          <button
+            type="button"
+            onClick={() => setOpenDetailsTab('skills')}
+            className={`flex flex-col items-center gap-1 rounded-md ${CARD_BORDER} bg-dark-card px-2 py-3 transition-colors hover:bg-white/5`}
+          >
+            <i className="ti ti-target text-xl text-accent-ice" aria-hidden="true" />
+            <span className="text-xs font-medium text-[#F5F7FA]">Навыки</span>
+          </button>
+        )}
 
-      {muscleLoads !== null && (
-        <button
-          type="button"
-          onClick={() => setOpenDetailsTab('muscleLoad')}
-          className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left`}
-        >
-          <span className="font-medium text-[#F5F7FA]">Нагрузка</span>
-          <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
-        </button>
-      )}
+        {muscleLoads !== null && (
+          <button
+            type="button"
+            onClick={() => setOpenDetailsTab('muscleLoad')}
+            className={`flex flex-col items-center gap-1 rounded-md ${CARD_BORDER} bg-dark-card px-2 py-3 transition-colors hover:bg-white/5`}
+          >
+            <i className="ti ti-flame text-xl text-accent-ice" aria-hidden="true" />
+            <span className="text-xs font-medium text-[#F5F7FA]">Нагрузка</span>
+          </button>
+        )}
 
-      {ownedItems !== null && equipmentRequirements !== null && (
-        <button
-          type="button"
-          onClick={() => setOpenDetailsTab('inventory')}
-          className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left`}
-        >
-          <div>
-            <p className="font-medium text-[#F5F7FA]">Инвентарь</p>
-            <p className="text-sm text-[#8A94A6]">
-              {user?.has_gym_access === true
-                ? 'Тренажёрный зал'
-                : ownedItems.size === 0
-                  ? 'Только тело'
-                  : `Предметов: ${ownedItems.size}`}
-              {' — доступно '}
-              {countAvailableExercises(equipmentRequirements, user?.has_gym_access ?? false, ownedItems)}
-              {' из '}
-              {equipmentRequirements.length}
-              {' упражнений'}
-            </p>
-          </div>
-          <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
-        </button>
-      )}
+        {ownedItems !== null && equipmentRequirements !== null && (
+          <button
+            type="button"
+            onClick={() => setOpenDetailsTab('inventory')}
+            className={`flex flex-col items-center gap-1 rounded-md ${CARD_BORDER} bg-dark-card px-2 py-3 transition-colors hover:bg-white/5`}
+          >
+            <i className="ti ti-backpack text-xl text-accent-ice" aria-hidden="true" />
+            <span className="text-xs font-medium text-[#F5F7FA]">Инвентарь</span>
+          </button>
+        )}
+      </div>
 
       {openDetailsTab !== null && unlockedSkills !== null && lockedSkills !== null && (
         <ProfileDetailsModal
@@ -546,13 +575,10 @@ function OwnProfileView() {
           onSelectSkill={selectSkillFromOverview}
           muscleLoads={muscleLoads ?? []}
           hasGymAccess={user?.has_gym_access ?? false}
-          ownedItemsCount={ownedItems?.size ?? 0}
-          availableExercisesCount={
-            ownedItems !== null && equipmentRequirements !== null
-              ? countAvailableExercises(equipmentRequirements, user?.has_gym_access ?? false, ownedItems)
-              : 0
-          }
-          totalExercisesCount={equipmentRequirements?.length ?? 0}
+          ownedItems={ownedItems ?? new Set()}
+          equipmentRequirements={equipmentRequirements ?? []}
+          onToggleEquipmentItem={handleToggleEquipmentItem}
+          inventoryToggleError={inventoryToggleError}
           onClose={() => setOpenDetailsTab(null)}
         />
       )}
@@ -740,9 +766,10 @@ function ProfileDetailsModal({
   onSelectSkill,
   muscleLoads,
   hasGymAccess,
-  ownedItemsCount,
-  availableExercisesCount,
-  totalExercisesCount,
+  ownedItems,
+  equipmentRequirements,
+  onToggleEquipmentItem,
+  inventoryToggleError,
   onClose,
 }: {
   initialTab: ProfileDetailsTab
@@ -752,12 +779,14 @@ function ProfileDetailsModal({
   onSelectSkill: (skillId: string) => void
   muscleLoads: MuscleLoadRead[]
   hasGymAccess: boolean
-  ownedItemsCount: number
-  availableExercisesCount: number
-  totalExercisesCount: number
+  ownedItems: Set<EquipmentItem>
+  equipmentRequirements: ExerciseEquipmentRequirement[]
+  onToggleEquipmentItem: (item: EquipmentItem) => void
+  inventoryToggleError: string | null
   onClose: () => void
 }) {
   const [activeTab, setActiveTab] = useState<ProfileDetailsTab>(initialTab)
+  const [selectedItem, setSelectedItem] = useState<EquipmentItem | null>(null)
 
   return (
     <Modal title="Профиль" onClose={onClose}>
@@ -836,25 +865,87 @@ function ProfileDetailsModal({
         {activeTab === 'muscleLoad' && <MuscleLoadChart loads={muscleLoads} />}
 
         {activeTab === 'inventory' && (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-[#8A94A6]">
-              {hasGymAccess
-                ? 'Тренажёрный зал'
-                : ownedItemsCount === 0
-                  ? 'Только тело'
-                  : `Предметов: ${ownedItemsCount}`}
-              {' — доступно '}
-              {availableExercisesCount}
-              {' из '}
-              {totalExercisesCount}
-              {' упражнений'}
-            </p>
+          <div className="flex flex-col gap-4">
+            {hasGymAccess ? (
+              <p className="text-sm text-[#8A94A6]">
+                Есть доступ в тренажёрный зал — открыты все упражнения, весь инвентарь ниже
+                неважен.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-[#8A94A6]">Нажмите на предмет, чтобы посмотреть подробности.</p>
+                <div className="grid grid-cols-5 gap-2">
+                  {EQUIPMENT_ITEMS.map((item) => {
+                    const owned = ownedItems.has(item)
+                    const isSelected = selectedItem === item
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setSelectedItem(item)}
+                        title={EQUIPMENT_ITEM_LABELS[item]}
+                        className={`flex flex-col items-center justify-center rounded-md border p-2.5 transition-colors ${
+                          isSelected
+                            ? 'border-accent-ice bg-accent-ice/10'
+                            : owned
+                              ? 'border-accent-ice/40 hover:border-accent-ice/60'
+                              : 'border-white/10 opacity-50 hover:opacity-80'
+                        }`}
+                      >
+                        <i
+                          className={`ti ${EQUIPMENT_ICONS[item]} text-2xl ${owned ? 'text-accent-ice' : 'text-[#8A94A6]'}`}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {selectedItem !== null && (
+                  <div className="flex flex-col gap-2 rounded-md border border-white/10 bg-white/5 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-[#F5F7FA]">
+                        {EQUIPMENT_ITEM_LABELS[selectedItem]}
+                      </p>
+                      <span
+                        className={`shrink-0 text-xs font-medium ${
+                          ownedItems.has(selectedItem) ? 'text-accent-ice' : 'text-[#8A94A6]'
+                        }`}
+                      >
+                        {ownedItems.has(selectedItem) ? 'Есть' : 'Нет'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-[#8A94A6]">
+                      {EQUIPMENT_ITEM_DESCRIPTIONS[selectedItem]}
+                    </p>
+                    <p className="text-xs text-[#8A94A6]">
+                      Упражнений с этим предметом: {countExercisesUsingItem(equipmentRequirements, selectedItem)}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="neutral"
+                      onClick={() => onToggleEquipmentItem(selectedItem)}
+                      className="self-start !px-3 !py-1.5 !text-xs"
+                    >
+                      {ownedItems.has(selectedItem) ? 'Убрать из инвентаря' : 'Добавить в инвентарь'}
+                    </Button>
+                  </div>
+                )}
+
+                <FormError message={inventoryToggleError} />
+
+                <p className="text-sm text-[#8A94A6]">
+                  Доступно {countAvailableExercises(equipmentRequirements, hasGymAccess, ownedItems)} из{' '}
+                  {equipmentRequirements.length} упражнений.
+                </p>
+              </>
+            )}
             <Link
               to="/settings"
               onClick={onClose}
               className="self-start text-sm text-accent-ice hover:underline"
             >
-              Изменить в настройках
+              Настроить зал в настройках
             </Link>
           </div>
         )}
