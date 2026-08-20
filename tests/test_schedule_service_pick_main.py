@@ -43,13 +43,19 @@ def deterministic_random(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 # _pick_main now buckets by movement_pattern, not target_stat (see its
-# docstring) -- this maps each stat "role" this file already uses to a
-# distinct pattern in MovementPattern's declared order, so the no-shuffle
-# patch above still visits them target_stat-equivalent-first/second/third,
-# preserving every existing assertion's expected order.
+# docstring), through Stage 2.4's fixed role order: role 2 visits
+# [SQUAT, HIP_HINGE] (in that order, shuffle no-op'd below), role 3 visits
+# [PUSH, PULL] next -- this maps each stat "role" this file already uses
+# to a distinct pattern in that real visitation order, so the no-shuffle
+# patch still sees them target_stat-equivalent-first/second/third,
+# preserving every existing assertion's expected order. None of these
+# exercises set stimulus_type, so Stage 2.4's day-archetype narrowing
+# always falls back to the full pool here -- it never actually restricts
+# anything in this file, only test_day_archetype.py/test_pick_main_roles.py
+# exercise that layer directly.
 _STAT_TO_PATTERN: dict[TargetStat, MovementPattern] = {
-    TargetStat.STRENGTH: MovementPattern.HIP_HINGE,
-    TargetStat.AGILITY: MovementPattern.SQUAT,
+    TargetStat.STRENGTH: MovementPattern.SQUAT,
+    TargetStat.AGILITY: MovementPattern.HIP_HINGE,
     TargetStat.INTELLECT: MovementPattern.PUSH,
 }
 
@@ -84,6 +90,26 @@ _CANDIDATE_STATS: dict[str, TargetStat] = {
 }
 
 
+def _isolate_candidates(service: ScheduleService, exercises: list[Exercise]) -> None:
+    """Make list_for_assembly return only this test's own exercises.
+
+    Previously unnecessary here by sheer luck: the old flat shuffle-every-
+    pattern loop happened to visit HIP_HINGE/SQUAT/PUSH -- the only
+    patterns this file's fixtures ever tag -- before any other pattern,
+    simply because they're first in MovementPattern's declaration order,
+    so real seeded-catalog candidates for every other pattern never
+    factored in with count=3. Stage 2.4's role order tries
+    LOCOMOTION/STICK_HANDLING/COORDINATION first (role 1) regardless of
+    enum order, which broke that coincidence -- explicit isolation now,
+    same as test_pick_main_muscle_balance.py/
+    test_schedule_service_suggest_party_exercises.py already do."""
+
+    async def fake_list_for_assembly(*, phase, user, category, suitable_for_game_day=None):
+        return [e for e in exercises if e.phase == phase and e.category == category]
+
+    service._exercises.list_for_assembly = fake_list_for_assembly
+
+
 async def _seed_candidates(db_session) -> dict[str, Exercise]:
     exercises = {
         "a_strength": _make_exercise("A-strength", TargetStat.STRENGTH),
@@ -116,6 +142,7 @@ async def test_no_preference_is_plain_round_robin(db_session) -> None:
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, list(exercises.values()))
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     # No UserSkillPreference rows at all -> priority pool is always empty ->
@@ -152,6 +179,7 @@ async def test_preference_prioritizes_tagged_exercise_but_keeps_one_per_stat(
     await db_session.flush()
 
     service = ScheduleService(db_session)
+    _isolate_candidates(service, list(exercises.values()))
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == [

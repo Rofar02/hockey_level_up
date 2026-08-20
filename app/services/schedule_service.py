@@ -8,6 +8,12 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.day_archetype import (
+    ARCHETYPE_ELIGIBLE_PATTERNS,
+    DAY_ARCHETYPES,
+    choose_archetype,
+    forces_technical_archetype,
+)
 from app.core.session_duration import compute_phase_split, estimate_session_duration_seconds
 from app.core.stat_difficulty import UNCLASSIFIED_EXERCISE_CAP, max_difficulty_for_stat
 from app.core.training_block import (
@@ -24,6 +30,7 @@ from app.models.exercise import (
     ExerciseCategory,
     MovementPattern,
     MuscleGroup,
+    StimulusType,
     TargetStat,
     TrainingPhase,
     UserMovementPatternVariant,
@@ -626,94 +633,106 @@ class ScheduleService:
         training_block: TrainingBlock | None = None,
         today: date | None = None,
     ) -> list[Exercise]:
-        """Main: up to 5-6 exercises in accumulation, 4-5 in intensification,
-        3-4 on a deload week (see MAIN_EXERCISE_COUNT_RANGE) for the day's
-        category, at most one per movement_pattern (an exercise can be
-        tagged with more than one pattern -- see ExerciseMovementPattern,
-        a plain membership tag with no "primary" -- so once an exercise is
-        picked it's excluded from every other pattern's pool too, not just
-        the one that picked it).
+        """Stage 2.4 (2026-08-20 planning session): role-based assembly,
+        replacing the old flat "shuffle every movement_pattern, fill up to
+        count" loop. Up to 5-6 exercises in accumulation, 4-5 in
+        intensification, 3-4 on a deload week (see
+        MAIN_EXERCISE_COUNT_RANGE), at most one per movement_pattern (same
+        invariant as before -- an exercise tagged with more than one
+        pattern is excluded from every bucket once picked, not just the
+        one that picked it), filled through four roles in FIXED order --
+        this is the whole point of the rewrite, replacing "diverse but
+        incoherent" with a session that actually reads as one workout:
 
-        This used to bucket by each exercise's *primary* target_stat
-        instead. Off-ice exercises only ever have 4 possible primary stats
-        (strength/agility/intellect/endurance -- on_ice_skating/
-        puck_handling are on-ice-only), which made 4 a hard ceiling on an
-        off-ice main block no matter what MAIN_EXERCISE_COUNT_RANGE said.
-        movement_pattern has 10 values and 94% of the off-ice MAIN catalog
-        is tagged, so the configured count is actually reachable now.
-        target_stat keeps being used for XP/reward attribution
-        (stat_consumer reads every row, not just a "primary" one) -- it
-        just stopped being the axis that limits how many exercises get
-        picked.
+          1. Explosive/skill, while fresh -- at most one pick, drawn from
+             LOCOMOTION/STICK_HANDLING/COORDINATION (the patterns that are
+             inherently power/agility/skill in character), softly
+             preferring stimulus_type POWER/SKILL within whichever pattern
+             has candidates. NOT archetype-dependent -- that system is
+             specific to roles 2-3 below. NSCA-standard ordering: fatigue-
+             sensitive neuromuscular work goes first, not proven by this
+             conversation, standard S&C practice.
+          2. Strength, lower body -- SQUAT and HIP_HINGE, each
+             independently resolving its own "day archetype" (see below).
+          3. Strength, upper body -- PUSH and PULL, same archetype
+             machinery as role 2.
+          4. Accessories/core -- every remaining pattern, filling up to
+             `count`, aware of every muscle group already loaded by roles
+             1-3 (and its own picks so far) -- see _apply_muscle_balance.
 
-        Patterns are shuffled before iterating (unlike target_stat's old
-        fixed enum order, which barely mattered across only 4 buckets but
-        would otherwise always favor the same first 5-6 of 10 patterns
-        every single session). If fewer than `count` patterns have
-        candidates, returns fewer exercises rather than repeating one.
-        Three priority layers apply *within* each pattern's candidate pool,
-        in this order:
+        Role 5 ("conditioning") from the planning doc is deliberately
+        folded into role 4 rather than built as its own step -- the doc
+        itself marks it optional and gives it none of roles 1-4's
+        procedural detail; an endurance-stimulus exercise is just another
+        accessory-role candidate here. Likewise there's no separate global
+        "coherence validator" pass with point-fixes -- role ordering
+        already guarantees explosive-first, role 2/3 picking one SQUAT/
+        HIP_HINGE and one PUSH/PULL each is already a natural push/pull
+        balance, and role 4's muscle-awareness already prevents pile-ups
+        by construction -- a deliberate simplification, not an oversight.
 
-          1. Readiness cap (see _apply_difficulty_gate) -- off-ice: the
-             user's own effective value of each exercise's primary
-             characteristic (2026-08-18); on-ice: still User.level. The
-             hard ceiling on what the user is allowed at all, falling back
-             to the full stat pool (ignoring the cap, with a warning) only
-             if the stat has literally nothing under it;
-          2. block-phase difficulty preference (intensification: >=4,
-             deload: <=2) -- narrows the level-capped pool further, falling
-             back to it if nothing matches;
-          3. SkillTag priority for the user's chosen skills (Phase 7) --
-             narrows *that* pool further, again falling back if nothing
-             matches.
+        Day archetypes (roles 2-3 only): squat/hip_hinge/push/pull each
+        carry three independent progression lines -- StimulusType.STRENGTH/
+        POWER/SKILL, reused rather than a parallel enum (see
+        app.core.day_archetype) -- instead of one pinned variant. Which
+        archetype trains today is resolved per pattern by
+        day_archetype.choose_archetype: whichever of the three hasn't
+        trained in the longest time (an archetype with no history at all
+        outranks any with a real date), defaulting to STRENGTH outright
+        the very first time a pattern is ever picked for this user
+        (resolved decision, not an arbitrary tie-break). day_archetype.
+        forces_technical_archetype overrides this to SKILL outright,
+        rotation-history untouched, whenever this session's own MAIN
+        volume has already collapsed to deload's range -- a real deload
+        phase, a tactical-brake-forced one (OverloadService.apply_brakes
+        already forces block_phase to DELOAD before this method ever sees
+        it), the final taper week, or playoffs.
 
-        Level goes first because it's a hard capability gate, not a
-        preference -- every later layer's fallback lands on *its* pool, so
-        none of them can ever reintroduce an over-cap exercise except layer
-        1's own last-resort fallback. Difficulty preference goes next
-        because it's the block's physiological constraint on the week (how
-        hard this week should be, chosen by the system); SkillTag is the
-        user's personalization on top. A user with no preferences and an
-        accumulation-phase block (no difficulty predicate) sees plain
-        round-robin among their level-capped pool, identical to before this
-        and the Phase 7 priority were added.
+        Once an archetype is resolved for a pattern, the exact same
+        readiness-cap -> phase-preference -> SkillTag-priority chain runs
+        as before, with one new layer inserted between phase-preference
+        and SkillTag: narrow to that archetype's stimulus_type, falling
+        back to the phase-narrowed pool if nothing matches (e.g. the
+        catalog has zero SKILL-tagged squats right now -- checked against
+        the real catalog before writing this). That insertion point is
+        the resolved decision on ordering: archetype rotation wins over a
+        user's SkillTag priority for these four patterns, never the other
+        way around -- SkillTag priority still fully applies to every other
+        pattern (role 1 and role 4) exactly as before.
 
-        On top of those three, _apply_muscle_balance does one more
-        tie-break *within* whatever the SkillTag layer left: it avoids a
-        third pick in a row that shares an off_ice muscle group (Stage 2.1:
-        a weighted list per exercise now, see ExerciseMuscleGroup) with both
-        of the previous two, but never widens the pool back out to do so --
-        so SkillTag priority still wins any real conflict between the two.
+        A resolved archetype's pin (UserMovementPatternVariant, now keyed
+        by (pattern, archetype) instead of just pattern -- see that
+        model's own docstring) works exactly like Phase П.3 always has:
+        reused as-is within the same TrainingBlock, rotated to a fresh
+        candidate at a real block boundary, held through a macrocycle-
+        deload boundary. On top of that, Stage 2.4 also stamps
+        last_chosen_at with `today` whenever the exercise actually landed
+        (pin-reuse or fresh pick alike) genuinely matches the target
+        archetype's stimulus_type -- a fallback pick that missed doesn't
+        get to claim the archetype as "done", so an under-classified
+        archetype honestly keeps getting tried instead of silently going
+        quiet. training_block=None (e.g. patching a week whose block
+        record is missing) skips all pin/rotation bookkeeping entirely,
+        same as before this feature existed -- archetype selection still
+        runs, just always sees empty history and defaults to STRENGTH.
 
-        Before any of those three layers even run, variant stability
-        (Phase: П.3) can short-circuit a pattern's pick entirely: if the
-        user already has a UserMovementPatternVariant pinned for this
-        (category, pattern) and it's still in the level/difficulty-narrowed
-        pool, it's reused as-is for as long as `training_block` hasn't
-        crossed to a new block_number -- double progression (П.1) works
-        better on a stable exercise than one that changes every session.
-        Crossing into a fresh, non-macrocycle-deload block deliberately
-        excludes the outgoing variant from the pool before the three
-        priority layers run, guaranteeing an actual change rather than
-        leaving it to chance; crossing into a macrocycle-deload block
-        (П.2) holds the old variant instead of rotating -- a recovery
-        block isn't the moment to introduce something new -- and just
-        bumps the pin's block_number bookmark so rotation resumes at the
-        next real boundary. training_block=None (e.g. patching a week
-        whose block record is missing) skips this layer entirely, same as
-        before this feature existed.
+        Unilateral preference (role 2 only, hip_hinge/squat): skating is
+        an inherently one-legged push, so a squat/hip_hinge exercise
+        tagged Exercise.is_unilateral=True is softly preferred over a
+        bilateral one within whatever pool survives every earlier layer --
+        a tie-break, not a filter, since most of the catalog isn't
+        classified on this axis yet.
 
-        The count range itself can also be tightened before any of this
-        runs (Phase: П.4 seasonal mode) -- during the user's chosen
-        SEASON/PLAYOFFS period, off-ice volume is capped lower even in
-        accumulation, see app.core.training_block.main_exercise_count_range.
-
-        A user-set tournament_date (Phase: П.5 taper) overrides
-        season_period outright, on the same axis, for the final
-        TAPER_WINDOW_WEEKS before it -- see
-        app.core.training_block.is_tapering/is_final_taper_week. today
-        defaults to date.today() for every real caller, injectable purely
-        for deterministic tests/simulation, same shape as
+        The count range itself can be tightened before any of this runs
+        (Phase: П.4 seasonal mode) -- during the user's chosen SEASON/
+        PLAYOFFS period, off-ice volume is capped lower even in
+        accumulation, see app.core.training_block.main_exercise_count_range,
+        which day_archetype.forces_technical_archetype also reads (see
+        above). A user-set tournament_date (Phase: П.5 taper) overrides
+        season_period outright on that same axis for the final
+        TAPER_WINDOW_WEEKS before it. today defaults to date.today() for
+        every real caller, injectable purely for deterministic tests/
+        simulation, same shape as
         TrainingBlockService.resolve_active_block's own `today` param.
         """
         candidates = await self._exercises.list_for_assembly(
@@ -723,14 +742,23 @@ class ScheduleService:
             return []
 
         resolved_today = today or date.today()
+        tapering = is_tapering(resolved_today, user.tournament_date)
+        final_taper_week = is_final_taper_week(resolved_today, user.tournament_date)
         count_min, count_max = main_exercise_count_range(
             block_phase,
             category=category,
             season_period=user.season_period,
-            is_tapering=is_tapering(resolved_today, user.tournament_date),
-            is_final_taper_week=is_final_taper_week(resolved_today, user.tournament_date),
+            is_tapering=tapering,
+            is_final_taper_week=final_taper_week,
         )
         count = random.randint(count_min, count_max)
+        forces_technical = forces_technical_archetype(
+            block_phase,
+            category=category,
+            season_period=user.season_period,
+            is_tapering=tapering,
+            is_final_taper_week=final_taper_week,
+        )
 
         preferred_skill_ids = await self._user_skill_preferences.list_skill_ids_for_user(user.id)
         priority_exercise_ids = await self._skills.list_tagged_exercise_ids(
@@ -768,50 +796,67 @@ class ScheduleService:
             [exercise.id for exercise in candidates]
         )
 
-        # Phase: П.3 variant stability -- one bulk fetch per call, keyed by
-        # pattern, mirroring priority_exercise_ids/patterns_by_exercise above.
-        existing_pins: dict[MovementPattern, UserMovementPatternVariant] = {}
+        # Phase: П.3 variant stability, Stage 2.4: keyed by (pattern,
+        # archetype) now -- see UserMovementPatternVariantRepository.
+        existing_pins: dict[
+            tuple[MovementPattern, StimulusType | None], UserMovementPatternVariant
+        ] = {}
         if training_block is not None:
             existing_pins = await self._variants.list_for_user_category(user.id, category)
 
         picked: list[Exercise] = []
         picked_ids: set[uuid.UUID] = set()
-        patterns = list(MovementPattern)
-        random.shuffle(patterns)
-        for pattern in patterns:
+
+        async def pick_for_pattern(
+            pattern: MovementPattern,
+            *,
+            archetype: StimulusType | None,
+            stimulus_preference: frozenset[StimulusType] | None = None,
+            prefer_unilateral: bool = False,
+            use_muscle_context: bool = False,
+        ) -> Exercise | None:
+            """One role's attempt at filling a single slot from `pattern`.
+            Returns the picked Exercise (already appended to `picked`), or
+            None if the slot budget is spent or the pattern has no
+            candidates left. archetype is the resolved pin key for
+            ARCHETYPE_ELIGIBLE_PATTERNS, None for every other pattern
+            (identical to pre-2.4 behavior there). stimulus_preference is
+            the corresponding *soft* narrowing -- {archetype} for roles
+            2-3, {POWER, SKILL} for role 1's explosive pool, unset for
+            role 4.
+            """
             if len(picked) >= count:
-                break
+                return None
             # A multi-tagged exercise can appear under more than one
             # pattern's bucket -- exclude whatever's already picked so the
             # same exercise never fills two slots in one main block.
-            pattern_pool = [e for e in by_pattern.get(pattern, ()) if e.id not in picked_ids]
-            if not pattern_pool:
-                continue
+            pool = [e for e in by_pattern.get(pattern, ()) if e.id not in picked_ids]
+            if not pool:
+                return None
 
-            pattern_pool = await self._apply_difficulty_gate(
-                pattern_pool,
+            pool = await self._apply_difficulty_gate(
+                pool,
                 user,
-                context=f"main/{category}/{pattern}",
+                context=f"main/{category}/{pattern}/{archetype}",
                 user_stats=user_stats,
                 primary_stats=primary_stats,
             )
 
             if difficulty_predicate is not None:
-                pattern_pool = [e for e in pattern_pool if difficulty_predicate(e)] or pattern_pool
+                pool = [e for e in pool if difficulty_predicate(e)] or pool
 
-            existing_pin = existing_pins.get(pattern)
+            existing_pin = existing_pins.get((pattern, archetype))
             pinned_exercise = None
             if existing_pin is not None:
-                pinned_exercise = next(
-                    (e for e in pattern_pool if e.id == existing_pin.exercise_id), None
-                )
+                pinned_exercise = next((e for e in pool if e.id == existing_pin.exercise_id), None)
 
             use_pin = False
-            if pinned_exercise is not None:
+            if pinned_exercise is not None and training_block is not None:
                 same_block = existing_pin.block_number == training_block.block_number
                 hold_through_deload = training_block.is_macrocycle_deload
                 use_pin = same_block or hold_through_deload
 
+            row = existing_pin
             if use_pin:
                 choice = pinned_exercise
                 if existing_pin.block_number != training_block.block_number:
@@ -819,76 +864,142 @@ class ScheduleService:
                     # so rotation resumes at the next non-deload boundary.
                     existing_pin.block_number = training_block.block_number
             else:
-                stat_pool = pattern_pool
+                stat_pool = pool
                 # A real rotation boundary (not a first-ever pin, not a
                 # deload-hold) -- exclude the outgoing variant so the
                 # change is guaranteed, not just possible by luck.
-                if pinned_exercise is not None and len(pattern_pool) > 1:
+                if pinned_exercise is not None and len(pool) > 1:
+                    stat_pool = [e for e in pool if e.id != existing_pin.exercise_id] or pool
+
+                if stimulus_preference is not None:
                     stat_pool = [
-                        e for e in pattern_pool if e.id != existing_pin.exercise_id
-                    ] or pattern_pool
+                        e for e in stat_pool if e.stimulus_type in stimulus_preference
+                    ] or stat_pool
 
                 skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
-                balanced_pool = self._apply_muscle_balance(
-                    skill_pool, picked, muscle_groups_by_exercise
-                )
-                choice = random.choice(balanced_pool)
+
+                if prefer_unilateral:
+                    skill_pool = [e for e in skill_pool if e.is_unilateral] or skill_pool
+
+                if use_muscle_context:
+                    loaded = set()
+                    for already_picked in picked:
+                        loaded |= muscle_groups_by_exercise.get(already_picked.id, set())
+                    skill_pool = self._apply_muscle_balance(
+                        skill_pool, loaded, muscle_groups_by_exercise
+                    )
+
+                choice = random.choice(skill_pool)
 
                 if training_block is not None:
-                    if existing_pin is not None:
-                        existing_pin.exercise_id = choice.id
-                        existing_pin.block_number = training_block.block_number
+                    if row is not None:
+                        row.exercise_id = choice.id
+                        row.block_number = training_block.block_number
                     else:
-                        self._session.add(
-                            UserMovementPatternVariant(
-                                user_id=user.id,
-                                category=category,
-                                movement_pattern=pattern,
-                                exercise_id=choice.id,
-                                block_number=training_block.block_number,
-                            )
+                        row = UserMovementPatternVariant(
+                            user_id=user.id,
+                            category=category,
+                            movement_pattern=pattern,
+                            archetype=archetype,
+                            exercise_id=choice.id,
+                            block_number=training_block.block_number,
                         )
+                        self._session.add(row)
+                        existing_pins[(pattern, archetype)] = row
+
+            if training_block is not None and archetype is not None and row is not None:
+                # Only a genuine match claims the archetype as "done" --
+                # see the pick_for_pattern/model docstrings on why a
+                # fallback pick must not.
+                if choice.stimulus_type == archetype:
+                    row.last_chosen_at = resolved_today
 
             picked.append(choice)
             picked_ids.add(choice.id)
+            return choice
+
+        # Role 1: explosive/skill, while fresh.
+        explosive_patterns = [
+            MovementPattern.LOCOMOTION, MovementPattern.STICK_HANDLING, MovementPattern.COORDINATION,
+        ]
+        random.shuffle(explosive_patterns)
+        used_role1_pattern: MovementPattern | None = None
+        for pattern in explosive_patterns:
+            choice = await pick_for_pattern(
+                pattern,
+                archetype=None,
+                stimulus_preference=frozenset({StimulusType.POWER, StimulusType.SKILL}),
+            )
+            if choice is not None:
+                used_role1_pattern = pattern
+                break
+
+        # Roles 2-3: lower-body then upper-body strength, each pattern
+        # resolving its own day archetype independently.
+        for role_patterns, prefer_unilateral in (
+            ([MovementPattern.SQUAT, MovementPattern.HIP_HINGE], True),
+            ([MovementPattern.PUSH, MovementPattern.PULL], False),
+        ):
+            random.shuffle(role_patterns)
+            for pattern in role_patterns:
+                if forces_technical:
+                    archetype = StimulusType.SKILL
+                else:
+                    last_chosen_at = {
+                        candidate: existing_pins[(pattern, candidate)].last_chosen_at
+                        for candidate in DAY_ARCHETYPES
+                        if (pattern, candidate) in existing_pins
+                    }
+                    archetype = choose_archetype(last_chosen_at)
+                await pick_for_pattern(
+                    pattern,
+                    archetype=archetype,
+                    stimulus_preference=frozenset({archetype}),
+                    prefer_unilateral=prefer_unilateral,
+                )
+
+        # Role 4: accessories/core -- every remaining pattern (role 1's
+        # winning pattern, if any, is already excluded so it's never
+        # reused for a second, different exercise this session).
+        used_patterns = set(ARCHETYPE_ELIGIBLE_PATTERNS)
+        if used_role1_pattern is not None:
+            used_patterns.add(used_role1_pattern)
+        accessory_patterns = [pattern for pattern in MovementPattern if pattern not in used_patterns]
+        random.shuffle(accessory_patterns)
+        for pattern in accessory_patterns:
+            await pick_for_pattern(pattern, archetype=None, use_muscle_context=True)
+
         return picked
 
     @staticmethod
     def _apply_muscle_balance(
         pool: list[Exercise],
-        picked: list[Exercise],
+        loaded_muscle_groups: set[MuscleGroup],
         muscle_groups_by_exercise: dict[uuid.UUID, set[MuscleGroup]],
     ) -> list[Exercise]:
-        """Soft anatomical variety rule: avoid a third main-block pick in a
-        row that shares a muscle_group with both of the last two picks,
-        applied *within* whatever pool the skill-priority step above already
-        narrowed to -- so a user's SkillTag priority always wins a conflict,
-        this never reaches back into the wider stat pool to find variety the
-        priority pool doesn't have.
+        """Role 4 (accessories/core) only, Stage 2.4: soft anatomical
+        variety rule, aware of every muscle group loaded anywhere earlier
+        in *this session* (roles 1-3, plus role 4's own picks so far as it
+        goes) -- generalized from the pre-2.4 version's "last two picks
+        only" check, now that role ordering means role 4 genuinely knows
+        the full session context by the time it runs.
 
-        Stage 2.1 generalization: an exercise can now carry several muscle
-        groups (see ExerciseMuscleGroup), not one -- the rule fires whenever
-        the last two picks' group *sets* share anything at all (presence
-        only, per ExerciseMuscleGroup's docstring -- weight never factors
-        in), and excludes any candidate whose own set overlaps that shared
-        part. Exercises tagged with no muscle group at all (on_ice drills,
-        and off_ice cardio/mental work not yet classified) never block a
-        streak and are never filtered out by one -- empty set means "not
-        applicable", the same contract the old None value had.
+        Fires whenever `loaded_muscle_groups` is non-empty and excludes
+        any candidate whose own muscle-group set overlaps it, applied
+        *within* whatever pool the skill-priority step above already
+        narrowed to -- so a user's SkillTag priority always wins a
+        conflict, this never reaches back into the wider stat pool to
+        find variety the priority pool doesn't have. Exercises tagged
+        with no muscle group at all (see ExerciseMuscleGroup's docstring
+        on what an empty set means) never trigger or get filtered by this.
 
-        Falls back to the untouched pool whenever avoiding the streak would
+        Falls back to the untouched pool whenever avoiding overlap would
         empty it, so a main slot is never left unfilled for this reason.
         """
-        if len(picked) < 2:
+        if not loaded_muscle_groups:
             return pool
-        last_groups = muscle_groups_by_exercise.get(picked[-1].id, set())
-        previous_groups = muscle_groups_by_exercise.get(picked[-2].id, set())
-        shared = last_groups & previous_groups
-        if not shared:
-            return pool
-
         varied = [
-            e for e in pool if not (muscle_groups_by_exercise.get(e.id, set()) & shared)
+            e for e in pool if not (muscle_groups_by_exercise.get(e.id, set()) & loaded_muscle_groups)
         ]
         return varied or pool
 

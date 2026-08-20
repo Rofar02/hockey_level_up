@@ -1,9 +1,11 @@
 import enum
 import uuid
+from datetime import date
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     Float,
     ForeignKey,
     Integer,
@@ -243,6 +245,17 @@ class Exercise(Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
 
+    # Stage 2.4 (2026-08-20 planning session): bilateral (both legs at
+    # once, e.g. a barbell squat) vs unilateral (one leg, e.g. a Bulgarian
+    # split squat) load -- only meaningful for squat/hip_hinge exercises,
+    # NULL ("not yet classified") everywhere else, same contract as
+    # stimulus_type/warmup_stage above. Skating is an inherently
+    # unilateral push, so ScheduleService's lower-body strength role
+    # prefers unilateral candidates when both are available in the
+    # surviving pool -- a soft tie-break, not a hard filter, since most of
+    # the catalog isn't classified yet.
+    is_unilateral: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
 
 # Bare m2m tag, unlike SkillTag -- no per-pair metadata is needed, so this is
 # a plain association table (no relationship() on Exercise, consistent with
@@ -359,9 +372,11 @@ class ExerciseTargetStat(Base):
 
 
 class UserMovementPatternVariant(Base):
-    """Phase: П.3 variant rotation. One row per (user, category, pattern) --
-    the exercise ScheduleService._pick_main currently holds stable for this
-    combination, and the block_number it was last confirmed/rotated at.
+    """Phase: П.3 variant rotation, extended by Stage 2.4's day-archetype
+    system. One row per (user, category, pattern, archetype) -- the
+    exercise ScheduleService._pick_main currently holds stable for this
+    combination, the block_number it was last confirmed/rotated at, and
+    (Stage 2.4) the date it was last actually assembled into a session.
     Held constant across sessions within the same TrainingBlock; rotated to
     a fresh candidate at the boundary of a new (non-macrocycle-deload)
     block; held through a macrocycle-deload block's boundary instead of
@@ -374,13 +389,23 @@ class UserMovementPatternVariant(Base):
     movement_pattern=locomotion is tagged on both on_ice and off_ice
     exercises -- one pin per pattern alone would collide between an
     on-ice and an off-ice session.
+
+    archetype is NULL for every pattern outside
+    app.core.day_archetype.ARCHETYPE_ELIGIBLE_PATTERNS (squat/hip_hinge/
+    push/pull) -- exactly one row per pattern there, identical to the
+    pre-2.4 shape. For an eligible pattern there can be up to three rows
+    (one per StimulusType.STRENGTH/POWER/SKILL "day archetype"), each its
+    own independent rotation line -- see app.core.day_archetype for the
+    "hasn't happened in the longest time" selection rule that reads
+    last_chosen_at across a pattern's rows before this table's own
+    per-archetype pin stability even applies.
     """
 
     __tablename__ = "user_movement_pattern_variants"
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "category", "movement_pattern",
-            name="uq_user_movement_pattern_variants_user_category_pattern",
+            "user_id", "category", "movement_pattern", "archetype",
+            name="uq_ump_variants_user_category_pattern_archetype",
         ),
     )
 
@@ -394,6 +419,14 @@ class UserMovementPatternVariant(Base):
     movement_pattern: Mapped[MovementPattern] = mapped_column(
         enum_column(MovementPattern, "movement_pattern"), nullable=False
     )
+    # StimulusType reused rather than a parallel enum -- "day archetype"
+    # for squat/hip_hinge/push/pull is exactly strength/power/skill, the
+    # same axis exercises are already classified on (see
+    # app.core.day_archetype.DAY_ARCHETYPES). NULL for every pattern
+    # outside ARCHETYPE_ELIGIBLE_PATTERNS.
+    archetype: Mapped[StimulusType | None] = mapped_column(
+        enum_column(StimulusType, "stimulus_type"), nullable=True
+    )
     # No ondelete restriction unlike SetCompletion.exercise_id -- this is
     # ephemeral pointer state with no history value, deleting the pinned
     # exercise should just clear the pin (next pick creates a fresh one),
@@ -406,6 +439,15 @@ class UserMovementPatternVariant(Base):
     # was pinned", not a real training_blocks FK (a block_number is only
     # unique per-user, and blocks are frequently created/retired).
     block_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Stage 2.4: last calendar date this (pattern, archetype) was actually
+    # assembled into a session -- NULL means never. Drives the "hasn't
+    # happened in the longest time" rotation rule; only bumped when the
+    # exercise actually picked genuinely matched this archetype's
+    # stimulus_type (a fallback to the full pattern pool, e.g. because the
+    # catalog has no SKILL-classified squat yet, leaves this untouched, so
+    # an unsatisfied archetype honestly keeps looking rather than being
+    # marked done by a pick that wasn't really it).
+    last_chosen_at: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 # Stage 2.2: replaces User.equipment_access's old gym/home/bodyweight tier.

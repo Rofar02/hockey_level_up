@@ -233,6 +233,9 @@ export interface ExerciseRead {
   tracks_weight: boolean
   bodyweight_ratio: number | null
   suitable_for_game_day: boolean
+  // Stage 2.4: bilateral vs unilateral load, meaningful only for squat/
+  // hip_hinge exercises -- null means not yet classified.
+  is_unilateral: boolean | null
   stimulus_type: StimulusType | null
   exercise_type: ExerciseType | null
   warmup_stage: WarmupStage | null
@@ -260,6 +263,7 @@ export interface ExerciseWrite {
   tracks_weight: boolean
   bodyweight_ratio: number | null
   suitable_for_game_day: boolean
+  is_unilateral: boolean | null
   stimulus_type: StimulusType | null
   exercise_type: ExerciseType | null
   warmup_stage: WarmupStage | null

@@ -41,6 +41,10 @@ class ExerciseRead(BaseModel):
     tracks_weight: bool
     bodyweight_ratio: float | None
     suitable_for_game_day: bool
+    # Stage 2.4: bilateral vs unilateral load, meaningful only for squat/
+    # hip_hinge exercises -- NULL means not yet classified, same contract
+    # as stimulus_type. See ScheduleService._pick_main's role 2.
+    is_unilateral: bool | None
     stimulus_type: StimulusType | None
     exercise_type: ExerciseType | None
     # Which of the 5 warmup stages this belongs to (see WarmupStage) --
@@ -86,6 +90,7 @@ def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> Exer
         tracks_weight=exercise.tracks_weight,
         bodyweight_ratio=exercise.bodyweight_ratio,
         suitable_for_game_day=exercise.suitable_for_game_day,
+        is_unilateral=exercise.is_unilateral,
         stimulus_type=exercise.stimulus_type,
         exercise_type=exercise.exercise_type,
         warmup_stage=exercise.warmup_stage,
@@ -113,6 +118,7 @@ class ExerciseCreate(BaseModel):
     tracks_weight: bool = False
     bodyweight_ratio: float | None = Field(default=None, gt=0)
     suitable_for_game_day: bool = False
+    is_unilateral: bool | None = None
     stimulus_type: StimulusType | None = None
     exercise_type: ExerciseType | None = None
     warmup_stage: WarmupStage | None = None
@@ -133,6 +139,7 @@ class ExerciseUpdate(BaseModel):
     tracks_weight: bool | None = None
     bodyweight_ratio: float | None = Field(default=None, gt=0)
     suitable_for_game_day: bool | None = None
+    is_unilateral: bool | None = None
     stimulus_type: StimulusType | None = None
     exercise_type: ExerciseType | None = None
     warmup_stage: WarmupStage | None = None

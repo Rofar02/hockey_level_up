@@ -415,6 +415,11 @@ function ExerciseFormModal({
   const [suitableForGameDay, setSuitableForGameDay] = useState(
     exercise?.suitable_for_game_day ?? false,
   )
+  // Tri-state (not two booleans) since is_unilateral is nullable --
+  // '' means "not yet classified", not "bilateral".
+  const [isUnilateral, setIsUnilateral] = useState<'' | 'true' | 'false'>(
+    exercise?.is_unilateral === true ? 'true' : exercise?.is_unilateral === false ? 'false' : '',
+  )
   const [stimulusType, setStimulusType] = useState<StimulusType | ''>(
     exercise?.stimulus_type ?? '',
   )
@@ -475,6 +480,7 @@ function ExerciseFormModal({
       tracks_weight: tracksWeight,
       bodyweight_ratio: bodyweightRatioValue,
       suitable_for_game_day: suitableForGameDay,
+      is_unilateral: isUnilateral === '' ? null : isUnilateral === 'true',
       stimulus_type: stimulusType === '' ? null : stimulusType,
       exercise_type: exerciseType === '' ? null : exerciseType,
     }
@@ -672,6 +678,17 @@ function ExerciseFormModal({
           />
           Подходит для дня игры
         </label>
+
+        <SelectField
+          label="Нагрузка (squat/hip_hinge)"
+          options={[
+            { value: 'true', label: 'Унилатеральная (одна нога)' },
+            { value: 'false', label: 'Билатеральная (обе ноги)' },
+          ]}
+          placeholder="Не задано"
+          value={isUnilateral}
+          onChange={(event) => setIsUnilateral(event.target.value as '' | 'true' | 'false')}
+        />
 
         <FormError message={formError} />
         <Button type="submit" isLoading={isSaving} className="self-start">
