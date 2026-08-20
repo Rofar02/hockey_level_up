@@ -10,8 +10,10 @@ from app.models.exercise import (
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
+    ExerciseMuscleGroup,
     ExerciseTargetStat,
     MovementPattern,
+    MuscleGroup,
     TargetStat,
     TrainingPhase,
 )
@@ -155,6 +157,43 @@ class ExerciseRepository:
         for pattern in patterns:
             self._session.add(
                 ExerciseMovementPattern(exercise_id=exercise_id, movement_pattern=pattern)
+            )
+        await self._session.flush()
+
+    async def list_muscle_groups(self, exercise_id: uuid.UUID) -> list[ExerciseMuscleGroup]:
+        result = await self._session.execute(
+            select(ExerciseMuscleGroup).where(ExerciseMuscleGroup.exercise_id == exercise_id)
+        )
+        return list(result.scalars().all())
+
+    async def list_muscle_groups_by_exercise(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, set[MuscleGroup]]:
+        """Bulk lookup for ScheduleService._apply_muscle_balance -- mirrors
+        list_movement_patterns_by_exercise's shape. A set, not a list: the
+        balance rule only ever checks presence (see ExerciseMuscleGroup's
+        docstring), never the weight value."""
+        if not exercise_ids:
+            return {}
+        result = await self._session.execute(
+            select(ExerciseMuscleGroup.exercise_id, ExerciseMuscleGroup.muscle_group).where(
+                ExerciseMuscleGroup.exercise_id.in_(exercise_ids)
+            )
+        )
+        by_exercise: dict[uuid.UUID, set[MuscleGroup]] = defaultdict(set)
+        for exercise_id, group in result.all():
+            by_exercise[exercise_id].add(group)
+        return dict(by_exercise)
+
+    async def replace_muscle_groups(
+        self, exercise_id: uuid.UUID, weights: dict[MuscleGroup, float]
+    ) -> None:
+        await self._session.execute(
+            delete(ExerciseMuscleGroup).where(ExerciseMuscleGroup.exercise_id == exercise_id)
+        )
+        for group, weight in weights.items():
+            self._session.add(
+                ExerciseMuscleGroup(exercise_id=exercise_id, muscle_group=group, weight=weight)
             )
         await self._session.flush()
 

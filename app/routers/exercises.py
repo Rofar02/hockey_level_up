@@ -13,6 +13,8 @@ from app.schemas.exercise import (
     ExerciseRead,
     ExerciseUpdate,
     MovementPatternsReplace,
+    MuscleGroupsReplace,
+    MuscleGroupWeight,
     SuggestedRepsRead,
     SuggestedWeightRead,
     TargetStatsReplace,
@@ -80,6 +82,25 @@ async def replace_exercise_movement_patterns(
     return await ExerciseService(session).replace_movement_patterns(
         exercise_id, body.movement_patterns
     )
+
+
+@router.get("/{exercise_id}/muscle-groups", response_model=list[MuscleGroupWeight])
+async def list_exercise_muscle_groups(
+    exercise_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).list_muscle_groups(exercise_id)
+
+
+@router.put("/{exercise_id}/muscle-groups", response_model=list[MuscleGroupWeight])
+async def replace_exercise_muscle_groups(
+    exercise_id: uuid.UUID,
+    body: MuscleGroupsReplace,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).replace_muscle_groups(exercise_id, body.muscle_groups)
 
 
 @router.get("/{exercise_id}/target-stats", response_model=list[TargetStat])

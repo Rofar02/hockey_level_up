@@ -4,6 +4,7 @@ import type {
   ExerciseRead,
   ExerciseWrite,
   MovementPattern,
+  MuscleGroupWeight,
   TargetStat,
 } from '../types/exercise'
 import type { TrainingPhase } from '../types/schedule'
@@ -88,6 +89,25 @@ export function replaceExerciseMovementPatterns(
   return apiPutAuth<MovementPattern[]>(
     `/exercises/${exerciseId}/movement-patterns`,
     { movement_patterns: patterns },
+    accessToken,
+  )
+}
+
+export function listExerciseMuscleGroups(
+  exerciseId: string,
+  accessToken: string,
+): Promise<MuscleGroupWeight[]> {
+  return apiGet<MuscleGroupWeight[]>(`/exercises/${exerciseId}/muscle-groups`, accessToken)
+}
+
+export function replaceExerciseMuscleGroups(
+  exerciseId: string,
+  groups: MuscleGroupWeight[],
+  accessToken: string,
+): Promise<MuscleGroupWeight[]> {
+  return apiPutAuth<MuscleGroupWeight[]>(
+    `/exercises/${exerciseId}/muscle-groups`,
+    { muscle_groups: groups },
     accessToken,
   )
 }

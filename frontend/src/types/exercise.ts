@@ -61,18 +61,38 @@ export const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
   bodyweight: 'Только тело',
 }
 
-// Anatomical push/pull/legs/core grouping, used only to softly balance
-// off_ice main-block picks (see ScheduleService._apply_muscle_balance).
-// Meaningless for on_ice drills and for off_ice cardio/mental work -- those
-// exercises carry muscle_group=null, not one of these four values.
-export const MUSCLE_GROUPS = ['push', 'pull', 'legs', 'core'] as const
+// Detailed anatomical taxonomy (Stage 2.1, 2026-08-20 planning session) --
+// replaced the old push/pull/legs/core grouping, which couldn't tell a
+// squat from a lunge apart. Multi-value + weighted per exercise (see
+// MuscleGroupWeight below), managed via dedicated
+// /exercises/{id}/muscle-groups endpoints, not part of
+// ExerciseRead/ExerciseWrite -- same two-step pattern as movement_patterns.
+export const MUSCLE_GROUPS = [
+  'quads',
+  'hamstrings',
+  'glutes',
+  'chest',
+  'back',
+  'shoulders',
+  'core',
+  'calves',
+] as const
 export type MuscleGroup = (typeof MUSCLE_GROUPS)[number]
 
 export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
-  push: 'Толкающие',
-  pull: 'Тянущие',
-  legs: 'Ноги',
+  quads: 'Квадрицепс',
+  hamstrings: 'Задняя поверхность бедра',
+  glutes: 'Ягодицы',
+  chest: 'Грудь',
+  back: 'Спина',
+  shoulders: 'Плечи',
   core: 'Кор',
+  calves: 'Икры',
+}
+
+export interface MuscleGroupWeight {
+  muscle_group: MuscleGroup
+  weight: number
 }
 
 // Not yet classified on most exercises -- null is "not yet classified", not
@@ -187,7 +207,6 @@ export interface ExerciseRead {
   tracks_weight: boolean
   bodyweight_ratio: number | null
   suitable_for_game_day: boolean
-  muscle_group: MuscleGroup | null
   stimulus_type: StimulusType | null
   exercise_type: ExerciseType | null
   warmup_stage: WarmupStage | null
@@ -216,7 +235,6 @@ export interface ExerciseWrite {
   tracks_weight: boolean
   bodyweight_ratio: number | null
   suitable_for_game_day: boolean
-  muscle_group: MuscleGroup | null
   stimulus_type: StimulusType | null
   exercise_type: ExerciseType | null
   warmup_stage: WarmupStage | null

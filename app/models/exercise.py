@@ -65,10 +65,20 @@ EQUIPMENT_REACH: dict[EquipmentType, frozenset[EquipmentType]] = {
 
 
 class MuscleGroup(enum.StrEnum):
-    PUSH = "push"
-    PULL = "pull"
-    LEGS = "legs"
+    """Anatomical taxonomy (Stage 2.1, 2026-08-20 planning session) --
+    replaced the old push/pull/legs/core grouping, which couldn't tell a
+    squat from a lunge apart (both "legs") even though they load different
+    muscles. See ExerciseMuscleGroup for how an exercise attaches to these
+    (a weighted list, not one value)."""
+
+    QUADS = "quads"
+    HAMSTRINGS = "hamstrings"
+    GLUTES = "glutes"
+    CHEST = "chest"
+    BACK = "back"
+    SHOULDERS = "shoulders"
     CORE = "core"
+    CALVES = "calves"
 
 
 class StimulusType(enum.StrEnum):
@@ -185,20 +195,9 @@ class Exercise(Base):
     rep_range_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # Anatomical push/pull/legs/core grouping, used only to softly balance
-    # ScheduleService._pick_main's off_ice picks (see MAIN_EXERCISE_COUNT_RANGE
-    # for the count side of that same picker). Nullable and left unset for
-    # on_ice exercises (technique/shooting/tactics drills aren't isolated-
-    # muscle-group work) and for off_ice exercises that don't fit any of the
-    # four groups (cardio, mental) -- None always means "not applicable",
-    # never a random/default group.
-    muscle_group: Mapped[MuscleGroup | None] = mapped_column(
-        enum_column(MuscleGroup, "muscle_group"), nullable=True
-    )
-
     # Both nullable and unset on nearly every existing exercise -- NULL means
     # "not yet classified", not a default value. Real classification is a
-    # manual product-owner pass (like muscle_group/suitable_for_game_day),
+    # manual product-owner pass (like suitable_for_game_day),
     # not inferred here. stimulus_type feeds a future rest-time formula;
     # exercise_type will eventually replace the implicit sets/reps-vs-
     # duration discriminator below, but no CHECK constraint ties them
@@ -264,6 +263,41 @@ class ExerciseMovementPattern(Base):
     movement_pattern: Mapped[MovementPattern] = mapped_column(
         enum_column(MovementPattern, "movement_pattern"), nullable=False
     )
+
+
+# Weighted list, not one value (Stage 2.1) -- same shape as SkillStatWeight:
+# a per-exercise set of (muscle_group, weight) rows whose weights sum to
+# ~1.0, validated in ExerciseService (see skill_service._validate_weight_sum
+# for the precedent), not by a DB CHECK, since "sum across sibling rows"
+# isn't expressible as one. An exercise with zero rows here means "not yet
+# classified" (on_ice drills, off_ice cardio/mental work, or simply not
+# retagged yet under the new taxonomy) -- same "absent means not applicable"
+# contract as ExerciseMovementPattern. ScheduleService._apply_muscle_balance
+# reads presence (is this muscle_group anywhere in the exercise's rows),
+# never the weight value itself -- an explicit simplification, not an
+# oversight; weight exists for future finer-grained use (see the planning
+# doc's muscle-load-heatmap backlog item), not for this validator.
+class ExerciseMuscleGroup(Base):
+    __tablename__ = "exercise_muscle_groups"
+    __table_args__ = (
+        UniqueConstraint(
+            "exercise_id", "muscle_group", name="uq_exercise_muscle_groups_exercise_group"
+        ),
+        CheckConstraint(
+            "weight >= 0.0 AND weight <= 1.0", name="ck_exercise_muscle_groups_weight_range"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    muscle_group: Mapped[MuscleGroup] = mapped_column(
+        enum_column(MuscleGroup, "muscle_group"), nullable=False
+    )
+    weight: Mapped[float] = mapped_column(Float, nullable=False)
 
 
 # Also a plain association table (no relationship() on Exercise), but unlike

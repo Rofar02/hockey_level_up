@@ -423,7 +423,6 @@ function ExerciseFormModal({
   const [suitableForGameDay, setSuitableForGameDay] = useState(
     exercise?.suitable_for_game_day ?? false,
   )
-  const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | ''>(exercise?.muscle_group ?? '')
   const [stimulusType, setStimulusType] = useState<StimulusType | ''>(
     exercise?.stimulus_type ?? '',
   )
@@ -485,7 +484,6 @@ function ExerciseFormModal({
       tracks_weight: tracksWeight,
       bodyweight_ratio: bodyweightRatioValue,
       suitable_for_game_day: suitableForGameDay,
-      muscle_group: muscleGroup === '' ? null : muscleGroup,
       stimulus_type: stimulusType === '' ? null : stimulusType,
       exercise_type: exerciseType === '' ? null : exerciseType,
     }
@@ -565,13 +563,6 @@ function ExerciseFormModal({
             value={equipmentType}
             onChange={(event) => setEquipmentType(event.target.value as EquipmentType)}
             required
-          />
-          <SelectField
-            label="Группа мышц"
-            options={MUSCLE_GROUP_OPTIONS}
-            placeholder="Не применимо"
-            value={muscleGroup}
-            onChange={(event) => setMuscleGroup(event.target.value as MuscleGroup | '')}
           />
           <SelectField
             label="Stimulus type"
@@ -712,6 +703,9 @@ function ExerciseFormModal({
       )}
       {currentExercise !== null && accessToken !== null && (
         <ExerciseMovementPatternsSection exerciseId={currentExercise.id} accessToken={accessToken} />
+      )}
+      {currentExercise !== null && accessToken !== null && (
+        <ExerciseMuscleGroupsSection exerciseId={currentExercise.id} accessToken={accessToken} />
       )}
     </AdminModal>
   )
@@ -949,6 +943,147 @@ function ExerciseMovementPatternsSection({
         className="self-start"
       >
         Сохранить паттерны
+      </Button>
+      <FormError message={saveError} />
+    </div>
+  )
+}
+
+// Same weighted-list shape as ExerciseTargetStatsSection's cousin,
+// SkillStatWeight (see AdminSkillDetailPage's WEIGHT_SUM_EPSILON) -- a
+// checkbox brings a group into the set at a default weight, its own number
+// input then edits that weight. Full-replace on save, same as
+// ExerciseMovementPatternsSection above, not per-row CRUD.
+const MUSCLE_GROUP_WEIGHT_SUM_EPSILON = 1e-6
+
+function ExerciseMuscleGroupsSection({
+  exerciseId,
+  accessToken,
+}: {
+  exerciseId: string
+  accessToken: string
+}) {
+  const [weights, setWeights] = useState<Partial<Record<MuscleGroup, string>> | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    exercisesApi
+      .listExerciseMuscleGroups(exerciseId, accessToken)
+      .then((groups) => {
+        if (!cancelled) {
+          const initial: Partial<Record<MuscleGroup, string>> = {}
+          for (const g of groups) {
+            initial[g.muscle_group] = String(g.weight)
+          }
+          setWeights(initial)
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить мышечные группы.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exerciseId, accessToken])
+
+  function toggle(group: MuscleGroup) {
+    setWeights((previous) => {
+      const next = { ...(previous ?? {}) }
+      if (group in next) {
+        delete next[group]
+      } else {
+        next[group] = '1'
+      }
+      return next
+    })
+  }
+
+  function setWeight(group: MuscleGroup, value: string) {
+    setWeights((previous) => ({ ...(previous ?? {}), [group]: value }))
+  }
+
+  const sum =
+    weights === null
+      ? 0
+      : Object.values(weights).reduce((total, value) => total + (Number(value) || 0), 0)
+  const sumExceeds = sum > 1.0 + MUSCLE_GROUP_WEIGHT_SUM_EPSILON
+
+  async function handleSave() {
+    if (weights === null) {
+      return
+    }
+    setSaveError(null)
+    setIsSaving(true)
+    try {
+      const payload = Object.entries(weights).map(([muscle_group, weight]) => ({
+        muscle_group: muscle_group as MuscleGroup,
+        weight: Number(weight) || 0,
+      }))
+      const saved = await exercisesApi.replaceExerciseMuscleGroups(exerciseId, payload, accessToken)
+      const next: Partial<Record<MuscleGroup, string>> = {}
+      for (const g of saved) {
+        next[g.muscle_group] = String(g.weight)
+      }
+      setWeights(next)
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить мышечные группы.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
+      <h3 className="text-sm font-medium text-text-secondary">Мышечные группы</h3>
+      <FormError message={loadError} />
+
+      {weights !== null && (
+        <div className="flex flex-col gap-2">
+          {MUSCLE_GROUP_OPTIONS.map(({ value, label }) => (
+            <div key={value} className="flex items-center gap-2">
+              <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-text-primary">
+                <input
+                  type="checkbox"
+                  checked={value in weights}
+                  onChange={() => toggle(value)}
+                  className="h-4 w-4 shrink-0"
+                />
+                {label}
+              </label>
+              {value in weights && (
+                <input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={weights[value] ?? ''}
+                  onChange={(event) => setWeight(value, event.target.value)}
+                  className="w-20 shrink-0 rounded border border-white/10 bg-dark-bg px-2 py-1 font-mono text-sm text-text-primary focus:border-accent-ice focus:outline-none"
+                />
+              )}
+            </div>
+          ))}
+          <p className={`font-mono text-xs ${sumExceeds ? 'text-accent-persimmon' : 'text-text-secondary'}`}>
+            Сумма весов: {sum.toFixed(2)}
+            {sumExceeds && ' — превышает 1.0'}
+          </p>
+        </div>
+      )}
+
+      <Button
+        type="button"
+        variant="neutral"
+        isLoading={isSaving}
+        disabled={weights === null || sumExceeds}
+        onClick={handleSave}
+        className="self-start"
+      >
+        Сохранить мышечные группы
       </Button>
       <FormError message={saveError} />
     </div>

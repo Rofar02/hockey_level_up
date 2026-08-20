@@ -24,6 +24,7 @@ from app.models.exercise import (
     Exercise,
     ExerciseCategory,
     MovementPattern,
+    MuscleGroup,
     TargetStat,
     TrainingPhase,
     UserMovementPatternVariant,
@@ -679,9 +680,10 @@ class ScheduleService:
 
         On top of those three, _apply_muscle_balance does one more
         tie-break *within* whatever the SkillTag layer left: it avoids a
-        third pick in a row sharing the same off_ice muscle_group, but never
-        widens the pool back out to do so -- so SkillTag priority still wins
-        any real conflict between the two.
+        third pick in a row that shares an off_ice muscle group (Stage 2.1:
+        a weighted list per exercise now, see ExerciseMuscleGroup) with both
+        of the previous two, but never widens the pool back out to do so --
+        so SkillTag priority still wins any real conflict between the two.
 
         Before any of those three layers even run, variant stability
         (Phase: П.3) can short-circuit a pattern's pick entirely: if the
@@ -759,6 +761,13 @@ class ScheduleService:
             for pattern in patterns_by_exercise.get(exercise.id, ()):
                 by_pattern[pattern].append(exercise)
 
+        # Same bulk-fetch shape as patterns_by_exercise above, for
+        # _apply_muscle_balance below (Stage 2.1: a weighted list per
+        # exercise now, not one Exercise.muscle_group column).
+        muscle_groups_by_exercise = await self._exercises.list_muscle_groups_by_exercise(
+            [exercise.id for exercise in candidates]
+        )
+
         # Phase: П.3 variant stability -- one bulk fetch per call, keyed by
         # pattern, mirroring priority_exercise_ids/patterns_by_exercise above.
         existing_pins: dict[MovementPattern, UserMovementPatternVariant] = {}
@@ -820,7 +829,9 @@ class ScheduleService:
                     ] or pattern_pool
 
                 skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
-                balanced_pool = self._apply_muscle_balance(skill_pool, picked)
+                balanced_pool = self._apply_muscle_balance(
+                    skill_pool, picked, muscle_groups_by_exercise
+                )
                 choice = random.choice(balanced_pool)
 
                 if training_block is not None:
@@ -843,29 +854,42 @@ class ScheduleService:
         return picked
 
     @staticmethod
-    def _apply_muscle_balance(pool: list[Exercise], picked: list[Exercise]) -> list[Exercise]:
-        """Soft push/pull/legs/core variety rule: avoid a third main-block pick
-        in a row from the same muscle_group, applied *within* whatever pool
-        the skill-priority step above already narrowed to -- so a user's
-        SkillTag priority always wins a conflict, this never reaches back
-        into the wider stat pool to find variety the priority pool doesn't
-        have.
+    def _apply_muscle_balance(
+        pool: list[Exercise],
+        picked: list[Exercise],
+        muscle_groups_by_exercise: dict[uuid.UUID, set[MuscleGroup]],
+    ) -> list[Exercise]:
+        """Soft anatomical variety rule: avoid a third main-block pick in a
+        row that shares a muscle_group with both of the last two picks,
+        applied *within* whatever pool the skill-priority step above already
+        narrowed to -- so a user's SkillTag priority always wins a conflict,
+        this never reaches back into the wider stat pool to find variety the
+        priority pool doesn't have.
 
-        Exercises with muscle_group=None (on_ice drills, and off_ice cardio/
-        mental work that isn't push/pull/legs/core) never block a streak and
-        are never filtered out by one -- the rule is off_ice-anatomy-only,
-        and None means "not applicable" rather than a group of its own.
+        Stage 2.1 generalization: an exercise can now carry several muscle
+        groups (see ExerciseMuscleGroup), not one -- the rule fires whenever
+        the last two picks' group *sets* share anything at all (presence
+        only, per ExerciseMuscleGroup's docstring -- weight never factors
+        in), and excludes any candidate whose own set overlaps that shared
+        part. Exercises tagged with no muscle group at all (on_ice drills,
+        and off_ice cardio/mental work not yet classified) never block a
+        streak and are never filtered out by one -- empty set means "not
+        applicable", the same contract the old None value had.
 
         Falls back to the untouched pool whenever avoiding the streak would
         empty it, so a main slot is never left unfilled for this reason.
         """
         if len(picked) < 2:
             return pool
-        last_group, previous_group = picked[-1].muscle_group, picked[-2].muscle_group
-        if last_group is None or last_group != previous_group:
+        last_groups = muscle_groups_by_exercise.get(picked[-1].id, set())
+        previous_groups = muscle_groups_by_exercise.get(picked[-2].id, set())
+        shared = last_groups & previous_groups
+        if not shared:
             return pool
 
-        varied = [e for e in pool if e.muscle_group is None or e.muscle_group != last_group]
+        varied = [
+            e for e in pool if not (muscle_groups_by_exercise.get(e.id, set()) & shared)
+        ]
         return varied or pool
 
     async def _apply_difficulty_gate(

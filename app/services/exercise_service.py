@@ -8,7 +8,9 @@ from app.models.exercise import (
     EquipmentType,
     Exercise,
     ExerciseCategory,
+    ExerciseMuscleGroup,
     MovementPattern,
+    MuscleGroup,
     TargetStat,
     TrainingPhase,
 )
@@ -17,9 +19,16 @@ from app.schemas.exercise import (
     ExerciseCreate,
     ExerciseRead,
     ExerciseUpdate,
+    MuscleGroupWeight,
     exercise_to_read,
     exercises_to_read,
 )
+
+# Same tolerance/precedent as skill_service.WEIGHT_SUM_EPSILON -- duplicated
+# rather than imported cross-service, this codebase's established
+# convention for small stable constants (see e.g. the frontend's own copy
+# in AdminSkillDetailPage.tsx).
+WEIGHT_SUM_EPSILON = 1e-6
 
 
 class ExerciseService:
@@ -113,6 +122,29 @@ class ExerciseService:
         await self._exercises.replace_movement_patterns(exercise_id, unique_patterns)
         await self._session.commit()
         return unique_patterns
+
+    async def list_muscle_groups(self, exercise_id: uuid.UUID) -> list[MuscleGroupWeight]:
+        await self.get_exercise(exercise_id)
+        rows = await self._exercises.list_muscle_groups(exercise_id)
+        return [MuscleGroupWeight(muscle_group=r.muscle_group, weight=r.weight) for r in rows]
+
+    async def replace_muscle_groups(
+        self, exercise_id: uuid.UUID, groups: list[MuscleGroupWeight]
+    ) -> list[MuscleGroupWeight]:
+        await self.get_exercise(exercise_id)
+        # dict, not list -- also de-duplicates a repeated muscle_group the
+        # same way replace_movement_patterns' dict.fromkeys does, last value
+        # for a given group wins.
+        weights: dict[MuscleGroup, float] = {g.muscle_group: g.weight for g in groups}
+        total = sum(weights.values())
+        if total > 1.0 + WEIGHT_SUM_EPSILON:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"sum of muscle group weights would exceed 1.0: got {round(total, 6)}",
+            )
+        await self._exercises.replace_muscle_groups(exercise_id, weights)
+        await self._session.commit()
+        return [MuscleGroupWeight(muscle_group=g, weight=w) for g, w in weights.items()]
 
     async def delete_exercise(self, exercise_id: uuid.UUID) -> None:
         exercise = await self.get_exercise(exercise_id)

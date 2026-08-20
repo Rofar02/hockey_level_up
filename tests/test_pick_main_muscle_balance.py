@@ -29,6 +29,7 @@ from app.models.exercise import (
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
+    ExerciseMuscleGroup,
     ExerciseTargetStat,
     MovementPattern,
     MuscleGroup,
@@ -76,7 +77,7 @@ def _make_exercise(
     *,
     category: ExerciseCategory = ExerciseCategory.OFF_ICE,
     muscle_group: MuscleGroup | None = None,
-) -> tuple[Exercise, ExerciseTargetStat, ExerciseMovementPattern]:
+) -> tuple[Exercise, ExerciseTargetStat, ExerciseMovementPattern, ExerciseMuscleGroup | None]:
     exercise = Exercise(
         id=uuid.uuid4(),
         name=name,
@@ -84,7 +85,11 @@ def _make_exercise(
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
         equipment_type=EquipmentType.BODYWEIGHT,
-        muscle_group=muscle_group,
+    )
+    muscle_group_row = (
+        ExerciseMuscleGroup(exercise_id=exercise.id, muscle_group=muscle_group, weight=1.0)
+        if muscle_group is not None
+        else None
     )
     return (
         exercise,
@@ -92,16 +97,19 @@ def _make_exercise(
         ExerciseMovementPattern(
             exercise_id=exercise.id, movement_pattern=_STAT_TO_PATTERN[target_stat]
         ),
+        muscle_group_row,
     )
 
 
 def _add_all(
-    db_session, triples: list[tuple[Exercise, ExerciseTargetStat, ExerciseMovementPattern]]
+    db_session,
+    rows: list[tuple[Exercise, ExerciseTargetStat, ExerciseMovementPattern, ExerciseMuscleGroup | None]],
 ) -> list[Exercise]:
-    db_session.add_all([e for e, _, _ in triples])
-    db_session.add_all([s for _, s, _ in triples])
-    db_session.add_all([p for _, _, p in triples])
-    return [e for e, _, _ in triples]
+    db_session.add_all([e for e, _, _, _ in rows])
+    db_session.add_all([s for _, s, _, _ in rows])
+    db_session.add_all([p for _, _, p, _ in rows])
+    db_session.add_all([m for _, _, _, m in rows if m is not None])
+    return [e for e, _, _, _ in rows]
 
 
 def _isolate_candidates(service: ScheduleService, exercises: list[Exercise]) -> None:
@@ -124,13 +132,13 @@ async def test_third_pick_in_a_row_avoids_repeated_group_when_alternative_exists
     user = _make_user()
     db_session.add(user)
     exercises = _add_all(db_session, [
-        _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.PUSH),
-        _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.PUSH),
+        _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.CHEST),
+        _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.CHEST),
         # Alphabetically first for INTELLECT is also push -- without the
         # balance rule the deterministic tie-break would pick it, same as
         # the first two. The rule should skip it in favor of "B-...-legs".
-        _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.PUSH),
-        _make_exercise("B-intellect-legs", TargetStat.INTELLECT, muscle_group=MuscleGroup.LEGS),
+        _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.CHEST),
+        _make_exercise("B-intellect-legs", TargetStat.INTELLECT, muscle_group=MuscleGroup.QUADS),
     ])
     await db_session.flush()
 
@@ -146,11 +154,11 @@ async def test_third_pick_keeps_repeated_group_when_no_alternative(db_session) -
     user = _make_user()
     db_session.add(user)
     exercises = _add_all(db_session, [
-        _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.PUSH),
-        _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.PUSH),
+        _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.CHEST),
+        _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.CHEST),
         # Only candidate for INTELLECT is push too -- no alternative to fall
         # back on, so the slot must still be filled rather than skipped.
-        _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.PUSH),
+        _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.CHEST),
     ])
     await db_session.flush()
 
@@ -187,14 +195,14 @@ async def test_skill_tag_priority_wins_over_muscle_balance_on_conflict(db_sessio
     user = _make_user()
     db_session.add(user)
     exercises = _add_all(db_session, [
-        _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.PUSH),
-        _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.PUSH),
+        _make_exercise("A-strength-push", TargetStat.STRENGTH, muscle_group=MuscleGroup.CHEST),
+        _make_exercise("A-agility-push", TargetStat.AGILITY, muscle_group=MuscleGroup.CHEST),
         # INTELLECT has a push candidate (tagged) and a legs candidate
         # (untagged). Muscle balance alone would prefer the legs one, but
         # SkillTag priority narrows the pool to the tagged push exercise
         # first -- balance must not reach past that to the legs exercise.
-        _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.PUSH),
-        _make_exercise("B-intellect-legs", TargetStat.INTELLECT, muscle_group=MuscleGroup.LEGS),
+        _make_exercise("A-intellect-push", TargetStat.INTELLECT, muscle_group=MuscleGroup.CHEST),
+        _make_exercise("B-intellect-legs", TargetStat.INTELLECT, muscle_group=MuscleGroup.QUADS),
     ])
 
     skill = Skill(id=uuid.uuid4(), name=f"Test skill {uuid.uuid4().hex[:8]}")
