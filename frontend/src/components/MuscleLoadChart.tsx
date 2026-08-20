@@ -49,7 +49,7 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
     }
     const chart = new BodyChart(containerRef.current, {
       view,
-      bodyState: buildBodyMusclesState(loads),
+      bodyState: buildBodyMusclesState(loads, clickedGroup),
       onMuscleClick: (libraryId: string) => {
         const group = muscleGroupForLibraryId(libraryId)
         if (group !== null) {
@@ -70,8 +70,8 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
   }, [])
 
   useEffect(() => {
-    chartRef.current?.update({ view, bodyState: buildBodyMusclesState(loads) })
-  }, [view, loads])
+    chartRef.current?.update({ view, bodyState: buildBodyMusclesState(loads, clickedGroup) })
+  }, [view, loads, clickedGroup])
 
   const clickedLoad =
     clickedGroup === null ? null : (loadsRef.current.find((load) => load.muscle_group === clickedGroup) ?? null)

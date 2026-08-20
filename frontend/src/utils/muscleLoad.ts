@@ -155,19 +155,33 @@ export interface BodyMusclesState {
   [libraryMuscleId: string]: { intensity: number; selected: boolean }
 }
 
-export function buildBodyMusclesState(loads: MuscleLoadRead[]): BodyMusclesState {
+// `selectedGroup` marks every one of that group's library ids as
+// `selected` together, not just the single sub-region actually tapped.
+// The library's ~87 regions are packed tightly enough (viewBox is a mere
+// 35x93 units) that a finger's real contact area covers several of them
+// at once -- without this, each tiny sliver reacts to hover/tap on its
+// own and a single tap on "core" visually reads as many unrelated
+// buttons lighting up. Grouping the selected-state visuals to the whole
+// MuscleGroup (matching the 8-value taxonomy the click handler already
+// resolves down to) makes one tap read as one coherent selection,
+// regardless of exactly which sub-region the finger happened to land on.
+export function buildBodyMusclesState(
+  loads: MuscleLoadRead[],
+  selectedGroup: MuscleGroup | null = null,
+): BodyMusclesState {
   const intensityByGroup = new Map(loads.map((load) => [load.muscle_group, load.intensity]))
   const state: BodyMusclesState = {}
   for (const [group, weights] of Object.entries(MUSCLE_LIBRARY_WEIGHTS_BY_GROUP) as [
     MuscleGroup,
     Record<string, number>,
   ][]) {
-    const intensity = intensityByGroup.get(group)
-    if (intensity === undefined) {
+    const intensity = intensityByGroup.get(group) ?? 0
+    const selected = group === selectedGroup
+    if (intensity === 0 && !selected) {
       continue
     }
     for (const [libraryId, weight] of Object.entries(weights)) {
-      state[libraryId] = { intensity: intensity * weight, selected: false }
+      state[libraryId] = { intensity: intensity * weight, selected }
     }
   }
   return state
