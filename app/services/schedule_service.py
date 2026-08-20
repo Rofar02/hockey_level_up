@@ -66,6 +66,7 @@ from app.schemas.schedule import (
     WeeklyPlanRead,
 )
 from app.services.overload_service import OverloadService
+from app.services.reps_suggestion_service import RepsSuggestionService
 from app.services.stat_service import get_effective_value
 from app.services.training_block_service import TrainingBlockService
 
@@ -102,6 +103,7 @@ class ScheduleService:
         self._variants = UserMovementPatternVariantRepository(session)
         self._training_block_service = TrainingBlockService(session)
         self._overload_service = OverloadService(session)
+        self._reps_suggestions = RepsSuggestionService(session)
 
     async def create_weekly_plan(self, user: User, payload: WeeklyPlanCreate) -> WeeklyPlanRead:
         dates = [day.date for day in payload.days]
@@ -769,6 +771,18 @@ class ScheduleService:
         same as before this feature existed -- archetype selection still
         runs, just always sees empty history and defaults to STRENGTH.
 
+        Bodyweight escalation (Stage 2.6, all four roles, not just
+        archetype-eligible ones): a same-block pin for a tracks_weight=false
+        exercise is broken early -- not waiting for the next block boundary
+        -- once RepsSuggestionService.is_stuck_at_ceiling says the user has
+        hit the top of its rep range with good feedback, since ordinary
+        double progression has no weight lever to reach for there. The
+        fresh pick that follows softly prefers a same-pattern candidate
+        with a strictly higher difficulty_level than the outgoing one
+        (falling back to the unfiltered pool if none exists), so the
+        escalation is a genuine step up rather than a same-difficulty
+        lateral swap. Never fires through a macrocycle-deload hold.
+
         Unilateral preference (role 2 only, hip_hinge/squat): skating is
         an inherently one-legged push, so a squat/hip_hinge exercise
         tagged Exercise.is_unilateral=True is softly preferred over a
@@ -904,10 +918,26 @@ class ScheduleService:
                 pinned_exercise = next((e for e in pool if e.id == existing_pin.exercise_id), None)
 
             use_pin = False
+            escalate_difficulty = False
             if pinned_exercise is not None and training_block is not None:
                 same_block = existing_pin.block_number == training_block.block_number
                 hold_through_deload = training_block.is_macrocycle_deload
                 use_pin = same_block or hold_through_deload
+                # Stage 2.6 (2026-08-20 planning session): double
+                # progression has nowhere to go for a tracks_weight=false
+                # exercise once reps hit the top of the range with good
+                # feedback -- WeightSuggestionService.suggest_weight
+                # returns None outright for those, so it would otherwise
+                # just cycle at rep_range_max forever. Break even a
+                # same-block pin so the fresh pick below can escalate to a
+                # harder same-pattern variant instead. Never during a
+                # deload-hold -- a scheduled recovery block isn't when to
+                # push harder, same reasoning as the deload floor
+                # elsewhere in this system.
+                if use_pin and not hold_through_deload and not pinned_exercise.tracks_weight:
+                    if await self._reps_suggestions.is_stuck_at_ceiling(user, pinned_exercise):
+                        use_pin = False
+                        escalate_difficulty = True
 
             row = existing_pin
             if use_pin:
@@ -923,6 +953,16 @@ class ScheduleService:
                 # change is guaranteed, not just possible by luck.
                 if pinned_exercise is not None and len(pool) > 1:
                     stat_pool = [e for e in pool if e.id != existing_pin.exercise_id] or pool
+
+                if escalate_difficulty:
+                    # Same 3-tier "narrow, fall back to the broader pool if
+                    # empty" shape as every other preference layer here --
+                    # a harder variant is a soft preference, not a hard
+                    # requirement, since most patterns only have a couple
+                    # of same-pattern candidates in the catalog today.
+                    stat_pool = [
+                        e for e in stat_pool if e.difficulty_level > pinned_exercise.difficulty_level
+                    ] or stat_pool
 
                 if stimulus_preference is not None:
                     stat_pool = [

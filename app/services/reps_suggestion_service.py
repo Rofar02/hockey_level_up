@@ -70,6 +70,37 @@ class RepsSuggestionService:
         suggested = last_set.reps_completed + bump
         return max(exercise.rep_range_min, min(suggested, exercise.rep_range_max))
 
+    async def is_stuck_at_ceiling(self, user: User, exercise: Exercise) -> bool:
+        """Stage 2.6 (2026-08-20 planning session): the "hit the top of the
+        range with good feedback" branch above hands off to
+        WeightSuggestionService in the normal case -- raise weight, reps
+        reset back down. For a tracks_weight=false exercise that handoff
+        goes nowhere (suggest_weight returns None outright for those), so
+        reps alone would otherwise just cycle at rep_range_max forever with
+        no further progression. Same signal as suggest_reps's own reset
+        branch, exposed standalone so ScheduleService._pick_main can react
+        to it (break the variant pin, prefer a harder same-pattern
+        candidate) instead of this service silently looping in place.
+        Deliberately doesn't check tracks_weight itself -- meaningful only
+        in that context, so it's the caller's job to ask at the right time.
+        """
+        if not _has_rep_range(exercise):
+            return False
+
+        last_set = await self._sets.get_last_for_user_exercise(user.id, exercise.id)
+        if last_set is None or last_set.reps_completed is None:
+            return False
+
+        last_session_sets = await self._sets.list_for_session_exercise(
+            last_set.training_session_id, exercise.id
+        )
+        hit_top = bool(last_session_sets) and all(
+            s.reps_completed is not None and s.reps_completed >= exercise.rep_range_max
+            for s in last_session_sets
+        )
+        good_feedback = last_set.feedback in (SetFeedback.EASY, SetFeedback.NORMAL)
+        return hit_top and good_feedback
+
     async def _is_macrocycle_deload(self, user_id: uuid.UUID) -> bool:
         """Phase: П.2. Pure read, see WeightSuggestionService._is_macrocycle_deload."""
         block = await self._blocks.get_active_for_user(user_id)

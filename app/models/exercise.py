@@ -69,6 +69,15 @@ class EquipmentItem(enum.StrEnum):
     STEP_PLATFORM = "step_platform"
     SLIDE_BOARD = "slide_board"
     MEDICINE_BALL = "medicine_ball"
+    # Stage 2.6 (2026-08-20 planning session): the "add external load"
+    # lever for a tracks_weight=false bodyweight exercise -- tag an
+    # exercise as requiring this item, flip tracks_weight to true and set
+    # bodyweight_ratio, and the existing double-progression machinery
+    # (WeightSuggestionService/RepsSuggestionService) just works unmodified.
+    # No DB migration needed to add this value: EquipmentItem is a
+    # VARCHAR-backed enum (see app/db/enum_column.py), not a native
+    # Postgres enum type, and nothing CHECK-constrains it to a fixed list.
+    WEIGHTED_VEST = "weighted_vest"
 
 
 class MuscleGroup(enum.StrEnum):

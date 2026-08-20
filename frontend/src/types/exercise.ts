@@ -72,6 +72,7 @@ export const EQUIPMENT_ITEMS = [
   'step_platform',
   'slide_board',
   'medicine_ball',
+  'weighted_vest',
 ] as const
 export type EquipmentItem = (typeof EQUIPMENT_ITEMS)[number]
 
@@ -86,6 +87,7 @@ export const EQUIPMENT_ITEM_LABELS: Record<EquipmentItem, string> = {
   step_platform: 'Степ-платформа',
   slide_board: 'Слайд-борд',
   medicine_ball: 'Медбол',
+  weighted_vest: 'Утяжелительный жилет',
 }
 
 // GET /exercises/equipment-requirements -- Stage 2.3: bulk, not
