@@ -90,6 +90,16 @@ _LOWER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.SQUAT, Move
 _UPPER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.PUSH, MovementPattern.PULL)
 
 
+# Final coherence validator (Stage 2.4, 2026-08-20 planning session):
+# "не более N упражнений на одну мышцу" -- see _pick_main's own call site
+# and ScheduleService._enforce_muscle_group_cap for what happens when a
+# session exceeds this after all 4 roles are filled. 3 allows the normal,
+# expected case of two or three MAIN exercises sharing a muscle group in
+# passing (e.g. a squat and a lunge both loading QUADS) without flagging
+# it -- a 4th independent hit is what the plan calls a real pile-up.
+MAX_EXERCISES_PER_MUSCLE_GROUP = 3
+
+
 def _role_patterns_for(patterns: set[MovementPattern]) -> frozenset[MovementPattern]:
     """Which of _pick_main's four roles `patterns` (a replaced exercise's own
     tags) belongs to, as that role's full pattern set -- e.g. a HIP_HINGE
@@ -1100,6 +1110,93 @@ class ScheduleService:
         random.shuffle(accessory_patterns)
         for pattern in accessory_patterns:
             await pick_for_pattern(pattern, archetype=None, use_muscle_context=True)
+
+        # Final coherence pass (Stage 2.4, 2026-08-20 planning session):
+        # role 4's own muscle-balance check only sees the pool *at the
+        # moment each of its slots is filled* -- it can't know a *later*
+        # role-4 pick will also load the same muscle group, and it's a
+        # soft preference that keeps the repeat outright when avoiding it
+        # would leave a slot empty (see _apply_muscle_balance's own
+        # docstring). This is the whole-session hindsight check the plan
+        # asked for: "не более N упражнений на одну мышцу", with a
+        # point-fix in the offending pattern's own pool rather than a
+        # full reassembly.
+        picked = self._enforce_muscle_group_cap(picked, patterns_by_exercise, by_pattern, muscle_groups_by_exercise)
+
+        return picked
+
+    @staticmethod
+    def _enforce_muscle_group_cap(
+        picked: list[Exercise],
+        patterns_by_exercise: dict[uuid.UUID, list[MovementPattern]],
+        by_pattern: dict[MovementPattern, list[Exercise]],
+        muscle_groups_by_exercise: dict[uuid.UUID, set[MuscleGroup]],
+    ) -> list[Exercise]:
+        """_pick_main's whole-session hindsight pass, run once after every
+        role is filled -- see that call site's own comment for why this
+        exists on top of (not instead of) role 4's per-pick
+        _apply_muscle_balance. Bounded to len(picked) passes (each
+        successful fix strictly reduces the offending group's count by one,
+        so this always terminates well before that bound in practice) --
+        one full rescan per fix rather than trying to reason about which
+        other groups a substitution could newly push over cap.
+
+        Point-fix target: for the muscle group currently over
+        MAX_EXERCISES_PER_MUSCLE_GROUP, tries each contributing exercise in
+        session order (earlier role-1-3 picks first) and substitutes the
+        first one whose OWN movement_pattern pool actually has an unused
+        candidate -- deliberately not restricted to "the last one added",
+        since an earlier pick can be the fixable one precisely because
+        nothing was loaded yet when it was chosen (see the pattern this
+        catches in its own docstring below). Prefers a substitute that
+        doesn't ALSO carry the offending group; if every remaining
+        candidate does, still swaps to whichever was found (a same-group
+        swap after a fix pass reduces the surrounding pool, so a later
+        pass may still resolve it) rather than declaring the pattern a
+        dead end. If no pattern in the offending group can be fixed at
+        all, leaves the session as-is -- same "never leave a slot empty
+        over a soft/best-effort concern" convention as every layer above
+        this one; a residual pile-up from genuine catalog scarcity is
+        honest, not silently hidden by dropping a slot.
+        """
+        picked_ids = {e.id for e in picked}
+        for _ in range(len(picked)):
+            counts: dict[MuscleGroup, list[Exercise]] = defaultdict(list)
+            for exercise in picked:
+                for group in muscle_groups_by_exercise.get(exercise.id, ()):
+                    counts[group].append(exercise)
+            offending = next(
+                ((group, exs) for group, exs in counts.items() if len(exs) > MAX_EXERCISES_PER_MUSCLE_GROUP),
+                None,
+            )
+            if offending is None:
+                break
+            offending_group, offenders = offending
+
+            fixed = False
+            for offender in offenders:
+                pool: list[Exercise] = []
+                for pattern in patterns_by_exercise.get(offender.id, ()):
+                    pool.extend(by_pattern.get(pattern, ()))
+                substitutes = [e for e in pool if e.id not in picked_ids]
+                if not substitutes:
+                    continue
+                replacement = next(
+                    (
+                        e for e in substitutes
+                        if offending_group not in muscle_groups_by_exercise.get(e.id, set())
+                    ),
+                    substitutes[0],
+                )
+                index = picked.index(offender)
+                picked[index] = replacement
+                picked_ids.discard(offender.id)
+                picked_ids.add(replacement.id)
+                fixed = True
+                break
+
+            if not fixed:
+                break
 
         return picked
 
