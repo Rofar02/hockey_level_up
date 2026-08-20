@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BodyChart, ViewSide } from 'body-muscles'
+import { BodyChart, INTENSITY_COLORS, ViewSide } from 'body-muscles'
 import type { MuscleLoadRead } from '../types/progress'
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '../types/exercise'
 import {
@@ -10,16 +10,20 @@ import {
   muscleLoadStage,
 } from '../utils/muscleLoad'
 
-// Approximate yellow->orange->red swatches for the legend, matching the
-// library's own gradient description -- not read from its exported
-// INTENSITY_COLORS, which is a continuous 0-10 gradient with no natural
-// single color per discrete stage boundary.
+// Pulled directly from the library's own INTENSITY_COLORS gradient (one
+// representative intensity per our 5-stage bucket: 0 / 1-2 / 3-5 / 6-8 /
+// 9-10 -- see muscleLoadStage) instead of a hand-picked approximation.
+// The previous swatch set included a green "fresh" color that never
+// actually appears on the body -- the library only ever renders slate-gray
+// through yellow/orange/dark-red, no green -- so the legend was promising
+// a color the avatar could never show. Swatches now always match what's
+// actually drawn.
 const STAGE_SWATCH_COLORS: Record<(typeof MUSCLE_LOAD_STAGES)[number], string> = {
-  untrained: '#3A4152',
-  fresh: '#4C9F70',
-  light: '#D8C441',
-  moderate: '#E08B3B',
-  overloaded: '#D5493A',
+  untrained: INTENSITY_COLORS[0],
+  fresh: INTENSITY_COLORS[2],
+  light: INTENSITY_COLORS[4],
+  moderate: INTENSITY_COLORS[7],
+  overloaded: INTENSITY_COLORS[10],
 }
 
 // Thin React wrapper around body-muscles' vanilla BodyChart class (see

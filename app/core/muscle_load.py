@@ -33,12 +33,15 @@ GRACE_PERIOD_HOURS = 12.0
 
 # After the grace period, current_value halves every this many hours --
 # tuned so the overall grace+decay window lands in the doc's 48-72h
-# recovery target: 12h grace + 4 half-lives (48h) leaves ~6% of the
-# original load, close enough to "recovered" for display purposes. Not
-# validated against real dogfooding data yet (no UserMuscleLoad history
-# exists at the time this was written) -- revisit once real usage exists,
-# same "initial estimate, not yet tuned" honesty as other fresh constants
-# in this codebase.
+# recovery target: at 48h idle (12h grace + 3 half-lives), ~12% of the
+# original load remains; at 72h idle (12h grace + 5 half-lives), ~3%
+# remains. Checked 2026-08-20 against ACSM's own 48-72h between-session
+# recovery guidance (48h minimum, "better perceptual responses... at
+# 72h") -- close enough to that real-world consensus that no retune was
+# needed. Not validated against real dogfooding data yet (no
+# UserMuscleLoad history existed when this was first written) -- revisit
+# once real usage exists, same "initial estimate" honesty as other fresh
+# constants in this codebase.
 HALF_LIFE_HOURS = 12.0
 
 # Unlike FLOOR_RATIO in stat_service (stats always retain 10% of peak),
