@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
@@ -80,7 +80,11 @@ function OwnProfileView() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [isSkillsOverviewOpen, setIsSkillsOverviewOpen] = useState(false)
+  // One modal, three tabs (Навыки/Нагрузка/Инвентарь) -- each of the three
+  // summary cards further down opens this same modal, landing on its own
+  // tab. null means closed; a tab value both opens it and picks which tab
+  // is active on open.
+  const [openDetailsTab, setOpenDetailsTab] = useState<ProfileDetailsTab | null>(null)
 
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null)
   const [skillDetails, setSkillDetails] = useState<Record<string, SkillDetailRead>>({})
@@ -196,7 +200,7 @@ function OwnProfileView() {
   // closes itself the instant a row is picked, then the detail modal takes
   // its place instead of layering above it.
   function selectSkillFromOverview(skillId: string) {
-    setIsSkillsOverviewOpen(false)
+    setOpenDetailsTab(null)
     setDetailOpenedFromOverview(true)
     void openSkillModal(skillId)
   }
@@ -205,7 +209,7 @@ function OwnProfileView() {
     setSelectedSkillId(null)
     if (detailOpenedFromOverview) {
       setDetailOpenedFromOverview(false)
-      setIsSkillsOverviewOpen(true)
+      setOpenDetailsTab('skills')
     }
   }
 
@@ -489,7 +493,7 @@ function OwnProfileView() {
       {!isLoading && skills !== null && (
         <button
           type="button"
-          onClick={() => setIsSkillsOverviewOpen(true)}
+          onClick={() => setOpenDetailsTab('skills')}
           className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left`}
         >
           <span className="font-medium text-[#F5F7FA]">Навыки</span>
@@ -498,16 +502,21 @@ function OwnProfileView() {
       )}
 
       {muscleLoads !== null && (
-        <div className={`flex flex-col gap-3 rounded-md ${CARD_BORDER} bg-dark-card p-4`}>
-          <p className="font-medium text-[#F5F7FA]">Нагрузка мышц</p>
-          <MuscleLoadChart loads={muscleLoads} />
-        </div>
+        <button
+          type="button"
+          onClick={() => setOpenDetailsTab('muscleLoad')}
+          className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left`}
+        >
+          <span className="font-medium text-[#F5F7FA]">Нагрузка</span>
+          <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
+        </button>
       )}
 
       {ownedItems !== null && equipmentRequirements !== null && (
-        <Link
-          to="/settings"
-          className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4`}
+        <button
+          type="button"
+          onClick={() => setOpenDetailsTab('inventory')}
+          className={`flex w-full items-center justify-between rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left`}
         >
           <div>
             <p className="font-medium text-[#F5F7FA]">Инвентарь</p>
@@ -525,16 +534,26 @@ function OwnProfileView() {
             </p>
           </div>
           <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
-        </Link>
+        </button>
       )}
 
-      {isSkillsOverviewOpen && unlockedSkills !== null && lockedSkills !== null && (
-        <SkillsOverviewModal
+      {openDetailsTab !== null && unlockedSkills !== null && lockedSkills !== null && (
+        <ProfileDetailsModal
+          initialTab={openDetailsTab}
           unlockedSkills={unlockedSkills}
           lockedSkills={lockedSkills}
           preferredSkillIds={preferredSkillIds}
           onSelectSkill={selectSkillFromOverview}
-          onClose={() => setIsSkillsOverviewOpen(false)}
+          muscleLoads={muscleLoads ?? []}
+          hasGymAccess={user?.has_gym_access ?? false}
+          ownedItemsCount={ownedItems?.size ?? 0}
+          availableExercisesCount={
+            ownedItems !== null && equipmentRequirements !== null
+              ? countAvailableExercises(equipmentRequirements, user?.has_gym_access ?? false, ownedItems)
+              : 0
+          }
+          totalExercisesCount={equipmentRequirements?.length ?? 0}
+          onClose={() => setOpenDetailsTab(null)}
         />
       )}
 
@@ -684,75 +703,161 @@ function OtherUserProfileView({ userId }: { userId: string }) {
   )
 }
 
-// Compact stand-in for the old inline expand list -- tapping the "Навыки"
-// block now opens this instead of expanding in place, so every skill (not
-// just the top few) needs a glanceable row here. Priority skills
-// (UserSkillPreference, picked in Settings) get the same persimmon accent
-// HomePage's "почти порог" card uses for its own attention-signal, just
-// applied to the row border/star/label instead of a bar-only tint.
-function SkillsOverviewModal({
+type ProfileDetailsTab = 'skills' | 'muscleLoad' | 'inventory'
+
+function ProfileDetailsTabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+        active ? 'border-accent-persimmon text-text-primary' : 'border-transparent text-[#8A94A6] hover:text-text-primary'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+// One modal replacing the old separate "Навыки" modal + inline "Нагрузка
+// мышц" card + "Инвентарь" link-out -- three tabs instead, opened from
+// three still-separate summary buttons under the profile card (each just
+// picks which tab is active on open, same "quick links into one shared
+// modal" shape as ExerciseDetailModal's own tab bar).
+function ProfileDetailsModal({
+  initialTab,
   unlockedSkills,
   lockedSkills,
   preferredSkillIds,
   onSelectSkill,
+  muscleLoads,
+  hasGymAccess,
+  ownedItemsCount,
+  availableExercisesCount,
+  totalExercisesCount,
   onClose,
 }: {
+  initialTab: ProfileDetailsTab
   unlockedSkills: SkillSummaryRead[]
   lockedSkills: SkillSummaryRead[]
   preferredSkillIds: Set<string>
   onSelectSkill: (skillId: string) => void
+  muscleLoads: MuscleLoadRead[]
+  hasGymAccess: boolean
+  ownedItemsCount: number
+  availableExercisesCount: number
+  totalExercisesCount: number
   onClose: () => void
 }) {
+  const [activeTab, setActiveTab] = useState<ProfileDetailsTab>(initialTab)
+
   return (
-    <Modal title="Навыки" onClose={onClose}>
+    <Modal title="Профиль" onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <p className="text-sm text-[#8A94A6]">
-          Приоритетные навыки — те, что вы выбрали в настройках, — чаще получают подходящие
-          упражнения в тренировках. Остальные тоже растут, от общей физической подготовки,
-          просто медленнее.
-        </p>
-        <div className="flex flex-col gap-2">
-          {unlockedSkills.map((skill) => {
-            const barMax = skill.next_milestone?.threshold ?? skill.value
-            const isPreferred = preferredSkillIds.has(skill.id)
-            return (
-              <button
-                key={skill.id}
-                type="button"
-                onClick={() => onSelectSkill(skill.id)}
-                className={`flex w-full flex-col gap-1.5 rounded-md border p-3 text-left transition-colors ${
-                  isPreferred
-                    ? 'border-accent-persimmon/40 bg-accent-persimmon/5 hover:border-accent-persimmon/60'
-                    : 'border-white/10 hover:border-white/20'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    {isPreferred && (
-                      <i
-                        className="ti ti-star-filled shrink-0 text-xs text-accent-persimmon"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span className="truncate text-sm font-medium text-[#F5F7FA]">{skill.name}</span>
-                  </span>
-                  {isPreferred && (
-                    <span className="shrink-0 text-xs font-medium text-accent-persimmon">
-                      Приоритет
-                    </span>
-                  )}
-                </div>
-                <ProgressBar value={skill.value} max={barMax} accent={isPreferred ? 'persimmon' : 'ice'} />
-              </button>
-            )
-          })}
-          {/* Same LockedSkillChip SettingsPage's picker uses for skills
-              gated by level -- not clickable (there's no reachable progress
-              detail to show yet), just a preview of what's still ahead. */}
-          {lockedSkills.map((skill) => (
-            <LockedSkillChip key={skill.id} label={skill.name} requiredLevel={skill.required_level} />
-          ))}
+        <div className="-mx-6 -mt-6 flex border-b border-white/5 bg-dark-card">
+          <ProfileDetailsTabButton active={activeTab === 'skills'} onClick={() => setActiveTab('skills')}>
+            Навыки
+          </ProfileDetailsTabButton>
+          <ProfileDetailsTabButton
+            active={activeTab === 'muscleLoad'}
+            onClick={() => setActiveTab('muscleLoad')}
+          >
+            Нагрузка
+          </ProfileDetailsTabButton>
+          <ProfileDetailsTabButton
+            active={activeTab === 'inventory'}
+            onClick={() => setActiveTab('inventory')}
+          >
+            Инвентарь
+          </ProfileDetailsTabButton>
         </div>
+
+        {activeTab === 'skills' && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-[#8A94A6]">
+              Приоритетные навыки — те, что вы выбрали в настройках, — чаще получают подходящие
+              упражнения в тренировках. Остальные тоже растут, от общей физической подготовки,
+              просто медленнее.
+            </p>
+            <div className="flex flex-col gap-2">
+              {unlockedSkills.map((skill) => {
+                const barMax = skill.next_milestone?.threshold ?? skill.value
+                const isPreferred = preferredSkillIds.has(skill.id)
+                return (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    onClick={() => onSelectSkill(skill.id)}
+                    className={`flex w-full flex-col gap-1.5 rounded-md border p-3 text-left transition-colors ${
+                      isPreferred
+                        ? 'border-accent-persimmon/40 bg-accent-persimmon/5 hover:border-accent-persimmon/60'
+                        : 'border-white/10 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        {isPreferred && (
+                          <i
+                            className="ti ti-star-filled shrink-0 text-xs text-accent-persimmon"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span className="truncate text-sm font-medium text-[#F5F7FA]">{skill.name}</span>
+                      </span>
+                      {isPreferred && (
+                        <span className="shrink-0 text-xs font-medium text-accent-persimmon">
+                          Приоритет
+                        </span>
+                      )}
+                    </div>
+                    <ProgressBar value={skill.value} max={barMax} accent={isPreferred ? 'persimmon' : 'ice'} />
+                  </button>
+                )
+              })}
+              {/* Same LockedSkillChip SettingsPage's picker uses for skills
+                  gated by level -- not clickable (there's no reachable
+                  progress detail to show yet), just a preview of what's
+                  still ahead. */}
+              {lockedSkills.map((skill) => (
+                <LockedSkillChip key={skill.id} label={skill.name} requiredLevel={skill.required_level} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'muscleLoad' && <MuscleLoadChart loads={muscleLoads} />}
+
+        {activeTab === 'inventory' && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-[#8A94A6]">
+              {hasGymAccess
+                ? 'Тренажёрный зал'
+                : ownedItemsCount === 0
+                  ? 'Только тело'
+                  : `Предметов: ${ownedItemsCount}`}
+              {' — доступно '}
+              {availableExercisesCount}
+              {' из '}
+              {totalExercisesCount}
+              {' упражнений'}
+            </p>
+            <Link
+              to="/settings"
+              onClick={onClose}
+              className="self-start text-sm text-accent-ice hover:underline"
+            >
+              Изменить в настройках
+            </Link>
+          </div>
+        )}
       </div>
     </Modal>
   )
