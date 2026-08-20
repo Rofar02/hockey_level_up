@@ -124,12 +124,19 @@ async def _stat_history_count(user_id: uuid.UUID) -> int:
         return len(rows)
 
 
-async def _seed_fully_completed_session(user_id: uuid.UUID) -> uuid.UUID:
+async def _seed_fully_completed_session(user_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
     """A TrainingSession scheduled for today with a single block, already
     completed -- streak_consumer's 2026-08-19 fix requires the *whole*
     session done (is_session_fully_completed) before crediting that day,
     so streak tests need a real completed block to point session_block_id
-    at, not just a plausible-looking payload. Returns the block's id."""
+    at, not just a plausible-looking payload. Returns (block_id,
+    exercise_id) -- the caller must clean up the exercise itself: unlike
+    the weekly_plan/day_plan/training_session/block chain built here (all
+    CASCADE from users.id, so real_user's own teardown clears them for
+    free), Exercise is a standalone catalog row with no FK back to the
+    user, so it silently outlives the test otherwise (found 2026-08-20:
+    185 such orphaned "Exercise <hex>" rows had accumulated in the real
+    dev DB from exactly this leak, going back who knows how many sessions)."""
     async with AsyncSessionLocal() as session:
         weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user_id, week_start_date=date.today())
         session.add(weekly_plan)
@@ -160,7 +167,20 @@ async def _seed_fully_completed_session(user_id: uuid.UUID) -> uuid.UUID:
         training_session = TrainingSession(id=uuid.uuid4(), day_plan_id=day_plan.id, blocks=[block])
         session.add(training_session)
         await session.commit()
-        return block.id
+        return block.id, exercise.id
+
+
+async def _cleanup_exercise(exercise_id: uuid.UUID) -> None:
+    # Runs before real_user's own fixture teardown (this is the test
+    # function's own finally, fixture teardown happens after) -- the
+    # session_blocks row created in _seed_fully_completed_session still
+    # references this exercise at this point (its FK has no CASCADE), so
+    # it must be deleted first or the exercise delete below violates the
+    # FK constraint.
+    async with AsyncSessionLocal() as session:
+        await session.execute(delete(SessionBlock).where(SessionBlock.exercise_id == exercise_id))
+        await session.execute(delete(Exercise).where(Exercise.id == exercise_id))
+        await session.commit()
 
 
 async def _xp_level(user_id: uuid.UUID) -> tuple[int, int]:
@@ -404,7 +424,7 @@ async def test_stat_and_xp_handlers_claim_independently_for_the_same_event(real_
 @pytest.mark.asyncio
 async def test_streak_consumer_redelivery_claims_once(real_user) -> None:
     event_id = uuid.uuid4()
-    block_id = await _seed_fully_completed_session(real_user.id)
+    block_id, exercise_id = await _seed_fully_completed_session(real_user.id)
     payload = _payload(real_user.id, difficulty_level=1, session_block_id=block_id)
     try:
         await streak_consumer(payload, event_id)
@@ -432,6 +452,7 @@ async def test_streak_consumer_redelivery_claims_once(real_user) -> None:
         assert claim_count == 1
     finally:
         await _cleanup_processed_events(event_id)
+        await _cleanup_exercise(exercise_id)
 
 
 @pytest.mark.asyncio
