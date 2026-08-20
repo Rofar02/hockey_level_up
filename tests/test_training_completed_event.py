@@ -9,7 +9,7 @@ from datetime import date
 
 import pytest
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.outbox import OutboxEvent
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
@@ -36,7 +36,6 @@ def _make_exercise() -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=3,
-        equipment_type=EquipmentType.GYM,
     )
 
 

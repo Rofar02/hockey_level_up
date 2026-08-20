@@ -11,8 +11,8 @@ import * as skillsApi from '../../api/skills'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import {
-  EQUIPMENT_TYPES,
-  EQUIPMENT_TYPE_LABELS,
+  EQUIPMENT_ITEMS,
+  EQUIPMENT_ITEM_LABELS,
   EXERCISE_CATEGORIES,
   EXERCISE_CATEGORY_LABELS,
   EXERCISE_TYPES,
@@ -29,7 +29,7 @@ import {
   WARMUP_STAGE_LABELS,
 } from '../../types/exercise'
 import type {
-  EquipmentType,
+  EquipmentItem,
   ExerciseCategory,
   ExerciseRead,
   ExerciseType,
@@ -56,9 +56,9 @@ const CATEGORY_OPTIONS = EXERCISE_CATEGORIES.map((value) => ({
 }))
 const PHASE_OPTIONS = TRAINING_PHASES.map((value) => ({ value, label: PHASE_LABELS[value] }))
 const TARGET_STAT_OPTIONS = TARGET_STATS.map((value) => ({ value, label: TARGET_STAT_LABELS[value] }))
-const EQUIPMENT_OPTIONS = EQUIPMENT_TYPES.map((value) => ({
+const EQUIPMENT_ITEM_OPTIONS = EQUIPMENT_ITEMS.map((value) => ({
   value,
-  label: EQUIPMENT_TYPE_LABELS[value],
+  label: EQUIPMENT_ITEM_LABELS[value],
 }))
 const MUSCLE_GROUP_OPTIONS = MUSCLE_GROUPS.map((value) => ({
   value,
@@ -241,7 +241,6 @@ export function AdminExercisesPage() {
                   <th className="px-3 py-2 font-medium">Stimulus</th>
                   <th className="px-3 py-2 font-medium">Exercise type</th>
                   <th className="px-3 py-2 font-medium">Сложность</th>
-                  <th className="px-3 py-2 font-medium">Инвентарь</th>
                   <th className="px-3 py-2 font-medium" />
                 </tr>
               </thead>
@@ -275,9 +274,6 @@ export function AdminExercisesPage() {
                       {exercise.exercise_type === null ? '—' : EXERCISE_TYPE_LABELS[exercise.exercise_type]}
                     </td>
                     <td className="px-3 py-2 font-mono text-text-secondary">{exercise.difficulty_level}</td>
-                    <td className="px-3 py-2 text-text-secondary">
-                      {EQUIPMENT_TYPE_LABELS[exercise.equipment_type]}
-                    </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex justify-end gap-3">
                         <button
@@ -319,7 +315,6 @@ export function AdminExercisesPage() {
                       </span>
                     )}
                   </span>
-                  <span>{EQUIPMENT_TYPE_LABELS[exercise.equipment_type]}</span>
                   <span className="font-mono">Сложность: {exercise.difficulty_level}</span>
                 </div>
                 <p className="mt-1 text-xs text-text-secondary">
@@ -399,9 +394,6 @@ function ExerciseFormModal({
   const [category, setCategory] = useState<ExerciseCategory>(exercise?.category ?? 'off_ice')
   const [phase, setPhase] = useState<TrainingPhase>(exercise?.phase ?? 'main')
   const [difficultyLevel, setDifficultyLevel] = useState(String(exercise?.difficulty_level ?? 1))
-  const [equipmentType, setEquipmentType] = useState<EquipmentType>(
-    exercise?.equipment_type ?? 'bodyweight',
-  )
   const [videoSourceType, setVideoSourceType] = useState(exercise?.video_source_type ?? '')
   const [videoSourceId, setVideoSourceId] = useState(exercise?.video_source_id ?? '')
   const [targetSets, setTargetSets] = useState(
@@ -470,7 +462,6 @@ function ExerciseFormModal({
       category,
       phase,
       difficulty_level: difficulty,
-      equipment_type: equipmentType,
       // Only meaningful for phase=warmup -- forced null otherwise even if
       // some stale value is still sitting in state, so switching phase away
       // and back can't silently resurrect an unreviewed stage.
@@ -555,13 +546,6 @@ function ExerciseFormModal({
                 setWarmupStage('')
               }
             }}
-            required
-          />
-          <SelectField
-            label="Инвентарь"
-            options={EQUIPMENT_OPTIONS}
-            value={equipmentType}
-            onChange={(event) => setEquipmentType(event.target.value as EquipmentType)}
             required
           />
           <SelectField
@@ -706,6 +690,9 @@ function ExerciseFormModal({
       )}
       {currentExercise !== null && accessToken !== null && (
         <ExerciseMuscleGroupsSection exerciseId={currentExercise.id} accessToken={accessToken} />
+      )}
+      {currentExercise !== null && accessToken !== null && (
+        <ExerciseEquipmentItemsSection exerciseId={currentExercise.id} accessToken={accessToken} />
       )}
     </AdminModal>
   )
@@ -943,6 +930,113 @@ function ExerciseMovementPatternsSection({
         className="self-start"
       >
         Сохранить паттерны
+      </Button>
+      <FormError message={saveError} />
+    </div>
+  )
+}
+
+// Bare full-replace checkbox set, same shape as ExerciseMovementPatternsSection
+// above -- AND semantics, not weighted (Stage 2.2): every checked item is
+// required simultaneously for a non-gym user to see this exercise, see
+// ExerciseRepository.list_for_assembly.
+function ExerciseEquipmentItemsSection({
+  exerciseId,
+  accessToken,
+}: {
+  exerciseId: string
+  accessToken: string
+}) {
+  const [selected, setSelected] = useState<Set<EquipmentItem> | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    exercisesApi
+      .listExerciseEquipmentItems(exerciseId, accessToken)
+      .then((items) => {
+        if (!cancelled) {
+          setSelected(new Set(items))
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить инвентарь.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exerciseId, accessToken])
+
+  function toggle(item: EquipmentItem) {
+    setSelected((previous) => {
+      const next = new Set(previous ?? [])
+      if (next.has(item)) {
+        next.delete(item)
+      } else {
+        next.add(item)
+      }
+      return next
+    })
+  }
+
+  async function handleSave() {
+    if (selected === null) {
+      return
+    }
+    setSaveError(null)
+    setIsSaving(true)
+    try {
+      const saved = await exercisesApi.replaceExerciseEquipmentItems(
+        exerciseId,
+        Array.from(selected),
+        accessToken,
+      )
+      setSelected(new Set(saved))
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить инвентарь.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
+      <h3 className="text-sm font-medium text-text-secondary">Инвентарь</h3>
+      <p className="text-xs text-text-secondary">
+        Ничего не выбрано — упражнение доступно без инвентаря. Выбранные предметы нужны
+        одновременно (не любой один из них).
+      </p>
+      <FormError message={loadError} />
+
+      {selected !== null && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {EQUIPMENT_ITEM_OPTIONS.map(({ value, label }) => (
+            <label key={value} className="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={selected.has(value)}
+                onChange={() => toggle(value)}
+                className="h-4 w-4"
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+      )}
+
+      <Button
+        type="button"
+        variant="neutral"
+        isLoading={isSaving}
+        disabled={selected === null}
+        onClick={handleSave}
+        className="self-start"
+      >
+        Сохранить инвентарь
       </Button>
       <FormError message={saveError} />
     </div>

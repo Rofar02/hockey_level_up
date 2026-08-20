@@ -15,7 +15,6 @@ import pytest
 from app.core.overload import SessionSignal
 from app.core.training_block import BlockPhase
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
@@ -40,7 +39,6 @@ def _make_user() -> User:
         username=f"overload_{unique}",
         email=f"overload_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         level=20,  # clears the level cap entirely -- these tests are about throttle, not level
     )
 
@@ -52,7 +50,6 @@ def _make_exercise(name: str, target_stat: TargetStat, difficulty_level: int = 1
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=difficulty_level,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
 
 
@@ -281,7 +278,7 @@ async def test_structural_throttle_narrows_exercise_selection(db_session) -> Non
 
     service = ScheduleService(db_session)
 
-    async def fake_list_for_assembly(*, phase, equipment_access, category):
+    async def fake_list_for_assembly(*, phase, user, category):
         return [capped_out, survives]
 
     service._exercises.list_for_assembly = fake_list_for_assembly

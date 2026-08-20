@@ -17,7 +17,6 @@ from app.core.session_duration import (
 # same as test_rest_formula.py hardcoding its expected seconds.
 _DEFAULT_BLOCK_SECONDS = 90
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseType,
@@ -42,7 +41,6 @@ def _make_exercise(
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=difficulty_level,
-        equipment_type=EquipmentType.BODYWEIGHT,
         exercise_type=exercise_type,
         stimulus_type=stimulus_type,
         target_sets=target_sets,

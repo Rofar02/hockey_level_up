@@ -19,7 +19,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi import HTTPException
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import (
     BlockPhase,
     DayPlan,
@@ -42,7 +42,6 @@ def _make_user() -> User:
         username=f"weekparam_{unique}",
         email=f"weekparam_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
     )
 
 
@@ -53,7 +52,6 @@ def _make_exercise() -> Exercise:
         category=ExerciseCategory.ON_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
 
 

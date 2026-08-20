@@ -8,7 +8,6 @@ import uuid
 import pytest
 from fastapi import HTTPException
 
-from app.models.exercise import EquipmentType
 from app.models.friend import FriendRequestStatus
 from app.models.user import User
 from app.services.friend_service import FriendService
@@ -21,7 +20,6 @@ def _make_user(**overrides) -> User:
         username=f"friend_{unique}",
         email=f"friend_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=unique.upper(),
     )
     defaults.update(overrides)

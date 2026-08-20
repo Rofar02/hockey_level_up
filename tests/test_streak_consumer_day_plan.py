@@ -18,7 +18,7 @@ from sqlalchemy import delete, select
 from app.db.session import AsyncSessionLocal
 from app.db.session import engine as app_engine
 from app.events.handlers.block_completed import streak_consumer
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TargetStat, TrainingPhase
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import TrainingStreak
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
@@ -64,7 +64,6 @@ async def _seed_fully_completed_session(
             category=ExerciseCategory.OFF_ICE,
             phase=TrainingPhase.MAIN,
             difficulty_level=1,
-            equipment_type=EquipmentType.BODYWEIGHT,
         )
         session.add(exercise)
         await session.flush()
@@ -272,7 +271,6 @@ async def test_completing_only_some_blocks_does_not_credit_the_day(real_user) ->
             category=ExerciseCategory.OFF_ICE,
             phase=TrainingPhase.WARMUP,
             difficulty_level=1,
-            equipment_type=EquipmentType.BODYWEIGHT,
         )
         session.add(exercise)
         await session.flush()

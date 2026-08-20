@@ -9,7 +9,6 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     MovementPattern,
@@ -26,7 +25,6 @@ def _make_exercise() -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
 
 

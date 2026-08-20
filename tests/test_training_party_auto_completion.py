@@ -10,7 +10,7 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import select
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.outbox import OutboxEvent
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
@@ -30,7 +30,6 @@ def _make_user(**overrides) -> User:
         username=f"partyc_{unique}",
         email=f"partyc_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=unique.upper(),
     )
     defaults.update(overrides)
@@ -50,7 +49,6 @@ def _make_exercise() -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=3,
-        equipment_type=EquipmentType.GYM,
     )
 
 

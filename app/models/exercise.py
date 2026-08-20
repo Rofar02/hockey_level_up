@@ -43,25 +43,30 @@ class TargetStat(enum.StrEnum):
     PUCK_HANDLING = "puck_handling"
 
 
-class EquipmentType(enum.StrEnum):
-    GYM = "gym"
-    HOME = "home"
-    BODYWEIGHT = "bodyweight"
+class EquipmentItem(enum.StrEnum):
+    """Stage 2.2 (2026-08-20 planning session) -- replaced the old
+    gym/home/bodyweight tier on both Exercise and User. An exercise now
+    requires a *set* of specific items (see ExerciseEquipmentItem, e.g.
+    step platform + dumbbells for a step-up) instead of one coarse tier,
+    and a user owns a set of specific items (see UserEquipmentItem)
+    instead of picking a tier. Deliberately no equivalence grouping --
+    kettlebell/dumbbells/barbell are NOT interchangeable for matching,
+    they're different exercises technique-wise; tagging is always to the
+    concrete item actually required. Closed list, extend as the catalog
+    needs new items -- not meant to be exhaustive of every possible piece
+    of equipment on day one.
+    """
 
-
-# What equipment_type values a user with this equipment_access can actually
-# train with -- cumulative capability (gym implies home implies bodyweight),
-# not an exact-match tier. A gym member can obviously still do a
-# bodyweight-only or home-tier move; equipment_access is the ceiling of what
-# they have, not the one tier they're confined to. Shared by
-# ExerciseRepository.list_for_assembly (solo/party-materialized session
-# assembly) and ScheduleService.suggest_party_exercises (party suggestion,
-# which additionally intersects this across every member).
-EQUIPMENT_REACH: dict[EquipmentType, frozenset[EquipmentType]] = {
-    EquipmentType.GYM: frozenset({EquipmentType.GYM, EquipmentType.HOME, EquipmentType.BODYWEIGHT}),
-    EquipmentType.HOME: frozenset({EquipmentType.HOME, EquipmentType.BODYWEIGHT}),
-    EquipmentType.BODYWEIGHT: frozenset({EquipmentType.BODYWEIGHT}),
-}
+    KETTLEBELL = "kettlebell"
+    DUMBBELLS = "dumbbells"
+    BARBELL = "barbell"
+    RESISTANCE_BAND = "resistance_band"
+    PULL_UP_BAR = "pull_up_bar"
+    JUMP_ROPE = "jump_rope"
+    FOAM_ROLLER = "foam_roller"
+    STEP_PLATFORM = "step_platform"
+    SLIDE_BOARD = "slide_board"
+    MEDICINE_BALL = "medicine_ball"
 
 
 class MuscleGroup(enum.StrEnum):
@@ -179,9 +184,6 @@ class Exercise(Base):
         enum_column(TrainingPhase, "training_phase"), nullable=False
     )
     difficulty_level: Mapped[int] = mapped_column(Integer, nullable=False)
-    equipment_type: Mapped[EquipmentType] = mapped_column(
-        enum_column(EquipmentType, "equipment_type"), nullable=False
-    )
 
     video_source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     video_source_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -262,6 +264,34 @@ class ExerciseMovementPattern(Base):
     )
     movement_pattern: Mapped[MovementPattern] = mapped_column(
         enum_column(MovementPattern, "movement_pattern"), nullable=False
+    )
+
+
+# Bare m2m tag, unlike ExerciseMuscleGroup -- no weight, just "this specific
+# item is required". Membership semantics for eligibility are AND across the
+# whole set, not OR: ExerciseRepository.list_for_assembly only shows an
+# exercise to a non-gym user if *every* row here is also in that user's own
+# UserEquipmentItem rows (subset check), matching a step-up genuinely
+# needing both a step platform AND dumbbells at once, not either one. Zero
+# rows means bodyweight-only -- always eligible regardless of inventory,
+# the natural floor case, not a category of its own (Stage 2.2, 2026-08-20
+# planning session).
+class ExerciseEquipmentItem(Base):
+    __tablename__ = "exercise_equipment_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "exercise_id", "equipment_item", name="uq_exercise_equipment_items_exercise_item"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    equipment_item: Mapped[EquipmentItem] = mapped_column(
+        enum_column(EquipmentItem, "equipment_item"), nullable=False
     )
 
 
@@ -376,3 +406,25 @@ class UserMovementPatternVariant(Base):
     # was pinned", not a real training_blocks FK (a block_number is only
     # unique per-user, and blocks are frequently created/retired).
     block_number: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+# Stage 2.2: replaces User.equipment_access's old gym/home/bodyweight tier.
+# The user's own concrete item inventory -- "Свой инвентарь" in the profile/
+# onboarding grid (Stage 2.3), checked against ExerciseEquipmentItem's
+# per-exercise requirement set. No rows at all is the natural "bodyweight
+# only" floor, not a separate category. Meaningless (never queried) for a
+# user with has_gym_access=True, who bypasses the equipment filter entirely
+# -- see ExerciseRepository.list_for_assembly.
+class UserEquipmentItem(Base):
+    __tablename__ = "user_equipment_items"
+    __table_args__ = (
+        UniqueConstraint("user_id", "equipment_item", name="uq_user_equipment_items_user_item"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    equipment_item: Mapped[EquipmentItem] = mapped_column(
+        enum_column(EquipmentItem, "equipment_item"), nullable=False
+    )

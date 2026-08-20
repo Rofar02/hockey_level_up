@@ -19,7 +19,6 @@ import pytest
 
 from app.core.training_block import BlockPhase
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
@@ -62,7 +61,6 @@ def _make_user() -> User:
         username=f"user_{unique}",
         email=f"user_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
     )
 
 
@@ -73,7 +71,6 @@ def _make_exercise(name: str, target_stat: TargetStat) -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
 
 

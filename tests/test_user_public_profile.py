@@ -10,7 +10,6 @@ import uuid
 import pytest
 from fastapi import HTTPException
 
-from app.models.exercise import EquipmentType
 from app.models.user import User
 from app.repositories.team_repository import TeamRepository
 from app.schemas.user import UserPublicRead
@@ -25,7 +24,6 @@ def _make_user(**overrides) -> User:
         username=f"pub_{unique}",
         email=f"pub_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=unique.upper(),
         weight=82.5,
         height=181.0,

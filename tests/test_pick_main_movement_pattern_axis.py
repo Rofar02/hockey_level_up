@@ -20,7 +20,6 @@ import pytest
 
 from app.core.training_block import BlockPhase
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
@@ -38,7 +37,6 @@ def _make_user() -> User:
         username=f"axis_{unique}",
         email=f"axis_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         level=15,
     )
 
@@ -50,12 +48,11 @@ def _make_exercise(name: str) -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
 
 
 def _isolate_candidates(service: ScheduleService, exercises: list[Exercise]) -> None:
-    async def fake_list_for_assembly(*, phase, equipment_access, category, suitable_for_game_day=None):
+    async def fake_list_for_assembly(*, phase, user, category, suitable_for_game_day=None):
         return [e for e in exercises if e.phase == phase and e.category == category]
 
     service._exercises.list_for_assembly = fake_list_for_assembly

@@ -29,7 +29,9 @@ from sqlalchemy import select  # noqa: E402
 
 from app.db.session import AsyncSessionLocal  # noqa: E402
 from app.models.exercise import (  # noqa: E402
+    EquipmentItem,
     Exercise,
+    ExerciseEquipmentItem,
     ExerciseMovementPattern,
     ExerciseTargetStat,
     MovementPattern,
@@ -37,9 +39,18 @@ from app.models.exercise import (  # noqa: E402
     TargetStat,
 )
 
+# Stage 2.2 (2026-08-20 planning session): equipment_type stopped being a
+# real Exercise column, replaced by ExerciseEquipmentItem's per-item list --
+# see seed_exercises.py's own copy of this mapping for the full rationale.
+_LEGACY_EQUIPMENT_ITEM: dict[str, EquipmentItem | None] = {
+    "gym": EquipmentItem.BARBELL,
+    "home": EquipmentItem.DUMBBELLS,
+    "bodyweight": None,
+}
+
 # Each entry: name -> dict of Exercise fields + "movement_patterns" (list)
-# + "target_stat" (popped before Exercise(**fields), same as
-# seed_exercises.py). exercise_type "duration" entries carry
+# + "target_stat" + "equipment_type" (all popped before Exercise(**fields),
+# same as seed_exercises.py). exercise_type "duration" entries carry
 # target_duration_seconds; "sets_reps" entries carry target_sets/
 # rep_range_min/rep_range_max.
 EXERCISES: dict[str, dict] = {
@@ -425,7 +436,7 @@ async def seed() -> None:
         )
 
         created = 0
-        new_rows: list[tuple[Exercise, list[str], str]] = []
+        new_rows: list[tuple[Exercise, list[str], str, EquipmentItem | None]] = []
         for name, data in EXERCISES.items():
             if name in existing_names:
                 continue
@@ -434,17 +445,18 @@ async def seed() -> None:
             fields = dict(data)
             patterns = fields.pop("movement_patterns")
             target_stat = fields.pop("target_stat")
+            equipment_item = _LEGACY_EQUIPMENT_ITEM[fields.pop("equipment_type")]
             fields.setdefault("category", "off_ice")
             fields.setdefault("tracks_weight", False)
 
             exercise = Exercise(name=name, **fields)
             session.add(exercise)
-            new_rows.append((exercise, patterns, target_stat))
+            new_rows.append((exercise, patterns, target_stat, equipment_item))
             created += 1
 
         if new_rows:
             await session.flush()
-            for exercise, patterns, target_stat in new_rows:
+            for exercise, patterns, target_stat, equipment_item in new_rows:
                 session.add(
                     ExerciseTargetStat(
                         exercise_id=exercise.id, target_stat=TargetStat(target_stat), order=0
@@ -455,6 +467,12 @@ async def seed() -> None:
                         ExerciseMovementPattern(
                             exercise_id=exercise.id,
                             movement_pattern=MovementPattern(pattern),
+                        )
+                    )
+                if equipment_item is not None:
+                    session.add(
+                        ExerciseEquipmentItem(
+                            exercise_id=exercise.id, equipment_item=equipment_item
                         )
                     )
 

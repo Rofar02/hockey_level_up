@@ -19,7 +19,6 @@ import pytest
 
 from app.core.training_block import BlockPhase
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
@@ -47,7 +46,6 @@ def _make_user() -> User:
         username=f"warmup_match_{unique}",
         email=f"warmup_match_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         level=15,
     )
 
@@ -61,7 +59,6 @@ def _make_exercise(
         category=ExerciseCategory.OFF_ICE,
         phase=phase,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
         warmup_stage=warmup_stage,
     )
 
@@ -72,7 +69,7 @@ def _isolate_candidates(service: ScheduleService, exercises: dict[str, Exercise]
     so the real seeded catalog's own movement_pattern rows can't leak in."""
 
     async def fake_list_for_assembly(
-        *, phase, equipment_access, category=None, suitable_for_game_day=None
+        *, phase, user, category=None, suitable_for_game_day=None
     ):
         pool = [e for e in exercises.values() if e.phase == phase]
         if category is not None:
@@ -214,7 +211,7 @@ async def test_movement_pattern_lives_in_the_real_table_too(db_session) -> None:
     await db_session.flush()
 
     async def fake_list_for_assembly(
-        *, phase, equipment_access, category=None, suitable_for_game_day=None
+        *, phase, user, category=None, suitable_for_game_day=None
     ):
         pool = [e for e in exercises.values() if e.phase == phase]
         if category is not None:

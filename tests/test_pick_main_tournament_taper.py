@@ -15,7 +15,6 @@ from datetime import date, timedelta
 import pytest
 
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
@@ -44,7 +43,6 @@ def _make_user(*, tournament_date: date | None, season_period: SeasonPeriod = Se
         username=f"taper_{unique}",
         email=f"taper_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         level=15,
         season_period=season_period,
         tournament_date=tournament_date,
@@ -58,7 +56,6 @@ def _make_exercise(name: str, *, category: ExerciseCategory = ExerciseCategory.O
         category=category,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
 
 
@@ -74,7 +71,7 @@ async def _seed_candidates(db_session, *, category: ExerciseCategory) -> list[Ex
 
 
 def _isolate_candidates(service: ScheduleService, exercises: list[Exercise]) -> None:
-    async def fake_list_for_assembly(*, phase, equipment_access, category, suitable_for_game_day=None):
+    async def fake_list_for_assembly(*, phase, user, category, suitable_for_game_day=None):
         return [e for e in exercises if e.phase == phase and e.category == category]
 
     service._exercises.list_for_assembly = fake_list_for_assembly

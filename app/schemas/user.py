@@ -4,7 +4,6 @@ from zoneinfo import available_timezones
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.models.exercise import EquipmentType
 from app.models.user import Position, ReminderPreference, SeasonPeriod
 
 
@@ -58,7 +57,11 @@ class UserRead(UserBase):
     # other users) -- shared out-of-band so a friend can send a request to
     # it (FriendService.send_request_by_code).
     friend_code: str | None = None
-    equipment_access: EquipmentType
+    # Stage 2.2: bypasses the equipment filter entirely when true. Owned
+    # items themselves (UserEquipmentItem) aren't a passthrough field here,
+    # same "not part of the main Read schema" treatment ExerciseRead gives
+    # movement_patterns/muscle_groups -- see GET /users/me/equipment-items.
+    has_gym_access: bool
     email_verified: bool
     is_admin: bool
     has_premium: bool
@@ -78,7 +81,7 @@ class UserPublicRead(BaseModel):
     UserService.get_public_profile for the friend-or-teammate 403 gate.
     Deliberately excludes weight/height (never included here regardless of
     relationship, per spec) and everything private on UserRead: email,
-    is_admin, has_premium, equipment_access, timezone, reminder_preference,
+    is_admin, has_premium, has_gym_access, timezone, reminder_preference,
     season_period, tournament_date, has_seen_onboarding_tour,
     has_seen_weight_hint, friend_code.
     """
@@ -99,7 +102,7 @@ class UserPublicRead(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    equipment_access: EquipmentType | None = None
+    has_gym_access: bool | None = None
     last_name: str | None = Field(default=None, min_length=1, max_length=100)
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     patronymic: str | None = Field(default=None, max_length=100)

@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.core.rest import rest_seconds_for
 from app.models.exercise import (
-    EquipmentType,
+    EquipmentItem,
     Exercise,
     ExerciseCategory,
     ExerciseType,
@@ -32,7 +32,6 @@ class ExerciseRead(BaseModel):
     # index 0 is the "primary" stat ScheduleService buckets on for diversity.
     target_stats: list[TargetStat]
     difficulty_level: int = Field(ge=1, le=5)
-    equipment_type: EquipmentType
     video_source_type: str | None
     video_source_id: str | None
     target_sets: int | None
@@ -78,7 +77,6 @@ def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> Exer
         phase=exercise.phase,
         target_stats=target_stats,
         difficulty_level=exercise.difficulty_level,
-        equipment_type=exercise.equipment_type,
         video_source_type=exercise.video_source_type,
         video_source_id=exercise.video_source_id,
         target_sets=exercise.target_sets,
@@ -106,7 +104,6 @@ class ExerciseCreate(BaseModel):
     category: ExerciseCategory
     phase: TrainingPhase
     difficulty_level: int = Field(ge=1, le=5)
-    equipment_type: EquipmentType
     video_source_type: str | None = None
     video_source_id: str | None = None
     target_sets: int | None = None
@@ -127,7 +124,6 @@ class ExerciseUpdate(BaseModel):
     category: ExerciseCategory | None = None
     phase: TrainingPhase | None = None
     difficulty_level: int | None = Field(default=None, ge=1, le=5)
-    equipment_type: EquipmentType | None = None
     video_source_type: str | None = None
     video_source_id: str | None = None
     target_sets: int | None = None
@@ -144,6 +140,10 @@ class ExerciseUpdate(BaseModel):
 
 class MovementPatternsReplace(BaseModel):
     movement_patterns: list[MovementPattern]
+
+
+class EquipmentItemsReplace(BaseModel):
+    equipment_items: list[EquipmentItem]
 
 
 class MuscleGroupWeight(BaseModel):

@@ -52,13 +52,40 @@ export const EXERCISE_CATEGORY_LABELS: Record<ExerciseCategory, string> = {
   off_ice: 'Сухая',
 }
 
-export const EQUIPMENT_TYPES = ['gym', 'home', 'bodyweight'] as const
-export type EquipmentType = (typeof EQUIPMENT_TYPES)[number]
+// Stage 2.2 (2026-08-20 planning session): replaced the old gym/home/
+// bodyweight tier. An exercise now requires a *set* of specific items (see
+// EquipmentItemsReplace, managed via dedicated
+// /exercises/{id}/equipment-items endpoints, not part of ExerciseRead/
+// ExerciseWrite -- same two-step pattern as movement_patterns/
+// muscle-groups), checked as a subset against a user's own owned items
+// (see UserRead.has_gym_access + api/users.ts's equipment-items
+// endpoints). No equivalence grouping -- kettlebell/dumbbells/barbell are
+// different exercises technique-wise, tagging is always the concrete item.
+export const EQUIPMENT_ITEMS = [
+  'kettlebell',
+  'dumbbells',
+  'barbell',
+  'resistance_band',
+  'pull_up_bar',
+  'jump_rope',
+  'foam_roller',
+  'step_platform',
+  'slide_board',
+  'medicine_ball',
+] as const
+export type EquipmentItem = (typeof EQUIPMENT_ITEMS)[number]
 
-export const EQUIPMENT_TYPE_LABELS: Record<EquipmentType, string> = {
-  gym: 'Зал',
-  home: 'Дом',
-  bodyweight: 'Только тело',
+export const EQUIPMENT_ITEM_LABELS: Record<EquipmentItem, string> = {
+  kettlebell: 'Гиря',
+  dumbbells: 'Гантели',
+  barbell: 'Штанга',
+  resistance_band: 'Резина/эспандер',
+  pull_up_bar: 'Турник',
+  jump_rope: 'Скакалка',
+  foam_roller: 'Мяч для раскатки/МФР-ролик',
+  step_platform: 'Степ-платформа',
+  slide_board: 'Слайд-борд',
+  medicine_ball: 'Медбол',
 }
 
 // Detailed anatomical taxonomy (Stage 2.1, 2026-08-20 planning session) --
@@ -197,7 +224,6 @@ export interface ExerciseRead {
   // two-step create-then-tag flow as movement_patterns/skill-tags.
   target_stats: TargetStat[]
   difficulty_level: number
-  equipment_type: EquipmentType
   video_source_type: string | null
   video_source_id: string | null
   target_sets: number | null
@@ -225,7 +251,6 @@ export interface ExerciseWrite {
   category: ExerciseCategory
   phase: TrainingPhase
   difficulty_level: number
-  equipment_type: EquipmentType
   video_source_type: string | null
   video_source_id: string | null
   target_sets: number | null

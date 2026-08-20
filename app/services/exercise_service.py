@@ -5,10 +5,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import (
-    EquipmentType,
+    EquipmentItem,
     Exercise,
     ExerciseCategory,
-    ExerciseMuscleGroup,
     MovementPattern,
     MuscleGroup,
     TargetStat,
@@ -40,13 +39,11 @@ class ExerciseService:
         self,
         category: ExerciseCategory | None = None,
         phase: TrainingPhase | None = None,
-        equipment_type: EquipmentType | None = None,
         target_stat: TargetStat | None = None,
     ) -> list[ExerciseRead]:
         exercises = await self._exercises.list_exercises(
             category=category,
             phase=phase,
-            equipment_type=equipment_type,
             target_stat=target_stat,
         )
         stats_by_id = await self._exercises.list_target_stats_by_exercise(
@@ -145,6 +142,19 @@ class ExerciseService:
         await self._exercises.replace_muscle_groups(exercise_id, weights)
         await self._session.commit()
         return [MuscleGroupWeight(muscle_group=g, weight=w) for g, w in weights.items()]
+
+    async def list_equipment_items(self, exercise_id: uuid.UUID) -> list[EquipmentItem]:
+        await self.get_exercise(exercise_id)
+        return await self._exercises.list_equipment_items(exercise_id)
+
+    async def replace_equipment_items(
+        self, exercise_id: uuid.UUID, items: list[EquipmentItem]
+    ) -> list[EquipmentItem]:
+        await self.get_exercise(exercise_id)
+        unique_items = list(dict.fromkeys(items))
+        await self._exercises.replace_equipment_items(exercise_id, unique_items)
+        await self._session.commit()
+        return unique_items
 
     async def delete_exercise(self, exercise_id: uuid.UUID) -> None:
         exercise = await self.get_exercise(exercise_id)

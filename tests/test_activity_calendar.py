@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
 from app.routers.users import _month_bounds
@@ -44,7 +44,6 @@ def _make_exercise() -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
 
 

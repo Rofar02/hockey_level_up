@@ -11,7 +11,6 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.user import User
-from app.models.exercise import EquipmentType
 from app.services.leaderboard_service import LeaderboardService
 from app.services.team_service import TeamService
 
@@ -23,7 +22,6 @@ def _make_user(**overrides) -> User:
         username=f"team_{unique}",
         email=f"team_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
     )
     defaults.update(overrides)
     return User(**defaults)

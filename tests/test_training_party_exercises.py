@@ -11,7 +11,6 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     MovementPattern,
@@ -35,7 +34,6 @@ def _make_user(**overrides) -> User:
         username=f"partyx_{unique}",
         email=f"partyx_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=unique.upper(),
     )
     defaults.update(overrides)
@@ -60,7 +58,6 @@ def _make_exercise(**overrides) -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
     defaults.update(overrides)
     return Exercise(**defaults)
@@ -309,7 +306,7 @@ async def test_replace_day_plan_content_adds_warmup_and_cooldown(db_session) -> 
     }
 
     async def fake_list_for_assembly(
-        *, phase, equipment_access, category=None, suitable_for_game_day=None
+        *, phase, user, category=None, suitable_for_game_day=None
     ):
         return exercises_by_phase.get(phase, [])
 

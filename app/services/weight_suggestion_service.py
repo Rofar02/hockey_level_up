@@ -3,9 +3,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseType
+from app.models.exercise import EquipmentItem, Exercise, ExerciseType
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import FitnessTier, User
+from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.set_completion_repository import SetCompletionRepository
 from app.repositories.training_block_repository import TrainingBlockRepository
 
@@ -22,18 +23,12 @@ _FEEDBACK_ADJUSTMENT: dict[SetFeedback, float] = {
     SetFeedback.MAX: 0.95,
 }
 
-# EquipmentType only distinguishes gym / home / bodyweight -- it doesn't
-# separate "barbell or plate-loaded machine" from "dumbbell" the way the
-# rounding rule wants. Closest available mapping, flagged rather than
-# invented silently: gym work (barbells, machines) rounds to 2.5kg plates;
-# home equipment (adjustable dumbbells) rounds to 1kg. A real barbell-vs-
-# dumbbell distinction would need a new field on Exercise if this mapping
-# turns out wrong for some exercise.
-_ROUNDING_STEP_KG: dict[EquipmentType, float] = {
-    EquipmentType.GYM: 2.5,
-    EquipmentType.HOME: 1.0,
-    EquipmentType.BODYWEIGHT: 1.0,
-}
+# Stage 2.2 (2026-08-20 planning session): now a real per-item check instead
+# of the old gym/home/bodyweight tier guess -- plate-loaded barbell work
+# rounds to 2.5kg plates, everything else (dumbbells, kettlebells,
+# bodyweight) rounds to 1kg.
+_BARBELL_ROUNDING_STEP_KG = 2.5
+_DEFAULT_ROUNDING_STEP_KG = 1.0
 
 # Double progression (Phase: П.1): weeks since the exercise's last logged set
 # before its suggested weight gets discounted, on top of whatever the
@@ -72,6 +67,7 @@ def _has_rep_range(exercise: Exercise) -> bool:
 
 class WeightSuggestionService:
     def __init__(self, session: AsyncSession) -> None:
+        self._exercises = ExerciseRepository(session)
         self._sets = SetCompletionRepository(session)
         self._blocks = TrainingBlockRepository(session)
 
@@ -79,7 +75,8 @@ class WeightSuggestionService:
         if not exercise.tracks_weight:
             return None
 
-        step = _ROUNDING_STEP_KG[exercise.equipment_type]
+        required_items = await self._exercises.list_equipment_items(exercise.id)
+        step = _BARBELL_ROUNDING_STEP_KG if EquipmentItem.BARBELL in required_items else _DEFAULT_ROUNDING_STEP_KG
         last_set = await self._sets.get_last_for_user_exercise(user.id, exercise.id)
 
         if last_set is not None:

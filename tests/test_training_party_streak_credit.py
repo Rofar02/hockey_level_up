@@ -20,7 +20,7 @@ from sqlalchemy import delete, select
 from app.db.session import AsyncSessionLocal
 from app.db.session import engine as app_engine
 from app.events.handlers.block_completed import streak_consumer
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import TrainingStreak
@@ -51,7 +51,6 @@ async def real_party_users():
         username=f"streakp_a_{unique}",
         email=f"streakp_a_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=f"A{unique.upper()}",
     )
     bob = User(
@@ -59,7 +58,6 @@ async def real_party_users():
         username=f"streakp_b_{unique}",
         email=f"streakp_b_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=f"B{unique.upper()}",
     )
     async with AsyncSessionLocal() as session:
@@ -97,7 +95,6 @@ async def test_completing_a_party_training_block_advances_personal_streak(real_p
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=2,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
     async with AsyncSessionLocal() as session:
         session.add(exercise)

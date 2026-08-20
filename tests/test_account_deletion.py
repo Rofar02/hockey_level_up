@@ -15,7 +15,6 @@ from fastapi import HTTPException
 from app.core.config import get_settings
 from app.core.security import hash_password
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseTargetStat,
@@ -54,7 +53,6 @@ async def _seed_full_graph(db_session, user: User) -> dict:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=3,
-        equipment_type=EquipmentType.GYM,
     )
     exercise_target_stat = ExerciseTargetStat(
         exercise_id=exercise.id, target_stat=TargetStat.STRENGTH, order=0

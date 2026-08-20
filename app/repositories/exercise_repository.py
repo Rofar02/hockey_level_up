@@ -5,10 +5,10 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import (
-    EQUIPMENT_REACH,
-    EquipmentType,
+    EquipmentItem,
     Exercise,
     ExerciseCategory,
+    ExerciseEquipmentItem,
     ExerciseMovementPattern,
     ExerciseMuscleGroup,
     ExerciseTargetStat,
@@ -16,7 +16,9 @@ from app.models.exercise import (
     MuscleGroup,
     TargetStat,
     TrainingPhase,
+    UserEquipmentItem,
 )
+from app.models.user import User
 from app.schemas.exercise import ExerciseCreate
 
 
@@ -28,7 +30,6 @@ class ExerciseRepository:
         self,
         category: ExerciseCategory | None = None,
         phase: TrainingPhase | None = None,
-        equipment_type: EquipmentType | None = None,
         target_stat: TargetStat | None = None,
     ) -> list[Exercise]:
         query = select(Exercise)
@@ -36,8 +37,6 @@ class ExerciseRepository:
             query = query.where(Exercise.category == category)
         if phase is not None:
             query = query.where(Exercise.phase == phase)
-        if equipment_type is not None:
-            query = query.where(Exercise.equipment_type == equipment_type)
         if target_stat is not None:
             # "Has this stat anywhere among its target_stats", not just the
             # primary (order=0) one -- this is an admin browsing/filtering
@@ -197,6 +196,76 @@ class ExerciseRepository:
             )
         await self._session.flush()
 
+    async def list_equipment_items(self, exercise_id: uuid.UUID) -> list[EquipmentItem]:
+        result = await self._session.execute(
+            select(ExerciseEquipmentItem.equipment_item).where(
+                ExerciseEquipmentItem.exercise_id == exercise_id
+            )
+        )
+        return list(result.scalars().all())
+
+    async def list_equipment_items_by_exercise(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, set[EquipmentItem]]:
+        """Bulk lookup for ScheduleService.suggest_party_exercises' own
+        per-member subset check -- mirrors list_muscle_groups_by_exercise's
+        shape."""
+        if not exercise_ids:
+            return {}
+        result = await self._session.execute(
+            select(ExerciseEquipmentItem.exercise_id, ExerciseEquipmentItem.equipment_item).where(
+                ExerciseEquipmentItem.exercise_id.in_(exercise_ids)
+            )
+        )
+        by_exercise: dict[uuid.UUID, set[EquipmentItem]] = defaultdict(set)
+        for exercise_id, item in result.all():
+            by_exercise[exercise_id].add(item)
+        return dict(by_exercise)
+
+    async def replace_equipment_items(
+        self, exercise_id: uuid.UUID, items: list[EquipmentItem]
+    ) -> None:
+        await self._session.execute(
+            delete(ExerciseEquipmentItem).where(ExerciseEquipmentItem.exercise_id == exercise_id)
+        )
+        for item in items:
+            self._session.add(
+                ExerciseEquipmentItem(exercise_id=exercise_id, equipment_item=item)
+            )
+        await self._session.flush()
+
+    async def list_owned_equipment(self, user_id: uuid.UUID) -> set[EquipmentItem]:
+        result = await self._session.execute(
+            select(UserEquipmentItem.equipment_item).where(UserEquipmentItem.user_id == user_id)
+        )
+        return set(result.scalars().all())
+
+    async def list_owned_equipment_by_user(
+        self, user_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, set[EquipmentItem]]:
+        """Bulk lookup for ScheduleService.suggest_party_exercises, which
+        needs every member's owned set at once to intersect eligibility
+        across the party -- mirrors list_muscle_groups_by_exercise's shape."""
+        if not user_ids:
+            return {}
+        result = await self._session.execute(
+            select(UserEquipmentItem.user_id, UserEquipmentItem.equipment_item).where(
+                UserEquipmentItem.user_id.in_(user_ids)
+            )
+        )
+        by_user: dict[uuid.UUID, set[EquipmentItem]] = defaultdict(set)
+        for user_id, item in result.all():
+            by_user[user_id].add(item)
+        return dict(by_user)
+
+    async def replace_owned_equipment(self, user_id: uuid.UUID, items: list[EquipmentItem]) -> None:
+        await self._session.execute(
+            delete(UserEquipmentItem).where(UserEquipmentItem.user_id == user_id)
+        )
+        for item in items:
+            self._session.add(UserEquipmentItem(user_id=user_id, equipment_item=item))
+        await self._session.flush()
+
     async def get_by_id(self, exercise_id: uuid.UUID) -> Exercise | None:
         return await self._session.get(Exercise, exercise_id)
 
@@ -219,23 +288,27 @@ class ExerciseRepository:
     async def list_for_assembly(
         self,
         phase: TrainingPhase,
-        equipment_access: EquipmentType,
+        user: User,
         category: ExerciseCategory | None = None,
         suitable_for_game_day: bool | None = None,
     ) -> list[Exercise]:
         """Candidates for training-session assembly.
 
-        equipment_access only constrains off_ice exercises -- on the ice, the
-        player doesn't choose gym/home/bodyweight, so on_ice exercises are
-        never excluded by equipment. Off-ice uses cumulative reach (see
-        EQUIPMENT_REACH), not an exact-tier match -- a gym member can still
-        do a bodyweight-only or home-tier move, equipment_access is the
-        ceiling of what they have, not the one tier they're confined to.
-        Used to be an exact `equipment_type == equipment_access` match,
-        which starved gym/home users of the (often easier) exercises tagged
-        for a lower tier -- see suggest_party_exercises's docstring, which
-        already used cumulative reach for its own, different reason
-        (multi-member intersection) before this method caught up to it.
+        Equipment only constrains off_ice exercises -- on the ice, the
+        player doesn't choose their gear, so on_ice exercises are never
+        excluded by it. Off-ice (Stage 2.2, 2026-08-20 planning session):
+        user.has_gym_access=True bypasses the filter entirely (sees every
+        exercise regardless of its ExerciseEquipmentItem rows, including
+        future new items with no changes needed here); otherwise an
+        exercise is eligible only if *every* item it requires is also in
+        the user's own UserEquipmentItem rows (subset check, expressed
+        below as "no required row the user doesn't own exists") -- a step-up
+        tagged with both step platform and dumbbells needs both, owning
+        only one isn't enough. An exercise with zero required rows (plain
+        bodyweight work) is always eligible, regardless of inventory --
+        replaces the old cumulative gym-implies-home-implies-bodyweight
+        EQUIPMENT_REACH tier logic with real per-item matching, no
+        equivalence grouping between items.
 
         suitable_for_game_day is None (no filter) for every regular on/off-ice
         session -- only ScheduleService._build_game_day_session's physical
@@ -247,12 +320,22 @@ class ExerciseRepository:
             query = query.where(Exercise.category == category)
         if suitable_for_game_day is not None:
             query = query.where(Exercise.suitable_for_game_day == suitable_for_game_day)
-        query = query.where(
-            or_(
-                Exercise.category == ExerciseCategory.ON_ICE,
-                Exercise.equipment_type.in_(EQUIPMENT_REACH[equipment_access]),
+        if not user.has_gym_access:
+            owned = await self.list_owned_equipment(user.id)
+            missing_required_item = (
+                select(ExerciseEquipmentItem.id)
+                .where(
+                    ExerciseEquipmentItem.exercise_id == Exercise.id,
+                    ExerciseEquipmentItem.equipment_item.notin_(owned),
+                )
+                .exists()
             )
-        )
+            query = query.where(
+                or_(
+                    Exercise.category == ExerciseCategory.ON_ICE,
+                    ~missing_required_item,
+                )
+            )
 
         result = await self._session.execute(query.order_by(Exercise.name))
         return list(result.scalars().all())

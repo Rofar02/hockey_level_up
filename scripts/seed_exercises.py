@@ -15,7 +15,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select  # noqa: E402
 
 from app.db.session import AsyncSessionLocal  # noqa: E402
-from app.models.exercise import Exercise, ExerciseTargetStat, TargetStat  # noqa: E402
+from app.models.exercise import (  # noqa: E402
+    EquipmentItem,
+    Exercise,
+    ExerciseEquipmentItem,
+    ExerciseTargetStat,
+    TargetStat,
+)
+
+# Stage 2.2 (2026-08-20 planning session): equipment_type stopped being a
+# real Exercise column, replaced by ExerciseEquipmentItem's per-item list --
+# but every EXERCISES literal below still carries its old gym/home/
+# bodyweight value, so this maps it to the same placeholder item the
+# migration backfill used for existing rows (BARBELL for gym, DUMBBELLS for
+# home, nothing for bodyweight), so a fresh seed and a migrated old DB stay
+# behaviorally identical. Real per-exercise item accuracy is Stage 4's job.
+_LEGACY_EQUIPMENT_ITEM: dict[str, EquipmentItem | None] = {
+    "gym": EquipmentItem.BARBELL,
+    "home": EquipmentItem.DUMBBELLS,
+    "bodyweight": None,
+}
 
 PLACEHOLDER_DESCRIPTION = "Заглушка: описание будет добавлено позже."
 
@@ -747,11 +766,12 @@ async def seed() -> None:
         )
 
         created = 0
-        # target_stat is no longer an Exercise column (see
-        # ExerciseTargetStat) -- popped per-dict here rather than editing
-        # every literal in EXERCISES, and inserted as that exercise's single
-        # order=0 (primary) target_stat row once flush() has assigned ids.
+        # target_stat/equipment_type are no longer Exercise columns (see
+        # ExerciseTargetStat/ExerciseEquipmentItem) -- popped per-dict here
+        # rather than editing every literal in EXERCISES, and inserted as
+        # companion rows once flush() has assigned ids.
         new_exercise_stats: list[tuple[Exercise, str]] = []
+        new_exercise_items: list[tuple[Exercise, EquipmentItem]] = []
         for data in EXERCISES:
             if data["name"] in existing_names:
                 continue
@@ -763,9 +783,12 @@ async def seed() -> None:
             existing_names.add(data["name"])
             data = dict(data)
             target_stat = data.pop("target_stat")
+            equipment_item = _LEGACY_EQUIPMENT_ITEM[data.pop("equipment_type")]
             exercise = Exercise(**data)
             session.add(exercise)
             new_exercise_stats.append((exercise, target_stat))
+            if equipment_item is not None:
+                new_exercise_items.append((exercise, equipment_item))
             created += 1
 
         if new_exercise_stats:
@@ -775,6 +798,10 @@ async def seed() -> None:
                     ExerciseTargetStat(
                         exercise_id=exercise.id, target_stat=TargetStat(target_stat), order=0
                     )
+                )
+            for exercise, equipment_item in new_exercise_items:
+                session.add(
+                    ExerciseEquipmentItem(exercise_id=exercise.id, equipment_item=equipment_item)
                 )
 
         updated = 0

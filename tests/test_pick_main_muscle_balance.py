@@ -25,7 +25,6 @@ import pytest
 
 from app.core.training_block import BlockPhase
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
@@ -67,7 +66,6 @@ def _make_user() -> User:
         username=f"user_{unique}",
         email=f"user_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
     )
 
 
@@ -84,7 +82,6 @@ def _make_exercise(
         category=category,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
     muscle_group_row = (
         ExerciseMuscleGroup(exercise_id=exercise.id, muscle_group=muscle_group, weight=1.0)
@@ -119,7 +116,7 @@ def _isolate_candidates(service: ScheduleService, exercises: list[Exercise]) -> 
     candidates into these pools and break the "no alternative exists"
     assertions."""
 
-    async def fake_list_for_assembly(*, phase, equipment_access, category, suitable_for_game_day=None):
+    async def fake_list_for_assembly(*, phase, user, category, suitable_for_game_day=None):
         return [e for e in exercises if e.phase == phase and e.category == category]
 
     service._exercises.list_for_assembly = fake_list_for_assembly

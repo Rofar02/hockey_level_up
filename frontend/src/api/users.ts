@@ -6,21 +6,9 @@ import {
   apiPostMultipartAuth,
   apiPutAuth,
 } from './client'
-import type {
-  EquipmentAccess,
-  ReminderPreference,
-  SeasonPeriod,
-  UserPublicRead,
-  UserRead,
-} from '../types/user'
+import type { EquipmentItem } from '../types/exercise'
+import type { ReminderPreference, SeasonPeriod, UserPublicRead, UserRead } from '../types/user'
 import type { UserSkillPreference } from '../types/skill'
-
-export function updateEquipmentAccess(
-  equipmentAccess: EquipmentAccess,
-  accessToken: string,
-): Promise<UserRead> {
-  return apiPatchAuth<UserRead>('/users/me', { equipment_access: equipmentAccess }, accessToken)
-}
 
 export interface UserProfileUpdate {
   last_name?: string
@@ -32,6 +20,7 @@ export interface UserProfileUpdate {
   tournament_date?: string | null
   timezone?: string
   has_seen_weight_hint?: boolean
+  has_gym_access?: boolean
 }
 
 export function updateProfile(
@@ -81,4 +70,19 @@ export function deleteAccount(password: string, accessToken: string): Promise<vo
 // see UserService.get_public_profile.
 export function getUserPublicProfile(userId: string, accessToken: string): Promise<UserPublicRead> {
   return apiGet<UserPublicRead>(`/users/${userId}/profile`, accessToken)
+}
+
+export function getMyEquipmentItems(accessToken: string): Promise<EquipmentItem[]> {
+  return apiGet<EquipmentItem[]>('/users/me/equipment-items', accessToken)
+}
+
+export function replaceMyEquipmentItems(
+  items: EquipmentItem[],
+  accessToken: string,
+): Promise<EquipmentItem[]> {
+  return apiPutAuth<EquipmentItem[]>(
+    '/users/me/equipment-items',
+    { equipment_items: items },
+    accessToken,
+  )
 }

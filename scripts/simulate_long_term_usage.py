@@ -87,7 +87,6 @@ from app.core.training_block import max_difficulty_for_level  # noqa: E402
 from app.db.session import AsyncSessionLocal  # noqa: E402
 from app.events.handlers import block_completed as block_completed_handlers  # noqa: E402,F401 -- registers handlers
 from app.events.registry import get_handlers  # noqa: E402
-from app.models.exercise import EquipmentType
 from app.models.outbox import OutboxEvent
 from app.models.progress import StatHistory
 from app.models.schedule import BlockPhase, DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
@@ -201,7 +200,7 @@ async def make_test_user(session, tag: str) -> User:
         password_hash="irrelevant",
         last_name="Sim",
         first_name=tag,
-        equipment_access=EquipmentType.GYM,
+        has_gym_access=True,
         weight=75.0,
         height=180.0,
         age=20,

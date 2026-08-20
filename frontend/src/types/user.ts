@@ -7,17 +7,6 @@ export const POSITION_LABELS: Record<Position, string> = {
   forward: 'Нападающий',
 }
 
-export const EQUIPMENT_OPTIONS = ['gym', 'home', 'bodyweight'] as const
-export type EquipmentAccess = (typeof EQUIPMENT_OPTIONS)[number]
-
-// Shared between onboarding's equipment step and the settings screen so the
-// copy for each card only has to be maintained in one place.
-export const EQUIPMENT_CHOICES: { value: EquipmentAccess; title: string; description: string }[] = [
-  { value: 'gym', title: 'Зал', description: 'Полный доступ к тренажёрам и свободным весам' },
-  { value: 'home', title: 'Дом', description: 'Гантели, эспандеры и другой домашний инвентарь' },
-  { value: 'bodyweight', title: 'Только тело', description: 'Тренировки без какого-либо инвентаря' },
-]
-
 export const REMINDER_PREFERENCES = ['none', 'morning', 'evening'] as const
 export type ReminderPreference = (typeof REMINDER_PREFERENCES)[number]
 
@@ -59,7 +48,10 @@ export interface UserRead {
   // you a request (see api/friends.ts). Never shown for anyone else (see
   // UserPublicRead below).
   friend_code: string | null
-  equipment_access: EquipmentAccess
+  // Stage 2.2: bypasses the equipment filter entirely when true. Owned
+  // items themselves aren't part of this Read shape -- see
+  // api/users.ts's listMyEquipmentItems/replaceMyEquipmentItems.
+  has_gym_access: boolean
   email_verified: boolean
   is_admin: boolean
   has_premium: boolean

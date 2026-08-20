@@ -1,5 +1,6 @@
 import { apiDeleteAuth, apiGet, apiPatchAuth, apiPostAuth, apiPutAuth } from './client'
 import type {
+  EquipmentItem,
   ExerciseCategory,
   ExerciseRead,
   ExerciseWrite,
@@ -108,6 +109,25 @@ export function replaceExerciseMuscleGroups(
   return apiPutAuth<MuscleGroupWeight[]>(
     `/exercises/${exerciseId}/muscle-groups`,
     { muscle_groups: groups },
+    accessToken,
+  )
+}
+
+export function listExerciseEquipmentItems(
+  exerciseId: string,
+  accessToken: string,
+): Promise<EquipmentItem[]> {
+  return apiGet<EquipmentItem[]>(`/exercises/${exerciseId}/equipment-items`, accessToken)
+}
+
+export function replaceExerciseEquipmentItems(
+  exerciseId: string,
+  items: EquipmentItem[],
+  accessToken: string,
+): Promise<EquipmentItem[]> {
+  return apiPutAuth<EquipmentItem[]>(
+    `/exercises/${exerciseId}/equipment-items`,
+    { equipment_items: items },
     accessToken,
   )
 }

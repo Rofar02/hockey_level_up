@@ -33,7 +33,7 @@ from app.events.handlers.block_completed import (
     streak_consumer,
     xp_consumer,
 )
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TargetStat, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TargetStat, TrainingPhase
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
@@ -147,7 +147,6 @@ async def _seed_fully_completed_session(user_id: uuid.UUID) -> uuid.UUID:
             category=ExerciseCategory.OFF_ICE,
             phase=TrainingPhase.MAIN,
             difficulty_level=1,
-            equipment_type=EquipmentType.BODYWEIGHT,
         )
         session.add(exercise)
         await session.flush()

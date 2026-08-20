@@ -28,7 +28,6 @@ import pytest
 
 from app.core.training_block import BlockPhase
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseTargetStat,
@@ -54,7 +53,6 @@ def _make_user() -> User:
         username=f"gameday_{unique}",
         email=f"gameday_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
     )
 
 
@@ -71,7 +69,6 @@ def _make_exercise(
         category=category,
         phase=phase,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
         suitable_for_game_day=suitable_for_game_day,
     )
 
@@ -87,7 +84,7 @@ def _isolate_candidates(service: ScheduleService, exercises: dict[str, Exercise]
     test_level_difficulty_gate.py."""
 
     async def fake_list_for_assembly(
-        *, phase, equipment_access, category=None, suitable_for_game_day=None
+        *, phase, user, category=None, suitable_for_game_day=None
     ):
         pool = [e for e in exercises.values() if e.phase == phase]
         if category is not None:

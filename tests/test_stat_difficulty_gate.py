@@ -42,7 +42,6 @@ import pytest
 from app.core.stat_difficulty import UNCLASSIFIED_EXERCISE_CAP, max_difficulty_for_stat
 from app.core.training_block import BlockPhase, max_difficulty_for_level
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
@@ -70,7 +69,6 @@ def _make_user(*, level: int = 1, category: ExerciseCategory = ExerciseCategory.
         username=f"statgate_{unique}",
         email=f"statgate_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         level=level,
     )
 
@@ -84,7 +82,6 @@ def _make_exercise(
         category=category,
         phase=TrainingPhase.MAIN,
         difficulty_level=difficulty_level,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
 
 
@@ -109,7 +106,7 @@ def _user_stat(user: User, target_stat: TargetStat, value: float, *, stale_days:
 
 
 def _isolate_candidates(service: ScheduleService, exercises: dict[str, Exercise]) -> None:
-    async def fake_list_for_assembly(*, phase, equipment_access, category, suitable_for_game_day=None):
+    async def fake_list_for_assembly(*, phase, user, category, suitable_for_game_day=None):
         return [e for e in exercises.values() if e.category == category]
 
     service._exercises.list_for_assembly = fake_list_for_assembly
@@ -391,7 +388,7 @@ async def test_pick_single_respects_the_stat_gate_off_ice(
 
     service = ScheduleService(db_session)
 
-    async def fake_list_for_assembly(*, phase, equipment_access, category, suitable_for_game_day=None):
+    async def fake_list_for_assembly(*, phase, user, category, suitable_for_game_day=None):
         return [easy, hard]
 
     service._exercises.list_for_assembly = fake_list_for_assembly

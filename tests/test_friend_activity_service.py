@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.models.exercise import EquipmentType
 from app.models.outbox import OutboxEvent
 from app.models.schedule import DaySessionType
 from app.models.user import User
@@ -29,7 +28,6 @@ def _make_user(**overrides) -> User:
         username=f"feed_{unique}",
         email=f"feed_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=unique.upper(),
         first_name="Feed",
         last_name="User",

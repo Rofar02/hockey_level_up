@@ -9,7 +9,7 @@ from datetime import date, timedelta
 import pytest
 from fastapi import HTTPException
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
 from app.schemas.training_party import TrainingPartyCreate
@@ -28,7 +28,6 @@ def _make_user(**overrides) -> User:
         username=f"party_{unique}",
         email=f"party_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=unique.upper(),
     )
     defaults.update(overrides)
@@ -48,7 +47,6 @@ def _make_exercise() -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=3,
-        equipment_type=EquipmentType.GYM,
     )
 
 

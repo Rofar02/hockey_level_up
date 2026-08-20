@@ -6,11 +6,12 @@ from fastapi import APIRouter, Depends, File, Header, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.exercise import TargetStat
+from app.models.exercise import EquipmentItem, TargetStat
 from app.models.user import User
 from app.routers.deps import get_current_user, require_premium
 from app.schemas.analytics import AnalyticsSummaryRead
 from app.schemas.coach_chat import CoachChatMessageCreate, CoachChatMessageRead, CoachChatReplyRead
+from app.schemas.exercise import EquipmentItemsReplace
 from app.schemas.progress import (
     ActivityCalendarDayRead,
     StatHistoryPointRead,
@@ -224,6 +225,23 @@ async def replace_my_skill_preferences(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await SkillService(session).replace_user_preferences(current_user, body.skill_ids)
+
+
+@router.get("/me/equipment-items", response_model=list[EquipmentItem])
+async def get_my_equipment_items(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await UserService(session).list_owned_equipment(current_user.id)
+
+
+@router.put("/me/equipment-items", response_model=list[EquipmentItem])
+async def replace_my_equipment_items(
+    body: EquipmentItemsReplace,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await UserService(session).replace_owned_equipment(current_user.id, body.equipment_items)
 
 
 @router.post("/me/push-subscription", response_model=PushSubscriptionRead)

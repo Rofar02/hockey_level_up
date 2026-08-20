@@ -19,7 +19,6 @@ import pytest
 
 from app.core.training_block import BlockPhase
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseMovementPattern,
@@ -47,7 +46,6 @@ def _make_user() -> User:
         username=f"block_order_{unique}",
         email=f"block_order_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         level=15,
     )
 
@@ -59,7 +57,6 @@ def _make_exercise(*, name: str, phase: TrainingPhase) -> Exercise:
         category=ExerciseCategory.OFF_ICE,
         phase=phase,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
         # _pick_warmup_complex only picks WARMUP exercises with a stage set
         # -- irrelevant for MAIN/COOLDOWN rows, harmless to set on all of them.
         warmup_stage=WarmupStage.RAISE if phase == TrainingPhase.WARMUP else None,
@@ -101,7 +98,7 @@ async def test_block_order_is_unique_and_matches_warmup_main_cooldown_sequence(d
     await db_session.flush()
 
     async def fake_list_for_assembly(
-        *, phase, equipment_access, category=None, suitable_for_game_day=None
+        *, phase, user, category=None, suitable_for_game_day=None
     ):
         pool = [e for e in exercises.values() if e.phase == phase]
         if category is not None:

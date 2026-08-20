@@ -8,7 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.db.enum_column import enum_column
-from app.models.exercise import EquipmentType
 
 
 class Position(enum.StrEnum):
@@ -80,10 +79,14 @@ class User(Base):
     # app/config/expected_baseline.py) instead of rounding down to 0.
     years_of_experience: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    equipment_access: Mapped[EquipmentType] = mapped_column(
-        enum_column(EquipmentType, "equipment_type"),
-        nullable=False,
-        server_default=EquipmentType.BODYWEIGHT.value,
+    # Stage 2.2: replaces the old gym/home/bodyweight equipment_access tier.
+    # True bypasses the equipment filter entirely (sees every exercise,
+    # including future new items, with no changes needed on this side) --
+    # see ExerciseRepository.list_for_assembly. False means matching goes
+    # through UserEquipmentItem's owned-item set instead; an empty set there
+    # is the natural "bodyweight only" floor, not a separate flag.
+    has_gym_access: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
     )
 
     is_admin: Mapped[bool] = mapped_column(

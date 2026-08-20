@@ -1,9 +1,10 @@
 """ScheduleService.suggest_party_exercises: the co-op exercise-suggestion
-engine behind TrainingPartyService.suggest_exercises. Equipment is treated as
-cumulative capability (gym implies home implies bodyweight, see
-_EQUIPMENT_REACH) rather than list_for_assembly's single-user exact match --
-see that method's docstring for why -- and difficulty is capped at the
-weakest member's ceiling, never relaxed.
+engine behind TrainingPartyService.suggest_exercises. Equipment (Stage 2.2)
+is has_gym_access (bypasses the filter entirely) plus a per-exercise
+required-item set checked against each member's own owned-item set,
+intersected across every member -- see that method's docstring for why this
+can't just reuse list_for_assembly's single-user check -- and difficulty is
+capped at the weakest member's ceiling, never relaxed.
 
 Diversity is bucketed by movement_pattern, not target_stat (see
 ScheduleService._pick_main's docstring for why) -- exercises below are
@@ -14,12 +15,14 @@ import uuid
 import pytest
 
 from app.models.exercise import (
-    EquipmentType,
+    EquipmentItem,
     Exercise,
     ExerciseCategory,
+    ExerciseEquipmentItem,
     ExerciseMovementPattern,
     MovementPattern,
     TrainingPhase,
+    UserEquipmentItem,
 )
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
@@ -38,7 +41,7 @@ def _isolate(service: ScheduleService, exercises: dict) -> None:
     (category=OFF_ICE, phase=MAIN) would -- the real dev DB now has a real
     seeded catalog that would otherwise leak into these tests' pools."""
 
-    async def fake_list_exercises(*, category=None, phase=None, equipment_type=None, target_stat=None):
+    async def fake_list_exercises(*, category=None, phase=None, target_stat=None):
         pool = list(exercises.values())
         if category is not None:
             pool = [e for e in pool if e.category == category]
@@ -56,7 +59,6 @@ def _make_user(**overrides) -> User:
         username=f"suggest_{unique}",
         email=f"suggest_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         friend_code=unique.upper(),
         level=1,
     )
@@ -64,24 +66,33 @@ def _make_user(**overrides) -> User:
     return User(**defaults)
 
 
-def _make_exercise(**overrides) -> tuple[Exercise, ExerciseMovementPattern]:
-    # movement_pattern isn't a real Exercise field (see
-    # ExerciseMovementPattern) -- popped here and returned as a companion
-    # row the caller must also add to the session, since suggest_party_exercises
-    # now buckets on a real ExerciseMovementPattern query, not an in-memory
-    # attribute.
+def _make_exercise(**overrides) -> tuple:
+    # movement_pattern/equipment_items aren't real Exercise fields (see
+    # ExerciseMovementPattern/ExerciseEquipmentItem) -- popped here and
+    # returned as companion rows the caller must also add to the session,
+    # since suggest_party_exercises now buckets/matches on real m2m
+    # queries, not in-memory attributes. Variable-length: (exercise,
+    # movement_pattern_row, *equipment_rows) -- unpack with
+    # `exercise, *rows = _make_exercise(...)`.
     movement_pattern = overrides.pop("movement_pattern", MovementPattern.SQUAT)
+    equipment_items = overrides.pop("equipment_items", ())
     defaults = dict(
         id=uuid.uuid4(),
         name=f"Exercise {uuid.uuid4().hex[:8]}",
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
     defaults.update(overrides)
     exercise = Exercise(**defaults)
-    return exercise, ExerciseMovementPattern(exercise_id=exercise.id, movement_pattern=movement_pattern)
+    equipment_rows = [
+        ExerciseEquipmentItem(exercise_id=exercise.id, equipment_item=item) for item in equipment_items
+    ]
+    return (
+        exercise,
+        ExerciseMovementPattern(exercise_id=exercise.id, movement_pattern=movement_pattern),
+        *equipment_rows,
+    )
 
 
 def _add(db_session, *items) -> None:
@@ -107,12 +118,12 @@ async def test_equipment_without_common_ground_excludes_gym_only_exercise(db_ses
     (clean) movement_pattern so they compete in the same pattern pool --
     proves the exclusion is about equipment, not just "different pattern got
     picked"."""
-    gym_user = _make_user(equipment_access=EquipmentType.GYM)
-    bodyweight_user = _make_user(equipment_access=EquipmentType.BODYWEIGHT)
-    gym_only, gym_only_pattern = _make_exercise(
-        equipment_type=EquipmentType.GYM, movement_pattern=_CLEAN_PATTERNS[0]
+    gym_user = _make_user(has_gym_access=True)
+    bodyweight_user = _make_user()
+    gym_only, *gym_only_rows = _make_exercise(
+        equipment_items=[EquipmentItem.BARBELL], movement_pattern=_CLEAN_PATTERNS[0]
     )
-    _add(db_session, gym_user, bodyweight_user, (gym_only, gym_only_pattern))
+    _add(db_session, gym_user, bodyweight_user, (gym_only, *gym_only_rows))
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -124,15 +135,13 @@ async def test_equipment_without_common_ground_excludes_gym_only_exercise(db_ses
 
 @pytest.mark.asyncio
 async def test_equipment_common_ground_is_shared(db_session) -> None:
-    """A bodyweight exercise is reachable for a gym member too (cumulative
-    capability, see _EQUIPMENT_REACH) -- pairing gym+bodyweight still shares
-    it, unlike the gym-only case above."""
-    gym_user = _make_user(equipment_access=EquipmentType.GYM)
-    bodyweight_user = _make_user(equipment_access=EquipmentType.BODYWEIGHT)
-    shared_bodyweight, shared_bodyweight_pattern = _make_exercise(
-        equipment_type=EquipmentType.BODYWEIGHT, movement_pattern=_CLEAN_PATTERNS[0]
-    )
-    _add(db_session, gym_user, bodyweight_user, (shared_bodyweight, shared_bodyweight_pattern))
+    """A bodyweight exercise (no required items) is reachable for a gym
+    member too -- pairing gym+bodyweight still shares it, unlike the
+    gym-only case above."""
+    gym_user = _make_user(has_gym_access=True)
+    bodyweight_user = _make_user()
+    shared_bodyweight, *shared_bodyweight_rows = _make_exercise(movement_pattern=_CLEAN_PATTERNS[0])
+    _add(db_session, gym_user, bodyweight_user, (shared_bodyweight, *shared_bodyweight_rows))
     await db_session.flush()
 
     service = ScheduleService(db_session)
@@ -144,11 +153,11 @@ async def test_equipment_common_ground_is_shared(db_session) -> None:
 
 @pytest.mark.asyncio
 async def test_gym_member_alone_gets_the_gym_exercise(db_session) -> None:
-    gym_user = _make_user(equipment_access=EquipmentType.GYM)
-    gym_only, gym_only_pattern = _make_exercise(
-        equipment_type=EquipmentType.GYM, movement_pattern=_CLEAN_PATTERNS[0]
+    gym_user = _make_user(has_gym_access=True)
+    gym_only, *gym_only_rows = _make_exercise(
+        equipment_items=[EquipmentItem.BARBELL], movement_pattern=_CLEAN_PATTERNS[0]
     )
-    _add(db_session, gym_user, (gym_only, gym_only_pattern))
+    _add(db_session, gym_user, (gym_only, *gym_only_rows))
     await db_session.flush()
 
     service = ScheduleService(db_session)

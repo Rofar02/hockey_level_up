@@ -14,7 +14,6 @@ from datetime import date
 import pytest
 
 from app.models.exercise import (
-    EquipmentType,
     Exercise,
     ExerciseCategory,
     ExerciseTargetStat,
@@ -46,7 +45,6 @@ async def test_complete_block_returns_a_valid_session_block_read(db_session) -> 
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=3,
-        equipment_type=EquipmentType.GYM,
     )
     db_session.add(exercise)
     await db_session.flush()

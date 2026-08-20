@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.exercise import EquipmentType, ExerciseCategory, MovementPattern, TargetStat, TrainingPhase
+from app.models.exercise import EquipmentItem, ExerciseCategory, MovementPattern, TargetStat, TrainingPhase
 from app.models.user import User
 from app.routers.deps import get_current_user, require_admin
 from app.schemas.exercise import (
+    EquipmentItemsReplace,
     ExerciseCreate,
     ExerciseRead,
     ExerciseUpdate,
@@ -33,13 +34,11 @@ async def list_exercises(
     session: Annotated[AsyncSession, Depends(get_db)],
     category: Annotated[ExerciseCategory | None, Query()] = None,
     phase: Annotated[TrainingPhase | None, Query()] = None,
-    equipment_type: Annotated[EquipmentType | None, Query()] = None,
     target_stat: Annotated[TargetStat | None, Query()] = None,
 ):
     return await ExerciseService(session).list_exercises(
         category=category,
         phase=phase,
-        equipment_type=equipment_type,
         target_stat=target_stat,
     )
 
@@ -101,6 +100,25 @@ async def replace_exercise_muscle_groups(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await ExerciseService(session).replace_muscle_groups(exercise_id, body.muscle_groups)
+
+
+@router.get("/{exercise_id}/equipment-items", response_model=list[EquipmentItem])
+async def list_exercise_equipment_items(
+    exercise_id: uuid.UUID,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).list_equipment_items(exercise_id)
+
+
+@router.put("/{exercise_id}/equipment-items", response_model=list[EquipmentItem])
+async def replace_exercise_equipment_items(
+    exercise_id: uuid.UUID,
+    body: EquipmentItemsReplace,
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ExerciseService(session).replace_equipment_items(exercise_id, body.equipment_items)
 
 
 @router.get("/{exercise_id}/target-stats", response_model=list[TargetStat])

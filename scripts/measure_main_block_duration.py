@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.core.session_duration import estimate_block_duration_seconds  # noqa: E402
 from app.db.session import AsyncSessionLocal  # noqa: E402
-from app.models.exercise import EquipmentType, ExerciseCategory  # noqa: E402
+from app.models.exercise import ExerciseCategory  # noqa: E402
 from app.models.schedule import BlockPhase  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.services.schedule_service import ScheduleService  # noqa: E402
@@ -40,7 +40,7 @@ async def make_probe_user(session) -> User:
         password_hash="irrelevant",
         last_name="Probe",
         first_name="Duration",
-        equipment_access=EquipmentType.GYM,
+        has_gym_access=True,
         weight=75.0,
         height=180.0,
         age=20,

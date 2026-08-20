@@ -15,7 +15,6 @@ import pytest
 from fastapi import HTTPException, UploadFile
 from PIL import Image
 
-from app.models.exercise import EquipmentType
 from app.models.user import User
 from app.services import team_service as team_service_module
 from app.services.team_service import TeamService
@@ -38,7 +37,6 @@ def _make_user() -> User:
         username=f"logo_{unique}",
         email=f"logo_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
     )
 
 

@@ -9,8 +9,10 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.security import verify_password
+from app.models.exercise import EquipmentItem
 from app.models.team import TeamMembership
 from app.models.user import User
+from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserAdminUpdate, UserUpdate
 from app.services import image_processing
@@ -25,6 +27,7 @@ class UserService:
         self._session = session
         self._users = UserRepository(session)
         self._friends = FriendService(session)
+        self._exercises = ExerciseRepository(session)
 
     async def update_profile(self, user: User, data: UserUpdate) -> User:
         updates = data.model_dump(exclude_unset=True)
@@ -33,6 +36,17 @@ class UserService:
         await self._session.commit()
         await self._session.refresh(user)
         return user
+
+    async def list_owned_equipment(self, user_id: uuid.UUID) -> list[EquipmentItem]:
+        return list(await self._exercises.list_owned_equipment(user_id))
+
+    async def replace_owned_equipment(
+        self, user_id: uuid.UUID, items: list[EquipmentItem]
+    ) -> list[EquipmentItem]:
+        unique_items = list(dict.fromkeys(items))
+        await self._exercises.replace_owned_equipment(user_id, unique_items)
+        await self._session.commit()
+        return unique_items
 
     async def mark_onboarding_tour_seen(self, user: User) -> User:
         # Idempotent by design -- closing the tour a second time (e.g. a

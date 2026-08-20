@@ -14,7 +14,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import FitnessTier, User
@@ -28,7 +28,7 @@ def _make_user(*, weight: float | None = 80.0) -> User:
         username=f"setlog_{unique}",
         email=f"setlog_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.GYM,
+        has_gym_access=True,
         weight=weight,
         fitness_tier=FitnessTier.INTERMEDIATE,
     )
@@ -43,7 +43,6 @@ def _make_exercise(
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=3,
-        equipment_type=EquipmentType.GYM,
         tracks_weight=tracks_weight,
         bodyweight_ratio=bodyweight_ratio,
     )

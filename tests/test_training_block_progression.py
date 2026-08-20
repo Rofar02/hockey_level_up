@@ -35,7 +35,7 @@ from app.core.training_block import (
     SESSIONS_TO_ADVANCE_PHASE,
     _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON,
 )
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import (
     BlockPhase,
     DayPlan,
@@ -78,7 +78,6 @@ def _make_user(*, season_period: SeasonPeriod = SeasonPeriod.OFFSEASON) -> User:
         username=f"block_{unique}",
         email=f"block_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
         season_period=season_period,
     )
 
@@ -103,7 +102,6 @@ async def _complete_real_session(db_session, user: User, block: TrainingBlock, o
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=1,
-        equipment_type=EquipmentType.BODYWEIGHT,
     )
     db_session.add(exercise)
     await db_session.flush()

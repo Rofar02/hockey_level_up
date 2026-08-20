@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from app.models.exercise import EquipmentType, Exercise, ExerciseCategory, ExerciseType, TrainingPhase
+from app.models.exercise import Exercise, ExerciseCategory, ExerciseType, TrainingPhase
 from app.models.schedule import (
     BlockPhase,
     DayPlan,
@@ -32,7 +32,6 @@ def _make_user() -> User:
         username=f"reps_{unique}",
         email=f"reps_{unique}@example.com",
         password_hash="irrelevant",
-        equipment_access=EquipmentType.BODYWEIGHT,
     )
 
 
@@ -48,7 +47,6 @@ def _make_exercise(
         category=ExerciseCategory.OFF_ICE,
         phase=TrainingPhase.MAIN,
         difficulty_level=3,
-        equipment_type=EquipmentType.BODYWEIGHT,
         exercise_type=exercise_type,
         rep_range_min=rep_range_min,
         rep_range_max=rep_range_max,

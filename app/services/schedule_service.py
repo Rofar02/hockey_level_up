@@ -19,7 +19,6 @@ from app.core.training_block import (
     max_difficulty_for_level,
 )
 from app.models.exercise import (
-    EQUIPMENT_REACH,
     WARMUP_STAGE_ORDER,
     Exercise,
     ExerciseCategory,
@@ -342,7 +341,7 @@ class ScheduleService:
         build with physical activation only until content catches up.
         """
         candidates = await self._exercises.list_for_assembly(
-            phase=TrainingPhase.WARMUP, equipment_access=user.equipment_access
+            phase=TrainingPhase.WARMUP, user=user
         )
         # "INTELLECT anywhere among its target_stats", not just the primary
         # one -- this is a point lookup for a specific need, not the
@@ -437,8 +436,9 @@ class ScheduleService:
     ) -> Exercise | None:
         """Warmup/cooldown: curated pool for the phase, filtered by the day's category.
 
-        equipment_access still narrows off_ice candidates but never excludes
-        on_ice ones (no equipment choice on the ice). The readiness gate
+        Equipment (Stage 2.2: has_gym_access + owned items) still narrows
+        off_ice candidates but never excludes on_ice ones (no equipment
+        choice on the ice). The readiness gate
         caps which difficulty tier is even eligible (see
         _apply_difficulty_gate -- off-ice: UserStat, on-ice: User.level),
         and *then* the active block's phase biases difficulty within
@@ -462,7 +462,7 @@ class ScheduleService:
         """
         candidates = await self._exercises.list_for_assembly(
             phase=phase,
-            equipment_access=user.equipment_access,
+            user=user,
             category=category,
             suitable_for_game_day=suitable_for_game_day,
         )
@@ -510,7 +510,7 @@ class ScheduleService:
         smaller than that -- never repeats an exercise to pad the count.
         """
         candidates = await self._exercises.list_for_assembly(
-            phase=phase, equipment_access=user.equipment_access, category=category
+            phase=phase, user=user, category=category
         )
         if not candidates:
             return []
@@ -576,7 +576,7 @@ class ScheduleService:
         exercise simply isn't part of the complex until someone tags it.
         """
         candidates = await self._exercises.list_for_assembly(
-            phase=TrainingPhase.WARMUP, equipment_access=user.equipment_access, category=category
+            phase=TrainingPhase.WARMUP, user=user, category=category
         )
         if not candidates:
             return []
@@ -717,7 +717,7 @@ class ScheduleService:
         TrainingBlockService.resolve_active_block's own `today` param.
         """
         candidates = await self._exercises.list_for_assembly(
-            phase=TrainingPhase.MAIN, equipment_access=user.equipment_access, category=category
+            phase=TrainingPhase.MAIN, user=user, category=category
         )
         if not candidates:
             return []
@@ -1001,17 +1001,16 @@ class ScheduleService:
         in this app coordinates multiple players actually being on the same
         ice at once.
 
-        Equipment: deliberately NOT list_for_assembly's exact-match
-        `equipment_type == equipment_access` rule -- that rule is a single
-        user's constraint, and applying it per member and intersecting the
-        results would mean any two members with *different* equipment_access
-        share literally nothing (an exercise's equipment_type can equal at
-        most one of two different values), even though someone with gym
-        access can obviously still do a bodyweight-only move. Instead
-        equipment_access is treated as cumulative capability via
-        EQUIPMENT_REACH (gym implies home implies bodyweight) and an
-        exercise is eligible only if its equipment_type is reachable for
-        *every* member -- the actual "intersection of what everyone can do".
+        Equipment (Stage 2.2): list_for_assembly's own has_gym_access/
+        owned-items subset check is already correct per member, but it's a
+        single-user query -- this needs the same check applied to *every*
+        member and intersected, so it's done here in Python instead:
+        eligible only if for each member, either they have gym access or
+        every item the exercise requires is in that member's own owned
+        set. Someone with gym access can obviously still do a plain
+        bodyweight move (an exercise requiring nothing is eligible for
+        everyone regardless), the same "gym access is a bypass, not a
+        tier" contract list_for_assembly uses.
 
         Difficulty (2026-08-18): per exercise, capped at the *weakest*
         member's effective value of that exercise's own primary
@@ -1032,11 +1031,22 @@ class ScheduleService:
         candidates = await self._exercises.list_exercises(
             category=ExerciseCategory.OFF_ICE, phase=TrainingPhase.MAIN
         )
-        reachable_sets = [EQUIPMENT_REACH[member.equipment_access] for member in members]
+        required_by_exercise = await self._exercises.list_equipment_items_by_exercise(
+            [exercise.id for exercise in candidates]
+        )
+        gym_free_members = [m for m in members if not m.has_gym_access]
+        owned_by_member = await self._exercises.list_owned_equipment_by_user(
+            [m.id for m in gym_free_members]
+        )
         eligible = [
             exercise
             for exercise in candidates
-            if all(exercise.equipment_type in reach for reach in reachable_sets)
+            if all(
+                member.has_gym_access
+                or required_by_exercise.get(exercise.id, set())
+                <= owned_by_member.get(member.id, set())
+                for member in members
+            )
         ]
 
         primary_stats = await self._exercises.list_primary_target_stats(
