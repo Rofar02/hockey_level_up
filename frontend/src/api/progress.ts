@@ -2,6 +2,7 @@ import { apiGet } from './client'
 import type { TargetStat } from '../types/exercise'
 import type {
   ActivityCalendarDayRead,
+  MuscleLoadRead,
   StatHistoryPointRead,
   TrainingStreakRead,
   UserStatRead,
@@ -9,6 +10,10 @@ import type {
 
 export function getMyStreak(accessToken: string): Promise<TrainingStreakRead> {
   return apiGet<TrainingStreakRead>('/users/me/streak', accessToken)
+}
+
+export function getMyMuscleLoads(accessToken: string): Promise<MuscleLoadRead[]> {
+  return apiGet<MuscleLoadRead[]>('/users/me/muscle-loads', accessToken)
 }
 
 // `month` is any date within the target month (e.g. the first of the

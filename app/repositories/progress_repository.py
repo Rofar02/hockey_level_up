@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import TargetStat
-from app.models.progress import StatHistory, TrainingStreak, UserStat
+from app.models.progress import StatHistory, TrainingStreak, UserMuscleLoad, UserStat
 
 
 class ProgressRepository:
@@ -53,6 +53,14 @@ class ProgressRepository:
             .where(StatHistory.user_id == user_id)
             .order_by(StatHistory.recorded_at.desc())
             .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def list_muscle_loads(self, user_id: uuid.UUID) -> list[UserMuscleLoad]:
+        result = await self._session.execute(
+            select(UserMuscleLoad)
+            .where(UserMuscleLoad.user_id == user_id)
+            .order_by(UserMuscleLoad.muscle_group)
         )
         return list(result.scalars().all())
 

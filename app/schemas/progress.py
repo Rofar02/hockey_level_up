@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.exercise import TargetStat
+from app.models.exercise import MuscleGroup, TargetStat
 from app.models.schedule import DaySessionType
 
 
@@ -31,6 +31,25 @@ class StatHistoryRead(BaseModel):
 class StatHistoryPointRead(BaseModel):
     date: date
     value: float
+
+
+class MuscleLoadRead(BaseModel):
+    """Body-muscles map (2026-08-20 planning session). intensity is the
+    already-decayed effective value (0-10), not the raw stored
+    current_value -- same "the API never hands back a stale number the
+    client would have to decay itself" contract as UserStatRead's
+    effective_value. The 5-stage bucketing the plan describes (не
+    тренировано/свежая/лёгкая/средняя/перегружена) is deliberately not a
+    field here -- it's a pure display concern with no server-side meaning,
+    computed client-side from this one float, same as e.g.
+    hasExerciseVideo/hasExerciseDescription are pure frontend helpers over
+    raw fields rather than server-computed flags."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    muscle_group: MuscleGroup
+    intensity: float
+    last_updated_at: datetime
 
 
 class TrainingStreakRead(BaseModel):

@@ -5,11 +5,12 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
+from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, MAX_INTENSITY, get_effective_muscle_load
 from app.db.session import AsyncSessionLocal
 from app.events.idempotency import try_claim
 from app.events.registry import register_handler
-from app.models.exercise import TargetStat
-from app.models.progress import StatHistory, TrainingStreak, UserStat
+from app.models.exercise import ExerciseMuscleGroup, TargetStat
+from app.models.progress import StatHistory, TrainingStreak, UserMuscleLoad, UserStat
 from app.models.skill import SkillStatWeight, SkillTag
 from app.models.user import User
 from app.repositories.outbox_repository import OutboxRepository
@@ -43,6 +44,7 @@ DIMINISHING_EXPONENT = 2.2
 STAT_CONSUMER_HANDLER_NAME = "stat_consumer"
 STREAK_CONSUMER_HANDLER_NAME = "streak_consumer"
 XP_CONSUMER_HANDLER_NAME = "xp_consumer"
+MUSCLE_LOAD_CONSUMER_HANDLER_NAME = "muscle_load_consumer"
 
 
 def xp_to_next_level(level: int) -> int:
@@ -168,6 +170,82 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
                     reason=f"quest_completed:{exercise_id}",
                 )
             )
+
+        await session.commit()
+
+
+@register_handler(EVENT_TYPE)
+async def muscle_load_consumer(payload: dict, event_id: uuid.UUID) -> None:
+    """Body-muscles map (2026-08-20 planning session). Reads ExerciseMuscleGroup
+    itself rather than expecting muscle data in the payload -- same choice
+    stat_consumer already made for SkillTag/SkillStatWeight above, so this
+    event's own schema never needs to grow just because a new signal wants
+    to read from the exercise's own catalog tags.
+
+    Row-locks each touched UserMuscleLoad (like streak_consumer, not
+    stat_consumer's atomic upsert) because the gain here isn't a pure
+    additive delta -- it's "collapse today's already-decayed effective
+    value, then add this session's contribution", which needs the current
+    row's real state read first. See app.core.muscle_load's own module
+    docstring for why this can't reuse stat_consumer's write-then-project
+    shape.
+    """
+    user_id = uuid.UUID(payload["user_id"])
+    exercise_id = uuid.UUID(payload["exercise_id"])
+    difficulty_level = payload["difficulty_level"]
+
+    async with AsyncSessionLocal() as session:
+        if not await try_claim(session, event_id, MUSCLE_LOAD_CONSUMER_HANDLER_NAME):
+            return
+
+        muscle_weights = (
+            await session.execute(
+                select(ExerciseMuscleGroup.muscle_group, ExerciseMuscleGroup.weight).where(
+                    ExerciseMuscleGroup.exercise_id == exercise_id
+                )
+            )
+        ).all()
+
+        if not muscle_weights:
+            # Not yet muscle-tagged (catalog entry not fully classified) --
+            # nothing to credit. Commit anyway so the claim above sticks,
+            # same reasoning as stat_consumer's empty-stat_types branch.
+            await session.commit()
+            return
+
+        now = datetime.now(timezone.utc)
+        base_gain = difficulty_level * GAIN_PER_DIFFICULTY_LEVEL
+
+        # Sorted for the same lock-ordering-deadlock reason stat_consumer's
+        # stat_types sort exists: two concurrent block_completed events for
+        # different exercises that happen to share a muscle group must
+        # always acquire this user's UserMuscleLoad rows in the same
+        # relative order.
+        for muscle_group, weight in sorted(muscle_weights, key=lambda row: row[0].value):
+            result = await session.execute(
+                select(UserMuscleLoad)
+                .where(
+                    UserMuscleLoad.user_id == user_id,
+                    UserMuscleLoad.muscle_group == muscle_group,
+                )
+                .with_for_update()
+            )
+            load = result.scalar_one_or_none()
+            effective = get_effective_muscle_load(load, now) if load is not None else 0.0
+            new_value = min(MAX_INTENSITY, effective + base_gain * weight)
+
+            if load is None:
+                session.add(
+                    UserMuscleLoad(
+                        user_id=user_id,
+                        muscle_group=muscle_group,
+                        current_value=new_value,
+                        last_updated_at=now,
+                    )
+                )
+            else:
+                load.current_value = new_value
+                load.last_updated_at = now
 
         await session.commit()
 

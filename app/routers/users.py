@@ -14,6 +14,7 @@ from app.schemas.coach_chat import CoachChatMessageCreate, CoachChatMessageRead,
 from app.schemas.exercise import EquipmentItemsReplace
 from app.schemas.progress import (
     ActivityCalendarDayRead,
+    MuscleLoadRead,
     StatHistoryPointRead,
     StatHistoryRead,
     TrainingStreakRead,
@@ -78,6 +79,19 @@ async def get_my_stats(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await ProgressService(session).list_user_stats(current_user.id)
+
+
+@router.get("/me/muscle-loads", response_model=list[MuscleLoadRead])
+async def get_my_muscle_loads(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Body-muscles map (2026-08-20 planning session). Only muscle groups
+    with at least one UserMuscleLoad row are returned, same "absent means
+    baseline, not an explicit zero row" convention as GET /me/stats --
+    the frontend body-map component defaults any of the 8 MuscleGroup
+    values missing from this list to intensity 0."""
+    return await ProgressService(session).list_muscle_loads(current_user.id)
 
 
 @router.get("/me/stats/{stat_type}/history", response_model=list[StatHistoryRead])

@@ -9,6 +9,7 @@ import { JerseyBadge } from '../components/ui/JerseyBadge'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { LockedSkillChip } from '../components/ui/SkillChip'
+import { MuscleLoadChart } from '../components/MuscleLoadChart'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import * as authApi from '../api/auth'
 import * as exercisesApi from '../api/exercises'
@@ -19,7 +20,7 @@ import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { EquipmentItem, ExerciseEquipmentRequirement, TargetStat } from '../types/exercise'
-import type { UserStatRead } from '../types/progress'
+import type { MuscleLoadRead, UserStatRead } from '../types/progress'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { POSITION_LABELS } from '../types/user'
 import type { UserPublicRead } from '../types/user'
@@ -109,6 +110,11 @@ function OwnProfileView() {
   const [ownedItems, setOwnedItems] = useState<Set<EquipmentItem> | null>(null)
   const [equipmentRequirements, setEquipmentRequirements] = useState<ExerciseEquipmentRequirement[] | null>(null)
 
+  // Body-muscles map (2026-08-20 planning session) -- same best-effort,
+  // own-effect treatment as the equipment showcase above: independent
+  // data, doesn't block isLoading/the rest of the page on its own.
+  const [muscleLoads, setMuscleLoads] = useState<MuscleLoadRead[] | null>(null)
+
   useEffect(() => {
     if (accessToken === null) {
       return
@@ -159,6 +165,26 @@ function OwnProfileView() {
       })
       .catch(() => {
         // Best-effort -- the showcase card just doesn't render.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    progressApi
+      .getMyMuscleLoads(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setMuscleLoads(result)
+        }
+      })
+      .catch(() => {
+        // Best-effort -- the chart just doesn't render.
       })
     return () => {
       cancelled = true
@@ -469,6 +495,13 @@ function OwnProfileView() {
           <span className="font-medium text-[#F5F7FA]">Навыки</span>
           <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
         </button>
+      )}
+
+      {muscleLoads !== null && (
+        <div className={`flex flex-col gap-3 rounded-md ${CARD_BORDER} bg-dark-card p-4`}>
+          <p className="font-medium text-[#F5F7FA]">Нагрузка мышц</p>
+          <MuscleLoadChart loads={muscleLoads} />
+        </div>
       )}
 
       {ownedItems !== null && equipmentRequirements !== null && (

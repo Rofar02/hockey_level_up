@@ -1,4 +1,4 @@
-import type { TargetStat } from './exercise'
+import type { MuscleGroup, TargetStat } from './exercise'
 import type { DaySessionType } from './schedule'
 
 export interface TrainingStreakRead {
@@ -15,6 +15,18 @@ export interface ActivityCalendarDayRead {
   date: string
   session_type: DaySessionType
   fully_completed: boolean
+}
+
+// GET /users/me/muscle-loads -- body-muscles map (2026-08-20 planning
+// session). intensity is already decayed server-side (0-10) -- only
+// muscle groups with at least one logged session are present, same
+// "absent means baseline, not an explicit zero row" contract as the
+// stats list below. See utils/muscleLoad.ts for the 0-10 -> 5-stage
+// bucketing and the body-muscles library ID mapping.
+export interface MuscleLoadRead {
+  muscle_group: MuscleGroup
+  intensity: number
+  last_updated_at: string
 }
 
 export const STAT_TRENDS = ['up', 'down'] as const

@@ -5,12 +5,14 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config.expected_baseline import get_expected_baseline
+from app.core.muscle_load import get_effective_muscle_load
 from app.models.exercise import TargetStat
 from app.models.progress import TrainingStreak, UserStat
 from app.models.user import User
 from app.repositories.progress_repository import ProgressRepository
 from app.schemas.progress import (
     ActivityCalendarDayRead,
+    MuscleLoadRead,
     StatHistoryPointRead,
     StatHistoryRead,
     UserStatRead,
@@ -113,6 +115,18 @@ class ProgressService:
             for stat_type in RATED_STAT_TYPES
         ]
         return round(sum(excesses) / len(excesses), 1)
+
+    async def list_muscle_loads(self, user_id: uuid.UUID) -> list[MuscleLoadRead]:
+        loads = await self._progress.list_muscle_loads(user_id)
+        now = datetime.now(timezone.utc)
+        return [
+            MuscleLoadRead(
+                muscle_group=load.muscle_group,
+                intensity=round(get_effective_muscle_load(load, now), 2),
+                last_updated_at=load.last_updated_at,
+            )
+            for load in loads
+        ]
 
     async def get_streak(self, user_id: uuid.UUID) -> TrainingStreak:
         streak = await self._progress.get_streak(user_id)
