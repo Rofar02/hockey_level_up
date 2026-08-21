@@ -7,3 +7,23 @@
     @apply bg-dark-bg text-text-primary font-sans antialiased;
   }
 }
+
+/* body-muscles (MuscleLoadChart) sets max-height: 70vh inline on its own
+   SVG -- sized for a full-page layout. Inside the ProfileDetailsModal
+   "Нагрузка" tab that's taller than the view-toggle buttons + legend
+   around it leave room for, forcing the modal to scroll on phones.
+   !important is required to beat the library's inline style; width is
+   untouched so the SVG's own aspect-ratio scaling still applies.
+
+   One fixed budget, sized for the *worst case* (a muscle/legend info
+   panel open below the avatar, ~90px taller than the resting state) --
+   measured against real DOM heights (2026-08-21 session): fixed chrome
+   (title + tabs + buttons + legend + open panel) runs ~360px, so 27dvh
+   keeps the whole tab under 85dvh (the modal's own cap) on an
+   iPhone-SE-sized screen (~667px tall) with ~27px to spare. Deliberately
+   NOT panel-state-dependent -- an earlier version used a taller budget
+   at rest and shrank only while a panel was open, which made the avatar
+   visibly resize on every tap (read as "recoiling"/zooming out). */
+.muscle-load-avatar .body-chart-svg {
+  max-height: 27dvh !important;
+}

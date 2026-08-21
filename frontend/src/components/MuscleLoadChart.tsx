@@ -4,10 +4,12 @@ import type { MuscleLoadRead } from '../types/progress'
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '../types/exercise'
 import {
   MUSCLE_LOAD_STAGES,
+  MUSCLE_LOAD_STAGE_DESCRIPTIONS,
   MUSCLE_LOAD_STAGE_LABELS,
   buildBodyMusclesState,
   muscleGroupForLibraryId,
   muscleLoadStage,
+  type MuscleLoadStage,
 } from '../utils/muscleLoad'
 
 // Pulled directly from the library's own INTENSITY_COLORS gradient (one
@@ -46,6 +48,11 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
   const loadsRef = useRef(loads)
   loadsRef.current = loads
   const [clickedGroup, setClickedGroup] = useState<MuscleGroup | null>(null)
+  // Tapping a legend swatch explains that stage in the abstract (no
+  // specific muscle/intensity attached) -- separate from clickedGroup so
+  // the two info panels below never both apply at once; each tap clears
+  // the other.
+  const [explainedStage, setExplainedStage] = useState<MuscleLoadStage | null>(null)
 
   useEffect(() => {
     if (containerRef.current === null) {
@@ -58,6 +65,7 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
         const group = muscleGroupForLibraryId(libraryId)
         if (group !== null) {
           setClickedGroup(group)
+          setExplainedStage(null)
         }
       },
     })
@@ -107,13 +115,26 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
           Сзади
         </button>
       </div>
-      <div ref={containerRef} className="mx-auto w-full max-w-[280px]" />
+      {/* The library's own default SVG height (max-height: 70vh, see
+          body-muscles' BodyChart.build) assumes a full-page layout --
+          inside this modal, combined with the view toggle + legend around
+          it, that overflows a phone screen and forces a scroll. Overridden
+          in index.css (`.muscle-load-avatar .body-chart-svg`) to a fixed
+          height sized for the *worst case* (an info panel open below it,
+          the tallest this tab ever gets) so the avatar never visibly
+          resizes when you tap a muscle or legend swatch -- an earlier
+          version shrank it only while a panel was open, which read as the
+          avatar recoiling/zooming out on tap. */}
+      <div ref={containerRef} className="mx-auto w-full max-w-[280px] muscle-load-avatar" />
       {clickedGroup !== null && (
         <div className="flex items-start justify-between gap-3 rounded-md border border-white/10 bg-dark-card px-3 py-2">
           <div>
             <p className="text-sm font-medium text-text-primary">{MUSCLE_GROUP_LABELS[clickedGroup]}</p>
             <p className="text-xs text-text-secondary">
               {MUSCLE_LOAD_STAGE_LABELS[muscleLoadStage(clickedIntensity)]} · {clickedIntensity.toFixed(1)}/10
+            </p>
+            <p className="mt-1 text-xs text-text-secondary">
+              {MUSCLE_LOAD_STAGE_DESCRIPTIONS[muscleLoadStage(clickedIntensity)]}
             </p>
           </div>
           <button
@@ -126,16 +147,44 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
           </button>
         </div>
       )}
+      {explainedStage !== null && (
+        <div className="flex items-start justify-between gap-3 rounded-md border border-white/10 bg-dark-card px-3 py-2">
+          <div>
+            <p className="text-sm font-medium text-text-primary">{MUSCLE_LOAD_STAGE_LABELS[explainedStage]}</p>
+            <p className="mt-1 text-xs text-text-secondary">{MUSCLE_LOAD_STAGE_DESCRIPTIONS[explainedStage]}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setExplainedStage(null)}
+            className="text-text-secondary hover:text-text-primary"
+            aria-label="Закрыть"
+          >
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5">
         {MUSCLE_LOAD_STAGES.map((stage) => (
-          <div key={stage} className="flex items-center gap-1.5">
+          <button
+            key={stage}
+            type="button"
+            onClick={() => {
+              setExplainedStage((current) => (current === stage ? null : stage))
+              setClickedGroup(null)
+            }}
+            className="flex items-center gap-1.5"
+          >
             <span
               className="h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ backgroundColor: STAGE_SWATCH_COLORS[stage] }}
               aria-hidden="true"
             />
-            <span className="text-xs text-text-secondary">{MUSCLE_LOAD_STAGE_LABELS[stage]}</span>
-          </div>
+            <span
+              className={`text-xs ${explainedStage === stage ? 'text-text-primary' : 'text-text-secondary'}`}
+            >
+              {MUSCLE_LOAD_STAGE_LABELS[stage]}
+            </span>
+          </button>
         ))}
       </div>
     </div>

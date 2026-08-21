@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 
 interface ModalProps {
   title: string
@@ -17,6 +17,21 @@ interface ModalProps {
 // height so it tracks the *actual* visible viewport on mobile as the
 // address bar/keyboard show or hide, rather than the largest-ever one.
 export function Modal({ title, onClose, children }: ModalProps) {
+  // Without this, the page underneath the dimmed backdrop still scrolls on
+  // touch (the backdrop only blocks clicks, not touch-scroll), so a swipe
+  // meant for the modal's own content can drag the whole page behind it
+  // instead. Restores whatever the body's own overflow was before this
+  // modal mounted, not a hard-coded '' -- so nested/stacked modals (see
+  // ProfilePage's skills-detail-over-profile-details case) don't clobber
+  // each other's lock on close.
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [])
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"

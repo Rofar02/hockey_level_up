@@ -27,18 +27,20 @@ import type { MuscleLoadRead } from '../types/progress'
 //  - adductors (inner thigh) -> glutes (hip-stabilizing, closer fit than
 //    quads/hamstrings), lower weight as a secondary mover there.
 //  - hip-flexor -> core, lower weight (no better bucket exists).
-//  - triceps (front) -> chest, biceps (back) -> back -- kept there, not
-//    moved to forearms, on the strength of a real S&C convention: they're
-//    push/pull-chain synergists, not grip muscles, at reduced weight since
-//    they're synergists, not the prime mover.
-//  - hand/forearm/elbow (front+back, both views) -> forearms, all as one
-//    group (2026-08-20 fix) -- previously split across back/chest as
-//    push/pull synergists the same way biceps/triceps are, which was
-//    wrong for hands specifically: grip has no push/pull chain affiliation
-//    the way an elbow flexor/extensor does, so "clicking your hand shows
-//    Спина" read as arbitrary, not explainable. hand gets full weight
-//    (the region most likely to actually get clicked), forearm close
-//    behind, elbow lower as a joint region rather than a muscle belly.
+//  - biceps/triceps/hand/forearm/elbow (front+back, both views) ->
+//    forearms, all as one group (2026-08-20 fix for hand/forearm/elbow;
+//    2026-08-21 fix extended it to biceps/triceps too). Biceps/triceps
+//    were originally kept in back/chest as push/pull-chain synergists (a
+//    real S&C convention -- they do assist those lifts), but live
+//    click-testing on the front view showed the same problem hand/
+//    forearm/elbow already had: tapping the visible arm and being told
+//    "Спина" (or, on the back view, "Грудь" for triceps) reads as
+//    arbitrary to someone just tapping their own arm, not explainable in
+//    the UI. Correctness of the S&C convention lost to the interaction
+//    actually making sense. hand gets full weight (the region most
+//    likely to actually get clicked), forearm close behind, elbow/biceps/
+//    triceps lower as joint/synergist regions rather than the prime
+//    mover.
 //  - knee (front) -> quads, knee (back) -> hamstrings; tibialis-anterior
 //    and feet -> calves -- nearest lower-leg group, reduced weight.
 const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number>> = {
@@ -69,10 +71,6 @@ const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number
     'chest-lower-left': 1.0,
     'chest-upper-right': 1.0,
     'chest-lower-right': 1.0,
-    'triceps-long-left': 0.35,
-    'triceps-lateral-left': 0.35,
-    'triceps-long-right': 0.35,
-    'triceps-lateral-right': 0.35,
   },
   back: {
     'traps-upper-left': 1.0, 'traps-mid-left': 1.0, 'traps-lower-left': 1.0,
@@ -83,7 +81,6 @@ const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number
     'lower-back-erectors-left': 0.9, 'lower-back-ql-left': 0.9,
     'lower-back-erectors-right': 0.9, 'lower-back-ql-right': 0.9,
     'neck-left': 0.4, 'neck-right': 0.4, nape: 0.4,
-    'biceps-left': 0.35, 'biceps-right': 0.35,
   },
   forearms: {
     'hand-left': 1.0, 'hand-right': 1.0,
@@ -92,6 +89,9 @@ const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number
     'forearm-flexors-left': 0.8, 'forearm-flexors-right': 0.8,
     'forearm-extensors-left': 0.8, 'forearm-extensors-right': 0.8,
     'elbow-left': 0.4, 'elbow-right': 0.4,
+    'biceps-left': 0.35, 'biceps-right': 0.35,
+    'triceps-long-left': 0.35, 'triceps-lateral-left': 0.35,
+    'triceps-long-right': 0.35, 'triceps-lateral-right': 0.35,
   },
   shoulders: {
     'shoulder-front-left': 1.0, 'shoulder-side-left': 1.0,
@@ -144,6 +144,19 @@ export const MUSCLE_LOAD_STAGE_LABELS: Record<MuscleLoadStage, string> = {
   light: 'Лёгкая',
   moderate: 'Средняя',
   overloaded: 'Перегружена',
+}
+
+// Plain-language gloss of what each stage means for training decisions --
+// mirrors the actual recovery model in app/core/muscle_load.py (12h grace
+// period with no recovery credited, then halving every 12h, so a hard
+// session is ~90% recovered by 48h and ~97% by 72h) rather than being an
+// arbitrary UI-only description.
+export const MUSCLE_LOAD_STAGE_DESCRIPTIONS: Record<MuscleLoadStage, string> = {
+  untrained: 'Давно не было целевой нагрузки на эту группу — можно тренировать без ограничений.',
+  fresh: 'Нагрузка почти сошла на нет, восстановление в самом конце — группа готова к работе.',
+  light: 'Есть остаточная нагрузка от недавней тренировки, но восстановление идёт полным ходом.',
+  moderate: 'Мышца ещё не восстановилась полностью. Тренировать можно, но тяжёлую работу лучше отложить на 1–2 дня.',
+  overloaded: 'Свежая тяжёлая нагрузка. Организму нужно 2–3 дня, чтобы восстановиться — дайте группе отдохнуть.',
 }
 
 export function muscleLoadStage(intensity: number): MuscleLoadStage {
