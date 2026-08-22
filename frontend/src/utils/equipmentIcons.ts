@@ -6,7 +6,13 @@ import type { EquipmentItem } from '../types/exercise'
 // exist in this icon set, despite sounding like they should). Closest
 // available substitutes picked for those two: a generic weight for
 // kettlebell, a jacket for the weighted vest.
-export const EQUIPMENT_ICONS: Record<EquipmentItem, string> = {
+//
+// hockey_stick is deliberately absent -- no real stick/puck glyph exists
+// in this webfont either, and unlike kettlebell/vest a generic substitute
+// (previously .ti-golf) didn't actually read as a hockey stick. Rendered
+// by a hand-drawn SVG instead -- see components/ui/EquipmentIcon.tsx,
+// the only place that should ever read this map.
+export const EQUIPMENT_ICONS: Record<Exclude<EquipmentItem, 'hockey_stick'>, string> = {
   kettlebell: 'ti-weight',
   dumbbells: 'ti-dumbbell',
   barbell: 'ti-barbell',
@@ -32,4 +38,6 @@ export const EQUIPMENT_ITEM_DESCRIPTIONS: Record<EquipmentItem, string> = {
   slide_board: 'Слайд-борд — латеральные скользящие движения, как на льду.',
   medicine_ball: 'Медбол — бросковые и взрывные упражнения.',
   weighted_vest: 'Утяжелительный жилет — добавляет вес к упражнениям с собственным телом.',
+  hockey_stick:
+    'Клюшка — своё снаряжение, не покрывается доступом в зал. Нужна для упражнений на владение шайбой.',
 }

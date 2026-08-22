@@ -73,6 +73,7 @@ export const EQUIPMENT_ITEMS = [
   'slide_board',
   'medicine_ball',
   'weighted_vest',
+  'hockey_stick',
 ] as const
 export type EquipmentItem = (typeof EQUIPMENT_ITEMS)[number]
 
@@ -88,7 +89,20 @@ export const EQUIPMENT_ITEM_LABELS: Record<EquipmentItem, string> = {
   slide_board: 'Слайд-борд',
   medicine_ball: 'Медбол',
   weighted_vest: 'Утяжелительный жилет',
+  hockey_stick: 'Клюшка',
 }
+
+// 2026-08-22: mirrors PERSONAL_GEAR_ITEMS in app/models/exercise.py --
+// items a commercial gym doesn't stock, so has_gym_access must never
+// cover them (fixes "клюшка открывается через Зал"). Every equipment
+// screen (onboarding/settings/profile) renders these in their own
+// always-visible section, separate from the has_gym_access-gated
+// gym-equipment grid below.
+export const PERSONAL_GEAR_ITEMS: readonly EquipmentItem[] = ['hockey_stick']
+
+export const GYM_COVERED_ITEMS: readonly EquipmentItem[] = EQUIPMENT_ITEMS.filter(
+  (item) => !PERSONAL_GEAR_ITEMS.includes(item),
+)
 
 // GET /exercises/equipment-requirements -- Stage 2.3: bulk, not
 // admin-gated (unlike ExerciseRead, which doesn't carry this at all, see

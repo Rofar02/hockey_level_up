@@ -168,6 +168,47 @@ async def test_gym_member_alone_gets_the_gym_exercise(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_gym_access_alone_does_not_unlock_a_stick_required_exercise(db_session) -> None:
+    """Personal-gear split (2026-08-22): PERSONAL_GEAR_ITEMS like a hockey
+    stick must stay excluded from suggest_party_exercises' own gym-access
+    bypass, same as list_for_assembly -- a gym doesn't stock sticks."""
+    gym_user = _make_user(has_gym_access=True)
+    stick_only, *stick_only_rows = _make_exercise(
+        equipment_items=[EquipmentItem.HOCKEY_STICK], movement_pattern=_CLEAN_PATTERNS[0]
+    )
+    _add(db_session, gym_user, (stick_only, *stick_only_rows))
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate(service, {"stick_only": stick_only})
+    suggested = await service.suggest_party_exercises([gym_user], count=6)
+
+    assert stick_only.id not in {e.id for e in suggested}
+
+
+@pytest.mark.asyncio
+async def test_owning_a_stick_unlocks_it_even_with_gym_access(db_session) -> None:
+    gym_user = _make_user(has_gym_access=True)
+    db_session.add(gym_user)
+    await db_session.flush()
+    stick_only, *stick_only_rows = _make_exercise(
+        equipment_items=[EquipmentItem.HOCKEY_STICK], movement_pattern=_CLEAN_PATTERNS[0]
+    )
+    _add(
+        db_session,
+        UserEquipmentItem(user_id=gym_user.id, equipment_item=EquipmentItem.HOCKEY_STICK),
+        (stick_only, *stick_only_rows),
+    )
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate(service, {"stick_only": stick_only})
+    suggested = await service.suggest_party_exercises([gym_user], count=6)
+
+    assert stick_only.id in {e.id for e in suggested}
+
+
+@pytest.mark.asyncio
 async def test_difficulty_cap_uses_the_weakest_member(db_session) -> None:
     """level<8 caps difficulty at 2 (see max_difficulty_for_level) -- pairing
     a low-level member with a high-level one must still respect the low

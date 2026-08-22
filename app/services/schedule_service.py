@@ -25,6 +25,7 @@ from app.core.training_block import (
     max_difficulty_for_level,
 )
 from app.models.exercise import (
+    GYM_COVERED_ITEMS,
     WARMUP_STAGE_ORDER,
     Exercise,
     ExerciseCategory,
@@ -1395,16 +1396,18 @@ class ScheduleService:
         in this app coordinates multiple players actually being on the same
         ice at once.
 
-        Equipment (Stage 2.2): list_for_assembly's own has_gym_access/
-        owned-items subset check is already correct per member, but it's a
-        single-user query -- this needs the same check applied to *every*
-        member and intersected, so it's done here in Python instead:
-        eligible only if for each member, either they have gym access or
-        every item the exercise requires is in that member's own owned
-        set. Someone with gym access can obviously still do a plain
-        bodyweight move (an exercise requiring nothing is eligible for
-        everyone regardless), the same "gym access is a bypass, not a
-        tier" contract list_for_assembly uses.
+        Equipment (Stage 2.2, personal-gear split 2026-08-22):
+        list_for_assembly's own has_gym_access/owned-items subset check is
+        already correct per member, but it's a single-user query -- this
+        needs the same check applied to *every* member and intersected, so
+        it's done here in Python instead: eligible only if for each
+        member, every item the exercise requires is covered -- either in
+        GYM_COVERED_ITEMS while that member has gym access, or in that
+        member's own owned set (PERSONAL_GEAR_ITEMS like a hockey stick
+        are never covered by gym access, same as list_for_assembly). An
+        exercise requiring nothing is eligible for everyone regardless,
+        same "gym access is a bypass of gym equipment, not everything"
+        contract list_for_assembly uses.
 
         Difficulty (2026-08-18): per exercise, capped at the *weakest*
         member's effective value of that exercise's own primary
@@ -1428,17 +1431,16 @@ class ScheduleService:
         required_by_exercise = await self._exercises.list_equipment_items_by_exercise(
             [exercise.id for exercise in candidates]
         )
-        gym_free_members = [m for m in members if not m.has_gym_access]
         owned_by_member = await self._exercises.list_owned_equipment_by_user(
-            [m.id for m in gym_free_members]
+            [m.id for m in members]
         )
         eligible = [
             exercise
             for exercise in candidates
             if all(
-                member.has_gym_access
-                or required_by_exercise.get(exercise.id, set())
+                required_by_exercise.get(exercise.id, set())
                 <= owned_by_member.get(member.id, set())
+                | (GYM_COVERED_ITEMS if member.has_gym_access else set())
                 for member in members
             )
         ]

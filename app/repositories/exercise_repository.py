@@ -12,6 +12,7 @@ from app.models.exercise import (
     ExerciseMovementPattern,
     ExerciseMuscleGroup,
     ExerciseTargetStat,
+    GYM_COVERED_ITEMS,
     MovementPattern,
     MuscleGroup,
     TargetStat,
@@ -296,19 +297,20 @@ class ExerciseRepository:
 
         Equipment only constrains off_ice exercises -- on the ice, the
         player doesn't choose their gear, so on_ice exercises are never
-        excluded by it. Off-ice (Stage 2.2, 2026-08-20 planning session):
-        user.has_gym_access=True bypasses the filter entirely (sees every
-        exercise regardless of its ExerciseEquipmentItem rows, including
-        future new items with no changes needed here); otherwise an
-        exercise is eligible only if *every* item it requires is also in
-        the user's own UserEquipmentItem rows (subset check, expressed
-        below as "no required row the user doesn't own exists") -- a step-up
-        tagged with both step platform and dumbbells needs both, owning
-        only one isn't enough. An exercise with zero required rows (plain
-        bodyweight work) is always eligible, regardless of inventory --
-        replaces the old cumulative gym-implies-home-implies-bodyweight
-        EQUIPMENT_REACH tier logic with real per-item matching, no
-        equivalence grouping between items.
+        excluded by it. Off-ice (Stage 2.2, 2026-08-20 planning session;
+        personal-gear split 2026-08-22): user.has_gym_access=True bypasses
+        the filter for every item in GYM_COVERED_ITEMS (sees every exercise
+        that only requires those, including future new gym items with no
+        changes needed here) but NOT for PERSONAL_GEAR_ITEMS (e.g. a hockey
+        stick) -- those always require an explicit UserEquipmentItem row
+        regardless of gym access, since a commercial gym doesn't stock
+        them. An exercise is eligible only if *every* item it requires is
+        covered -- either gym-bypassed or explicitly owned (subset check,
+        expressed below as "no required row outside the covered set
+        exists") -- a step-up tagged with both step platform and dumbbells
+        needs both covered, one isn't enough. An exercise with zero
+        required rows (plain bodyweight work) is always eligible,
+        regardless of inventory or gym access.
 
         suitable_for_game_day is None (no filter) for every regular on/off-ice
         session -- only ScheduleService._build_game_day_session's physical
@@ -320,22 +322,23 @@ class ExerciseRepository:
             query = query.where(Exercise.category == category)
         if suitable_for_game_day is not None:
             query = query.where(Exercise.suitable_for_game_day == suitable_for_game_day)
-        if not user.has_gym_access:
-            owned = await self.list_owned_equipment(user.id)
-            missing_required_item = (
-                select(ExerciseEquipmentItem.id)
-                .where(
-                    ExerciseEquipmentItem.exercise_id == Exercise.id,
-                    ExerciseEquipmentItem.equipment_item.notin_(owned),
-                )
-                .exists()
+
+        owned = await self.list_owned_equipment(user.id)
+        covered = owned | GYM_COVERED_ITEMS if user.has_gym_access else owned
+        missing_required_item = (
+            select(ExerciseEquipmentItem.id)
+            .where(
+                ExerciseEquipmentItem.exercise_id == Exercise.id,
+                ExerciseEquipmentItem.equipment_item.notin_(covered),
             )
-            query = query.where(
-                or_(
-                    Exercise.category == ExerciseCategory.ON_ICE,
-                    ~missing_required_item,
-                )
+            .exists()
+        )
+        query = query.where(
+            or_(
+                Exercise.category == ExerciseCategory.ON_ICE,
+                ~missing_required_item,
             )
+        )
 
         result = await self._session.execute(query.order_by(Exercise.name))
         return list(result.scalars().all())

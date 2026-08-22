@@ -78,6 +78,31 @@ class EquipmentItem(enum.StrEnum):
     # VARCHAR-backed enum (see app/db/enum_column.py), not a native
     # Postgres enum type, and nothing CHECK-constrains it to a fixed list.
     WEIGHTED_VEST = "weighted_vest"
+    # 2026-08-22: first "personal gear" item -- see PERSONAL_GEAR_ITEMS
+    # below. A commercial gym doesn't hand out hockey sticks, so this must
+    # never be covered by User.has_gym_access, only by explicitly owning
+    # one (UserEquipmentItem row).
+    HOCKEY_STICK = "hockey_stick"
+
+
+# 2026-08-22: split of EquipmentItem into two categories, found via a real
+# bug report ("клюшка открывается через Зал") -- User.has_gym_access used
+# to bypass the equipment filter entirely (see
+# ExerciseRepository.list_for_assembly), which was correct for every item
+# so far (a gym has dumbbells, a foam roller, etc.) but wrong for gear a
+# gym has no reason to stock. Items in this set are excluded from the
+# gym-access bypass and always require an explicit UserEquipmentItem row,
+# regardless of has_gym_access -- "gym equipment" (everything else) stays
+# auto-covered as before. Deliberately a hand-picked set, not inferred
+# from the item name, since the distinction is about real-world gym
+# stocking, not the item's category.
+PERSONAL_GEAR_ITEMS: frozenset[EquipmentItem] = frozenset({EquipmentItem.HOCKEY_STICK})
+
+# The bypass-eligible complement of PERSONAL_GEAR_ITEMS -- what
+# has_gym_access=True actually covers.
+GYM_COVERED_ITEMS: frozenset[EquipmentItem] = frozenset(
+    item for item in EquipmentItem if item not in PERSONAL_GEAR_ITEMS
+)
 
 
 class MuscleGroup(enum.StrEnum):

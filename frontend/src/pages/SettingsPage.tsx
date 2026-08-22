@@ -22,12 +22,16 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { getActivePushSubscription, isIos, isPushSupported, isStandalone, subscribeToPush } from '../push'
 import type { AssessmentStatus, OnIceAssessmentStatus } from '../types/assessment'
-import { EQUIPMENT_ITEMS, EQUIPMENT_ITEM_LABELS } from '../types/exercise'
+import { EQUIPMENT_ITEM_LABELS, GYM_COVERED_ITEMS, PERSONAL_GEAR_ITEMS } from '../types/exercise'
 import type { EquipmentItem, ExerciseEquipmentRequirement } from '../types/exercise'
 import type { SkillOption } from '../types/skill'
 import { REMINDER_PREFERENCE_LABELS, SEASON_PERIOD_CHOICES } from '../types/user'
 import type { ReminderPreference, SeasonPeriod } from '../types/user'
-import { TYPICAL_HOME_PRESET, countAvailableExercises } from '../utils/equipmentAvailability'
+import {
+  TYPICAL_HOME_PRESET,
+  applyGymCoveredPreset,
+  countAvailableExercises,
+} from '../utils/equipmentAvailability'
 import { maxSkillPreferencesForLevel } from '../utils/skillPreferenceLimit'
 import { toIsoDate } from '../utils/date'
 
@@ -447,16 +451,17 @@ export function SettingsPage() {
     }
     const previousGymAccess = hasGymAccess
     const previousItems = ownedItems
+    const nextItems = applyGymCoveredPreset(TYPICAL_HOME_PRESET, ownedItems ?? new Set())
     setGymAccessError(null)
     setOwnedItemsSaveError(null)
     setHasGymAccess(false)
-    setOwnedItems(new Set(TYPICAL_HOME_PRESET))
+    setOwnedItems(nextItems)
     try {
       if (hasGymAccess) {
         const updated = await usersApi.updateProfile({ has_gym_access: false }, accessToken)
         updateUser(updated)
       }
-      await usersApi.replaceMyEquipmentItems(Array.from(TYPICAL_HOME_PRESET), accessToken)
+      await usersApi.replaceMyEquipmentItems(Array.from(nextItems), accessToken)
     } catch (err) {
       setHasGymAccess(previousGymAccess)
       setOwnedItems(previousItems)
@@ -695,27 +700,44 @@ export function SettingsPage() {
         </div>
         <FormError message={gymAccessError} />
 
-        {!hasGymAccess && (
-          <>
-            <FormError message={ownedItemsLoadError} />
-            {ownedItems !== null && (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {EQUIPMENT_ITEMS.map((item) => (
-                  <label key={item} className="flex items-center gap-2 text-sm text-text-primary">
-                    <input
-                      type="checkbox"
-                      checked={ownedItems.has(item)}
-                      onChange={() => toggleOwnedItem(item)}
-                      className="h-4 w-4"
-                    />
-                    {EQUIPMENT_ITEM_LABELS[item]}
-                  </label>
-                ))}
-              </div>
-            )}
-            <FormError message={ownedItemsSaveError} />
-          </>
+        <FormError message={ownedItemsLoadError} />
+        {!hasGymAccess && ownedItems !== null && (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {GYM_COVERED_ITEMS.map((item) => (
+              <label key={item} className="flex items-center gap-2 text-sm text-text-primary">
+                <input
+                  type="checkbox"
+                  checked={ownedItems.has(item)}
+                  onChange={() => toggleOwnedItem(item)}
+                  className="h-4 w-4"
+                />
+                {EQUIPMENT_ITEM_LABELS[item]}
+              </label>
+            ))}
+          </div>
         )}
+
+        {ownedItems !== null && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-[#8A94A6]">
+              Своё снаряжение — не покрывается доступом в зал, отмечайте отдельно.
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {PERSONAL_GEAR_ITEMS.map((item) => (
+                <label key={item} className="flex items-center gap-2 text-sm text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={ownedItems.has(item)}
+                    onChange={() => toggleOwnedItem(item)}
+                    className="h-4 w-4"
+                  />
+                  {EQUIPMENT_ITEM_LABELS[item]}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        <FormError message={ownedItemsSaveError} />
 
         {equipmentRequirements !== null && ownedItems !== null && (
           <p className="text-sm text-accent-ice">

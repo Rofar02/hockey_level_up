@@ -3,6 +3,7 @@ import type { ChangeEvent, ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { EquipmentIcon } from '../components/ui/EquipmentIcon'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { JerseyBadge } from '../components/ui/JerseyBadge'
@@ -19,8 +20,9 @@ import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import {
-  EQUIPMENT_ITEMS,
   EQUIPMENT_ITEM_LABELS,
+  GYM_COVERED_ITEMS,
+  PERSONAL_GEAR_ITEMS,
   TARGET_STATS,
   TARGET_STAT_DESCRIPTIONS,
   TARGET_STAT_LABELS,
@@ -33,7 +35,7 @@ import type { UserPublicRead } from '../types/user'
 import { getAvatarTierStyle } from '../utils/avatarTier'
 import { getDisplayName } from '../utils/displayName'
 import { countAvailableExercises, countExercisesUsingItem } from '../utils/equipmentAvailability'
-import { EQUIPMENT_ICONS, EQUIPMENT_ITEM_DESCRIPTIONS } from '../utils/equipmentIcons'
+import { EQUIPMENT_ITEM_DESCRIPTIONS } from '../utils/equipmentIcons'
 import { transliterate } from '../utils/transliterate'
 
 const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
@@ -866,80 +868,79 @@ function ProfileDetailsModal({
 
         {activeTab === 'inventory' && (
           <div className="flex flex-col gap-4">
-            {hasGymAccess ? (
+            {hasGymAccess && (
               <p className="text-sm text-[#8A94A6]">
-                Есть доступ в тренажёрный зал — открыты все упражнения, весь инвентарь ниже
-                неважен.
+                Есть доступ в тренажёрный зал — открыты все упражнения с оборудованием зала. Своё
+                снаряжение ниже всё равно нужно отметить отдельно.
               </p>
-            ) : (
-              <>
-                <p className="text-sm text-[#8A94A6]">Нажмите на предмет, чтобы посмотреть подробности.</p>
-                <div className="grid grid-cols-5 gap-2">
-                  {EQUIPMENT_ITEMS.map((item) => {
-                    const owned = ownedItems.has(item)
-                    const isSelected = selectedItem === item
-                    return (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => setSelectedItem(item)}
-                        title={EQUIPMENT_ITEM_LABELS[item]}
-                        className={`flex flex-col items-center justify-center rounded-md border p-2.5 transition-colors ${
-                          isSelected
-                            ? 'border-accent-ice bg-accent-ice/10'
-                            : owned
-                              ? 'border-accent-ice/40 hover:border-accent-ice/60'
-                              : 'border-white/10 opacity-50 hover:opacity-80'
-                        }`}
-                      >
-                        <i
-                          className={`ti ${EQUIPMENT_ICONS[item]} text-2xl ${owned ? 'text-accent-ice' : 'text-[#8A94A6]'}`}
-                          aria-hidden="true"
-                        />
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {selectedItem !== null && (
-                  <div className="flex flex-col gap-2 rounded-md border border-white/10 bg-white/5 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-[#F5F7FA]">
-                        {EQUIPMENT_ITEM_LABELS[selectedItem]}
-                      </p>
-                      <span
-                        className={`shrink-0 text-xs font-medium ${
-                          ownedItems.has(selectedItem) ? 'text-accent-ice' : 'text-[#8A94A6]'
-                        }`}
-                      >
-                        {ownedItems.has(selectedItem) ? 'Есть' : 'Нет'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-[#8A94A6]">
-                      {EQUIPMENT_ITEM_DESCRIPTIONS[selectedItem]}
-                    </p>
-                    <p className="text-xs text-[#8A94A6]">
-                      Упражнений с этим предметом: {countExercisesUsingItem(equipmentRequirements, selectedItem)}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="neutral"
-                      onClick={() => onToggleEquipmentItem(selectedItem)}
-                      className="self-start !px-3 !py-1.5 !text-xs"
-                    >
-                      {ownedItems.has(selectedItem) ? 'Убрать из инвентаря' : 'Добавить в инвентарь'}
-                    </Button>
-                  </div>
-                )}
-
-                <FormError message={inventoryToggleError} />
-
-                <p className="text-sm text-[#8A94A6]">
-                  Доступно {countAvailableExercises(equipmentRequirements, hasGymAccess, ownedItems)} из{' '}
-                  {equipmentRequirements.length} упражнений.
-                </p>
-              </>
             )}
+            <p className="text-sm text-[#8A94A6]">Нажмите на предмет, чтобы посмотреть подробности.</p>
+            <div className="grid grid-cols-5 gap-2">
+              {(hasGymAccess ? PERSONAL_GEAR_ITEMS : [...GYM_COVERED_ITEMS, ...PERSONAL_GEAR_ITEMS]).map(
+                (item) => {
+                  const owned = ownedItems.has(item)
+                  const isSelected = selectedItem === item
+                  return (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => setSelectedItem(item)}
+                      title={EQUIPMENT_ITEM_LABELS[item]}
+                      className={`flex flex-col items-center justify-center rounded-md border p-2.5 transition-colors ${
+                        isSelected
+                          ? 'border-accent-ice bg-accent-ice/10'
+                          : owned
+                            ? 'border-accent-ice/40 hover:border-accent-ice/60'
+                            : 'border-white/10 opacity-50 hover:opacity-80'
+                      }`}
+                    >
+                      <EquipmentIcon
+                        item={item}
+                        className={`text-2xl ${owned ? 'text-accent-ice' : 'text-[#8A94A6]'}`}
+                      />
+                    </button>
+                  )
+                },
+              )}
+            </div>
+
+            {selectedItem !== null && (
+              <div className="flex flex-col gap-2 rounded-md border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-[#F5F7FA]">
+                    {EQUIPMENT_ITEM_LABELS[selectedItem]}
+                  </p>
+                  <span
+                    className={`shrink-0 text-xs font-medium ${
+                      ownedItems.has(selectedItem) ? 'text-accent-ice' : 'text-[#8A94A6]'
+                    }`}
+                  >
+                    {ownedItems.has(selectedItem) ? 'Есть' : 'Нет'}
+                  </span>
+                </div>
+                <p className="text-sm text-[#8A94A6]">
+                  {EQUIPMENT_ITEM_DESCRIPTIONS[selectedItem]}
+                </p>
+                <p className="text-xs text-[#8A94A6]">
+                  Упражнений с этим предметом: {countExercisesUsingItem(equipmentRequirements, selectedItem)}
+                </p>
+                <Button
+                  type="button"
+                  variant="neutral"
+                  onClick={() => onToggleEquipmentItem(selectedItem)}
+                  className="self-start !px-3 !py-1.5 !text-xs"
+                >
+                  {ownedItems.has(selectedItem) ? 'Убрать из инвентаря' : 'Добавить в инвентарь'}
+                </Button>
+              </div>
+            )}
+
+            <FormError message={inventoryToggleError} />
+
+            <p className="text-sm text-[#8A94A6]">
+              Доступно {countAvailableExercises(equipmentRequirements, hasGymAccess, ownedItems)} из{' '}
+              {equipmentRequirements.length} упражнений.
+            </p>
             <Link
               to="/settings"
               onClick={onClose}

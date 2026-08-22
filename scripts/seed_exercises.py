@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import delete, select  # noqa: E402
 
 from app.db.session import AsyncSessionLocal  # noqa: E402
 from app.models.exercise import (  # noqa: E402
@@ -34,6 +34,16 @@ _LEGACY_EQUIPMENT_ITEM: dict[str, EquipmentItem | None] = {
     "gym": EquipmentItem.BARBELL,
     "home": EquipmentItem.DUMBBELLS,
     "bodyweight": None,
+}
+
+# 2026-08-22: corrects the three stick_handling-pattern exercises below
+# that _LEGACY_EQUIPMENT_ITEM's coarse home->DUMBBELLS mapping mistagged --
+# applied by name in seed()'s own loop, after both the create and
+# FIELD_UPDATES passes. See that loop's comment for why.
+_EQUIPMENT_ITEM_OVERRIDES: dict[str, tuple[EquipmentItem, ...]] = {
+    "Ведение мяча / шайбы клюшкой (off-ice)": (EquipmentItem.HOCKEY_STICK,),
+    "Ведение теннисного мяча клюшкой на асфальте": (EquipmentItem.HOCKEY_STICK,),
+    "Подбрасывание шайбы на крюке клюшки": (EquipmentItem.HOCKEY_STICK,),
 }
 
 PLACEHOLDER_DESCRIPTION = "Заглушка: описание будет добавлено позже."
@@ -826,9 +836,47 @@ async def seed() -> None:
                 setattr(exercise, field, value)
             updated += 1
 
+        # 2026-08-22: _LEGACY_EQUIPMENT_ITEM's "home"->DUMBBELLS placeholder
+        # (see its own comment above) mistagged these three stick_handling
+        # exercises when they were first seeded -- a stick-handling drill
+        # needs a hockey stick, not dumbbells. Real per-exercise item
+        # accuracy is generally Stage 4's job, but this one is fixed here
+        # since it's the exact bug the personal-gear split (PERSONAL_GEAR_ITEMS,
+        # app/models/exercise.py) exists to close: without a real exercise
+        # requiring HOCKEY_STICK, that split has nothing to demonstrate.
+        # Applies to existing rows too (delete-then-insert, idempotent), not
+        # just fresh seeds -- re-running this script against a live DB fixes
+        # it there as well, same as FIELD_UPDATES above.
+        retagged = 0
+        for exercise_name in _EQUIPMENT_ITEM_OVERRIDES:
+            exercise = (
+                await session.execute(select(Exercise).where(Exercise.name == exercise_name))
+            ).scalar_one_or_none()
+            if exercise is None:
+                continue
+            existing_items = set(
+                (
+                    await session.execute(
+                        select(ExerciseEquipmentItem.equipment_item).where(
+                            ExerciseEquipmentItem.exercise_id == exercise.id
+                        )
+                    )
+                ).scalars().all()
+            )
+            desired_items = set(_EQUIPMENT_ITEM_OVERRIDES[exercise_name])
+            if existing_items == desired_items:
+                continue
+            await session.execute(
+                delete(ExerciseEquipmentItem).where(ExerciseEquipmentItem.exercise_id == exercise.id)
+            )
+            for item in desired_items:
+                session.add(ExerciseEquipmentItem(exercise_id=exercise.id, equipment_item=item))
+            retagged += 1
+
         await session.commit()
         print(f"Seeded {created} new exercise(s), skipped {len(EXERCISES) - created} existing.")
         print(f"Updated {updated} existing exercise(s) with new fields.")
+        print(f"Retagged {retagged} exercise(s) with corrected equipment items.")
 
 
 if __name__ == "__main__":

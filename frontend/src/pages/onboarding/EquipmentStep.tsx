@@ -5,9 +5,13 @@ import * as exercisesApi from '../../api/exercises'
 import * as usersApi from '../../api/users'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
-import { EQUIPMENT_ITEMS, EQUIPMENT_ITEM_LABELS } from '../../types/exercise'
+import { EQUIPMENT_ITEM_LABELS, GYM_COVERED_ITEMS, PERSONAL_GEAR_ITEMS } from '../../types/exercise'
 import type { EquipmentItem, ExerciseEquipmentRequirement } from '../../types/exercise'
-import { TYPICAL_HOME_PRESET, countAvailableExercises } from '../../utils/equipmentAvailability'
+import {
+  TYPICAL_HOME_PRESET,
+  applyGymCoveredPreset,
+  countAvailableExercises,
+} from '../../utils/equipmentAvailability'
 
 // Stage 2.3 (2026-08-20 planning session): one screen, not two steps --
 // the "Зал"/"типичный дом" presets just pre-fill the same checkbox grid
@@ -63,7 +67,7 @@ export function EquipmentStep({ onNext }: { onNext: () => void }) {
 
   function applyHomePreset() {
     setHasGymAccess(false)
-    setSelectedItems(new Set(TYPICAL_HOME_PRESET))
+    setSelectedItems((previous) => applyGymCoveredPreset(TYPICAL_HOME_PRESET, previous))
   }
 
   async function handleNext() {
@@ -74,9 +78,10 @@ export function EquipmentStep({ onNext }: { onNext: () => void }) {
     setIsSubmitting(true)
     try {
       await usersApi.updateProfile({ has_gym_access: hasGymAccess }, accessToken)
-      if (!hasGymAccess && selectedItems.size > 0) {
-        await usersApi.replaceMyEquipmentItems(Array.from(selectedItems), accessToken)
-      }
+      // Always persisted, even with hasGymAccess=true -- PERSONAL_GEAR_ITEMS
+      // (e.g. hockey_stick) are never covered by gym access, so an owned
+      // one must not be silently dropped just because the gym toggle is on.
+      await usersApi.replaceMyEquipmentItems(Array.from(selectedItems), accessToken)
       onNext()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось сохранить выбор. Попробуйте ещё раз.')
@@ -114,11 +119,11 @@ export function EquipmentStep({ onNext }: { onNext: () => void }) {
       <div className="flex flex-col gap-2">
         <p className="text-xs text-text-secondary">
           {hasGymAccess
-            ? 'При доступе в зал остальное не важно — доступны все упражнения.'
+            ? 'При доступе в зал остальное оборудование зала не важно — доступны все упражнения с ним.'
             : 'Или отметьте, что есть у вас — пусто тоже подходит, тренировки без инвентаря.'}
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {EQUIPMENT_ITEMS.map((item) => (
+          {GYM_COVERED_ITEMS.map((item) => (
             <label
               key={item}
               className={`flex items-center gap-2 text-sm text-text-primary ${hasGymAccess ? 'opacity-50' : ''}`}
@@ -128,6 +133,26 @@ export function EquipmentStep({ onNext }: { onNext: () => void }) {
                 checked={selectedItems.has(item)}
                 onChange={() => toggleItem(item)}
                 disabled={isSubmitting || hasGymAccess}
+                className="h-4 w-4"
+              />
+              {EQUIPMENT_ITEM_LABELS[item]}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-text-secondary">
+          Своё снаряжение — не покрывается доступом в зал, отмечайте отдельно.
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {PERSONAL_GEAR_ITEMS.map((item) => (
+            <label key={item} className="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={selectedItems.has(item)}
+                onChange={() => toggleItem(item)}
+                disabled={isSubmitting}
                 className="h-4 w-4"
               />
               {EQUIPMENT_ITEM_LABELS[item]}
