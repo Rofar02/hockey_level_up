@@ -55,14 +55,21 @@ const PHASE_LABELS: Record<TrainingPhase, string> = {
   warmup: 'Разминка',
   main: 'Основная часть',
   cooldown: 'Заминка',
+  puck: 'Владение шайбой',
 }
 
 function formatPhaseCounts(trainingSession: TrainingSessionRead): string {
-  const counts: Record<TrainingPhase, number> = { warmup: 0, main: 0, cooldown: 0 }
+  const counts: Record<TrainingPhase, number> = { warmup: 0, main: 0, cooldown: 0, puck: 0 }
   for (const block of trainingSession.blocks) {
     counts[block.phase] += 1
   }
-  return TRAINING_PHASES.map((phase) => `${PHASE_LABELS[phase]}: ${counts[phase]}`).join(' · ')
+  // Zero-count phases are dropped, not shown as "Шайба: 0" -- meaningful
+  // for a session type that structurally has no MAIN block (on_ice/game),
+  // but pure noise for puck (almost nobody owns a stick) if shown on every
+  // single off-ice day regardless.
+  return TRAINING_PHASES.filter((phase) => counts[phase] > 0)
+    .map((phase) => `${PHASE_LABELS[phase]}: ${counts[phase]}`)
+    .join(' · ')
 }
 
 // duration_seconds is the honest estimate derived from the
@@ -717,6 +724,7 @@ function StartedDayExerciseList({
   const warmup = trainingSession.blocks.filter((block) => block.phase === 'warmup')
   const main = trainingSession.blocks.filter((block) => block.phase === 'main')
   const cooldown = trainingSession.blocks.filter((block) => block.phase === 'cooldown')
+  const puck = trainingSession.blocks.filter((block) => block.phase === 'puck')
 
   return (
     <div className="mt-1 flex flex-col gap-3 border-t border-white/5 pt-3">
@@ -728,6 +736,9 @@ function StartedDayExerciseList({
       )}
       {cooldown.length > 0 && (
         <StartedDayPhaseSection title={PHASE_LABELS.cooldown} blocks={cooldown} onSelectExercise={onSelectExercise} />
+      )}
+      {puck.length > 0 && (
+        <StartedDayPhaseSection title={PHASE_LABELS.puck} blocks={puck} onSelectExercise={onSelectExercise} />
       )}
     </div>
   )
@@ -830,6 +841,7 @@ function DayPreviewModal({
   const warmup = trainingSession.blocks.filter((block) => block.phase === 'warmup')
   const main = trainingSession.blocks.filter((block) => block.phase === 'main')
   const cooldown = trainingSession.blocks.filter((block) => block.phase === 'cooldown')
+  const puck = trainingSession.blocks.filter((block) => block.phase === 'puck')
 
   // Accordion (at most one exercise's technique open at a time) rather than
   // independent expand state per row -- keeps this already-scrollable modal
@@ -864,6 +876,14 @@ function DayPreviewModal({
           <DayPreviewPhaseSection
             title={PHASE_LABELS.cooldown}
             blocks={cooldown}
+            expandedBlockId={expandedBlockId}
+            onToggle={setExpandedBlockId}
+          />
+        )}
+        {puck.length > 0 && (
+          <DayPreviewPhaseSection
+            title={PHASE_LABELS.puck}
+            blocks={puck}
             expandedBlockId={expandedBlockId}
             onToggle={setExpandedBlockId}
           />

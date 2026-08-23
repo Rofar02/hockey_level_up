@@ -21,6 +21,7 @@ from app.models.exercise import (  # noqa: E402
     ExerciseEquipmentItem,
     ExerciseTargetStat,
     TargetStat,
+    TrainingPhase,
 )
 
 # Stage 2.2 (2026-08-20 planning session): equipment_type stopped being a
@@ -44,6 +45,22 @@ _EQUIPMENT_ITEM_OVERRIDES: dict[str, tuple[EquipmentItem, ...]] = {
     "Ведение мяча / шайбы клюшкой (off-ice)": (EquipmentItem.HOCKEY_STICK,),
     "Ведение теннисного мяча клюшкой на асфальте": (EquipmentItem.HOCKEY_STICK,),
     "Подбрасывание шайбы на крюке клюшки": (EquipmentItem.HOCKEY_STICK,),
+}
+
+# P3 item #8, 2026-08-23: the same three stick-handling exercises above,
+# retagged from phase=MAIN to the new phase=PUCK (app.models.exercise.
+# TrainingPhase.PUCK) -- ScheduleService._pick_puck_module_exercises picks
+# its tail-on exclusively from phase=PUCK now, so these three (the only
+# real puck-handling content that exists today) need to actually live
+# there, not under MAIN, or the module would find nothing. Same
+# name-keyed, idempotent, "fixes existing rows too" shape as
+# _EQUIPMENT_ITEM_OVERRIDES right above -- deliberately not folded into
+# one dict with it, since this corrects a different field via a different
+# query/update shape.
+_PHASE_OVERRIDES: dict[str, TrainingPhase] = {
+    "Ведение мяча / шайбы клюшкой (off-ice)": TrainingPhase.PUCK,
+    "Ведение теннисного мяча клюшкой на асфальте": TrainingPhase.PUCK,
+    "Подбрасывание шайбы на крюке клюшки": TrainingPhase.PUCK,
 }
 
 PLACEHOLDER_DESCRIPTION = "Заглушка: описание будет добавлено позже."
@@ -873,10 +890,22 @@ async def seed() -> None:
                 session.add(ExerciseEquipmentItem(exercise_id=exercise.id, equipment_item=item))
             retagged += 1
 
+        # See _PHASE_OVERRIDES' own comment above.
+        rephased = 0
+        for exercise_name, desired_phase in _PHASE_OVERRIDES.items():
+            exercise = (
+                await session.execute(select(Exercise).where(Exercise.name == exercise_name))
+            ).scalar_one_or_none()
+            if exercise is None or exercise.phase == desired_phase:
+                continue
+            exercise.phase = desired_phase
+            rephased += 1
+
         await session.commit()
         print(f"Seeded {created} new exercise(s), skipped {len(EXERCISES) - created} existing.")
         print(f"Updated {updated} existing exercise(s) with new fields.")
         print(f"Retagged {retagged} exercise(s) with corrected equipment items.")
+        print(f"Rephased {rephased} exercise(s) into the puck module.")
 
 
 if __name__ == "__main__":

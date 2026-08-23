@@ -14,6 +14,13 @@ interface MoreItem {
 
 const ITEMS: MoreItem[] = [
   { icon: 'ti-book', label: 'Справочник', description: 'Статьи и техника упражнений', to: '/reference' },
+  { icon: 'ti-notebook', label: 'Дневник', description: 'Заметки о тренировках на льду и играх', to: '/diary' },
+  {
+    icon: 'ti-bandage',
+    label: 'Ограничения',
+    description: 'Что болит, чтобы не предлагать эти упражнения',
+    to: '/restrictions',
+  },
   { icon: 'ti-users', label: 'Команда', description: 'Создать команду или вступить по коду', to: '/teams' },
   { icon: 'ti-user-plus', label: 'Друзья', description: 'Добавляйте друзей и сравнивайте статы', to: '/friends' },
   {

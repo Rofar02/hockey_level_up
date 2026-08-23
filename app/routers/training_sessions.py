@@ -8,7 +8,9 @@ from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
 from app.schemas.set_completion import ExerciseSetsRead, SetCompletionSummary
+from app.schemas.training_diary import TrainingDiaryEntryIn, TrainingDiaryEntryRead
 from app.services.set_completion_service import SetCompletionService
+from app.services.training_diary_service import TrainingDiaryService
 
 router = APIRouter(prefix="/training-sessions", tags=["training-sessions"])
 
@@ -29,3 +31,26 @@ async def list_exercise_sets(
         sets=[SetCompletionSummary.model_validate(set_completion) for set_completion in sets],
         feedback=feedback,
     )
+
+
+@router.get("/{session_id}/diary", response_model=TrainingDiaryEntryRead | None)
+async def get_diary_entry(
+    session_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    entry = await TrainingDiaryService(session).get_entry(current_user, session_id)
+    return TrainingDiaryEntryRead.model_validate(entry) if entry is not None else None
+
+
+@router.put("/{session_id}/diary", response_model=TrainingDiaryEntryRead)
+async def save_diary_entry(
+    session_id: uuid.UUID,
+    body: TrainingDiaryEntryIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    entry = await TrainingDiaryService(session).save_entry(
+        user=current_user, training_session_id=session_id, note=body.note
+    )
+    return TrainingDiaryEntryRead.model_validate(entry)

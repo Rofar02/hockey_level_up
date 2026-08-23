@@ -30,6 +30,14 @@ class TrainingPhase(enum.StrEnum):
     WARMUP = "warmup"
     MAIN = "main"
     COOLDOWN = "cooldown"
+    # P3 item #8, 2026-08-23: the puck-ownership module's own phase --
+    # exercises here are ONLY ever appended as an optional tail-on to a
+    # normal OFF_ICE session (see ScheduleService._pick_puck_module_exercises),
+    # gated on owning a hockey stick. "puck", not "puck_handling" -- fits
+    # the existing VARCHAR(8) width (sized from "cooldown" at the original
+    # migration) with room to spare, no ALTER needed (see the team_practice
+    # incident earlier this session for why that width isn't assumed).
+    PUCK = "puck"
 
 
 class TargetStat(enum.StrEnum):

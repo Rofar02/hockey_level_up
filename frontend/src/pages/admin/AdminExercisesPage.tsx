@@ -50,6 +50,7 @@ const PHASE_LABELS: Record<TrainingPhase, string> = {
   warmup: 'Разминка',
   main: 'Основная часть',
   cooldown: 'Заминка',
+  puck: 'Владение шайбой',
 }
 
 const CATEGORY_OPTIONS = EXERCISE_CATEGORIES.map((value) => ({

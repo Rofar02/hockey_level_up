@@ -31,7 +31,10 @@ export const SESSION_TYPE_COLORS: Record<DaySessionType, string> = {
   game: 'text-accent-persimmon',
 }
 
-export const TRAINING_PHASES = ['warmup', 'main', 'cooldown'] as const
+// 'puck' (P3 item #8): the puck-ownership module's own phase, appended
+// last as an optional tail-on to a normal OFF_ICE session -- see
+// ScheduleService._pick_puck_module_exercises.
+export const TRAINING_PHASES = ['warmup', 'main', 'cooldown', 'puck'] as const
 export type TrainingPhase = (typeof TRAINING_PHASES)[number]
 
 export interface DayPlanIn {

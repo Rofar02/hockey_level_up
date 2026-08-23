@@ -24,6 +24,7 @@ from app.models.schedule import (
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag, UserSkillPreference
 from app.models.team import Team, TeamJoinRequest, TeamJoinRequestStatus, TeamMembership
+from app.models.training_diary import TrainingDiaryEntry
 from app.models.training_party import (
     TrainingParty,
     TrainingPartyMember,
@@ -31,6 +32,7 @@ from app.models.training_party import (
     TrainingPartyStatus,
 )
 from app.models.user import User
+from app.models.user_temporary_restriction import UserTemporaryRestriction
 
 __all__ = [
     "CoachChatMessage",
@@ -61,6 +63,7 @@ __all__ = [
     "TeamJoinRequestStatus",
     "TeamMembership",
     "TrainingBlock",
+    "TrainingDiaryEntry",
     "TrainingParty",
     "TrainingPartyMember",
     "TrainingPartyMemberStatus",
@@ -71,5 +74,6 @@ __all__ = [
     "UserEquipmentItem",
     "UserSkillPreference",
     "UserStat",
+    "UserTemporaryRestriction",
     "WeeklyPlan",
 ]

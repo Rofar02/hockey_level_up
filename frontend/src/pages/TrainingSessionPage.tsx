@@ -11,6 +11,7 @@ import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as trainingBlockApi from '../api/trainingBlock'
+import * as trainingDiaryApi from '../api/trainingDiary'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -28,6 +29,7 @@ const PHASE_LABELS: Record<TrainingPhase, string> = {
   warmup: 'Разминка',
   main: 'Основная часть',
   cooldown: 'Заминка',
+  puck: 'Владение шайбой',
 }
 
 // Rough estimate only -- nothing in the schema tracks actual elapsed time
@@ -345,10 +347,12 @@ export function TrainingSessionPage() {
   const warmup = blocks.filter((block) => block.phase === 'warmup')
   const main = blocks.filter((block) => block.phase === 'main')
   const cooldown = blocks.filter((block) => block.phase === 'cooldown')
+  const puck = blocks.filter((block) => block.phase === 'puck')
   // Fixed workout-flow order regardless of the raw `order` column's exact
-  // numbering -- warm up, then main, then cool down -- used to find the
-  // single "current" exercise across the whole session.
-  const orderedBlocks = [...warmup, ...main, ...cooldown]
+  // numbering -- warm up, then main, then cool down, then the optional
+  // puck-module tail-on -- used to find the single "current" exercise
+  // across the whole session.
+  const orderedBlocks = [...warmup, ...main, ...cooldown, ...puck]
 
   const doneCount = blocks.filter((block) => isExerciseDone(block, setCompletionCounts)).length
   const totalCount = blocks.length
@@ -465,6 +469,28 @@ export function TrainingSessionPage() {
         />
       )}
 
+      {puck.length > 0 && (
+        <PhaseBlock
+          title={PHASE_LABELS.puck}
+          blocks={puck}
+          isActive={puck.some((block) => block.id === currentExerciseId)}
+          currentExerciseId={currentExerciseId}
+          setCompletionCounts={setCompletionCounts}
+          pendingIds={pendingIds}
+          onComplete={handleComplete}
+          feedbackByBlockId={feedbackByBlockId}
+          onFeedbackDone={removeFeedback}
+          onOpenDetail={setSelectedExercise}
+        />
+      )}
+
+      {day !== null
+        && (day.session_type === 'on_ice' || day.session_type === 'game')
+        && trainingSessionId !== null
+        && accessToken !== null && (
+          <TrainingDiaryCard trainingSessionId={trainingSessionId} accessToken={accessToken} />
+        )}
+
       {selectedExercise !== null && trainingSessionId !== null && accessToken !== null && (
         <ExerciseDetailModal
           exercise={selectedExercise}
@@ -508,6 +534,98 @@ export function TrainingSessionPage() {
 // a thin icy top border, matching the convention already established on
 // Home/Profile.
 const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
+
+// ON_ICE/GAME only (gated by the caller) -- the app has no structured
+// content for either (see ScheduleService._build_on_ice_day_session /
+// _build_game_day_session), so free text is the only way the player
+// records what actually happened, in their own words. Always editable,
+// not just once at session-completion -- a real athlete's notebook gets
+// revisited, not filled in exactly once.
+function TrainingDiaryCard({
+  trainingSessionId,
+  accessToken,
+}: {
+  trainingSessionId: string
+  accessToken: string
+}) {
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [note, setNote] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [justSaved, setJustSaved] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setIsLoaded(false)
+    trainingDiaryApi
+      .getDiaryEntry(trainingSessionId, accessToken)
+      .then((entry) => {
+        if (cancelled) {
+          return
+        }
+        setNote(entry?.note ?? '')
+        setIsLoaded(true)
+      })
+      .catch(() => {
+        // Best-effort -- worst case the card just starts empty instead of
+        // pre-filled with whatever was saved before.
+        if (!cancelled) {
+          setIsLoaded(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [trainingSessionId, accessToken])
+
+  async function handleSave() {
+    setSaveError(null)
+    setJustSaved(false)
+    setIsSaving(true)
+    try {
+      await trainingDiaryApi.saveDiaryEntry(
+        trainingSessionId,
+        { note: note.trim() === '' ? null : note },
+        accessToken,
+      )
+      setJustSaved(true)
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить запись.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (!isLoaded) {
+    return null
+  }
+
+  return (
+    <div className={CARD_CLASS}>
+      <div className="flex flex-col gap-3 p-4">
+        <span className="text-sm font-medium text-text-primary">Дневник</span>
+        <textarea
+          value={note}
+          onChange={(event) => {
+            setJustSaved(false)
+            setNote(event.target.value)
+          }}
+          placeholder="Что получилось, что нет..."
+          rows={3}
+          maxLength={2000}
+          className="resize-none rounded border border-white/10 bg-dark-bg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none"
+        />
+        <FormError message={saveError} />
+        <div className="flex items-center justify-end gap-3">
+          {justSaved && <span className="text-xs text-text-secondary">Сохранено</span>}
+          <Button variant="neutral" onClick={handleSave} isLoading={isSaving} className="self-end">
+            Сохранить
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function PhaseBlock({
   title,

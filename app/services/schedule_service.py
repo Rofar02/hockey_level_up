@@ -27,6 +27,7 @@ from app.core.training_block import (
 from app.models.exercise import (
     GYM_COVERED_ITEMS,
     WARMUP_STAGE_ORDER,
+    EquipmentItem,
     Exercise,
     ExerciseCategory,
     MovementPattern,
@@ -136,6 +137,13 @@ def _role_patterns_for(patterns: set[MovementPattern]) -> frozenset[MovementPatt
 # cooldown picks each preferring to match one of them, rather than 1 pick
 # that only happens to overlap one of them.
 _COOLDOWN_SEQUENCE_MAX = 4
+
+# P3 item #8: optional 10-15min puck-handling tail-on to a normal OFF_ICE
+# session, gated on owning a hockey stick -- see
+# ScheduleService._pick_puck_module_exercises. Rough duration budget at
+# the existing per-exercise estimates; non-binding today since the real
+# catalog only has 3 STICK_HANDLING-pattern exercises total.
+_PUCK_MODULE_MAX_EXERCISES = 4
 
 
 
@@ -486,6 +494,12 @@ class ScheduleService:
             preferred_muscle_groups=main_muscle_groups,
         )
 
+        # P3 item #8: optional puck-handling tail-on, gated on owning a
+        # hockey stick -- see _pick_puck_module_exercises. Only reachable
+        # here for OFF_ICE (this method's only real caller,
+        # _build_session_for_day, never routes ON_ICE through it).
+        puck_module_exercises = await self._pick_puck_module_exercises(user, block_phase)
+
         # order runs across the whole session, not reset per phase (same
         # len(blocks) idiom _build_game_day_session already uses below) --
         # resetting it per phase left every session with warmup/main[0]/
@@ -503,7 +517,48 @@ class ScheduleService:
         for exercise in cooldown_exercises:
             blocks.append(SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=exercise.id, order=len(blocks)))
 
+        # Own TrainingPhase.PUCK, appended last -- a visually separate
+        # "Владение шайбой" section in the UI (frontend renders it after
+        # Заминка, matching this same tail-on ordering), not folded into
+        # "Основная часть".
+        for exercise in puck_module_exercises:
+            blocks.append(SessionBlock(phase=TrainingPhase.PUCK, exercise_id=exercise.id, order=len(blocks)))
+
         return TrainingSession(blocks=blocks)
+
+    async def _pick_puck_module_exercises(
+        self, user: User, block_phase: BlockPhase
+    ) -> list[Exercise]:
+        """P3 item #8: optional 10-15min puck-handling tail-on to a normal
+        OFF_ICE session, gated on "stick present in inventory today" --
+        same personal-gear ownership check the hockey-stick bug fix (P1#1)
+        introduced, kept explicit here rather than relying only on the
+        per-exercise equipment filter already inside list_for_assembly
+        (belt-and-suspenders: a future TrainingPhase.PUCK exercise added
+        without its own ExerciseEquipmentItem(HOCKEY_STICK) row would
+        otherwise silently leak to non-owners -- the exact "filter looked
+        complete but wasn't" shape that bug already was).
+
+        Candidates come from TrainingPhase.PUCK specifically, not a
+        MovementPattern.STICK_HANDLING filter over TrainingPhase.MAIN --
+        the phase itself is now the authoritative "this is puck-module
+        content" tag (see scripts/seed_exercises.py's _PHASE_OVERRIDES),
+        so no overlap with the regular MAIN pool is possible by
+        construction; nothing to exclude_ids against.
+        """
+        owned = await self._exercises.list_owned_equipment(user.id)
+        if EquipmentItem.HOCKEY_STICK not in owned:
+            return []
+
+        pool = await self._exercises.list_for_assembly(
+            phase=TrainingPhase.PUCK, user=user, category=ExerciseCategory.OFF_ICE
+        )
+        if not pool:
+            return []
+
+        pool = await self._apply_difficulty_gate(pool, user, context="off_ice/puck_module")
+        random.shuffle(pool)
+        return pool[:_PUCK_MODULE_MAX_EXERCISES]
 
     async def _movement_patterns_union(self, exercise_ids: list[uuid.UUID]) -> set[MovementPattern]:
         by_exercise = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)

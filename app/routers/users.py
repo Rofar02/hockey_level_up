@@ -27,13 +27,20 @@ from app.schemas.push_subscription import (
     PushTestResultRead,
 )
 from app.schemas.skill import UserSkillPreferenceRead, UserSkillPreferencesReplace
+from app.schemas.training_diary import TrainingDiaryEntryListItem
 from app.schemas.user import UserDeleteRequest, UserPublicRead, UserRead, UserUpdate
+from app.schemas.user_temporary_restriction import (
+    UserTemporaryRestrictionIn,
+    UserTemporaryRestrictionRead,
+)
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_chat_service import CoachChatService
 from app.services.progress_service import ProgressService
 from app.services.push_subscription_service import PushSubscriptionService
 from app.services.skill_service import SkillService
+from app.services.training_diary_service import TrainingDiaryService
 from app.services.user_service import UserService
+from app.services.user_temporary_restriction_service import UserTemporaryRestrictionService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -193,6 +200,48 @@ async def get_my_streak(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await ProgressService(session).get_streak(current_user.id)
+
+
+@router.get("/me/training-diary", response_model=list[TrainingDiaryEntryListItem])
+async def get_my_training_diary(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """The player's own notebook, newest entry first -- lets them open and
+    read back what they wrote across every ON_ICE/GAME session, not just
+    the one they're currently on (see TrainingDiaryCard on
+    TrainingSessionPage.tsx for where entries are written)."""
+    return await TrainingDiaryService(session).list_entries(current_user)
+
+
+@router.get("/me/restrictions", response_model=list[UserTemporaryRestrictionRead])
+async def list_my_restrictions(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await UserTemporaryRestrictionService(session).list_active(current_user)
+
+
+@router.post(
+    "/me/restrictions", response_model=UserTemporaryRestrictionRead, status_code=status.HTTP_201_CREATED
+)
+async def report_my_restriction(
+    body: UserTemporaryRestrictionIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await UserTemporaryRestrictionService(session).report(
+        current_user, body.movement_pattern, body.reason
+    )
+
+
+@router.delete("/me/restrictions/{restriction_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def lift_my_restriction(
+    restriction_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    await UserTemporaryRestrictionService(session).lift(current_user, restriction_id)
 
 
 def _month_bounds(month: date) -> tuple[date, date]:

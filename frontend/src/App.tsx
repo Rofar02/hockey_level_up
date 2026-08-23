@@ -5,6 +5,7 @@ import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ScrollToTop } from './components/ScrollToTop'
 import { AppLoadingScreen } from './components/ui/AppLoadingScreen'
+import { DiaryPage } from './pages/DiaryPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { FriendsPage } from './pages/FriendsPage'
 import { HomePage } from './pages/HomePage'
@@ -16,6 +17,7 @@ import { ProfilePage } from './pages/ProfilePage'
 import { ReferencePage } from './pages/ReferencePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
+import { RestrictionsPage } from './pages/RestrictionsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TeamDetailPage } from './pages/TeamDetailPage'
 import { TeamRankingPage } from './pages/TeamRankingPage'
@@ -98,6 +100,8 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/schedule/new" element={<NewSchedulePage />} />
         <Route path="/training/:dayPlanId" element={<TrainingSessionPage />} />
+        <Route path="/diary" element={<DiaryPage />} />
+        <Route path="/restrictions" element={<RestrictionsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/:userId" element={<ProfilePage />} />
         <Route path="/friends" element={<FriendsPage />} />

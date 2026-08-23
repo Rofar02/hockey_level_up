@@ -1,5 +1,6 @@
 import uuid
 from collections import defaultdict
+from datetime import date
 
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +21,7 @@ from app.models.exercise import (
     UserEquipmentItem,
 )
 from app.models.user import User
+from app.models.user_temporary_restriction import UserTemporaryRestriction
 from app.schemas.exercise import ExerciseCreate
 
 
@@ -241,6 +243,24 @@ class ExerciseRepository:
         )
         return set(result.scalars().all())
 
+    async def list_active_restricted_patterns(self, user_id: uuid.UUID) -> set[MovementPattern]:
+        """Same self-contained, keyed-off-user shape as list_owned_equipment
+        above -- called internally by list_for_assembly, not threaded in as
+        a parameter from every caller. "Active" mirrors
+        UserTemporaryRestrictionRepository's own definition (expires_at >=
+        today, not lifted) -- duplicated here rather than importing that
+        repository, same deliberate duplication convention already used
+        elsewhere in this codebase (see streak_service.TRAINING_SESSION_TYPES
+        vs. training_block_repository._TRAINING_SESSION_TYPES)."""
+        result = await self._session.execute(
+            select(UserTemporaryRestriction.movement_pattern).where(
+                UserTemporaryRestriction.user_id == user_id,
+                UserTemporaryRestriction.expires_at >= date.today(),
+                UserTemporaryRestriction.lifted_at.is_(None),
+            )
+        )
+        return set(result.scalars().all())
+
     async def list_owned_equipment_by_user(
         self, user_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, set[EquipmentItem]]:
@@ -316,6 +336,14 @@ class ExerciseRepository:
         session -- only ScheduleService._build_game_day_session's physical
         activation pick passes True, since a full warmup pool (e.g. loaded
         barbell work) isn't appropriate right before a game.
+
+        UserTemporaryRestriction (P3 item #7): unlike the equipment filter
+        above, this excludes an exercise for EVERY category, ON_ICE
+        included -- a restricted movement is restricted regardless of
+        where the exercise happens. Whole-exercise exclusion, not
+        per-pattern: an exercise tagged with both a restricted pattern and
+        an unrestricted one is still fully excluded, the same binary
+        "eligible or not" shape the equipment check above already uses.
         """
         query = select(Exercise).where(Exercise.phase == phase)
         if category is not None:
@@ -339,6 +367,18 @@ class ExerciseRepository:
                 ~missing_required_item,
             )
         )
+
+        restricted_patterns = await self.list_active_restricted_patterns(user.id)
+        if restricted_patterns:
+            has_restricted_pattern = (
+                select(ExerciseMovementPattern.id)
+                .where(
+                    ExerciseMovementPattern.exercise_id == Exercise.id,
+                    ExerciseMovementPattern.movement_pattern.in_(restricted_patterns),
+                )
+                .exists()
+            )
+            query = query.where(~has_restricted_pattern)
 
         result = await self._session.execute(query.order_by(Exercise.name))
         return list(result.scalars().all())
