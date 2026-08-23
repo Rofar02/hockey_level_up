@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.exercise import TrainingPhase
 from app.models.schedule import DaySessionType
@@ -11,16 +11,6 @@ from app.schemas.exercise import ExerciseRead
 class DayPlanIn(BaseModel):
     date: date
     session_type: DaySessionType
-    # ON_ICE only -- rink time is rented in a fixed block, so the caller
-    # states it explicitly rather than it falling out of exercise selection
-    # (see TrainingSessionRead.duration_seconds for the OFF_ICE side).
-    on_ice_minutes: int | None = Field(default=None, gt=0)
-
-    @model_validator(mode="after")
-    def _on_ice_minutes_only_for_on_ice(self) -> "DayPlanIn":
-        if self.on_ice_minutes is not None and self.session_type != DaySessionType.ON_ICE:
-            raise ValueError("on_ice_minutes is only valid for session_type=on_ice")
-        return self
 
 
 class WeeklyPlanCreate(BaseModel):
@@ -47,10 +37,8 @@ class TrainingSessionRead(BaseModel):
 
     id: uuid.UUID
     phase_split: dict[TrainingPhase, float]
-    # Honest OFF_ICE estimate (app.core.session_duration) -- for ON_ICE this
-    # is still the same estimate of the assembled blocks, not the caller's
-    # on_ice_minutes, which is a separately stated rink-time budget, not a
-    # content-derived figure.
+    # Honest estimate of the assembled blocks (app.core.session_duration),
+    # for every session_type.
     duration_seconds: int
     blocks: list[SessionBlockRead]
 
@@ -61,7 +49,6 @@ class DayPlanRead(BaseModel):
     id: uuid.UUID
     date: date
     session_type: DaySessionType
-    on_ice_minutes: int | None
     training_session: TrainingSessionRead | None
 
 

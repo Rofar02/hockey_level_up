@@ -30,10 +30,13 @@ by hand, with an explicit simulated `today`:
     block_phase = await overload_service.apply_brakes(user, block.phase)
     session = await schedule_service._build_training_session(session_type, user, block_phase, block)
 
-`_build_training_session` is "private" but calling it directly from test/
-simulation code is already the established pattern in this codebase (see
-tests/test_schedule_service_pick_main.py, test_schedule_service_block_order.py) --
-it's real assembly code, not a stub.
+`_build_training_session`/`_build_on_ice_day_session` are "private" but
+calling them directly from test/simulation code is already the established
+pattern in this codebase (see tests/test_schedule_service_pick_main.py,
+test_schedule_service_block_order.py) -- it's real assembly code, not a
+stub. ON_ICE specifically goes through `_build_on_ice_day_session` instead
+(warmup+cooldown only, no MAIN, no `today` to inject -- mirrors the real
+ScheduleService._build_session_for_day dispatch), not the snippet above.
 
 Nothing else needs simulated time. SessionBlock.completed_at and
 SetCompletion.completed_at are intentionally left at their real wall-clock
@@ -379,12 +382,15 @@ async def run_week(
     for offset in range(7):
         day_date = monday + timedelta(days=offset)
         session_type = day_pattern.get(offset, DaySessionType.REST)
-        day_plan = DayPlan(
-            date=day_date,
-            session_type=session_type,
-            on_ice_minutes=60 if session_type == DaySessionType.ON_ICE else None,
-        )
-        if session_type != DaySessionType.REST:
+        day_plan = DayPlan(date=day_date, session_type=session_type)
+        if session_type == DaySessionType.ON_ICE:
+            # Matches the real dispatch (ScheduleService._build_session_for_day):
+            # ON_ICE is warmup+cooldown only, no MAIN, no `today`/training_block
+            # to inject -- see that method's own docstring.
+            day_plan.training_session = await schedule_service._build_on_ice_day_session(
+                user, block_phase
+            )
+        elif session_type != DaySessionType.REST:
             day_plan.training_session = await schedule_service._build_training_session(
                 session_type, user, block_phase, block, today=monday
             )

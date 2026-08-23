@@ -54,9 +54,8 @@ def estimate_block_duration_seconds(exercise: Exercise) -> int:
 
 def estimate_session_duration_seconds(blocks: list[tuple[TrainingPhase, Exercise]]) -> int:
     """Total estimated seconds across every block, regardless of phase --
-    the OFF_ICE half of Phase 6's ice/off-ice time budget: this is a
-    consequence of exercise selection, not an input, unlike ON_ICE's
-    user-supplied DayPlan.on_ice_minutes.
+    a consequence of exercise selection, not a stated input, for every
+    session_type.
     """
     return sum(estimate_block_duration_seconds(exercise) for _, exercise in blocks)
 

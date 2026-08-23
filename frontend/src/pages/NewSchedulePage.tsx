@@ -65,10 +65,9 @@ function formatPhaseCounts(trainingSession: TrainingSessionRead): string {
   return TRAINING_PHASES.map((phase) => `${PHASE_LABELS[phase]}: ${counts[phase]}`).join(' · ')
 }
 
-// OFF_ICE only -- duration_seconds is the honest estimate derived from the
+// duration_seconds is the honest estimate derived from the
 // actually-assembled blocks (app.core.session_duration on the backend), not
-// a promise, so this reads "~NN мин" rather than an exact figure. ON_ICE
-// duration is the coach-stated on_ice_minutes instead (see DaySummary).
+// a promise, so this reads "~NN мин" rather than an exact figure.
 function formatEstimatedDuration(durationSeconds: number): string {
   return `~${Math.round(durationSeconds / 60)} мин`
 }
@@ -126,7 +125,6 @@ interface DayRow {
   isoDate: string
   date: Date
   sessionType: DaySessionType
-  onIceMinutes: number | null
   completionStatus: DayCompletionStatus
   trainingSession: TrainingSessionRead | null
 }
@@ -143,7 +141,6 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     isoDate: day.date,
     date: parseIsoDate(day.date),
     sessionType: day.session_type,
-    onIceMinutes: day.on_ice_minutes,
     completionStatus: completionStatusFromBlocks(day.training_session?.blocks),
     trainingSession: day.training_session,
   }))
@@ -154,7 +151,6 @@ function rowsForWeek(dates: Date[]): DayRow[] {
     isoDate: toIsoDate(date),
     date,
     sessionType: 'rest',
-    onIceMinutes: null,
     completionStatus: 'not-started',
     trainingSession: null,
   }))
@@ -176,14 +172,13 @@ export function NewSchedulePage() {
   // id rather than by array position.
   const [previewIsoDate, setPreviewIsoDate] = useState<string | null>(null)
   // null = view mode (read-only); non-null = editing, holding the
-  // session_type/on_ice_minutes each day had when editing started, so
+  // session_type each day had when editing started, so
   // handleSaveChanges can diff against it (rather than per-row original*
   // fields that view/plan mode would carry around for no reason) and
   // handleCancelEditing can revert to it exactly.
-  const [editSnapshot, setEditSnapshot] = useState<Map<
-    string,
-    { sessionType: DaySessionType; onIceMinutes: number | null }
-  > | null>(null)
+  const [editSnapshot, setEditSnapshot] = useState<Map<string, { sessionType: DaySessionType }> | null>(
+    null,
+  )
   // Set only when handleSaveChanges finds a changed, unlocked day -- which
   // in edit mode is every changed day, since edit mode only exists for an
   // already-generated week. Holds the exact rows to submit if confirmed.
@@ -244,17 +239,7 @@ export function NewSchedulePage() {
   }, [accessToken, selectedWeek])
 
   function setDayType(index: number, type: DaySessionType) {
-    setRows((previous) =>
-      previous.map((row, i) =>
-        i === index
-          ? { ...row, sessionType: type, onIceMinutes: type === 'on_ice' ? row.onIceMinutes : null }
-          : row,
-      ),
-    )
-  }
-
-  function setOnIceMinutes(index: number, minutes: number | null) {
-    setRows((previous) => previous.map((row, i) => (i === index ? { ...row, onIceMinutes: minutes } : row)))
+    setRows((previous) => previous.map((row, i) => (i === index ? { ...row, sessionType: type } : row)))
   }
 
   async function handleGeneratePlan() {
@@ -269,7 +254,6 @@ export function NewSchedulePage() {
           days: rows.map((row) => ({
             date: row.isoDate,
             session_type: row.sessionType,
-            on_ice_minutes: row.onIceMinutes,
           })),
         },
         accessToken,
@@ -295,9 +279,7 @@ export function NewSchedulePage() {
   function handleStartEditing() {
     setSubmitError(null)
     setExpandedRowIsoDate(null)
-    setEditSnapshot(
-      new Map(rows.map((row) => [row.isoDate, { sessionType: row.sessionType, onIceMinutes: row.onIceMinutes }])),
-    )
+    setEditSnapshot(new Map(rows.map((row) => [row.isoDate, { sessionType: row.sessionType }])))
   }
 
   function handleCancelEditing() {
@@ -307,9 +289,7 @@ export function NewSchedulePage() {
     setRows((previous) =>
       previous.map((row) => {
         const original = editSnapshot.get(row.isoDate)
-        return original === undefined
-          ? row
-          : { ...row, sessionType: original.sessionType, onIceMinutes: original.onIceMinutes }
+        return original === undefined ? row : { ...row, sessionType: original.sessionType }
       }),
     )
     setEditSnapshot(null)
@@ -328,9 +308,7 @@ export function NewSchedulePage() {
         return false
       }
       const original = editSnapshot.get(row.isoDate)
-      return original === undefined
-        || original.sessionType !== row.sessionType
-        || original.onIceMinutes !== row.onIceMinutes
+      return original === undefined || original.sessionType !== row.sessionType
     })
     if (changed.length === 0) {
       setEditSnapshot(null)
@@ -356,7 +334,6 @@ export function NewSchedulePage() {
         days: changed.map((row) => ({
           date: row.isoDate,
           session_type: row.sessionType,
-          on_ice_minutes: row.onIceMinutes,
         })),
       }
       // Explicit week_start_date only for next week -- current week keeps
@@ -374,14 +351,7 @@ export function NewSchedulePage() {
         // truth so the failed day (now reverted server-side) doesn't keep
         // showing as "changed".
         setRows(refreshedRows)
-        setEditSnapshot(
-          new Map(
-            refreshedRows.map((row) => [
-              row.isoDate,
-              { sessionType: row.sessionType, onIceMinutes: row.onIceMinutes },
-            ]),
-          ),
-        )
+        setEditSnapshot(new Map(refreshedRows.map((row) => [row.isoDate, { sessionType: row.sessionType }])))
         setSubmitError(
           result.conflicts
             .map((conflict) => `${formatShortDate(parseIsoDate(conflict.date))}: ${conflict.detail}`)
@@ -478,7 +448,6 @@ export function NewSchedulePage() {
                   weekdayLabel={WEEKDAY_LABELS[index]}
                   isToday={row.isoDate === todayIso}
                   onSelectType={(type) => setDayType(index, type)}
-                  onSetMinutes={(minutes) => setOnIceMinutes(index, minutes)}
                 />
               ))}
             </div>
@@ -606,7 +575,6 @@ export function NewSchedulePage() {
                   weekdayLabel={WEEKDAY_LABELS[index]}
                   isToday={row.isoDate === todayIso}
                   onSelectType={(type) => setDayType(index, type)}
-                  onSetMinutes={(minutes) => setOnIceMinutes(index, minutes)}
                 />
               ))}
             </div>
@@ -679,16 +647,12 @@ function EditableDayRow({
   weekdayLabel,
   isToday,
   onSelectType,
-  onSetMinutes,
 }: {
   row: DayRow
   weekdayLabel: string
   isToday: boolean
   onSelectType: (type: DaySessionType) => void
-  onSetMinutes: (minutes: number | null) => void
 }) {
-  const showMinutesInput = !isStarted(row) && row.sessionType === 'on_ice'
-
   return (
     <div
       className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
@@ -735,25 +699,6 @@ function EditableDayRow({
           </div>
         )}
       </div>
-      {showMinutesInput && (
-        // Rink time is rented in a fixed block, so it's stated up front here
-        // rather than derived from exercise selection like OFF_ICE's estimate
-        // (see formatEstimatedDuration / DaySummary).
-        <label className="flex items-center gap-2 self-end text-sm text-[#8A94A6]">
-          Время на льду, мин
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={row.onIceMinutes ?? ''}
-            onChange={(event) => {
-              const raw = event.target.value
-              onSetMinutes(raw === '' ? null : Math.max(1, Number(raw)))
-            }}
-            className="w-20 rounded border border-white/10 bg-dark-bg px-2 py-1 font-mono text-[#F5F7FA] focus:border-accent-ice focus:outline-none"
-          />
-        </label>
-      )}
     </div>
   )
 }
@@ -858,20 +803,9 @@ function DaySummary({ row }: { row: DayRow }) {
   if (row.sessionType === 'rest' || row.trainingSession === null) {
     return null
   }
-  // ON_ICE: rink time is what the user stated (on_ice_minutes), not the
-  // assembled blocks' own estimate -- OFF_ICE shows that estimate instead,
-  // since there it's the honest consequence of what got picked, not an
-  // input. See app.core.session_duration on the backend.
-  const durationLabel =
-    row.sessionType === 'on_ice'
-      ? row.onIceMinutes !== null
-        ? `${row.onIceMinutes} мин на льду`
-        : null
-      : formatEstimatedDuration(row.trainingSession.duration_seconds)
   return (
     <p className="text-xs text-[#8A94A6] opacity-55">
-      {formatPhaseCounts(row.trainingSession)}
-      {durationLabel !== null ? ` · ${durationLabel}` : ''}
+      {formatPhaseCounts(row.trainingSession)} · {formatEstimatedDuration(row.trainingSession.duration_seconds)}
     </p>
   )
 }

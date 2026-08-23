@@ -73,6 +73,11 @@ from app.services.training_block_service import TrainingBlockService
 
 logger = logging.getLogger(__name__)
 
+# _build_session_for_day's real dispatch only ever reaches
+# _build_training_session for OFF_ICE now (ON_ICE has its own
+# _build_on_ice_day_session, no MAIN block) -- the ON_ICE entry stays here
+# so _build_training_session/_pick_main remain directly callable/testable
+# for either category, without needing a narrower, ON_ICE-less dict.
 _SESSION_TYPE_TO_CATEGORY = {
     DaySessionType.ON_ICE: ExerciseCategory.ON_ICE,
     DaySessionType.OFF_ICE: ExerciseCategory.OFF_ICE,
@@ -165,7 +170,6 @@ class ScheduleService:
             day_plan = DayPlan(
                 date=day_in.date,
                 session_type=day_in.session_type,
-                on_ice_minutes=day_in.on_ice_minutes,
             )
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
@@ -284,7 +288,6 @@ class ScheduleService:
                 continue
 
             day_plan.session_type = day_in.session_type
-            day_plan.on_ice_minutes = day_in.on_ice_minutes
             if day_plan.training_session is not None:
                 # Explicit delete + flush *before* attaching a replacement --
                 # TrainingSession.day_plan_id is unique, and simply
@@ -340,18 +343,21 @@ class ScheduleService:
         *,
         today: date | None = None,
     ) -> TrainingSession:
-        """Dispatch to the GAME-day builder (light activation only) or the
-        regular on/off-ice builder -- the single place both
-        create_weekly_plan and _patch_weekly_plan go through, so neither
-        has to know GAME is a special case.
+        """Dispatch to the GAME-day builder (light activation only), the
+        ON_ICE-day builder (on-ice warmup+cooldown only, no MAIN -- see
+        _build_on_ice_day_session), or the regular OFF_ICE builder -- the
+        single place both create_weekly_plan and _patch_weekly_plan go
+        through, so neither has to know GAME/ON_ICE are special cases.
 
         training_block (Phase: П.3) and today (Phase: П.5, tournament
         taper) are only ever consumed by the regular builder's _pick_main
-        -- GAME days have no MAIN block at all, so _build_game_day_session
-        doesn't need either.
+        -- GAME/ON_ICE days have no MAIN block at all, so neither of their
+        builders needs either.
         """
         if session_type == DaySessionType.GAME:
             return await self._build_game_day_session(user, block_phase)
+        if session_type == DaySessionType.ON_ICE:
+            return await self._build_on_ice_day_session(user, block_phase)
         return await self._build_training_session(
             session_type, user, block_phase, training_block, today=today
         )
@@ -406,6 +412,32 @@ class ScheduleService:
 
         candidates = await self._apply_difficulty_gate(candidates, user, context="game/mental_prep")
         return random.choice(candidates)
+
+    async def _build_on_ice_day_session(
+        self, user: User, block_phase: BlockPhase
+    ) -> TrainingSession:
+        """ON_ICE day: on-ice warmup + cooldown wrapped around a coach-run
+        team practice the app has no content for -- no MAIN block. Unlike
+        GAME (location-ambiguous, single light activation pick), this is
+        definitely an on-ice day, so it gets the same full RAMP-protocol
+        warmup complex a normal on-ice session would. No preferred_patterns/
+        preferred_muscle_groups passed to either pick -- there's no MAIN to
+        match against, so both layers fall back to their unmatched pool
+        (same "skips this layer entirely" behavior already documented on
+        _pick_single/_pick_warmup_complex for the empty case).
+        """
+        warmup_exercises = await self._pick_warmup_complex(ExerciseCategory.ON_ICE, user, block_phase)
+        cooldown_exercises = await self._pick_sequence(
+            TrainingPhase.COOLDOWN, ExerciseCategory.ON_ICE, user, block_phase, count=_COOLDOWN_SEQUENCE_MAX
+        )
+
+        blocks: list[SessionBlock] = []
+        for exercise in warmup_exercises:
+            blocks.append(SessionBlock(phase=TrainingPhase.WARMUP, exercise_id=exercise.id, order=len(blocks)))
+        for exercise in cooldown_exercises:
+            blocks.append(SessionBlock(phase=TrainingPhase.COOLDOWN, exercise_id=exercise.id, order=len(blocks)))
+
+        return TrainingSession(blocks=blocks)
 
     async def _build_training_session(
         self,
@@ -1719,7 +1751,6 @@ class ScheduleService:
                     id=day.id,
                     date=day.date,
                     session_type=day.session_type,
-                    on_ice_minutes=day.on_ice_minutes,
                     training_session=session_read,
                 )
             )

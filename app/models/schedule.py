@@ -24,6 +24,15 @@ from app.models.exercise import Exercise, TrainingPhase
 
 
 class DaySessionType(enum.StrEnum):
+    # Real ice time is always a coach-run team practice -- the app has no
+    # content for the practice itself, only an on-ice warmup + cooldown
+    # wrapped around it, no MAIN block -- see
+    # ScheduleService._build_on_ice_day_session. Unlike GAME, ON_ICE still
+    # counts as a real training day for TrainingStreak/periodization (see
+    # streak_service.TRAINING_SESSION_TYPES /
+    # training_block_repository._TRAINING_SESSION_TYPES): a shorter,
+    # coach-content session is still a session, unlike GAME's optional
+    # light activation.
     ON_ICE = "on_ice"
     OFF_ICE = "off_ice"
     REST = "rest"
@@ -135,13 +144,6 @@ class DayPlan(Base):
     session_type: Mapped[DaySessionType] = mapped_column(
         enum_column(DaySessionType, "day_session_type"), nullable=False
     )
-    # ON_ICE only: rink time is rented in a fixed block, so the user states
-    # it up front rather than it falling out of exercise selection the way
-    # OFF_ICE duration does (see app.core.session_duration). NULL for every
-    # other session_type. Not yet consumed by exercise selection -- content
-    # for ON_ICE waits on coach-provided materials -- but the column exists
-    # now so schema doesn't need to change again once that lands.
-    on_ice_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Set the moment a reminder push goes out for this day -- guards against
     # sending the same reminder twice across scheduler ticks (e.g. if a tick
     # runs slow and overlaps the next one).
