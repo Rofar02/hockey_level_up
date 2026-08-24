@@ -20,6 +20,7 @@ from app.db.session import AsyncSessionLocal
 from app.models.push_subscription import PushSubscription
 from app.models.schedule import DayPlan, DaySessionType, WeeklyPlan
 from app.models.user import ReminderPreference, User
+from app.services.coach_personality_phrases import get_reminder_body
 from app.services.push_service import send_push
 
 logger = logging.getLogger(__name__)
@@ -33,27 +34,11 @@ _REMINDER_WINDOWS: dict[ReminderPreference, tuple[time, time]] = {
     ReminderPreference.EVENING: (time(19, 0), time(19, 5)),
 }
 
-_SESSION_TYPE_TEXT: dict[DaySessionType, str] = {
-    DaySessionType.ON_ICE: "на льду",
-    DaySessionType.OFF_ICE: "в зале",
-}
-
 
 def _target_date(preference: ReminderPreference, local_today: date_) -> date_:
     if preference == ReminderPreference.MORNING:
         return local_today
     return local_today + timedelta(days=1)
-
-
-def _reminder_body(preference: ReminderPreference, session_type: DaySessionType) -> str:
-    day_word = "Сегодня" if preference == ReminderPreference.MORNING else "Завтра"
-    if session_type == DaySessionType.GAME:
-        # Not in _SESSION_TYPE_TEXT (that dict feeds "тренировка X", which
-        # reads wrong for a game) and _due_day_plan's query already includes
-        # every non-REST day, GAME included, so this needs its own phrasing
-        # rather than a KeyError.
-        return f"{day_word} игра — не забудьте про разминку и настрой"
-    return f"{day_word} тренировка {_SESSION_TYPE_TEXT[session_type]}"
 
 
 async def _eligible_users(session: AsyncSession) -> list[User]:
@@ -89,7 +74,7 @@ async def _remind_user(session: AsyncSession, user: User, day_plan: DayPlan) -> 
         select(PushSubscription).where(PushSubscription.user_id == user.id)
     )
     subscriptions = list(result.scalars().all())
-    body = _reminder_body(user.reminder_preference, day_plan.session_type)
+    body = get_reminder_body(user.coach_personality, user.reminder_preference, day_plan.session_type)
     for subscription in subscriptions:
         await send_push(session, subscription, REMINDER_TITLE, body)
     # Set even on partial/total delivery failure -- a dead endpoint or a

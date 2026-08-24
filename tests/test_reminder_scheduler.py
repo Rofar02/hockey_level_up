@@ -11,8 +11,9 @@ import pytest
 
 from app.models.push_subscription import PushSubscription
 from app.models.schedule import DayPlan, DaySessionType, WeeklyPlan
-from app.models.user import ReminderPreference, User
+from app.models.user import CoachPersonality, ReminderPreference, User
 from app.services import push_service
+from app.services.coach_personality_phrases import REMINDER_PHRASES
 from app.services.reminder_scheduler import _run_tick
 
 MORNING_NOW = datetime(2026, 3, 10, 9, 2, tzinfo=timezone.utc)
@@ -22,8 +23,16 @@ TODAY = date(2026, 3, 10)
 TOMORROW = date(2026, 3, 11)
 
 
-def _make_user(*, reminder_preference: ReminderPreference, timezone_name: str = "UTC") -> User:
+def _make_user(
+    *,
+    reminder_preference: ReminderPreference,
+    timezone_name: str = "UTC",
+    coach_personality: CoachPersonality | None = None,
+) -> User:
     unique = uuid.uuid4().hex[:8]
+    kwargs = {}
+    if coach_personality is not None:
+        kwargs["coach_personality"] = coach_personality
     return User(
         id=uuid.uuid4(),
         username=f"reminder_{unique}",
@@ -31,6 +40,7 @@ def _make_user(*, reminder_preference: ReminderPreference, timezone_name: str = 
         password_hash="irrelevant",
         reminder_preference=reminder_preference,
         timezone=timezone_name,
+        **kwargs,
     )
 
 
@@ -138,6 +148,35 @@ async def test_game_day_reminder_does_not_crash_and_uses_game_wording(db_session
     assert len(calls) == 1
     body = json.loads(calls[0][1]["data"])["body"]
     assert "игра" in body.lower()
+
+
+@pytest.mark.asyncio
+async def test_reminder_body_follows_coach_personality(db_session, monkeypatch) -> None:
+    calls: list = []
+    monkeypatch.setattr(push_service, "webpush_async", _counting_webpush(calls))
+
+    user = _make_user(
+        reminder_preference=ReminderPreference.MORNING,
+        coach_personality=CoachPersonality.HUMOR,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(_make_subscription(user.id))
+    await db_session.flush()
+    weekly_plan = await _make_weekly_plan(db_session, user.id)
+    await _add_day_plan(
+        db_session, weekly_plan.id, day_date=TODAY, session_type=DaySessionType.ON_ICE
+    )
+
+    await _run_tick(db_session, MORNING_NOW)
+    await db_session.commit()
+
+    assert len(calls) == 1
+    body = json.loads(calls[0][1]["data"])["body"]
+    expected = REMINDER_PHRASES[CoachPersonality.HUMOR][
+        (ReminderPreference.MORNING, DaySessionType.ON_ICE)
+    ]
+    assert body in expected
 
 
 @pytest.mark.asyncio

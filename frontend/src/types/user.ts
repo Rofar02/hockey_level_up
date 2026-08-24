@@ -30,6 +30,23 @@ export const SEASON_PERIOD_CHOICES: { value: SeasonPeriod; title: string; descri
   { value: 'playoffs', title: 'Плей-офф', description: 'Финальная часть сезона — тренировки легче, разгрузки заметно чаще' },
 ]
 
+export const COACH_PERSONALITIES = ['calm', 'strict', 'humor', 'vibe'] as const
+export type CoachPersonality = (typeof COACH_PERSONALITIES)[number]
+
+// Purely templated (non-AI) tone for reminders -- see
+// app/services/coach_personality_phrases.py. Deliberately not the same
+// feature as CoachPage's real LLM "AI-тренер".
+export const COACH_PERSONALITY_CHOICES: {
+  value: CoachPersonality
+  title: string
+  description: string
+}[] = [
+  { value: 'calm', title: 'Спокойный', description: 'Ровный тон, по фактам, без эмоций' },
+  { value: 'strict', title: 'Жёсткая дисциплина', description: 'Строго по делу, никаких поблажек' },
+  { value: 'humor', title: 'С юмором', description: 'Жёсткий хоккейный юмор, подколки в раздевалочном стиле' },
+  { value: 'vibe', title: 'Свой чел', description: 'Неформально, по-дружески, без напряга' },
+]
+
 export interface UserRead {
   id: string
   username: string
@@ -60,6 +77,7 @@ export interface UserRead {
   timezone: string
   reminder_preference: ReminderPreference
   season_period: SeasonPeriod
+  coach_personality: CoachPersonality
   tournament_date: string | null
   has_seen_onboarding_tour: boolean
   has_seen_weight_hint: boolean

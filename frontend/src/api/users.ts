@@ -7,7 +7,7 @@ import {
   apiPutAuth,
 } from './client'
 import type { EquipmentItem } from '../types/exercise'
-import type { ReminderPreference, SeasonPeriod, UserPublicRead, UserRead } from '../types/user'
+import type { CoachPersonality, ReminderPreference, SeasonPeriod, UserPublicRead, UserRead } from '../types/user'
 import type { UserSkillPreference } from '../types/skill'
 
 export interface UserProfileUpdate {
@@ -17,6 +17,7 @@ export interface UserProfileUpdate {
   jersey_number?: number | null
   reminder_preference?: ReminderPreference
   season_period?: SeasonPeriod
+  coach_personality?: CoachPersonality
   tournament_date?: string | null
   timezone?: string
   has_seen_weight_hint?: boolean

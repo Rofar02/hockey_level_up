@@ -35,6 +35,18 @@ class SeasonPeriod(enum.StrEnum):
     PLAYOFFS = "playoffs"
 
 
+# P3 #9: purely templated text tone for push reminders (and future
+# templated coach-voice copy) -- NOT the same feature as the real LLM
+# coach_chat_service ("AI-тренер" in the UI). Deliberately named
+# CoachPersonality rather than anything AiCoach*-flavored so the two never
+# get confused later when the real model integration lands.
+class CoachPersonality(enum.StrEnum):
+    CALM = "calm"
+    STRICT = "strict"
+    HUMOR = "humor"
+    VIBE = "vibe"
+
+
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
@@ -178,6 +190,15 @@ class User(Base):
         enum_column(SeasonPeriod, "season_period"),
         nullable=False,
         server_default=SeasonPeriod.OFFSEASON.value,
+    )
+
+    # P3 #9: chosen in Settings (not onboarding -- a preference people may
+    # want to change later, not a one-time setup step). CALM default keeps
+    # existing users' reminder wording behaviorally unchanged.
+    coach_personality: Mapped[CoachPersonality] = mapped_column(
+        enum_column(CoachPersonality, "coach_personality"),
+        nullable=False,
+        server_default=CoachPersonality.CALM.value,
     )
 
     # Phase: П.5 tournament taper -- user-set target date for the deterministic

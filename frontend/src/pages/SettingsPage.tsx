@@ -25,8 +25,8 @@ import type { AssessmentStatus, OnIceAssessmentStatus } from '../types/assessmen
 import { EQUIPMENT_ITEM_LABELS, GYM_COVERED_ITEMS, PERSONAL_GEAR_ITEMS } from '../types/exercise'
 import type { EquipmentItem, ExerciseEquipmentRequirement } from '../types/exercise'
 import type { SkillOption } from '../types/skill'
-import { REMINDER_PREFERENCE_LABELS, SEASON_PERIOD_CHOICES } from '../types/user'
-import type { ReminderPreference, SeasonPeriod } from '../types/user'
+import { COACH_PERSONALITY_CHOICES, REMINDER_PREFERENCE_LABELS, SEASON_PERIOD_CHOICES } from '../types/user'
+import type { CoachPersonality, ReminderPreference, SeasonPeriod } from '../types/user'
 import {
   TYPICAL_HOME_PRESET,
   applyGymCoveredPreset,
@@ -63,6 +63,12 @@ export function SettingsPage() {
   const [seasonPeriod, setSeasonPeriod] = useState<SeasonPeriod | null>(user?.season_period ?? null)
   const [isSavingSeasonPeriod, setIsSavingSeasonPeriod] = useState(false)
   const [seasonPeriodError, setSeasonPeriodError] = useState<string | null>(null)
+
+  const [coachPersonality, setCoachPersonality] = useState<CoachPersonality | null>(
+    user?.coach_personality ?? null,
+  )
+  const [isSavingCoachPersonality, setIsSavingCoachPersonality] = useState(false)
+  const [coachPersonalityError, setCoachPersonalityError] = useState<string | null>(null)
 
   const [tournamentDate, setTournamentDate] = useState<string | null>(user?.tournament_date ?? null)
   const [isSavingTournamentDate, setIsSavingTournamentDate] = useState(false)
@@ -490,6 +496,27 @@ export function SettingsPage() {
     }
   }
 
+  async function handleCoachPersonalitySelect(value: CoachPersonality) {
+    if (accessToken === null || value === coachPersonality) {
+      return
+    }
+    const previous = coachPersonality
+    setCoachPersonalityError(null)
+    setIsSavingCoachPersonality(true)
+    setCoachPersonality(value)
+    try {
+      const updated = await usersApi.updateProfile({ coach_personality: value }, accessToken)
+      updateUser(updated)
+    } catch (err) {
+      setCoachPersonality(previous)
+      setCoachPersonalityError(
+        err instanceof ApiError ? err.message : 'Не удалось сохранить выбор. Попробуйте ещё раз.',
+      )
+    } finally {
+      setIsSavingCoachPersonality(false)
+    }
+  }
+
   async function handleTournamentDateChange(value: string) {
     if (accessToken === null) {
       return
@@ -762,6 +789,24 @@ export function SettingsPage() {
           ))}
         </div>
         <FormError message={seasonPeriodError} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-medium text-[#8A94A6]">Личность тренера</h2>
+        <p className="text-xs text-[#8A94A6]">Влияет на тон напоминаний о тренировках</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {COACH_PERSONALITY_CHOICES.map((option) => (
+            <ChoiceCard
+              key={option.value}
+              title={option.title}
+              description={option.description}
+              selected={coachPersonality === option.value}
+              disabled={isSavingCoachPersonality}
+              onClick={() => handleCoachPersonalitySelect(option.value)}
+            />
+          ))}
+        </div>
+        <FormError message={coachPersonalityError} />
       </section>
 
       <section className="flex flex-col gap-4">
