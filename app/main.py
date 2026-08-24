@@ -30,6 +30,7 @@ from app.routers import (
     training_sessions,
     users,
 )
+from app.services.checkin_scheduler import run_checkin_scheduler
 from app.services.reminder_scheduler import run_reminder_scheduler
 
 settings = get_settings()
@@ -40,16 +41,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     consumer_task = asyncio.create_task(run_consumer())
     relay_task = asyncio.create_task(run_outbox_relay())
     reminder_task = asyncio.create_task(run_reminder_scheduler())
+    checkin_task = asyncio.create_task(run_checkin_scheduler())
     yield
     consumer_task.cancel()
     relay_task.cancel()
     reminder_task.cancel()
+    checkin_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await consumer_task
     with contextlib.suppress(asyncio.CancelledError):
         await relay_task
     with contextlib.suppress(asyncio.CancelledError):
         await reminder_task
+    with contextlib.suppress(asyncio.CancelledError):
+        await checkin_task
     await close_publisher()
 
 

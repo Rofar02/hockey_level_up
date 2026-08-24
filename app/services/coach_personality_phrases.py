@@ -127,3 +127,32 @@ def get_reminder_body(
 ) -> str:
     phrases = REMINDER_PHRASES[personality][(preference, session_type)]
     return random.choice(phrases)
+
+
+# P3 #10: morning proactive check-in, sent once a temporary restriction
+# (see app/models/user_temporary_restriction.py) has expired. Deliberately
+# generic across every MovementPattern -- naming the specific pattern would
+# need a second player-friendly label map duplicated from the frontend's
+# MOVEMENT_PATTERN_LABELS, not worth it for a single push line.
+CHECKIN_PHRASES: dict[CoachPersonality, list[str]] = {
+    CoachPersonality.CALM: [
+        "Ограничение, которое вы отмечали, истекло. Как самочувствие?",
+        "Срок ограничения прошёл. Сообщите, если всё ещё беспокоит.",
+    ],
+    CoachPersonality.STRICT: [
+        "Ограничение снято по сроку. Если болит — сообщи сразу, если нет — работаем в полную силу.",
+        "Срок ограничения истёк. Без вестей от тебя считаем, что всё в порядке.",
+    ],
+    CoachPersonality.HUMOR: [
+        "Больничный закончился, звезда. Само прошло или ещё ноешь?",
+        "Срок ограничения истёк. Отпираться дальше не получится — колись, как самочувствие?",
+    ],
+    CoachPersonality.VIBE: [
+        "Эй, как самочувствие? Срок ограничения вышел, дай знать как ты.",
+        "Бро, что там с твоим ограничением — отпустило?",
+    ],
+}
+
+
+def get_checkin_body(personality: CoachPersonality) -> str:
+    return random.choice(CHECKIN_PHRASES[personality])

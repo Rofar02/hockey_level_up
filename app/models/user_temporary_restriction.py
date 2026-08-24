@@ -22,8 +22,9 @@ class UserTemporaryRestriction(Base):
     is a later layer on top of this same table, not built yet.
 
     Active = expires_at >= today AND lifted_at IS NULL. Expired/lifted
-    rows are kept, not deleted -- a later feature (morning proactive
-    check-in) queries "expired yesterday/today" off this same table.
+    rows are kept, not deleted -- the morning proactive check-in job
+    (app/services/checkin_scheduler.py) queries "expired yesterday/today,
+    not yet checked in" off this same table via `checkin_sent_at`.
     """
 
     __tablename__ = "user_temporary_restrictions"
@@ -46,3 +47,8 @@ class UserTemporaryRestriction(Base):
     # report for the same pattern rather than creating a duplicate row.
     expires_at: Mapped[date_] = mapped_column(Date, nullable=False)
     lifted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Idempotency guard for checkin_scheduler, same role as
+    # DayPlan.reminder_sent_at -- set once the morning check-in push has
+    # gone out for this row, never reset (a lifted-early restriction still
+    # counts as "already checked in" if it already got one).
+    checkin_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
