@@ -19,14 +19,14 @@ const MARKDOWN_COMPONENTS: Components = {
   h1: ({ children }) => <h2 className="text-lg font-semibold text-text-primary">{children}</h2>,
   h2: ({ children }) => <h3 className="text-base font-semibold text-text-primary">{children}</h3>,
   h3: ({ children }) => <h4 className="text-sm font-semibold text-text-primary">{children}</h4>,
-  p: ({ children }) => <p className="text-sm leading-relaxed text-text-secondary">{children}</p>,
+  p: ({ children }) => <p className="text-sm leading-relaxed text-text-primary">{children}</p>,
   strong: ({ children }) => <strong className="font-semibold text-text-primary">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
   ul: ({ children }) => (
-    <ul className="list-disc space-y-1 pl-5 text-sm text-text-secondary">{children}</ul>
+    <ul className="list-disc space-y-1 pl-5 text-sm text-text-primary">{children}</ul>
   ),
   ol: ({ children }) => (
-    <ol className="list-decimal space-y-1 pl-5 text-sm text-text-secondary">{children}</ol>
+    <ol className="list-decimal space-y-1 pl-5 text-sm text-text-primary">{children}</ol>
   ),
   li: ({ children }) => <li>{children}</li>,
   a: ({ children, href }) => (
