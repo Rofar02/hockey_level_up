@@ -406,18 +406,37 @@ export function TrainingSessionPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-text-secondary">{progressPercent}% тренировки</span>
-          <span className="text-text-secondary">
-            {doneCount < totalCount ? `~${remainingMinutes} мин осталось` : 'Готово'}
-          </span>
+      <div className={`flex flex-col gap-4 p-4 ${CARD_CLASS}`}>
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="mb-1 text-[11px] uppercase tracking-wide text-text-secondary">Прогресс тренировки</p>
+            <p className="font-mono text-[28px] font-bold leading-none text-text-primary">
+              {progressPercent}
+              <span className="text-base text-text-secondary">%</span>
+            </p>
+          </div>
+          <div className="text-right">
+            {doneCount < totalCount && <p className="mb-1 text-[11px] text-text-secondary">осталось</p>}
+            <p className="font-mono text-sm font-semibold text-text-primary">
+              {doneCount < totalCount ? `~${remainingMinutes} мин` : 'Готово'}
+            </p>
+          </div>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+        <div className="relative h-[11px] rounded-full bg-white/10">
           <div
-            className="h-full rounded-full bg-accent-persimmon transition-[width]"
+            className="absolute inset-y-0 left-0 overflow-hidden rounded-full bg-accent-persimmon transition-[width]"
             style={{ width: `${progressPercent}%` }}
-          />
+          >
+            <div className="animate-shimmer absolute inset-y-0 w-[40%] bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+          </div>
+          <div
+            className="absolute top-1/2 flex h-[18px] w-[18px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-accent-persimmon bg-dark-bg"
+            style={{ left: `${progressPercent}%` }}
+          >
+            <svg width="9" height="9" viewBox="0 0 24 24" aria-hidden="true">
+              <ellipse cx="12" cy="12" rx="10" ry="6" fill="#D7EFFF" />
+            </svg>
+          </div>
         </div>
       </div>
 
@@ -481,6 +500,7 @@ export function TrainingSessionPage() {
           feedbackByBlockId={feedbackByBlockId}
           onFeedbackDone={removeFeedback}
           onOpenDetail={setSelectedExercise}
+          variant="bonus"
         />
       )}
 
@@ -534,6 +554,12 @@ export function TrainingSessionPage() {
 // a thin icy top border, matching the convention already established on
 // Home/Profile.
 const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
+
+// The optional "Владение шайбой" block is content the player unlocked (owns
+// a stick in inventory) rather than a required phase like the other three --
+// a dashed border + "БОНУС" tag marks that distinction instead of it looking
+// like just a fourth mandatory block.
+const BONUS_CARD_CLASS = 'rounded-md border border-dashed border-white/20 bg-dark-card/60'
 
 // ON_ICE/GAME only (gated by the caller) -- the app has no structured
 // content for either (see ScheduleService._build_on_ice_day_session /
@@ -639,6 +665,7 @@ function PhaseBlock({
   onFeedbackDone,
   onOpenDetail,
   showTargetStat = false,
+  variant = 'default',
 }: {
   title: string
   blocks: SessionBlockRead[]
@@ -651,6 +678,7 @@ function PhaseBlock({
   onFeedbackDone: (blockId: string) => void
   onOpenDetail: (exercise: ExerciseRead) => void
   showTargetStat?: boolean
+  variant?: 'default' | 'bonus'
 }) {
   // Starts collapsed regardless of done/not-started state -- only the
   // active block forces itself open (see `expanded` below).
@@ -662,7 +690,7 @@ function PhaseBlock({
   const fullyDone = total > 0 && doneCount === total
 
   return (
-    <div className={CARD_CLASS}>
+    <div className={variant === 'bonus' ? BONUS_CARD_CLASS : CARD_CLASS}>
       <button
         type="button"
         onClick={() => {
@@ -675,7 +703,14 @@ function PhaseBlock({
           isActive ? 'cursor-default' : ''
         }`}
       >
-        <span className="text-sm font-medium text-text-primary">{title}</span>
+        <span className="flex items-center gap-2 text-sm font-medium text-text-primary">
+          {title}
+          {variant === 'bonus' && (
+            <span className="rounded-full border border-white/15 px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-wide text-text-secondary">
+              БОНУС
+            </span>
+          )}
+        </span>
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-text-secondary">
             {doneCount}/{total}
@@ -755,7 +790,7 @@ function ExerciseRow({
         }
       }}
       className={`-mx-2 flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-1.5 transition-colors hover:bg-white/5 ${
-        isCurrent ? 'border-2 border-accent-persimmon' : 'border-2 border-transparent'
+        isCurrent ? 'animate-pulse-glow border-2 border-accent-persimmon' : 'border-2 border-transparent'
       } ${isDone && !isCurrent ? 'opacity-55' : ''}`}
     >
       <div className="flex items-center gap-3">
@@ -945,10 +980,13 @@ function CompletionToast({ message, onDone }: { message: string; onDone: () => v
 
   return (
     <span
-      className={`text-xs font-medium text-accent-ice transition-opacity duration-300 ${
+      className={`mt-0.5 inline-flex w-fit items-center gap-1 rounded bg-accent-ice/10 px-1.5 py-0.5 text-[11px] font-semibold text-accent-ice transition-opacity duration-300 ${
         visible ? 'opacity-100' : 'opacity-0'
       }`}
     >
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M13 2 L4 14h6l-1 8 9-12h-6l1-8z" />
+      </svg>
       {message}
     </span>
   )

@@ -467,7 +467,14 @@ export function NewSchedulePage() {
 
         {weekStatus === 'view' && loadError === null && editSnapshot === null && (
           <>
-            <div className="flex flex-col gap-3">
+            {/* "Campaign path" -- a connecting line + circular weekday node
+                per row, read-only view only (editing keeps EditableDayRow's
+                plain rows below: its interactive type-picker grid doesn't
+                map cleanly onto a path node). */}
+            <div className="relative flex flex-col">
+              {rows.length > 1 && (
+                <div className="absolute bottom-[26px] left-[19px] top-[26px] w-0.5 bg-gradient-to-b from-accent-ice/20 via-white/10 to-white/5" />
+              )}
               {rows.map((row, index) => {
                 const trainingSession = row.trainingSession
                 const started = isStarted(row)
@@ -483,12 +490,19 @@ export function NewSchedulePage() {
                 const isToday = row.isoDate === todayIso
 
                 return (
-                  <div
-                    key={row.isoDate}
-                    className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
-                      isToday ? 'ring-1 ring-inset ring-accent-persimmon/40' : ''
-                    }`}
-                  >
+                  <div key={row.isoDate} className="relative flex gap-3 pb-3 last:pb-0">
+                    <div
+                      className={`z-[1] flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 bg-dark-bg font-mono text-[10px] font-bold ${
+                        isToday ? 'border-accent-persimmon text-accent-persimmon' : 'border-white/15 text-[#8A94A6]'
+                      }`}
+                    >
+                      {WEEKDAY_LABELS[index].toUpperCase()}
+                    </div>
+                    <div
+                      className={`flex flex-1 flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
+                        isToday ? 'ring-1 ring-inset ring-accent-persimmon/40' : ''
+                      }`}
+                    >
                     <div
                       role={isPreviewable || isExpandable ? 'button' : undefined}
                       tabIndex={isPreviewable || isExpandable ? 0 : undefined}
@@ -561,6 +575,7 @@ export function NewSchedulePage() {
                         }
                       />
                     )}
+                    </div>
                   </div>
                 )
               })}

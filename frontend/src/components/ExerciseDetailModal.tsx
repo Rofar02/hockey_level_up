@@ -213,7 +213,7 @@ function CompactNumberField({
       <input
         type="number"
         inputMode={unit !== undefined ? 'decimal' : 'numeric'}
-        className="w-20 shrink-0 rounded border border-white/10 bg-dark-bg px-2 py-1.5 font-mono text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none disabled:opacity-50"
+        className="w-24 shrink-0 rounded-md border-2 border-white/10 bg-dark-bg px-3 py-2 font-mono text-lg font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-accent-ice focus:outline-none disabled:opacity-50"
         value={value}
         placeholder={placeholder}
         disabled={disabled}
@@ -660,7 +660,7 @@ function SetLogger({
                                 <button
                                   type="button"
                                   onClick={() => setWeightInput(String(suggestedWeightKg))}
-                                  className="text-accent-ice underline underline-offset-2 hover:text-text-primary"
+                                  className="inline-flex items-center rounded-full border border-accent-ice/40 bg-accent-ice/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent-ice transition-colors hover:bg-accent-ice/20"
                                 >
                                   Совпадает
                                 </button>
@@ -692,7 +692,7 @@ function SetLogger({
                                 <button
                                   type="button"
                                   onClick={() => setRepsInput(String(suggestedReps))}
-                                  className="text-accent-ice underline underline-offset-2 hover:text-text-primary"
+                                  className="inline-flex items-center rounded-full border border-accent-ice/40 bg-accent-ice/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent-ice transition-colors hover:bg-accent-ice/20"
                                 >
                                   Совпадает
                                 </button>
