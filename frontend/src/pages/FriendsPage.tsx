@@ -311,7 +311,7 @@ export function FriendsPage() {
                         onClick={() => navigate(`/profile/${friend.id}`)}
                         className="flex min-w-0 flex-1 items-center gap-3 text-left"
                       >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-dark-bg">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-accent-ice bg-dark-bg">
                           {friend.avatar_url !== null ? (
                             <img
                               src={`${API_BASE_URL}${friend.avatar_url}`}

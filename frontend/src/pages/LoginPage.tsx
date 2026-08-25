@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FormError } from '../components/ui/FormError'
+import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { TextField } from '../components/ui/TextField'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -41,7 +42,10 @@ export function LoginPage() {
         className="relative mb-6 w-full max-w-[220px] opacity-80"
       />
       <Card className="relative w-full max-w-sm">
-        <h1 className="mb-6 text-xl font-semibold">Вход</h1>
+        <h1 className="mb-6 flex items-center gap-2 text-xl font-semibold">
+          <ShieldIcon />
+          Вход
+        </h1>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <TextField
             label="Email"

@@ -137,7 +137,10 @@ export function RestrictionsPage() {
             <h2 className="text-sm font-medium text-[#8A94A6]">Сейчас ограничено</h2>
             <FormError message={liftError} />
             {restrictions.map((restriction) => (
-              <div key={restriction.id} className={`flex flex-col gap-2 p-4 ${CARD_CLASS}`}>
+              <div
+                key={restriction.id}
+                className="flex flex-col gap-2 rounded-md border border-dashed border-accent-persimmon/40 bg-accent-persimmon/5 p-4"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-sm font-medium text-[#F5F7FA]">
                     {RESTRICTION_PATTERN_LABELS[restriction.movement_pattern]}

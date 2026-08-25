@@ -637,7 +637,11 @@ function MemberCard({
 
   return (
     <div className={`flex items-center gap-3 p-3 ${CARD_CLASS} ${dimmed ? 'opacity-50' : ''}`}>
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-dark-bg">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-dark-bg ${
+          isSelf ? 'border-2 border-accent-ice' : 'border border-white/10'
+        }`}
+      >
         {member.avatar_url !== null ? (
           <img src={`${API_BASE_URL}${member.avatar_url}`} alt="" className="h-full w-full object-cover" />
         ) : (

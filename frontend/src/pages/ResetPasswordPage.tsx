@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FormError } from '../components/ui/FormError'
+import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { TextField } from '../components/ui/TextField'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
@@ -50,7 +51,10 @@ export function ResetPasswordPage() {
       <div className="absolute inset-0 bg-[url('/images/arena-bg.webp')] bg-cover bg-center" />
       <div className="absolute inset-0 bg-dark-bg/80" />
       <Card className="relative w-full max-w-sm">
-        <h1 className="mb-6 text-xl font-semibold">Новый пароль</h1>
+        <h1 className="mb-6 flex items-center gap-2 text-xl font-semibold">
+          <ShieldIcon />
+          Новый пароль
+        </h1>
 
         {token === null && (
           <FormError message="В ссылке нет кода восстановления. Откройте ссылку из письма ещё раз." />

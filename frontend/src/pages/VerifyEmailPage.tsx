@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { ShieldIcon } from '../components/ui/ShieldIcon'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -51,13 +52,19 @@ export function VerifyEmailPage() {
       <Card className="relative w-full max-w-sm text-center">
         {status === 'checking' && (
           <>
-            <h1 className="mb-2 text-xl font-semibold">Подтверждаем email...</h1>
+            <h1 className="mb-2 flex items-center justify-center gap-2 text-xl font-semibold">
+              <ShieldIcon />
+              Подтверждаем email...
+            </h1>
             <p className="text-sm text-text-secondary">Это займёт пару секунд.</p>
           </>
         )}
         {status === 'missing-token' && (
           <>
-            <h1 className="mb-2 text-xl font-semibold">Ссылка неполная</h1>
+            <h1 className="mb-2 flex items-center justify-center gap-2 text-xl font-semibold">
+              <ShieldIcon />
+              Ссылка неполная
+            </h1>
             <p className="text-sm text-text-secondary">
               В ссылке нет кода подтверждения. Откройте ссылку из письма ещё раз.
             </p>

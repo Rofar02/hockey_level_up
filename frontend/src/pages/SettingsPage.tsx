@@ -649,7 +649,10 @@ export function SettingsPage() {
       </div>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Профиль</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-user text-accent-ice" aria-hidden="true" />
+          Профиль
+        </h2>
         <form onSubmit={handleProfileSave} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <TextField
@@ -695,7 +698,10 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Оборудование</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-barbell text-accent-ice" aria-hidden="true" />
+          Оборудование
+        </h2>
         <div className="flex flex-wrap gap-3">
           <Button
             type="button"
@@ -775,7 +781,10 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Период сезона</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-calendar text-accent-ice" aria-hidden="true" />
+          Период сезона
+        </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {SEASON_PERIOD_CHOICES.map((option) => (
             <ChoiceCard
@@ -792,7 +801,10 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Личность тренера</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-message-chatbot text-accent-ice" aria-hidden="true" />
+          Личность тренера
+        </h2>
         <p className="text-xs text-[#8A94A6]">Влияет на тон напоминаний о тренировках</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {COACH_PERSONALITY_CHOICES.map((option) => (
@@ -810,7 +822,10 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Дата турнира</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-trophy text-accent-ice" aria-hidden="true" />
+          Дата турнира
+        </h2>
         <p className="text-xs text-[#8A94A6]">
           За 3 недели до этой даты объём тренировок начнёт снижаться, в последнюю неделю — резко.
         </p>
@@ -826,7 +841,10 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Навыки для развития</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-target text-accent-ice" aria-hidden="true" />
+          Навыки для развития
+        </h2>
         {skills === null && skillsLoadError === null && (
           <p className="text-sm text-[#8A94A6]">Загрузка...</p>
         )}
@@ -872,7 +890,10 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Оценка физподготовки</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-clipboard-list text-accent-ice" aria-hidden="true" />
+          Оценка физподготовки
+        </h2>
         {assessmentStatus === null && statusError === null && (
           <p className="text-sm text-[#8A94A6]">Загрузка...</p>
         )}
@@ -916,7 +937,10 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Оценка катания</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-ice-skating text-accent-ice" aria-hidden="true" />
+          Оценка катания
+        </h2>
         {onIceStatus === null && onIceStatusError === null && (
           <p className="text-sm text-[#8A94A6]">Загрузка...</p>
         )}
@@ -953,7 +977,10 @@ export function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Уведомления</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-bell text-accent-ice" aria-hidden="true" />
+          Уведомления
+        </h2>
         {!pushSupported && needsIosHomeScreenInstall && (
           <p className="text-sm text-text-secondary">
             Добавьте приложение на домашний экран (Поделиться → «На экран «Домой»»), чтобы получать
@@ -1030,7 +1057,10 @@ export function SettingsPage() {
       </Button>
 
       <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-[#8A94A6]">Удаление аккаунта</h2>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+          <i className="ti ti-alert-triangle text-accent-persimmon" aria-hidden="true" />
+          Удаление аккаунта
+        </h2>
         <div className="flex flex-col gap-3 rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-4">
           <p className="text-sm text-[#F5F7FA]">
             Аккаунт и все связанные данные — тренировки, прогресс, статистика, навыки — будут

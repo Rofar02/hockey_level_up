@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -58,6 +58,23 @@ function decodeSelection(value: string): SeriesSelection | null {
 function formatPointDate(iso: string): string {
   const [, month, day] = iso.split('-')
   return `${day}.${month}`
+}
+
+// First-to-last change over the shown period, as a percentage when the
+// starting value is non-zero (most stats/skills), otherwise as a plain
+// signed difference (a percentage of zero is meaningless). null when
+// there's nothing to compare (fewer than 2 points, or literally no change).
+function formatDelta(points: StatHistoryPointRead[]): string | null {
+  if (points.length < 2) {
+    return null
+  }
+  const diff = points[points.length - 1].value - points[0].value
+  if (diff === 0) {
+    return null
+  }
+  const sign = diff > 0 ? '+' : ''
+  const first = points[0].value
+  return first !== 0 ? `${sign}${((diff / Math.abs(first)) * 100).toFixed(0)}%` : `${sign}${diff.toFixed(1)}`
 }
 
 const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
@@ -189,6 +206,11 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
     }
   }, [accessToken, days])
 
+  const selectedLabel =
+    selection.kind === 'stat'
+      ? TARGET_STAT_LABELS[selection.statType]
+      : (skills?.find((skill) => skill.id === selection.skillId)?.name ?? '')
+
   const seriesOptions = [
     ...TARGET_STATS.map((statType) => ({
       value: encodeSelection({ kind: 'stat', statType }),
@@ -244,40 +266,60 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
         )}
 
         {!isLoadingPoints && points !== null && points.length > 0 && (
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={formatPointDate}
-                  stroke="#8A94A6"
-                  tick={{ fill: '#8A94A6', fontSize: 12 }}
-                />
-                <YAxis stroke="#8A94A6" tick={{ fill: '#8A94A6', fontSize: 12 }} />
-                <Tooltip
-                  labelFormatter={(label) =>
-                    typeof label === 'string' ? formatPointDate(label) : label
-                  }
-                  contentStyle={{
-                    background: '#0D1420',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: 6,
-                  }}
-                  labelStyle={{ color: '#8A94A6' }}
-                  itemStyle={{ color: ICE }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke={ICE}
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: ICE }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <>
+            <div className="flex items-baseline justify-between">
+              <div>
+                <span className="text-[10px] uppercase tracking-wide text-[#8A94A6]">{selectedLabel}</span>
+                <div className="font-mono text-[26px] font-extrabold leading-tight text-[#F5F7FA]">
+                  {points[points.length - 1].value}
+                </div>
+              </div>
+              {formatDelta(points) !== null && (
+                <span className="font-mono text-sm font-bold text-accent-ice">{formatDelta(points)}</span>
+              )}
+            </div>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+                  <defs>
+                    <linearGradient id="analyticsAreaFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={ICE} stopOpacity={0.35} />
+                      <stop offset="95%" stopColor={ICE} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={formatPointDate}
+                    stroke="#8A94A6"
+                    tick={{ fill: '#8A94A6', fontSize: 12 }}
+                  />
+                  <YAxis stroke="#8A94A6" tick={{ fill: '#8A94A6', fontSize: 12 }} />
+                  <Tooltip
+                    labelFormatter={(label) =>
+                      typeof label === 'string' ? formatPointDate(label) : label
+                    }
+                    contentStyle={{
+                      background: '#0D1420',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: 6,
+                    }}
+                    labelStyle={{ color: '#8A94A6' }}
+                    itemStyle={{ color: ICE }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke={ICE}
+                    strokeWidth={2}
+                    fill="url(#analyticsAreaFill)"
+                    dot={{ r: 3, fill: ICE }}
+                    activeDot={{ r: 5 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </>
         )}
       </div>
     </>

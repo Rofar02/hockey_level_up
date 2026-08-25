@@ -219,7 +219,7 @@ export function TrainingPartiesPage() {
                     className={`flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-dark-bg">
-                      <i className="ti ti-users text-lg text-[#8A94A6]" aria-hidden="true" />
+                      <i className="ti ti-users-group text-lg text-accent-ice" aria-hidden="true" />
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="truncate text-sm font-medium text-[#F5F7FA]">

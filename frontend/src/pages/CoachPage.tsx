@@ -4,6 +4,7 @@ import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { PremiumGate } from '../components/ui/PremiumGate'
+import { ShieldIcon } from '../components/ui/ShieldIcon'
 import * as coachChatApi from '../api/coachChat'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -25,7 +26,12 @@ export function CoachPage() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
         <div className="flex flex-col gap-2">
           <BackLink />
-          <h1 className="text-xl font-semibold">Тренер</h1>
+          <h1 className="flex items-center gap-2 text-xl font-semibold">
+            Тренер
+            <span className="rounded-full border border-accent-ice/30 bg-accent-ice/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent-ice">
+              AI
+            </span>
+          </h1>
         </div>
 
         {hasPremium && accessToken !== null ? (
@@ -187,7 +193,12 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
 function ChatBubble({ message }: { message: CoachChatMessageRead }) {
   const isUser = message.role === 'user'
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex items-end gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
+      {!isUser && (
+        <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border border-accent-ice/30 bg-accent-ice/10">
+          <ShieldIcon size={14} />
+        </div>
+      )}
       <div
         className={`max-w-[85%] whitespace-pre-wrap rounded-md px-3 py-2 text-sm text-[#F5F7FA] ${
           isUser ? 'bg-accent-ice/10' : 'bg-white/5'

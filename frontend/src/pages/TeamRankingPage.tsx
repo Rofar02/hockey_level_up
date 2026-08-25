@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { RankBadge } from '../components/ui/RankBadge'
 import * as teamsApi from '../api/teams'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -70,9 +71,7 @@ export function TeamRankingPage() {
                 onClick={() => navigate(`/teams/${team.team_id}`)}
                 className={`flex w-full items-center gap-3 p-3 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
               >
-                <span className="w-8 shrink-0 text-center font-mono text-sm text-[#8A94A6]">
-                  {index + 1}
-                </span>
+                <RankBadge rank={index + 1} />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm font-medium text-[#F5F7FA]">{team.team_name}</span>
                   <span className="text-xs text-[#8A94A6]">

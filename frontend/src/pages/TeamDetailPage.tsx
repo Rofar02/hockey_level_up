@@ -380,22 +380,29 @@ export function TeamDetailPage() {
               <FormError message={copyError} />
             </div>
 
-            <div className={`flex flex-col gap-2 p-4 ${CARD_CLASS}`}>
-              <div className="flex items-center justify-between gap-3">
+            <div className={`relative flex flex-col gap-2 overflow-hidden p-4 ${CARD_CLASS}`}>
+              <div
+                className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full"
+                style={{
+                  background: 'radial-gradient(circle, rgba(215,239,255,0.12) 0%, rgba(215,239,255,0) 70%)',
+                }}
+                aria-hidden="true"
+              />
+              <div className="relative flex items-center justify-between gap-3">
                 <span className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">
                   Рейтинг команды
                 </span>
-                <span className="font-mono text-lg font-bold text-accent-ice">
+                <span className="font-mono text-2xl font-extrabold text-accent-ice">
                   {formatTeamScore(teamScore.team_score)}
                 </span>
               </div>
-              <span className="text-xs text-[#8A94A6]">
+              <span className="relative text-xs text-[#8A94A6]">
                 Сумма XP {teamScore.sum_xp} × бонус за активность{' '}
                 {(teamScore.activity_bonus * 100).toFixed(1)}% (
                 {teamScore.avg_trainings_per_member_per_week.toFixed(1)} трен./нед на чел.)
               </span>
               {teamScore.member_count < MIN_MEMBERS_FOR_TEAM_RANKING && (
-                <span className="text-xs text-[#8A94A6]">
+                <span className="relative text-xs text-[#8A94A6]">
                   Нужно ещё {MIN_MEMBERS_FOR_TEAM_RANKING - teamScore.member_count}{' '}
                   {MIN_MEMBERS_FOR_TEAM_RANKING - teamScore.member_count === 1 ? 'участник' : 'участников'},
                   чтобы попасть в общий рейтинг команд.
