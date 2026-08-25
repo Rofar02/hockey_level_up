@@ -10,6 +10,8 @@ import { JerseyBadge } from '../components/ui/JerseyBadge'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { LockedSkillChip } from '../components/ui/SkillChip'
+import { StatIcon } from '../components/ui/StatIcon'
+import { XpBar } from '../components/ui/XpBar'
 import { MuscleLoadChart } from '../components/MuscleLoadChart'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import * as authApi from '../api/auth'
@@ -462,13 +464,26 @@ function OwnProfileView() {
                 </div>
               </div>
 
-              <div className="rounded bg-dark-bg/60 px-3 py-3 text-center">
-                <p className="text-base font-bold uppercase tracking-wide text-[#F5F7FA]">
-                  {displayName}
-                </p>
-                {ageExperienceParts.length > 0 && (
-                  <p className="mt-1 text-sm text-[#8A94A6]">{ageExperienceParts.join(' · ')}</p>
-                )}
+              <div className="flex flex-col gap-3 rounded bg-dark-bg/60 px-3 py-3">
+                <div className="text-center">
+                  <p className="text-base font-bold uppercase tracking-wide text-[#F5F7FA]">
+                    {displayName}
+                  </p>
+                  {ageExperienceParts.length > 0 && (
+                    <p className="mt-1 text-sm text-[#8A94A6]">{ageExperienceParts.join(' · ')}</p>
+                  )}
+                </div>
+
+                <div className="mx-auto flex w-full max-w-[220px] flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5">
+                      <span className="font-mono text-[11px] font-bold tracking-wide text-accent-ice">
+                        УР. {user?.level ?? 1}
+                      </span>
+                    </span>
+                  </div>
+                  <XpBar level={user?.level ?? 1} xp={user?.xp ?? 0} />
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
@@ -482,8 +497,9 @@ function OwnProfileView() {
                       key={statType}
                       type="button"
                       onClick={() => setSelectedStatType(statType)}
-                      className="flex flex-col items-center rounded py-1.5 text-center transition-colors hover:bg-white/5"
+                      className="flex flex-col items-center gap-1 rounded py-1.5 text-center transition-colors hover:bg-white/5"
                     >
+                      <StatIcon stat={statType} size={14} className="text-accent-ice" />
                       <span className="text-xs text-[#8A94A6]">{STAT_ABBREVIATIONS[statType]}</span>
                       {/* Numbers use the ice accent, not primary text --
                           matches the "#D7EFFF for numbers" rule already

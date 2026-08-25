@@ -10,12 +10,15 @@ import type { EquipmentItem } from '../../types/exercise'
 // didn't actually track the text-2xl font-size utility on `className` in
 // testing, rendering a barely-visible sliver instead. `className` is
 // still applied for color (currentColor) and any layout classes.
-function HockeyStickIcon({ className }: { className?: string }) {
+// Exported (not just used internally below) so StatIcon.tsx can reuse the
+// same glyph for the puck_handling stat -- same "stick controlling a puck"
+// concept, no reason to hand-draw a second, worse version of it.
+export function HockeyStickIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="24"
-      height="24"
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
       strokeWidth="2"

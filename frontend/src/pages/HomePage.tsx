@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { OnboardingTour } from '../components/OnboardingTour'
+import { SkillDetailModal } from '../components/SkillDetailModal'
 import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { RankBadge } from '../components/ui/RankBadge'
-import { OnboardingTour } from '../components/OnboardingTour'
-import { SkillDetailModal } from '../components/SkillDetailModal'
+import { StatIcon } from '../components/ui/StatIcon'
+import { XpBar } from '../components/ui/XpBar'
 import { API_BASE_URL, ApiError } from '../api/client'
 import * as leaderboardApi from '../api/leaderboard'
 import * as progressApi from '../api/progress'
@@ -298,48 +300,57 @@ export function HomePage() {
       <IceGlowBackground />
       {showTour && <OnboardingTour onSkip={handleTourSkip} onComplete={handleTourComplete} />}
       <div className="relative z-[1] mx-auto flex min-h-svh max-w-3xl flex-col gap-4 px-4 py-8">
-        <div className={`flex items-center justify-between gap-4 p-4 ${CARD_CLASS}`}>
-          <div className="flex items-center gap-4">
-            {/* Two-layer wrapper: the outer div carries the level-tier
-                border/glow (box-shadow), the inner one clips the photo to a
-                circle. Both on the same element would clip the glow itself
-                -- overflow-hidden clips a box's own box-shadow, not just
-                its content. */}
-            <div className="h-20 w-20 shrink-0 rounded-full" style={avatarTierStyle.style}>
-              <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-dark-bg">
-                {avatarUrl !== null ? (
-                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <i className="ti ti-user text-3xl text-[#8A94A6]" aria-hidden="true" />
-                )}
+        <div className={`flex flex-col gap-4 p-4 ${CARD_CLASS}`}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              {/* Two-layer wrapper: the outer div carries the level-tier
+                  border/glow (box-shadow), the inner one clips the photo to a
+                  circle. Both on the same element would clip the glow itself
+                  -- overflow-hidden clips a box's own box-shadow, not just
+                  its content. */}
+              <div className="h-20 w-20 shrink-0 rounded-full" style={avatarTierStyle.style}>
+                <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-dark-bg">
+                  {avatarUrl !== null ? (
+                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <i className="ti ti-user text-3xl text-[#8A94A6]" aria-hidden="true" />
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xl font-bold leading-tight text-[#F5F7FA]">
+                  {user !== null ? getDisplayName(user) : ''}
+                </span>
+                <span className="text-sm text-[#8A94A6]">
+                  {user?.position != null ? POSITION_LABELS[user.position] : ''}
+                </span>
               </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xl font-bold leading-tight text-[#F5F7FA]">
-                {user !== null ? getDisplayName(user) : ''}
+
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="flex items-center gap-1.5 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-1.5">
+                <span className="font-mono text-xs font-bold tracking-wide text-accent-ice">
+                  УР. {user?.level ?? 1}
+                </span>
               </span>
-              <span className="text-sm text-[#8A94A6]">
-                {[user?.position != null ? POSITION_LABELS[user.position] : null, `Уровень ${user?.level}`]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </span>
+              {streak !== null && (
+                <button
+                  type="button"
+                  onClick={() => setCalendarExpanded((value) => !value)}
+                  className="flex items-center gap-1.5 rounded-md border border-white/10 bg-dark-bg px-3 py-2 transition-colors hover:border-white/20"
+                >
+                  <i className="ti ti-flame text-accent-persimmon" aria-hidden="true" />
+                  <span className="font-mono text-sm text-accent-persimmon">{streak.current_streak}</span>
+                  <i
+                    className={`ti ${calendarExpanded ? 'ti-chevron-up' : 'ti-chevron-down'} text-sm text-[#8A94A6]`}
+                    aria-hidden="true"
+                  />
+                </button>
+              )}
             </div>
           </div>
 
-          {streak !== null && (
-            <button
-              type="button"
-              onClick={() => setCalendarExpanded((value) => !value)}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-white/10 bg-dark-bg px-3 py-2 transition-colors hover:border-white/20"
-            >
-              <i className="ti ti-flame text-accent-persimmon" aria-hidden="true" />
-              <span className="font-mono text-sm text-accent-persimmon">{streak.current_streak}</span>
-              <i
-                className={`ti ${calendarExpanded ? 'ti-chevron-up' : 'ti-chevron-down'} text-sm text-[#8A94A6]`}
-                aria-hidden="true"
-              />
-            </button>
-          )}
+          <XpBar level={user?.level ?? 1} xp={user?.xp ?? 0} />
         </div>
 
         {calendarExpanded && (
@@ -480,8 +491,9 @@ function StatsRow({ stats, onSelect }: { stats: UserStatRead[]; onSelect: (statT
             key={statType}
             type="button"
             onClick={() => onSelect(statType)}
-            className={`flex flex-col items-center gap-1 px-2 py-3 transition-colors hover:border-white/20 ${CARD_CLASS}`}
+            className={`flex flex-col items-center gap-1.5 px-2 py-3 transition-colors hover:border-white/20 ${CARD_CLASS}`}
           >
+            <StatIcon stat={statType} size={18} className="text-accent-ice" />
             <span className="text-[11px] text-[#8A94A6]">{STAT_ABBREVIATIONS[statType]}</span>
             <span className="font-mono text-xl font-bold text-accent-ice">{Math.round(stat.current_value)}</span>
             <i
