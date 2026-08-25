@@ -1,17 +1,17 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
-import { Checkbox } from '../components/ui/Checkbox'
-import { FormError } from '../components/ui/FormError'
-import { SelectField } from '../components/ui/SelectField'
-import { TextField } from '../components/ui/TextField'
+import { AuthWizardShell } from '../components/AuthWizardShell'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import { POSITIONS, POSITION_LABELS } from '../types/user'
+import { AccountStep } from './register/AccountStep'
+import { PhysicalStep } from './register/PhysicalStep'
+import { PlayerStep } from './register/PlayerStep'
 import type { Position } from '../types/user'
+
+const STEP_LABELS = ['Аккаунт', 'Игрок', 'Физические данные']
+const TOTAL_STEPS = STEP_LABELS.length
 
 function toOptionalNumber(value: string): number | undefined {
   if (value.trim() === '') {
@@ -21,9 +21,17 @@ function toOptionalNumber(value: string): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
+// Real 3-step wizard (2026-08-25 RPG-redesign implementation), replacing
+// the old single long form -- same fields, same final handleSubmit logic,
+// just regrouped into steps and given the same AuthWizardShell as
+// OnboardingPage so the two flows read as one system instead of the old
+// mismatch (a dense one-screen form immediately followed by a clean
+// step-by-step onboarding).
 export function RegisterPage() {
   const navigate = useNavigate()
   const { login } = useAuth()
+
+  const [step, setStep] = useState(1)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -95,147 +103,55 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-4 py-10">
-      <div className="absolute inset-0 bg-[url('/images/arena-bg.webp')] bg-cover bg-center" />
-      <div className="absolute inset-0 bg-dark-bg/80" />
-      <img
-        src="/images/logo.webp"
-        alt="IceLevel"
-        className="relative mb-6 w-full max-w-[220px] opacity-80"
-      />
-      <Card className="relative w-full max-w-md">
-        <h1 className="mb-6 text-xl font-semibold">Регистрация</h1>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <TextField
-            label="Email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <TextField
-            label="Пароль"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            minLength={8}
-            maxLength={128}
-            required
-          />
+    <AuthWizardShell step={step} totalSteps={TOTAL_STEPS} stepLabel={STEP_LABELS[step - 1]}>
+      {step === 1 && (
+        <AccountStep
+          email={email}
+          setEmail={setEmail}
+          password={password}
+          setPassword={setPassword}
+          onNext={() => setStep(2)}
+        />
+      )}
+      {step === 2 && (
+        <PlayerStep
+          lastName={lastName}
+          setLastName={setLastName}
+          firstName={firstName}
+          setFirstName={setFirstName}
+          jerseyNumber={jerseyNumber}
+          setJerseyNumber={setJerseyNumber}
+          position={position}
+          setPosition={setPosition}
+          onNext={() => setStep(3)}
+          onBack={() => setStep(1)}
+        />
+      )}
+      {step === 3 && (
+        <PhysicalStep
+          height={height}
+          setHeight={setHeight}
+          weight={weight}
+          setWeight={setWeight}
+          age={age}
+          setAge={setAge}
+          yearsOfExperience={yearsOfExperience}
+          setYearsOfExperience={setYearsOfExperience}
+          privacyConsent={privacyConsent}
+          setPrivacyConsent={setPrivacyConsent}
+          error={error}
+          isSubmitting={isSubmitting}
+          onSubmit={handleSubmit}
+          onBack={() => setStep(2)}
+        />
+      )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <TextField
-              label="Фамилия"
-              name="last_name"
-              autoComplete="family-name"
-              value={lastName}
-              onChange={(event) => setLastName(event.target.value)}
-              maxLength={100}
-              required
-            />
-            <TextField
-              label="Имя"
-              name="first_name"
-              autoComplete="given-name"
-              value={firstName}
-              onChange={(event) => setFirstName(event.target.value)}
-              maxLength={100}
-              required
-            />
-          </div>
-          <TextField
-            label="Игровой номер"
-            name="jersey_number"
-            type="number"
-            numeric
-            min={0}
-            max={99}
-            value={jerseyNumber}
-            onChange={(event) => setJerseyNumber(event.target.value)}
-            required
-          />
-
-          <div className="grid grid-cols-2 gap-4">
-            <TextField
-              label="Рост, см"
-              name="height"
-              type="number"
-              numeric
-              min={0}
-              value={height}
-              onChange={(event) => setHeight(event.target.value)}
-            />
-            <TextField
-              label="Вес, кг"
-              name="weight"
-              type="number"
-              numeric
-              min={0}
-              value={weight}
-              onChange={(event) => setWeight(event.target.value)}
-            />
-            <TextField
-              label="Возраст"
-              name="age"
-              type="number"
-              numeric
-              min={0}
-              value={age}
-              onChange={(event) => setAge(event.target.value)}
-            />
-            <TextField
-              label="Стаж в хоккее, лет"
-              name="years_of_experience"
-              type="number"
-              numeric
-              min={0}
-              step="0.5"
-              value={yearsOfExperience}
-              onChange={(event) => setYearsOfExperience(event.target.value)}
-            />
-          </div>
-
-          <SelectField
-            label="Позиция"
-            name="position"
-            placeholder="Не выбрано"
-            value={position}
-            onChange={(event) => setPosition(event.target.value)}
-            options={POSITIONS.map((value) => ({ value, label: POSITION_LABELS[value] }))}
-          />
-
-          <label className="flex cursor-pointer items-start gap-2.5">
-            <Checkbox checked={privacyConsent} onClick={() => setPrivacyConsent((value) => !value)} />
-            <span className="text-sm text-text-secondary">
-              Я согласен с{' '}
-              <Link
-                to="/privacy"
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent-ice hover:underline"
-                onClick={(event) => event.stopPropagation()}
-              >
-                Политикой обработки персональных данных
-              </Link>
-            </span>
-          </label>
-
-          <FormError message={error} />
-          <Button type="submit" isLoading={isSubmitting} disabled={!privacyConsent}>
-            Зарегистрироваться
-          </Button>
-        </form>
-        <p className="mt-6 text-sm text-text-secondary">
-          Уже есть аккаунт?{' '}
-          <Link to="/login" className="text-accent-ice hover:underline">
-            Войти
-          </Link>
-        </p>
-      </Card>
-    </div>
+      <p className="mt-6 text-sm text-text-secondary">
+        Уже есть аккаунт?{' '}
+        <Link to="/login" className="text-accent-ice hover:underline">
+          Войти
+        </Link>
+      </p>
+    </AuthWizardShell>
   )
 }

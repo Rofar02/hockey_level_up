@@ -75,7 +75,10 @@ export function SkillsStep() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-lg font-semibold">Какие навыки хотите развивать?</h2>
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
+        <i className="ti ti-star text-accent-ice" aria-hidden="true" />
+        Какие навыки хотите развивать?
+      </h2>
       <p className="text-sm text-text-secondary">
         Можно выбрать несколько — это определит приоритет упражнений в тренировках.
       </p>
