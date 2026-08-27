@@ -3,6 +3,19 @@
 @tailwind utilities;
 
 @layer base {
+  /* overflow-x hidden on both html and body: any child that's briefly wider
+     than the viewport (a badge row, an unwrapped label) must not turn into a
+     horizontally scrollable page. On mobile browsers a `position: fixed`
+     element (BottomNav) is pinned to the *layout* viewport, which is exactly
+     what grows when the document overflows horizontally -- so an overflow
+     the user swipes past also drags the bottom tab bar sideways with it.
+     This is the safety net; the actual overflowing content still needs its
+     own fix (truncation, wrapping, min-w-0) wherever it's found. */
+  html,
+  body {
+    @apply overflow-x-hidden;
+  }
+
   body {
     @apply bg-dark-bg text-text-primary font-sans antialiased;
   }
@@ -15,17 +28,30 @@
    !important is required to beat the library's inline style; width is
    untouched so the SVG's own aspect-ratio scaling still applies.
 
-   One fixed budget, sized for the *worst case* (a muscle/legend info
-   panel open below the avatar, ~90px taller than the resting state) --
-   measured against real DOM heights (2026-08-21 session): fixed chrome
-   (title + tabs + buttons + legend + open panel) runs ~360px, so 27dvh
-   keeps the whole tab under 85dvh (the modal's own cap) on an
-   iPhone-SE-sized screen (~667px tall) with ~27px to spare. Deliberately
+   One fixed budget, sized for the *worst case* (every info panel open
+   below the avatar at once) -- measured against real DOM heights
+   (2026-08-21 session; revised 2026-08-27 when the ~68px restriction
+   banner was added above the load-info panel, measured at 56px + its
+   own gap-3): fixed chrome (title + tabs + buttons + legend + both open
+   panels) now runs ~428px, so 17dvh (~113px on a 667px-tall iPhone SE)
+   keeps the whole tab under the modal's 85dvh cap (~567px there) with
+   the same ~27px to spare the original 27dvh/360px math had. Deliberately
    NOT panel-state-dependent -- an earlier version used a taller budget
    at rest and shrank only while a panel was open, which made the avatar
    visibly resize on every tap (read as "recoiling"/zooming out). */
 .muscle-load-avatar .body-chart-svg {
-  max-height: 27dvh !important;
+  max-height: 17dvh !important;
+}
+
+/* RestrictionAvatar (RestrictionsPage) reuses the same body-muscles
+   library but on a normal full page, not a cramped modal tab -- the
+   library's own 70vh default has room to breathe there, but left
+   untouched it would still make a tall desktop viewport's avatar dominate
+   the page above the pattern chips/reason field/submit button below it.
+   45dvh is a middle ground: generous on a phone, bounded on anything
+   taller. */
+.restriction-avatar .body-chart-svg {
+  max-height: 45dvh !important;
 }
 
 /* RPG-redesign motifs (2026-08-25 session): the persimmon glow pulse on a

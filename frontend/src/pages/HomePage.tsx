@@ -19,11 +19,18 @@ import * as trainingBlockApi from '../api/trainingBlock'
 import * as usersApi from '../api/users'
 import { useAuth } from '../hooks/useAuth'
 import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
-import type { TargetStat } from '../types/exercise'
+import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { LeaderboardMeRead } from '../types/leaderboard'
 import type { ActivityCalendarDayRead, TrainingStreakRead, UserStatRead } from '../types/progress'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
-import type { DayPlanRead, WeeklyPlanRead } from '../types/schedule'
+import type {
+  DayPlanRead,
+  DaySessionType,
+  SessionBlockRead,
+  TrainingPhase,
+  TrainingSessionRead,
+  WeeklyPlanRead,
+} from '../types/schedule'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { BlockPhase, TrainingBlockRead } from '../types/trainingBlock'
@@ -111,6 +118,47 @@ function isSessionDayCompleted(day: DayPlanRead): boolean {
   return blocks !== undefined && blocks.length > 0 && blocks.every((block) => block.completed_at !== null)
 }
 
+// Same fixed workout-flow order, labels and icons as NewSchedulePage/
+// TrainingSessionPage's own page-local copies (that pair's own comments
+// call out the duplication convention this follows) -- DayDetailModal's
+// history view groups by phase the same way both of those already do, so a
+// past day reads the same whether you're looking at it live or looking back.
+const PHASE_SEQUENCE: TrainingPhase[] = ['warmup', 'main', 'cooldown', 'puck']
+
+const PHASE_LABELS: Record<TrainingPhase, string> = {
+  warmup: 'Разминка',
+  main: 'Основная часть',
+  cooldown: 'Заминка',
+  puck: 'Владение шайбой',
+}
+
+const PHASE_ICONS: Record<TrainingPhase, string> = {
+  warmup: 'ti-flame',
+  main: 'ti-barbell',
+  cooldown: 'ti-wind',
+  puck: 'ti-disc',
+}
+
+function formatTargetVolume(exercise: ExerciseRead): string | null {
+  if (exercise.target_sets !== null && exercise.rep_range_min !== null && exercise.rep_range_max !== null) {
+    return `${exercise.target_sets} × ${exercise.rep_range_min}-${exercise.rep_range_max}`
+  }
+  if (exercise.target_duration_seconds !== null) {
+    return `${exercise.target_duration_seconds} сек`
+  }
+  return null
+}
+
+// At least one exercise ticked but not every one -- "Начать тренировку" reads
+// as a lie once the player has already been in the session (found
+// 2026-08-27: reopening TodayCard after checking off a few exercises still
+// offered to "start" it from scratch instead of picking back up where they
+// left off).
+function isSessionDayStarted(day: DayPlanRead): boolean {
+  const blocks = day.training_session?.blocks
+  return blocks !== undefined && blocks.some((block) => block.completed_at !== null)
+}
+
 // Backed by GET /users/me/activity-calendar (2026-08-19) -- real
 // per-day completion history for whatever month is currently loaded,
 // not just the current week's WeeklyPlanRead plus a single
@@ -150,6 +198,16 @@ export function HomePage() {
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()))
   const [calendarData, setCalendarData] = useState<Record<string, ActivityCalendarDayRead>>({})
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+  // Lazily fetched fallback for a day the calendar shows activity for but
+  // that isn't inside the currently-loaded WeeklyPlan (any day outside the
+  // current week -- last week, further back, or next week before it's
+  // loaded) -- see the effect below and GET /schedule/day-plan. Keyed by
+  // isoDate (not just the plan) so a stale result from a previously-
+  // selected day is never shown for a new one while its own fetch is still
+  // in flight.
+  const [fetchedDayPlan, setFetchedDayPlan] = useState<{ isoDate: string; plan: DayPlanRead | null } | null>(
+    null,
+  )
 
   const [selectedStatType, setSelectedStatType] = useState<TargetStat | null>(null)
 
@@ -236,6 +294,30 @@ export function HomePage() {
     }
   }, [accessToken, calendarExpanded, calendarMonth])
 
+  // A day tapped in the calendar is usually inside weeklyPlan already (this
+  // week) and needs no fetch at all -- this only runs for a day outside it
+  // (see DayDetailModal, which used to just say "детали недоступны" for
+  // exactly this case). loadOptional/404 covers a date with no DayPlan at
+  // all (a future day nothing's been generated for).
+  useEffect(() => {
+    if (accessToken === null || selectedDay === null) {
+      return
+    }
+    const isoDate = toIsoDate(selectedDay)
+    if (weeklyPlan?.day_plans.some((day) => day.date === isoDate) === true) {
+      return
+    }
+    let cancelled = false
+    loadOptional(scheduleApi.getDayPlan(isoDate, accessToken)).then((plan) => {
+      if (!cancelled) {
+        setFetchedDayPlan({ isoDate, plan })
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, selectedDay, weeklyPlan])
+
   async function openSkillModal(skillId: string) {
     setSelectedSkillId(skillId)
     if (skillDetails[skillId] !== undefined || accessToken === null) {
@@ -287,8 +369,18 @@ export function HomePage() {
   const today = weeklyPlan?.day_plans.find((day) => day.date === todayIso) ?? null
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
   const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1)
-  const selectedDayPlan =
-    selectedDay !== null ? weeklyPlan?.day_plans.find((day) => day.date === toIsoDate(selectedDay)) : undefined
+  const selectedIsoDate = selectedDay !== null ? toIsoDate(selectedDay) : null
+  const selectedDayWeeklyPlanDay =
+    selectedIsoDate !== null ? weeklyPlan?.day_plans.find((day) => day.date === selectedIsoDate) : undefined
+  // fetchedDayPlan.plan is `null` for "fetched, no plan for that date" (a
+  // real answer -- don't fall through to "still loading"), so only
+  // `undefined` (nothing fetched yet, or for a different date) is coerced
+  // away below; DayDetailModal tells the two apart via isLoadingPlan.
+  const fetchedForSelectedDate =
+    fetchedDayPlan?.isoDate === selectedIsoDate ? fetchedDayPlan.plan : undefined
+  const selectedDayPlan = selectedDayWeeklyPlanDay ?? fetchedForSelectedDate ?? undefined
+  const isLoadingSelectedDayPlan =
+    selectedIsoDate !== null && selectedDayWeeklyPlanDay === undefined && fetchedForSelectedDate === undefined
   const selectedDayHasActivity =
     selectedDay !== null && hasKnownActivity(toIsoDate(selectedDay), calendarData)
   const selectedSkillName = skills?.find((skill) => skill.id === selectedSkillId)?.name ?? ''
@@ -327,8 +419,18 @@ export function HomePage() {
               </div>
             </div>
 
+            {/* Same pill shape for both -- px-3 py-2, text-xs content, and
+                now the same min-w + centered content too -- so the level
+                badge and the streak button read as one matched pair, not
+                two different-sized controls sitting side by side. Padding
+                alone (2026-08-27, first pass) got the height to match but
+                left the streak button ~6px wider than the level badge --
+                two flanking icons vs. plain text -- still reading as "the
+                streak one is bigger". min-w pins both to the same footprint
+                regardless of content, which also means this doesn't quietly
+                drift apart again once the level hits double digits. */}
             <div className="flex shrink-0 items-center gap-2">
-              <span className="flex items-center gap-1.5 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-1.5">
+              <span className="flex min-w-[70px] items-center justify-center gap-1.5 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-3 py-2">
                 <span className="font-mono text-xs font-bold tracking-wide text-accent-ice">
                   УР. {user?.level ?? 1}
                 </span>
@@ -337,12 +439,14 @@ export function HomePage() {
                 <button
                   type="button"
                   onClick={() => setCalendarExpanded((value) => !value)}
-                  className="flex items-center gap-1.5 rounded-md border border-white/10 bg-dark-bg px-3 py-2 transition-colors hover:border-white/20"
+                  className="flex min-w-[70px] items-center justify-center gap-1.5 rounded-md border border-white/10 bg-dark-bg px-3 py-2 transition-colors hover:border-white/20"
                 >
-                  <i className="ti ti-flame text-accent-persimmon" aria-hidden="true" />
-                  <span className="font-mono text-sm text-accent-persimmon">{streak.current_streak}</span>
+                  <i className="ti ti-flame text-xs text-accent-persimmon" aria-hidden="true" />
+                  <span className="font-mono text-xs font-bold text-accent-persimmon">
+                    {streak.current_streak}
+                  </span>
                   <i
-                    className={`ti ${calendarExpanded ? 'ti-chevron-up' : 'ti-chevron-down'} text-sm text-[#8A94A6]`}
+                    className={`ti ${calendarExpanded ? 'ti-chevron-up' : 'ti-chevron-down'} text-xs text-[#8A94A6]`}
                     aria-hidden="true"
                   />
                 </button>
@@ -395,6 +499,7 @@ export function HomePage() {
         <DayDetailModal
           date={selectedDay}
           dayPlan={selectedDayPlan}
+          isLoadingPlan={isLoadingSelectedDayPlan}
           hasKnownActivity={selectedDayHasActivity}
           onClose={() => setSelectedDay(null)}
         />
@@ -453,6 +558,7 @@ function TodayCard({
   }
 
   const completed = isSessionDayCompleted(day)
+  const started = !completed && isSessionDayStarted(day)
 
   return (
     <div className={`flex flex-col gap-4 p-5 ${CARD_CLASS}`}>
@@ -471,7 +577,7 @@ function TodayCard({
       </p>
       {!completed && (
         <Button onClick={onStart} className="w-full">
-          Начать тренировку
+          {started ? 'Продолжить тренировку' : 'Начать тренировку'}
         </Button>
       )}
     </div>
@@ -748,25 +854,28 @@ function CalendarPanel({
 function DayDetailModal({
   date,
   dayPlan,
+  isLoadingPlan,
   hasKnownActivity: dayHasActivity,
   onClose,
 }: {
   date: Date
   dayPlan: DayPlanRead | undefined
+  isLoadingPlan: boolean
   hasKnownActivity: boolean
   onClose: () => void
 }) {
   return (
     <Modal title={formatShortDate(date)} onClose={onClose}>
-      {dayPlan === undefined && (
+      {isLoadingPlan && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+
+      {!isLoadingPlan && dayPlan === undefined && (
         <p className="text-sm text-[#8A94A6]">
           {dayHasActivity
-            ? // Known from GET /users/me/activity-calendar (real, not just
-              // the current week) -- but that endpoint only reports a
-              // per-day boolean, not a block-by-block breakdown, and
-              // dayPlan is only populated for days inside the currently
-              // loaded WeeklyPlan, so a completed day outside that week
-              // still can't show its exercise list here.
+            ? // GET /schedule/day-plan (by exact date) came back 404 despite
+              // GET /users/me/activity-calendar marking this date
+              // fully_completed -- shouldn't happen (fully_completed implies
+              // a DayPlan+TrainingSession exist), kept as a defensive
+              // fallback rather than assumed impossible.
               'В этот день была тренировка, но детали пока недоступны.'
             : 'Тренировки не было.'}
         </p>
@@ -781,23 +890,86 @@ function DayDetailModal({
       )}
 
       {dayPlan !== undefined && dayPlan.training_session !== null && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-wide text-[#8A94A6]">
-            {DAY_SESSION_TYPE_LABELS[dayPlan.session_type]}
-          </p>
-          {dayPlan.training_session.blocks.map((block) => (
-            <div key={block.id} className="flex items-center justify-between text-sm">
-              <span className={block.completed_at !== null ? 'text-[#F5F7FA]' : 'text-[#8A94A6]'}>
-                {block.exercise.name}
-              </span>
-              <i
-                className={`ti ${block.completed_at !== null ? 'ti-check text-accent-ice' : 'ti-minus text-[#8A94A6]'}`}
-                aria-hidden="true"
-              />
-            </div>
-          ))}
-        </div>
+        <DayDetailSession session={dayPlan.training_session} sessionType={dayPlan.session_type} />
       )}
     </Modal>
+  )
+}
+
+// Same phase-card shape as NewSchedulePage's DayPreviewPhaseSection/
+// StartedDayPhaseSection and TrainingSessionPage's PhasePreviewSheet -- icon
+// + label + count header, hairline-divided rows below -- rather than the
+// flat "name, checkmark" list this replaced (found 2026-08-27: "текста
+// дохрена" -- a fully off-ice day is 15+ exercises with nothing visually
+// separating one from the next, or one phase from another).
+function DayDetailSession({
+  session,
+  sessionType,
+}: {
+  session: TrainingSessionRead
+  sessionType: DaySessionType
+}) {
+  const doneCount = session.blocks.filter((block) => block.completed_at !== null).length
+  const totalCount = session.blocks.length
+  const durationMinutes = Math.max(1, Math.round(session.duration_seconds / 60))
+
+  const blocksByPhase: Record<TrainingPhase, SessionBlockRead[]> = {
+    warmup: [],
+    main: [],
+    cooldown: [],
+    puck: [],
+  }
+  for (const block of session.blocks) {
+    blocksByPhase[block.phase].push(block)
+  }
+  const activePhases = PHASE_SEQUENCE.filter((phase) => blocksByPhase[phase].length > 0)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-sm font-medium text-[#F5F7FA]">
+          <i
+            className={`ti ${SESSION_TYPE_ICONS[sessionType]} ${SESSION_TYPE_COLORS[sessionType]}`}
+            aria-hidden="true"
+          />
+          {DAY_SESSION_TYPE_LABELS[sessionType]}
+        </span>
+        <span className="font-mono text-xs text-[#8A94A6]">
+          {doneCount} из {totalCount} · ~{durationMinutes} мин
+        </span>
+      </div>
+
+      {activePhases.map((phase) => (
+        <div key={phase} className="overflow-hidden rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-bg/40">
+          <div className="flex items-center gap-2 px-3 pb-2 pt-2.5">
+            <i className={`ti ${PHASE_ICONS[phase]} text-sm text-accent-ice`} aria-hidden="true" />
+            <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{PHASE_LABELS[phase]}</p>
+            <span className="ml-auto font-mono text-[11px] text-[#8A94A6]">{blocksByPhase[phase].length}</span>
+          </div>
+          <div className="flex flex-col divide-y divide-white/5">
+            {blocksByPhase[phase].map((block) => {
+              const volume = formatTargetVolume(block.exercise)
+              const done = block.completed_at !== null
+              return (
+                <div key={block.id} className="flex items-center gap-3 px-3 py-2.5">
+                  <i
+                    className={`ti ${done ? 'ti-check text-accent-ice' : 'ti-minus text-[#8A94A6]'} shrink-0 text-xs`}
+                    aria-hidden="true"
+                  />
+                  <span className={`line-clamp-2 min-w-0 flex-1 text-sm ${done ? 'text-[#F5F7FA]' : 'text-[#8A94A6]'}`}>
+                    {block.exercise.name}
+                  </span>
+                  {volume !== null && (
+                    <span className="shrink-0 whitespace-nowrap rounded bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-[#8A94A6]">
+                      {volume}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

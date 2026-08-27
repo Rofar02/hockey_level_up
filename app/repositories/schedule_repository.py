@@ -79,17 +79,25 @@ class ScheduleRepository:
 
     async def get_day_plan_for_date(self, user_id: uuid.UUID, target_date: date) -> DayPlan | None:
         """Direct (user_id, target_date) lookup via DayPlan.date -- backs
-        TrainingPartyService's per-member training-status resolution, same
+        TrainingPartyService's per-member training-status resolution (same
         date-across-many-users query shape as TeamRatingService's completed-
-        trainings aggregate. Uses ix_day_plans_date rather than resolving
-        through a week_start_date first, since the caller only has a date,
-        not necessarily "the current week."""
+        trainings aggregate) and ScheduleService.get_day_plan_for_date's
+        single-day detail endpoint. Uses ix_day_plans_date rather than
+        resolving through a week_start_date first, since the caller only has
+        a date, not necessarily "the current week." .exercise is eager-
+        loaded alongside .blocks (harmless extra select for the
+        TrainingPartyService callers, which don't read it) so the single-day
+        detail endpoint can build a full DayPlanRead without a second
+        lazy-load round trip.
+        """
         query = (
             select(DayPlan)
             .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
             .where(WeeklyPlan.user_id == user_id, DayPlan.date == target_date)
             .options(
-                selectinload(DayPlan.training_session).selectinload(TrainingSession.blocks)
+                selectinload(DayPlan.training_session)
+                .selectinload(TrainingSession.blocks)
+                .selectinload(SessionBlock.exercise)
             )
         )
         result = await self._session.execute(query)

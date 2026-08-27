@@ -1,16 +1,16 @@
-import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { MoreMenu } from './MoreMenu'
 
 const TABS: { to: string; icon: string; label: string; end?: boolean }[] = [
   { to: '/', icon: 'ti-home', label: 'Главная', end: true },
   { to: '/schedule/new', icon: 'ti-calendar', label: 'Неделя' },
   { to: '/profile', icon: 'ti-user', label: 'Профиль' },
+  // Its own route (/more, see MorePage) rather than a popup opened in place
+  // -- a plain NavLink like the other three tabs, so it's reachable by
+  // back/forward and a direct link, not just a tap on this button.
+  { to: '/more', icon: 'ti-dots', label: 'Ещё' },
 ]
 
 export function BottomNav() {
-  const [isMoreOpen, setIsMoreOpen] = useState(false)
-
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card"
@@ -32,20 +32,7 @@ export function BottomNav() {
             {tab.label}
           </NavLink>
         ))}
-        {/* Not a NavLink -- "Ещё" has no route of its own, it opens a
-            popup right where it's tapped (see MoreMenu) instead of first
-            landing on an intermediate page just to pick a section. */}
-        <button
-          type="button"
-          onClick={() => setIsMoreOpen(true)}
-          className="flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium text-text-secondary transition-colors hover:text-text-primary"
-        >
-          <i className="ti ti-dots text-xl" aria-hidden="true" />
-          Ещё
-        </button>
       </div>
-
-      {isMoreOpen && <MoreMenu onClose={() => setIsMoreOpen(false)} />}
     </nav>
   )
 }

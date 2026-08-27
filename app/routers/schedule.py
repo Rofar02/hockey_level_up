@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
 from app.schemas.schedule import (
+    DayPlanRead,
     WeeklyPlanCreate,
     WeeklyPlanPatch,
     WeeklyPlanPatchResult,
@@ -67,3 +68,16 @@ async def patch_weekly_plan(
     week_start_date: Annotated[date | None, Query()] = None,
 ):
     return await ScheduleService(session).patch_weekly_plan(current_user, payload, week_start_date)
+
+
+# A single day by exact date, independent of which week is "current"/"next"
+# -- backs HomePage's activity-calendar day-detail modal, which otherwise can
+# only show block-by-block detail for a day inside the currently-loaded
+# WeeklyPlan (see ScheduleService.get_day_plan_for_date's own docstring).
+@router.get("/day-plan", response_model=DayPlanRead)
+async def get_day_plan(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    date_: Annotated[date, Query(alias="date")],
+):
+    return await ScheduleService(session).get_day_plan_for_date(current_user, date_)

@@ -186,9 +186,16 @@ export interface BodyMusclesState {
 // MuscleGroup (matching the 8-value taxonomy the click handler already
 // resolves down to) makes one tap read as one coherent selection,
 // regardless of exactly which sub-region the finger happened to land on.
+// Forces a restricted group to render at the gradient's hottest step
+// ("overloaded" red) regardless of its actual training load -- shared by
+// both this heatmap builder and RestrictionAvatar's own below, one
+// constant so "restricted" always reads as the same color everywhere.
+const RESTRICTED_INTENSITY = 10
+
 export function buildBodyMusclesState(
   loads: MuscleLoadRead[],
   selectedGroup: MuscleGroup | null = null,
+  restrictedGroups: ReadonlySet<MuscleGroup> = new Set(),
 ): BodyMusclesState {
   const intensityByGroup = new Map(loads.map((load) => [load.muscle_group, load.intensity]))
   const state: BodyMusclesState = {}
@@ -196,13 +203,48 @@ export function buildBodyMusclesState(
     MuscleGroup,
     Record<string, number>,
   ][]) {
-    const intensity = intensityByGroup.get(group) ?? 0
+    // Restricted wins over the real load reading -- "avoid this muscle
+    // right now" needs to be unmistakable on sight, not competing with
+    // (or hidden by) an otherwise-low load intensity. The click panel
+    // still shows the real load number/stage underneath the restriction
+    // banner (see MuscleLoadChart), so nothing is actually hidden, just
+    // visually deprioritized on the avatar itself.
+    const isRestricted = restrictedGroups.has(group)
+    const intensity = isRestricted ? RESTRICTED_INTENSITY : (intensityByGroup.get(group) ?? 0)
     const selected = group === selectedGroup
     if (intensity === 0 && !selected) {
       continue
     }
     for (const [libraryId, weight] of Object.entries(weights)) {
       state[libraryId] = { intensity: intensity * weight, selected }
+    }
+  }
+  return state
+}
+
+// RestrictionAvatar's version of buildBodyMusclesState -- same region-
+// weighting table, but there's no continuous load value here, just "is
+// this group currently restricted" (rendered at the same hottest-step red
+// as above) and "is this the group the player just tapped to report"
+// (selected, same visual the heatmap uses for its own tapped-group
+// outline).
+
+export function buildRestrictionBodyState(
+  restrictedGroups: ReadonlySet<MuscleGroup>,
+  selectedGroup: MuscleGroup | null,
+): BodyMusclesState {
+  const state: BodyMusclesState = {}
+  for (const [group, weights] of Object.entries(MUSCLE_LIBRARY_WEIGHTS_BY_GROUP) as [
+    MuscleGroup,
+    Record<string, number>,
+  ][]) {
+    const isRestricted = restrictedGroups.has(group)
+    const selected = group === selectedGroup
+    if (!isRestricted && !selected) {
+      continue
+    }
+    for (const [libraryId, weight] of Object.entries(weights)) {
+      state[libraryId] = { intensity: isRestricted ? RESTRICTED_INTENSITY * weight : 0, selected }
     }
   }
   return state

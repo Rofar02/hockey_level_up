@@ -1,5 +1,6 @@
 import { apiGet, apiPatchAuth, apiPostAuth } from './client'
 import type {
+  DayPlanRead,
   WeeklyPlanCreate,
   WeeklyPlanPatch,
   WeeklyPlanPatchResult,
@@ -16,6 +17,15 @@ export function getCurrentWeeklyPlan(accessToken: string): Promise<WeeklyPlanRea
 // server-side date.today() for both tabs.
 export function getWeeklyPlan(weekStartDate: string, accessToken: string): Promise<WeeklyPlanRead> {
   return apiGet<WeeklyPlanRead>(`/schedule/weekly?week_start_date=${weekStartDate}`, accessToken)
+}
+
+// dateIso is an ISO date (YYYY-MM-DD) -- fetches a single day's plan by
+// exact date, independent of which week is "current"/"next" right now.
+// 404s (via loadOptional at the call site) for a date with no DayPlan at
+// all -- future date nothing's been generated for, or one outside any
+// WeeklyPlan the user ever had.
+export function getDayPlan(dateIso: string, accessToken: string): Promise<DayPlanRead> {
+  return apiGet<DayPlanRead>(`/schedule/day-plan?date=${dateIso}`, accessToken)
 }
 
 export function createWeeklyPlan(

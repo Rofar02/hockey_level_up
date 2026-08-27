@@ -235,7 +235,13 @@ function PodiumSlot({
   const avatarUrl = entry.avatar_url !== null ? `${API_BASE_URL}${entry.avatar_url}` : null
 
   return (
-    <div className="flex flex-1 flex-col items-center gap-1.5">
+    // min-w-0: a flex item's default min-width is `auto`, which lets its
+    // content's intrinsic width (a long "Фамилия Имя Отчество") win over
+    // flex-1 and push the slot wider than its share -- `truncate` below then
+    // has nothing to actually clip against, so the name just runs past the
+    // screen edge instead of ellipsizing. min-w-0 lets the slot shrink to
+    // its flex-basis so truncate has a real boundary.
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
       <div
         className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] ${PODIUM_AVATAR_SIZE[rank]}`}
         style={{ borderColor: medalColor, boxShadow: `0 0 ${rank === 1 ? 16 : 10}px ${medalColor}80` }}

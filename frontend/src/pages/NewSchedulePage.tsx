@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { Coachmark } from '../components/ui/Coachmark'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
@@ -56,6 +57,19 @@ const PHASE_LABELS: Record<TrainingPhase, string> = {
   main: 'Основная часть',
   cooldown: 'Заминка',
   puck: 'Владение шайбой',
+}
+
+// Same tabler-icons family as SESSION_TYPE_ICONS (types/schedule.ts) --
+// one glyph per phase card header, so a day with 15+ exercises reads as
+// four distinct groups at a glance instead of the flat, unstyled list this
+// replaced (found 2026-08-27: "не нравится как отображается список
+// упражнений" -- every phase was just an uppercase label directly above
+// plain text rows, nothing separating one exercise from the next).
+const PHASE_ICONS: Record<TrainingPhase, string> = {
+  warmup: 'ti-flame',
+  main: 'ti-barbell',
+  cooldown: 'ti-wind',
+  puck: 'ti-disc',
 }
 
 function formatPhaseCounts(trainingSession: TrainingSessionRead): string {
@@ -467,6 +481,11 @@ export function NewSchedulePage() {
 
         {weekStatus === 'view' && loadError === null && editSnapshot === null && (
           <>
+            <Coachmark
+              id="schedule-week-day-tap"
+              icon="ti-hand-click"
+              text="Нажмите на день, чтобы посмотреть его упражнения: ещё не начатый день откроет превью, а начатый или пройденный — список с результатами."
+            />
             {/* "Campaign path" -- a connecting line + circular weekday node
                 per row, read-only view only (editing keeps EditableDayRow's
                 plain rows below: its interactive type-picker grid doesn't
@@ -499,7 +518,14 @@ export function NewSchedulePage() {
                       {WEEKDAY_LABELS[index].toUpperCase()}
                     </div>
                     <div
-                      className={`flex flex-1 flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
+                      // min-w-0: without it this flex-1 item's min-width
+                      // defaults to `auto`, so a long DaySummary line (e.g.
+                      // "Разминка: 3 · Основная часть: 5 · Заминка: 2 ·
+                      // Владение шайбой: 2 · ~45 мин") grows the item to fit
+                      // its own unwrapped width instead of wrapping inside
+                      // it -- the row (and the page) then overflows sideways
+                      // on a phone instead of the text just wrapping.
+                      className={`flex min-w-0 flex-1 flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
                         isToday ? 'ring-1 ring-inset ring-accent-persimmon/40' : ''
                       }`}
                     >
@@ -744,56 +770,82 @@ function StartedDayExerciseList({
   return (
     <div className="mt-1 flex flex-col gap-3 border-t border-white/5 pt-3">
       {warmup.length > 0 && (
-        <StartedDayPhaseSection title={PHASE_LABELS.warmup} blocks={warmup} onSelectExercise={onSelectExercise} />
+        <StartedDayPhaseSection phase="warmup" blocks={warmup} onSelectExercise={onSelectExercise} />
       )}
       {main.length > 0 && (
-        <StartedDayPhaseSection title={PHASE_LABELS.main} blocks={main} onSelectExercise={onSelectExercise} />
+        <StartedDayPhaseSection phase="main" blocks={main} onSelectExercise={onSelectExercise} />
       )}
       {cooldown.length > 0 && (
-        <StartedDayPhaseSection title={PHASE_LABELS.cooldown} blocks={cooldown} onSelectExercise={onSelectExercise} />
+        <StartedDayPhaseSection phase="cooldown" blocks={cooldown} onSelectExercise={onSelectExercise} />
       )}
       {puck.length > 0 && (
-        <StartedDayPhaseSection title={PHASE_LABELS.puck} blocks={puck} onSelectExercise={onSelectExercise} />
+        <StartedDayPhaseSection phase="puck" blocks={puck} onSelectExercise={onSelectExercise} />
       )}
     </div>
   )
 }
 
+// Same bounded-card treatment as DayPreviewPhaseSection, for the same
+// reason -- a started/done day's own exercise list was the same
+// undifferentiated wall of text otherwise. Collapsed by default (found
+// 2026-08-27: a full off-ice day is 4 phases/18 exercises inline right in
+// the week list -- tapping the day to "just check something" opened a wall
+// of text regardless) -- the header's own icon/label/count is enough to
+// scan without opening anything, and each phase opens independently.
 function StartedDayPhaseSection({
-  title,
+  phase,
   blocks,
   onSelectExercise,
 }: {
-  title: string
+  phase: TrainingPhase
   blocks: SessionBlockRead[]
   onSelectExercise: (block: SessionBlockRead) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
+  const doneCount = blocks.filter((block) => block.completed_at !== null).length
+
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{title}</p>
-      <div className="flex flex-col gap-1.5">
-        {blocks.map((block) => {
-          const volume = formatTargetVolume(block.exercise)
-          return (
-            <button
-              key={block.id}
-              type="button"
-              onClick={() => onSelectExercise(block)}
-              className="-mx-2 flex items-center justify-between gap-3 rounded px-2 py-1 text-left transition-colors hover:bg-white/5"
-            >
-              <span className="flex min-w-0 items-center gap-2">
+    <div className={`overflow-hidden rounded-md ${CARD_BORDER} bg-dark-bg/40`}>
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex w-full items-center gap-2 px-3 pb-2 pt-2.5 text-left"
+      >
+        <i className={`ti ${PHASE_ICONS[phase]} text-sm text-accent-ice`} aria-hidden="true" />
+        <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{PHASE_LABELS[phase]}</p>
+        <span className="ml-auto font-mono text-[11px] text-[#8A94A6]">
+          {doneCount}/{blocks.length}
+        </span>
+        <i
+          className={`ti ti-chevron-down text-xs text-[#8A94A6] transition-transform ${expanded ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+      {expanded && (
+        <div className="flex flex-col divide-y divide-white/5">
+          {blocks.map((block) => {
+            const volume = formatTargetVolume(block.exercise)
+            return (
+              <button
+                key={block.id}
+                type="button"
+                onClick={() => onSelectExercise(block)}
+                className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
+              >
                 {block.completed_at !== null && (
                   <i className="ti ti-check shrink-0 text-xs text-accent-ice" aria-hidden="true" />
                 )}
-                <span className="min-w-0 truncate text-sm text-[#F5F7FA]">{block.exercise.name}</span>
-              </span>
-              {volume !== null && (
-                <span className="shrink-0 whitespace-nowrap font-mono text-xs text-[#8A94A6]">{volume}</span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+                <span className="line-clamp-2 min-w-0 flex-1 text-sm text-[#F5F7FA]">{block.exercise.name}</span>
+                {volume !== null && (
+                  <span className="shrink-0 whitespace-nowrap rounded bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-[#8A94A6]">
+                    {volume}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -870,10 +922,10 @@ function DayPreviewModal({
       title={`${weekdayLabel}, ${formatShortDate(date)} — ${DAY_SESSION_TYPE_LABELS[sessionType]}`}
       onClose={onClose}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         {warmup.length > 0 && (
           <DayPreviewPhaseSection
-            title={PHASE_LABELS.warmup}
+            phase="warmup"
             blocks={warmup}
             expandedBlockId={expandedBlockId}
             onToggle={setExpandedBlockId}
@@ -881,7 +933,7 @@ function DayPreviewModal({
         )}
         {main.length > 0 && (
           <DayPreviewPhaseSection
-            title={PHASE_LABELS.main}
+            phase="main"
             blocks={main}
             expandedBlockId={expandedBlockId}
             onToggle={setExpandedBlockId}
@@ -889,7 +941,7 @@ function DayPreviewModal({
         )}
         {cooldown.length > 0 && (
           <DayPreviewPhaseSection
-            title={PHASE_LABELS.cooldown}
+            phase="cooldown"
             blocks={cooldown}
             expandedBlockId={expandedBlockId}
             onToggle={setExpandedBlockId}
@@ -897,7 +949,7 @@ function DayPreviewModal({
         )}
         {puck.length > 0 && (
           <DayPreviewPhaseSection
-            title={PHASE_LABELS.puck}
+            phase="puck"
             blocks={puck}
             expandedBlockId={expandedBlockId}
             onToggle={setExpandedBlockId}
@@ -908,21 +960,46 @@ function DayPreviewModal({
   )
 }
 
+// Each phase is its own bounded card (icon + label + count in the header,
+// hairline-divided rows below) rather than a bare uppercase label floating
+// over plain text -- with 15+ exercises across four phases on a full
+// off_ice day, nothing previously separated one row from the next or one
+// phase from another, so the whole modal read as one long, undifferentiated
+// wall of text. Matches this app's existing CARD_BORDER (icy top-border)
+// convention instead of introducing a one-off list style just for this
+// modal.
+// Collapsed by default, same reasoning as StartedDayPhaseSection -- a full
+// day's preview is exactly as text-heavy before it's even started.
 function DayPreviewPhaseSection({
-  title,
+  phase,
   blocks,
   expandedBlockId,
   onToggle,
 }: {
-  title: string
+  phase: TrainingPhase
   blocks: SessionBlockRead[]
   expandedBlockId: string | null
   onToggle: (blockId: string | null) => void
 }) {
+  const [expanded, setExpanded] = useState(false)
+
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{title}</p>
-      <div className="flex flex-col gap-1.5">
+    <div className={`overflow-hidden rounded-md ${CARD_BORDER} bg-dark-bg/40`}>
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex w-full items-center gap-2 px-3 pb-2 pt-2.5 text-left"
+      >
+        <i className={`ti ${PHASE_ICONS[phase]} text-sm text-accent-ice`} aria-hidden="true" />
+        <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{PHASE_LABELS[phase]}</p>
+        <span className="ml-auto font-mono text-[11px] text-[#8A94A6]">{blocks.length}</span>
+        <i
+          className={`ti ti-chevron-down text-xs text-[#8A94A6] transition-transform ${expanded ? 'rotate-180' : ''}`}
+          aria-hidden="true"
+        />
+      </button>
+      {expanded && (
+      <div className="flex flex-col divide-y divide-white/5">
         {blocks.map((block) => {
           const volume = formatTargetVolume(block.exercise)
           // Only exercises with real technique content (video or
@@ -930,39 +1007,52 @@ function DayPreviewPhaseSection({
           // unclickable text, same as before this change, rather than
           // opening an empty detail panel.
           const clickable = hasExerciseTechnique(block.exercise)
-          const expanded = clickable && expandedBlockId === block.id
+          const techniqueExpanded = clickable && expandedBlockId === block.id
 
           return (
-            <div key={block.id}>
+            <div key={block.id} className="px-3">
               {clickable ? (
                 <button
                   type="button"
-                  onClick={() => onToggle(expanded ? null : block.id)}
-                  className="-mx-2 flex w-full items-center justify-between gap-3 rounded px-2 py-1 text-left transition-colors hover:bg-white/5"
+                  onClick={() => onToggle(techniqueExpanded ? null : block.id)}
+                  className="flex w-full items-center gap-3 py-2.5 text-left transition-colors hover:bg-white/5"
                 >
-                  <span className="min-w-0 truncate text-sm text-[#F5F7FA]">{block.exercise.name}</span>
+                  {/* line-clamp-2, not truncate -- a read-only preview row
+                      has no checkbox/action competing for width the way
+                      TrainingSessionPage's ExerciseRow does, so a long real
+                      exercise name (there are several) can afford to wrap
+                      once instead of losing its second half to an ellipsis. */}
+                  <span className="line-clamp-2 min-w-0 flex-1 text-sm text-[#F5F7FA]">
+                    {block.exercise.name}
+                  </span>
                   <div className="flex shrink-0 items-center gap-2">
                     {volume !== null && (
-                      <span className="whitespace-nowrap font-mono text-xs text-[#8A94A6]">{volume}</span>
+                      <span className="whitespace-nowrap rounded bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-[#8A94A6]">
+                        {volume}
+                      </span>
                     )}
                     <i
                       className={`ti ti-chevron-down text-xs text-[#8A94A6] transition-transform ${
-                        expanded ? 'rotate-180' : ''
+                        techniqueExpanded ? 'rotate-180' : ''
                       }`}
                       aria-hidden="true"
                     />
                   </div>
                 </button>
               ) : (
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate text-[#F5F7FA]">{block.exercise.name}</span>
+                <div className="flex items-center gap-3 py-2.5">
+                  <span className="line-clamp-2 min-w-0 flex-1 text-sm text-[#F5F7FA]">
+                    {block.exercise.name}
+                  </span>
                   {volume !== null && (
-                    <span className="shrink-0 whitespace-nowrap font-mono text-xs text-[#8A94A6]">{volume}</span>
+                    <span className="shrink-0 whitespace-nowrap rounded bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-[#8A94A6]">
+                      {volume}
+                    </span>
                   )}
                 </div>
               )}
-              {expanded && (
-                <div className={`mt-2 rounded-md ${CARD_BORDER} bg-dark-bg/40 p-3`}>
+              {techniqueExpanded && (
+                <div className={`mb-2.5 rounded-md ${CARD_BORDER} bg-dark-bg/60 p-3`}>
                   <ExerciseTechnique exercise={block.exercise} />
                 </div>
               )}
@@ -970,6 +1060,7 @@ function DayPreviewPhaseSection({
           )
         })}
       </div>
+      )}
     </div>
   )
 }

@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { TouchEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { StatIcon } from '../components/ui/StatIcon'
 import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
 import * as authApi from '../api/auth'
 import * as progressApi from '../api/progress'
@@ -22,7 +24,8 @@ import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
 import type { DayPlanRead, SessionBlockRead, TrainingPhase } from '../types/schedule'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
-import { WEEKDAY_LABELS, parseIsoDate, toIsoDate } from '../utils/date'
+import { lockBodyScroll, unlockBodyScroll } from '../utils/bodyScrollLock'
+import { WEEKDAY_LABELS, addDays, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -30,6 +33,72 @@ const PHASE_LABELS: Record<TrainingPhase, string> = {
   main: 'Основная часть',
   cooldown: 'Заминка',
   puck: 'Владение шайбой',
+}
+
+// Same glyphs as NewSchedulePage's PHASE_ICONS (its own page-local copy,
+// same duplication convention as PHASE_LABELS/CARD_BORDER) -- one icon per
+// phase card header, consistent across every screen that lists exercises
+// by phase.
+const PHASE_ICONS: Record<TrainingPhase, string> = {
+  warmup: 'ti-flame',
+  main: 'ti-barbell',
+  cooldown: 'ti-wind',
+  puck: 'ti-disc',
+}
+
+// Accusative -- "Завершить [что?]" -- and genitive -- "после завершения
+// [чего?]" -- case forms of PHASE_LABELS, needed because the step-by-step
+// flow's footer button and locked-preview hint both use a phase name as a
+// grammatical object rather than a standalone label (same "get the grammar
+// right" bar as analyticsSummary's pluralizePoints).
+const PHASE_LABELS_ACCUSATIVE: Record<TrainingPhase, string> = {
+  warmup: 'разминку',
+  main: 'основную часть',
+  cooldown: 'заминку',
+  puck: 'владение шайбой',
+}
+
+const PHASE_LABELS_GENITIVE: Record<TrainingPhase, string> = {
+  warmup: 'разминки',
+  main: 'основной части',
+  cooldown: 'заминки',
+  puck: 'владения шайбой',
+}
+
+// Fixed workout-flow order -- the step-by-step tracker's segments, and the
+// single "current phase" shown at a time, both walk this same sequence
+// rather than whatever raw `order` the blocks happen to carry.
+const PHASE_SEQUENCE: TrainingPhase[] = ['warmup', 'main', 'cooldown', 'puck']
+
+// Standard Russian plural-form selection (1 упражнение / 2 упражнения / 5
+// упражнений), same algorithm as analyticsSummary's pluralizePoints.
+function pluralizeExercises(count: number): string {
+  const mod10 = count % 10
+  const mod100 = count % 100
+  if (mod100 >= 11 && mod100 <= 14) {
+    return 'упражнений'
+  }
+  if (mod10 === 1) {
+    return 'упражнение'
+  }
+  if (mod10 >= 2 && mod10 <= 4) {
+    return 'упражнения'
+  }
+  return 'упражнений'
+}
+
+// One-time starting point for currentPhaseIndex, computed from the session
+// as it came back from the server (block.completed_at) rather than
+// isExerciseDone/setCompletionCounts, which isn't populated yet at this
+// point (it loads in a separate effect after trainingSessionId is known).
+// Reopening a session already in progress should resume on the first phase
+// that isn't fully done, not always restart at warmup.
+function computeInitialPhaseIndex(sessionBlocks: SessionBlockRead[]): number {
+  const active = PHASE_SEQUENCE.filter((phase) => sessionBlocks.some((block) => block.phase === phase))
+  const firstNotDone = active.findIndex((phase) =>
+    sessionBlocks.some((block) => block.phase === phase && block.completed_at === null),
+  )
+  return firstNotDone === -1 ? Math.max(0, active.length - 1) : firstNotDone
 }
 
 // Rough estimate only -- nothing in the schema tracks actual elapsed time
@@ -58,11 +127,25 @@ function estimateExerciseSeconds(exercise: ExerciseRead): number {
 // SessionBlock.completed_at, which still separately drives block_completed
 // and stays exactly as it was. An exercise with no target_sets has no other
 // completion signal, so it falls back to completed_at.
+//
+// completed_at is checked first, unconditionally, regardless of
+// target_sets: ExerciseRow's checkbox calls handleComplete (-> completed_at)
+// directly on click for every exercise, target_sets ones included, not just
+// ones opened through the SetLogger flow. Without this, checking such a box
+// straight from the list -- skipping SetLogger entirely -- flips it to
+// "completed" (checked, struck through) while isExerciseDone still says
+// not-done (setCounts never got incremented), which the flat list only ever
+// showed as a cosmetic mismatch in the overall progress bar, but which the
+// step-by-step flow's hard-locked "Завершить этап" button would get stuck
+// on forever (found 2026-08-27 testing the phase tracker manually).
 function isExerciseDone(block: SessionBlockRead, setCounts: Record<string, number>): boolean {
+  if (block.completed_at !== null) {
+    return true
+  }
   if (block.exercise.target_sets !== null) {
     return (setCounts[block.exercise.id] ?? 0) >= block.exercise.target_sets
   }
-  return block.completed_at !== null
+  return false
 }
 
 // How long the "+stat +XP" toast stays fully visible before it starts
@@ -137,6 +220,67 @@ export function TrainingSessionPage() {
   const [setCompletionCounts, setSetCompletionCounts] = useState<Record<string, number>>({})
   const [feedbackByBlockId, setFeedbackByBlockId] = useState<Record<string, string>>({})
   const [selectedExercise, setSelectedExercise] = useState<ExerciseRead | null>(null)
+  // Which step of the phase tracker is the active one -- advanced only by
+  // an explicit "Завершить [этап]" tap (see handleFinishPhase), never
+  // implicitly just because every exercise in it happens to be checked, so
+  // the exercise list doesn't swap out from under the player the instant
+  // they tick the last box. Set once from the loaded session in the load
+  // effect below; index into activePhases, computed fresh each render.
+  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0)
+  // Index into activePhases for the phase whose read-only bottom-sheet
+  // preview is open (tapping a done/upcoming tracker segment) -- null when
+  // no preview is open.
+  const [previewPhaseIndex, setPreviewPhaseIndex] = useState<number | null>(null)
+  const trackerRef = useRef<HTMLDivElement>(null)
+  // Callback ref (not useRef) so the observer effect below re-runs exactly
+  // when the footer's DOM node itself mounts/unmounts, not on every render
+  // -- footer only exists once currentPhase resolves, so plain useRef would
+  // stay null through the initial "Загрузка..." renders with nothing to
+  // reattach to once it finally appears.
+  const [footerNode, setFooterNode] = useState<HTMLDivElement | null>(null)
+  // Measured, not guessed -- the footer's real height varies (the "Завершить
+  // [этап] →" label is a different length per phase and can wrap to two
+  // lines on a narrow phone; the "Осталось N упражнений" hint line only
+  // exists while the button is disabled), so a fixed spacer height either
+  // undershoots (footer covers the last exercise row/TrainingDiaryCard --
+  // found 2026-08-27 on an iPhone) or wastes space. ResizeObserver instead
+  // of a one-time measurement since both of those change without the page
+  // itself resizing.
+  const [footerHeight, setFooterHeight] = useState(0)
+
+  // Synchronous (not the ResizeObserver below): covers every height change
+  // this component itself causes by re-rendering the footer with different
+  // content (phase advances, the "Осталось N" hint appears/disappears) --
+  // runs after every commit and bails out on its own re-render when the
+  // measured height hasn't actually changed, so it settles in one extra
+  // pass rather than looping.
+  // No dependency array is deliberate -- this needs to re-measure after
+  // every render (any of them can change the footer's content), and the
+  // functional setState update above is itself the loop guard: it bails
+  // out (no re-render triggered) once the measured height stops changing.
+  // oxlint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (footerNode !== null) {
+      const height = footerNode.getBoundingClientRect().height
+      setFooterHeight((previous) => (previous === height ? previous : height))
+    }
+  })
+
+  // Catches the one thing the layout effect above can't: the footer's own
+  // text (same phase, same content) wrapping to an extra line because the
+  // *viewport* got narrower -- a phone rotation or window resize, neither of
+  // which re-renders this component on their own.
+  useEffect(() => {
+    if (footerNode === null) {
+      return
+    }
+    // getBoundingClientRect(), not entry.contentRect -- contentRect is the
+    // content box (padding excluded), which under-measured this footer's
+    // own py-3 padding by 24px and left the spacer below it 24px short.
+    const observer = new ResizeObserver(() => setFooterHeight(footerNode.getBoundingClientRect().height))
+    observer.observe(footerNode)
+    return () => observer.disconnect()
+  }, [footerNode])
   const [sessionComplete, setSessionComplete] = useState<{
     statTotals: Partial<Record<TargetStat, number>>
     xpTotal: number
@@ -152,23 +296,35 @@ export function TrainingSessionPage() {
       return
     }
     let cancelled = false
+    // dayPlanId can belong to next week's plan, not just the current one --
+    // NewSchedulePage lets a day be planned/started a week ahead (its
+    // WeekSlot 'next' tab), and a training party's day_plan_id follows the
+    // same two-week model. Looking only at getCurrentWeeklyPlan() made
+    // opening one of those days show "Тренировка не найдена." with no
+    // exercises, even though the plan existed one week over. loadOptional
+    // for next week since it may not have been generated yet.
+    const nextMondayIso = toIsoDate(addDays(getMondayOfCurrentWeek(), 7))
     Promise.all([
       scheduleApi.getCurrentWeeklyPlan(accessToken),
+      loadOptional(scheduleApi.getWeeklyPlan(nextMondayIso, accessToken)),
       // Same "optional, 404 means not declared yet" handling as HomePage --
       // a session can be viewed without an active periodization block.
       loadOptional(trainingBlockApi.getCurrentTrainingBlock(accessToken)),
     ])
-      .then(([plan, block]) => {
+      .then(([currentPlan, nextPlan, block]) => {
         if (cancelled) {
           return
         }
-        const foundDay = plan.day_plans.find((candidate) => candidate.id === dayPlanId)
+        const foundDay =
+          currentPlan.day_plans.find((candidate) => candidate.id === dayPlanId) ??
+          nextPlan?.day_plans.find((candidate) => candidate.id === dayPlanId)
         if (foundDay?.training_session == null) {
           setLoadError('Тренировка не найдена.')
           return
         }
         setDay(foundDay)
         setBlocks(foundDay.training_session.blocks)
+        setCurrentPhaseIndex(computeInitialPhaseIndex(foundDay.training_session.blocks))
         setTrainingSessionId(foundDay.training_session.id)
         setTrainingBlock(block)
       })
@@ -365,6 +521,37 @@ export function TrainingSessionPage() {
   const currentExerciseId =
     orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))?.id ?? null
 
+  const blocksByPhase: Record<TrainingPhase, SessionBlockRead[]> = { warmup, main, cooldown, puck }
+  const activePhases = PHASE_SEQUENCE.filter((phase) => blocksByPhase[phase].length > 0)
+  // Clamped defensively -- activePhases is recomputed fresh every render
+  // while currentPhaseIndex persists across renders, so this only matters
+  // if the two were ever momentarily out of step.
+  const safePhaseIndex = Math.min(currentPhaseIndex, Math.max(0, activePhases.length - 1))
+  const currentPhase = activePhases[safePhaseIndex]
+  const currentPhaseBlocks = currentPhase !== undefined ? blocksByPhase[currentPhase] : []
+  const currentPhaseDoneCount = currentPhaseBlocks.filter((block) =>
+    isExerciseDone(block, setCompletionCounts),
+  ).length
+  const currentPhaseTotal = currentPhaseBlocks.length
+  const isLastPhase = safePhaseIndex === activePhases.length - 1
+  // Hard lock (2026-08-27 product decision): the button only ever unlocks
+  // at 100% -- no partial/skip path, so there's no "what happens to the
+  // unfinished rest" question to answer here.
+  const canFinishPhase = currentPhaseTotal > 0 && currentPhaseDoneCount === currentPhaseTotal
+
+  function handleFinishPhase() {
+    if (!canFinishPhase || isLastPhase) {
+      // Finishing the last phase needs no extra step: ticking its final
+      // exercise already flips every block in the session to completed_at
+      // !== null, which is exactly the condition handleComplete's own
+      // mergedBlocks.every check uses to open SessionCompleteModal -- that
+      // already happened by the time this button became enabled.
+      return
+    }
+    setCurrentPhaseIndex((index) => index + 1)
+    trackerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   // The SessionBlock behind the exercise currently open in
   // ExerciseDetailModal -- selectedExercise only stores the ExerciseRead
   // (see onOpenDetail below), so this is looked up by exercise id, same
@@ -442,66 +629,91 @@ export function TrainingSessionPage() {
 
       <FormError message={actionError} />
 
-      {warmup.length > 0 && (
-        <PhaseBlock
-          title={PHASE_LABELS.warmup}
-          blocks={warmup}
-          isActive={warmup.some((block) => block.id === currentExerciseId)}
-          currentExerciseId={currentExerciseId}
-          setCompletionCounts={setCompletionCounts}
-          pendingIds={pendingIds}
-          onComplete={handleComplete}
-          feedbackByBlockId={feedbackByBlockId}
-          onFeedbackDone={removeFeedback}
-          onOpenDetail={setSelectedExercise}
-        />
-      )}
+      {currentPhase !== undefined && (
+        <>
+          <div ref={trackerRef} className="scroll-mt-4">
+            <PhaseTracker
+              phases={activePhases}
+              currentIndex={safePhaseIndex}
+              blocksByPhase={blocksByPhase}
+              setCompletionCounts={setCompletionCounts}
+              onSelectPhase={(index) => {
+                if (index !== safePhaseIndex) {
+                  setPreviewPhaseIndex(index)
+                }
+              }}
+            />
+          </div>
 
-      {main.length > 0 && (
-        <PhaseBlock
-          title={PHASE_LABELS.main}
-          blocks={main}
-          isActive={main.some((block) => block.id === currentExerciseId)}
-          currentExerciseId={currentExerciseId}
-          setCompletionCounts={setCompletionCounts}
-          pendingIds={pendingIds}
-          onComplete={handleComplete}
-          feedbackByBlockId={feedbackByBlockId}
-          onFeedbackDone={removeFeedback}
-          onOpenDetail={setSelectedExercise}
-          showTargetStat
-        />
-      )}
+          <div className="flex flex-col gap-1">
+            <span className="w-fit rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-secondary">
+              Этап {safePhaseIndex + 1} из {activePhases.length}
+            </span>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-text-primary">
+                <i className={`ti ${PHASE_ICONS[currentPhase]} text-accent-ice`} aria-hidden="true" />
+                {PHASE_LABELS[currentPhase]}
+              </h2>
+              <span className="shrink-0 font-mono text-sm text-text-secondary">
+                {currentPhaseDoneCount} из {currentPhaseTotal} выполнено
+              </span>
+            </div>
+          </div>
 
-      {cooldown.length > 0 && (
-        <PhaseBlock
-          title={PHASE_LABELS.cooldown}
-          blocks={cooldown}
-          isActive={cooldown.some((block) => block.id === currentExerciseId)}
-          currentExerciseId={currentExerciseId}
-          setCompletionCounts={setCompletionCounts}
-          pendingIds={pendingIds}
-          onComplete={handleComplete}
-          feedbackByBlockId={feedbackByBlockId}
-          onFeedbackDone={removeFeedback}
-          onOpenDetail={setSelectedExercise}
-        />
-      )}
+          <div className={currentPhase === 'puck' ? BONUS_CARD_CLASS : CARD_CLASS}>
+            <div className="flex flex-col gap-3 p-4">
+              {currentPhaseBlocks.map((block) => (
+                <ExerciseRow
+                  key={block.id}
+                  block={block}
+                  isCurrent={block.id === currentExerciseId}
+                  isDone={isExerciseDone(block, setCompletionCounts)}
+                  pending={pendingIds.has(block.id)}
+                  onComplete={() => handleComplete(block)}
+                  feedback={feedbackByBlockId[block.id]}
+                  onFeedbackDone={() => removeFeedback(block.id)}
+                  onOpenDetail={() => setSelectedExercise(block.exercise)}
+                  showTargetStat={currentPhase === 'main'}
+                />
+              ))}
+            </div>
+          </div>
 
-      {puck.length > 0 && (
-        <PhaseBlock
-          title={PHASE_LABELS.puck}
-          blocks={puck}
-          isActive={puck.some((block) => block.id === currentExerciseId)}
-          currentExerciseId={currentExerciseId}
-          setCompletionCounts={setCompletionCounts}
-          pendingIds={pendingIds}
-          onComplete={handleComplete}
-          feedbackByBlockId={feedbackByBlockId}
-          onFeedbackDone={removeFeedback}
-          onOpenDetail={setSelectedExercise}
-          variant="bonus"
-        />
+          {/* Reserves scroll space so the sticky footer below never covers
+              the last exercise row/TrainingDiaryCard -- sized to the
+              footer's own measured height, not a guess (see footerHeight). */}
+          <div aria-hidden="true" style={{ height: footerHeight }} />
+
+          <div
+            ref={setFooterNode}
+            className="fixed inset-x-0 z-40 border-t border-white/5 bg-dark-card px-4 py-3"
+            style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
+          >
+            <div className="mx-auto max-w-2xl">
+              <Button onClick={handleFinishPhase} disabled={!canFinishPhase} className="w-full">
+                {isLastPhase ? 'Завершить тренировку' : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
+              </Button>
+              {!canFinishPhase && (
+                <p className="mt-2 text-center text-xs text-text-secondary">
+                  Осталось {currentPhaseTotal - currentPhaseDoneCount}{' '}
+                  {pluralizeExercises(currentPhaseTotal - currentPhaseDoneCount)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {previewPhaseIndex !== null && activePhases[previewPhaseIndex] !== undefined && (
+            <PhasePreviewSheet
+              phase={activePhases[previewPhaseIndex]}
+              stepNumber={previewPhaseIndex + 1}
+              totalSteps={activePhases.length}
+              blocks={blocksByPhase[activePhases[previewPhaseIndex]]}
+              isHistorical={previewPhaseIndex < safePhaseIndex}
+              lockedBehindLabel={PHASE_LABELS_GENITIVE[currentPhase]}
+              onClose={() => setPreviewPhaseIndex(null)}
+            />
+          )}
+        </>
       )}
 
       {day !== null
@@ -653,103 +865,219 @@ function TrainingDiaryCard({
   )
 }
 
-function PhaseBlock({
-  title,
-  blocks,
-  isActive,
-  currentExerciseId,
+// Segmented progress bar, one segment per phase present in this session --
+// done (icy, this app's existing "completed" color -- see ExerciseRow's own
+// check icons) / current (persimmon, this app's existing "active" color --
+// see the overall progress bar above and ExerciseRow's pulsing border) /
+// upcoming (empty). Tapping a done or upcoming segment previews it in
+// PhasePreviewSheet; the current segment isn't tappable since its own
+// exercises are already the list right below.
+function PhaseTracker({
+  phases,
+  currentIndex,
+  blocksByPhase,
   setCompletionCounts,
-  pendingIds,
-  onComplete,
-  feedbackByBlockId,
-  onFeedbackDone,
-  onOpenDetail,
-  showTargetStat = false,
-  variant = 'default',
+  onSelectPhase,
 }: {
-  title: string
-  blocks: SessionBlockRead[]
-  isActive: boolean
-  currentExerciseId: string | null
+  phases: TrainingPhase[]
+  currentIndex: number
+  blocksByPhase: Record<TrainingPhase, SessionBlockRead[]>
   setCompletionCounts: Record<string, number>
-  pendingIds: Set<string>
-  onComplete: (block: SessionBlockRead) => void
-  feedbackByBlockId: Record<string, string>
-  onFeedbackDone: (blockId: string) => void
-  onOpenDetail: (exercise: ExerciseRead) => void
-  showTargetStat?: boolean
-  variant?: 'default' | 'bonus'
+  onSelectPhase: (index: number) => void
 }) {
-  // Starts collapsed regardless of done/not-started state -- only the
-  // active block forces itself open (see `expanded` below).
-  const [manualExpanded, setManualExpanded] = useState(false)
-  const expanded = isActive || manualExpanded
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-1.5">
+        {phases.map((phase, index) => {
+          const phaseBlocks = blocksByPhase[phase]
+          const doneCount = phaseBlocks.filter((block) => isExerciseDone(block, setCompletionCounts)).length
+          const state = index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'upcoming'
+          const fillPercent =
+            state === 'done'
+              ? 100
+              : state === 'current' && phaseBlocks.length > 0
+                ? Math.round((doneCount / phaseBlocks.length) * 100)
+                : 0
 
-  const doneCount = blocks.filter((block) => isExerciseDone(block, setCompletionCounts)).length
-  const total = blocks.length
-  const fullyDone = total > 0 && doneCount === total
+          return (
+            <button
+              key={phase}
+              type="button"
+              onClick={() => onSelectPhase(index)}
+              disabled={state === 'current'}
+              aria-label={`${PHASE_LABELS[phase]}${state === 'done' ? ' — пройден, посмотреть' : state === 'upcoming' ? ' — впереди, посмотреть превью' : ' — текущий этап'}`}
+              className={`h-2 flex-1 overflow-hidden rounded-full bg-white/10 ${
+                state === 'current' ? 'cursor-default' : 'cursor-pointer'
+              }`}
+            >
+              <div
+                className={`h-full rounded-full transition-[width] ${
+                  state === 'done' ? 'bg-accent-ice' : 'bg-accent-persimmon'
+                }`}
+                style={{ width: `${fillPercent}%` }}
+              />
+            </button>
+          )
+        })}
+      </div>
+      <div className="flex gap-1.5">
+        {phases.map((phase, index) => (
+          <span
+            key={phase}
+            className={`flex-1 truncate text-center text-[10px] font-medium uppercase tracking-wide ${
+              index === currentIndex
+                ? 'text-accent-persimmon'
+                : index < currentIndex
+                  ? 'text-accent-ice'
+                  : 'text-text-secondary'
+            }`}
+          >
+            {PHASE_LABELS[phase]}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Read-only bottom sheet -- no checkboxes, no way to mark anything done, and
+// closing it never touches currentPhaseIndex -- opened by tapping a
+// done/upcoming PhaseTracker segment. isHistorical (a done phase) shows a
+// check mark per row and skips the locked-hint footer instead of "still
+// locked" copy that would be wrong for a phase already finished.
+function PhasePreviewSheet({
+  phase,
+  stepNumber,
+  totalSteps,
+  blocks,
+  isHistorical,
+  lockedBehindLabel,
+  onClose,
+}: {
+  phase: TrainingPhase
+  stepNumber: number
+  totalSteps: number
+  blocks: SessionBlockRead[]
+  isHistorical: boolean
+  lockedBehindLabel: string
+  onClose: () => void
+}) {
+  const [entered, setEntered] = useState(false)
+  // Live drag offset (px, clamped to >=0) while a touch is dragging the
+  // sheet down -- swipe-to-close, same "no exit animation" simplicity as
+  // Modal (see Modal.tsx: it doesn't fade/slide out on close either),
+  // except past the threshold this component does play a quick slide down
+  // (via `entered`) instead of vanishing mid-drag, since an in-progress
+  // drag makes an instant cut feel broken in a way a plain close tap doesn't.
+  const [dragOffset, setDragOffset] = useState(0)
+  const dragStartY = useRef<number | null>(null)
+
+  useEffect(() => {
+    lockBodyScroll()
+    const frame = requestAnimationFrame(() => setEntered(true))
+    return () => {
+      cancelAnimationFrame(frame)
+      unlockBodyScroll()
+    }
+  }, [])
+
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    dragStartY.current = event.touches[0].clientY
+  }
+
+  function handleTouchMove(event: TouchEvent<HTMLDivElement>) {
+    if (dragStartY.current === null) {
+      return
+    }
+    setDragOffset(Math.max(0, event.touches[0].clientY - dragStartY.current))
+  }
+
+  function handleTouchEnd() {
+    dragStartY.current = null
+    if (dragOffset > 80) {
+      setEntered(false)
+      setTimeout(onClose, 150)
+      return
+    }
+    setDragOffset(0)
+  }
+
+  const totalMinutes = Math.max(
+    1,
+    Math.round(blocks.reduce((sum, block) => sum + estimateExerciseSeconds(block.exercise), 0) / 60),
+  )
 
   return (
-    <div className={variant === 'bonus' ? BONUS_CARD_CLASS : CARD_CLASS}>
-      <button
-        type="button"
-        onClick={() => {
-          if (!isActive) {
-            setManualExpanded((value) => !value)
-          }
-        }}
-        disabled={isActive}
-        className={`flex w-full items-center justify-between gap-3 p-4 text-left ${
-          isActive ? 'cursor-default' : ''
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
+      <div
+        onClick={(event) => event.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className={`flex w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border-t border-white/10 bg-dark-card transition-transform duration-200 ease-out ${
+          entered ? 'translate-y-0' : 'translate-y-full'
         }`}
+        style={{
+          maxHeight: '80dvh',
+          transform: entered && dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined,
+        }}
       >
-        <span className="flex items-center gap-2 text-sm font-medium text-text-primary">
-          {title}
-          {variant === 'bonus' && (
-            <span className="rounded-full border border-white/15 px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-wide text-text-secondary">
-              БОНУС
-            </span>
-          )}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-xs text-text-secondary">
-            {doneCount}/{total}
+        <div className="flex shrink-0 justify-center pt-2">
+          <div className="h-1 w-10 rounded-full bg-white/15" />
+        </div>
+        <div className="flex shrink-0 items-center justify-between gap-4 px-6 pb-3 pt-2">
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-text-secondary">
+            Этап {stepNumber} из {totalSteps} · {isHistorical ? 'Пройден' : 'Превью'}
           </span>
-          {!isActive && (
-            <i
-              className={`ti ti-chevron-down text-text-secondary transition-transform duration-200 ${
-                expanded ? 'rotate-180' : ''
-              }`}
-              aria-hidden="true"
-            />
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Закрыть"
+            className="text-text-secondary transition-colors hover:text-text-primary"
+          >
+            <i className="ti ti-x text-xl" aria-hidden="true" />
+          </button>
         </div>
-      </button>
 
-      {!expanded && fullyDone && (
-        <p className="px-4 pb-4 text-xs text-text-secondary opacity-55">
-          {blocks.map((block) => block.exercise.name).join(', ')}
-        </p>
-      )}
-
-      {expanded && (
-        <div className="flex flex-col gap-3 px-4 pb-4">
-          {blocks.map((block) => (
-            <ExerciseRow
-              key={block.id}
-              block={block}
-              isCurrent={block.id === currentExerciseId}
-              isDone={isExerciseDone(block, setCompletionCounts)}
-              pending={pendingIds.has(block.id)}
-              onComplete={() => onComplete(block)}
-              feedback={feedbackByBlockId[block.id]}
-              onFeedbackDone={() => onFeedbackDone(block.id)}
-              onOpenDetail={() => onOpenDetail(block.exercise)}
-              showTargetStat={showTargetStat}
-            />
-          ))}
+        <div className="overflow-y-auto px-6 pb-4">
+          <div className="mb-1 flex items-center gap-2">
+            <i className={`ti ${PHASE_ICONS[phase]} text-lg text-accent-ice`} aria-hidden="true" />
+            <h3 className="text-base font-semibold text-text-primary">{PHASE_LABELS[phase]}</h3>
+          </div>
+          <p className="mb-3 text-xs text-text-secondary">
+            {blocks.length} {pluralizeExercises(blocks.length)} · ~{totalMinutes} мин
+          </p>
+          <div className="flex flex-col divide-y divide-white/5">
+            {blocks.map((block) => {
+              const volume = formatTargetVolume(block.exercise)
+              return (
+                <div key={block.id} className="flex items-center gap-3 py-2.5">
+                  {isHistorical && (
+                    <i className="ti ti-check shrink-0 text-xs text-accent-ice" aria-hidden="true" />
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+                    {block.exercise.name}
+                  </span>
+                  {volume !== null && (
+                    <span className="shrink-0 whitespace-nowrap font-mono text-xs text-text-secondary">
+                      {volume}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
-      )}
+
+        {!isHistorical && (
+          <div className="flex shrink-0 items-start gap-2 border-t border-white/5 bg-dark-bg/60 px-6 py-3">
+            <i className="ti ti-lock text-sm text-text-secondary" aria-hidden="true" />
+            <p className="text-xs text-text-secondary">
+              Открывается после завершения {lockedBehindLabel} — сейчас можно только посмотреть список.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -789,42 +1117,57 @@ function ExerciseRow({
           onOpenDetail()
         }
       }}
-      className={`-mx-2 flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-1.5 transition-colors hover:bg-white/5 ${
+      className={`-mx-2 flex cursor-pointer items-start gap-3 rounded px-2 py-2 transition-colors hover:bg-white/5 ${
         isCurrent ? 'animate-pulse-glow border-2 border-accent-persimmon' : 'border-2 border-transparent'
       } ${isDone && !isCurrent ? 'opacity-55' : ''}`}
     >
-      <div className="flex items-center gap-3">
-        {/* stopPropagation keeps ticking the checkbox from also opening the detail modal */}
-        <span onClick={(event) => event.stopPropagation()}>
-          <Checkbox checked={isCompleted} disabled={isCompleted || pending} onClick={onComplete} />
-        </span>
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            {isCurrent && (
-              <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-persimmon">
-                Сейчас
-              </span>
-            )}
-            {isDone && !isCompleted && (
-              <i className="ti ti-check text-xs text-accent-ice" aria-hidden="true" />
-            )}
-          </div>
-          <span className={`text-sm ${isCompleted ? 'text-text-secondary line-through' : 'text-text-primary'}`}>
-            {block.exercise.name}
-          </span>
-          {targetVolume !== null && (
-            <span className="text-xs text-text-secondary">{targetVolume}</span>
+      {/* stopPropagation keeps ticking the checkbox from also opening the detail modal */}
+      <span onClick={(event) => event.stopPropagation()} className="mt-0.5 shrink-0">
+        <Checkbox checked={isCompleted} disabled={isCompleted || pending} onClick={onComplete} />
+      </span>
+      <div className="min-w-0 flex-1">
+        {/* Name gets its own full-width line, not squeezed onto a baseline
+            row it has to share with badges/stats/volume -- found 2026-08-27:
+            crammed onto one line, a second target stat ("Сила, Ловкость")
+            routinely ate enough width that the name itself is what got
+            truncated, on a screen already narrow. line-clamp-2, same as
+            NewSchedulePage's DayPreviewPhaseSection, so a long real name
+            wraps once instead of losing its second half either way. */}
+        <p
+          className={`line-clamp-2 text-sm ${isCompleted ? 'text-text-secondary line-through' : 'text-text-primary'}`}
+        >
+          {block.exercise.name}
+        </p>
+        {/* Meta row: badges/stat icons on the left, volume pinned right --
+            icons instead of TARGET_STAT_LABELS text (was "Сила, Ловкость"
+            spelled out) for the same reason -- a compact, glanceable "what
+            this trains" tag that doesn't compete with the name for width.
+            Same StatIcon used on Home/Profile's stat tiles, not a one-off
+            icon set just for this row. */}
+        <div className="mt-1 flex min-w-0 items-center gap-2">
+          {isCurrent && (
+            <span className="shrink-0 rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-persimmon">
+              Сейчас
+            </span>
           )}
-          {feedback !== undefined && (
-            <CompletionToast message={feedback} onDone={onFeedbackDone} />
+          {isDone && !isCompleted && (
+            <i className="ti ti-check shrink-0 text-xs text-accent-ice" aria-hidden="true" />
+          )}
+          {showTargetStat && block.exercise.target_stats.length > 0 && (
+            <span className="flex shrink-0 items-center gap-1">
+              {block.exercise.target_stats.map((stat) => (
+                <StatIcon key={stat} stat={stat} size={12} className="text-text-secondary" />
+              ))}
+            </span>
+          )}
+          {targetVolume !== null && (
+            <span className="ml-auto shrink-0 whitespace-nowrap rounded bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-text-secondary">
+              {targetVolume}
+            </span>
           )}
         </div>
+        {feedback !== undefined && <CompletionToast message={feedback} onDone={onFeedbackDone} />}
       </div>
-      {showTargetStat && block.exercise.target_stats.length > 0 && (
-        <span className="shrink-0 text-xs text-text-secondary">
-          {block.exercise.target_stats.map((stat) => TARGET_STAT_LABELS[stat]).join(', ')}
-        </span>
-      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import type { ChangeEvent, ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { Coachmark } from '../components/ui/Coachmark'
 import { EquipmentIcon } from '../components/ui/EquipmentIcon'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -17,6 +18,7 @@ import { SkillDetailModal } from '../components/SkillDetailModal'
 import * as authApi from '../api/auth'
 import * as exercisesApi from '../api/exercises'
 import * as progressApi from '../api/progress'
+import * as restrictionsApi from '../api/userTemporaryRestrictions'
 import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
@@ -32,6 +34,7 @@ import {
 import type { EquipmentItem, ExerciseEquipmentRequirement, TargetStat } from '../types/exercise'
 import type { MuscleLoadRead, UserStatRead } from '../types/progress'
 import type { SkillDetailRead, SkillSummaryRead } from '../types/skill'
+import type { UserTemporaryRestrictionRead } from '../types/userTemporaryRestriction'
 import { POSITION_LABELS } from '../types/user'
 import type { UserPublicRead } from '../types/user'
 import { getAvatarTierStyle } from '../utils/avatarTier'
@@ -129,6 +132,10 @@ function OwnProfileView() {
   // own-effect treatment as the equipment showcase above: independent
   // data, doesn't block isLoading/the rest of the page on its own.
   const [muscleLoads, setMuscleLoads] = useState<MuscleLoadRead[] | null>(null)
+  // Active restrictions, passed to MuscleLoadChart so a muscle_group
+  // restricted on /restrictions also renders red here (2026-08-27, links
+  // the two avatars) -- same best-effort loading as muscleLoads above.
+  const [restrictions, setRestrictions] = useState<UserTemporaryRestrictionRead[] | null>(null)
 
   useEffect(() => {
     if (accessToken === null) {
@@ -230,6 +237,26 @@ function OwnProfileView() {
       })
       .catch(() => {
         // Best-effort -- the chart just doesn't render.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    restrictionsApi
+      .listActiveRestrictions(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setRestrictions(result)
+        }
+      })
+      .catch(() => {
+        // Best-effort -- the chart just renders with nothing marked restricted.
       })
     return () => {
       cancelled = true
@@ -342,12 +369,14 @@ function OwnProfileView() {
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
-      {/* gap-4/py-6, not the page-wide gap-6/py-8 default -- installed as a
+      {/* gap-3/py-5, not the page-wide gap-6/py-8 default -- installed as a
           home-screen PWA on iOS loses the address bar's vertical budget, so
           this page's own content (card + stats + Skills button) needs to sit
           tighter to clear the fixed BottomNav without scrolling on a phone
-          like iPhone 13 Pro (measured live: was short by ~20px). */}
-      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-4 px-4 py-6">
+          like iPhone 13 Pro (measured live: was short by ~20px at gap-4/py-6,
+          before the email-verification banner and RPG-redesign badges added
+          more height -- tightened one more notch). */}
+      <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-3 px-4 py-5">
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <BackLink />
@@ -517,6 +546,14 @@ function OwnProfileView() {
         </div>
       )}
 
+      {!isLoading && stats !== null && (
+        <Coachmark
+          id="profile-stat-unlocks"
+          icon="ti-lock-open"
+          text="Новые упражнения открываются по мере роста характеристик выше — прокачивайте их тренировками, чтобы получить доступ к более сложным вариантам."
+        />
+      )}
+
       {/* 3 equal-width quick-action buttons in one row, directly under the
           profile card and spanning the same width -- a compact "character
           sheet" action bar instead of three separate stacked cards. Each
@@ -557,14 +594,14 @@ function OwnProfileView() {
       </div>
 
       {!isLoading && user !== null && !user.email_verified && (
-        <div className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-4`}>
+        <div className={`flex flex-col gap-1.5 rounded-md ${CARD_BORDER} bg-dark-card p-3`}>
           <div className="flex items-center gap-2">
-            <i className="ti ti-mail-exclamation text-lg text-accent-persimmon" aria-hidden="true" />
-            <span className="text-sm font-medium text-[#F5F7FA]">Email не подтверждён</span>
+            <i className="ti ti-mail-exclamation text-base text-accent-persimmon" aria-hidden="true" />
+            <span className="text-xs font-medium text-[#F5F7FA]">Email не подтверждён</span>
           </div>
           {verificationResendResult === null ? (
             <>
-              <p className="text-sm text-[#8A94A6]">
+              <p className="text-xs text-[#8A94A6]">
                 Проверьте почту {user.email} и перейдите по ссылке из письма.
               </p>
               <Button
@@ -572,14 +609,14 @@ function OwnProfileView() {
                 variant="neutral"
                 isLoading={isResendingVerification}
                 onClick={handleResendVerification}
-                className="self-start !px-3 !py-1.5 !text-xs"
+                className="self-start !px-3 !py-1 !text-xs"
               >
                 Отправить письмо ещё раз
               </Button>
               <FormError message={verificationResendError} />
             </>
           ) : (
-            <p className="text-sm text-accent-ice">{verificationResendResult}</p>
+            <p className="text-xs text-accent-ice">{verificationResendResult}</p>
           )}
         </div>
       )}
@@ -592,6 +629,7 @@ function OwnProfileView() {
           preferredSkillIds={preferredSkillIds}
           onSelectSkill={selectSkillFromOverview}
           muscleLoads={muscleLoads ?? []}
+          restrictions={restrictions ?? []}
           hasGymAccess={user?.has_gym_access ?? false}
           ownedItems={ownedItems ?? new Set()}
           equipmentRequirements={equipmentRequirements ?? []}
@@ -783,6 +821,7 @@ function ProfileDetailsModal({
   preferredSkillIds,
   onSelectSkill,
   muscleLoads,
+  restrictions,
   hasGymAccess,
   ownedItems,
   equipmentRequirements,
@@ -796,6 +835,7 @@ function ProfileDetailsModal({
   preferredSkillIds: Set<string>
   onSelectSkill: (skillId: string) => void
   muscleLoads: MuscleLoadRead[]
+  restrictions: UserTemporaryRestrictionRead[]
   hasGymAccess: boolean
   ownedItems: Set<EquipmentItem>
   equipmentRequirements: ExerciseEquipmentRequirement[]
@@ -880,7 +920,7 @@ function ProfileDetailsModal({
           </div>
         )}
 
-        {activeTab === 'muscleLoad' && <MuscleLoadChart loads={muscleLoads} />}
+        {activeTab === 'muscleLoad' && <MuscleLoadChart loads={muscleLoads} restrictions={restrictions} />}
 
         {activeTab === 'inventory' && (
           <div className="flex flex-col gap-4">

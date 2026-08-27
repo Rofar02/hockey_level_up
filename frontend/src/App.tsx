@@ -11,6 +11,7 @@ import { FriendsPage } from './pages/FriendsPage'
 import { HomePage } from './pages/HomePage'
 import { LeaderboardPage } from './pages/LeaderboardPage'
 import { LoginPage } from './pages/LoginPage'
+import { MorePage } from './pages/MorePage'
 import { NewSchedulePage } from './pages/NewSchedulePage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -101,6 +102,7 @@ function App() {
         <Route path="/schedule/new" element={<NewSchedulePage />} />
         <Route path="/training/:dayPlanId" element={<TrainingSessionPage />} />
         <Route path="/diary" element={<DiaryPage />} />
+        <Route path="/more" element={<MorePage />} />
         <Route path="/restrictions" element={<RestrictionsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/:userId" element={<ProfilePage />} />

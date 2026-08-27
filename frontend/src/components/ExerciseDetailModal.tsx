@@ -148,15 +148,38 @@ export function ExerciseDetailModal({
               accessToken={accessToken}
               onLastSetCompleted={onLastSetCompleted}
             />
-          ) : targetVolume !== null ? (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-text-secondary">Объём</span>
-              <span className="font-mono text-text-primary">{targetVolume}</span>
-            </div>
           ) : (
-            <p className="text-sm text-text-secondary">
-              Количество подходов для этого упражнения ещё не задано.
-            </p>
+            <div className="flex flex-col gap-3">
+              {targetVolume !== null ? (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">Объём</span>
+                  <span className="font-mono text-text-primary">{targetVolume}</span>
+                </div>
+              ) : (
+                <p className="text-sm text-text-secondary">
+                  Количество подходов для этого упражнения ещё не задано.
+                </p>
+              )}
+              {/* Without target_sets there's no SetLogger to auto-complete it
+                  on a last-set save -- previously the only way to mark this
+                  exercise done was to close the modal and tap the row's own
+                  checkbox separately, an inconsistent extra step that sets-
+                  based exercises don't need. onLastSetCompleted undefined
+                  means the same thing it does for SetLogger -- read-only
+                  context (NewSchedulePage) or already completed -- so this
+                  mirrors that guard exactly. */}
+              {onLastSetCompleted !== undefined && (
+                <Button
+                  onClick={() => {
+                    onLastSetCompleted()
+                    onClose()
+                  }}
+                  className="self-start"
+                >
+                  Выполнено
+                </Button>
+              )}
+            </div>
           ))}
 
         {activeTab === 'technique' &&
@@ -341,6 +364,16 @@ function SetLogger({
   const [repsInput, setRepsInput] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // A completed set reopened for correction (tapped in the list below) --
+  // null means no correction in progress, the normal "next pending set"
+  // flow applies. Distinct from currentSetNumber (the first *un*-logged
+  // set): editing set 2 while set 5 is still pending must show set 2's
+  // input card, not set 5's, and must not touch restState/onLastSetCompleted
+  // on save -- this is fixing history, not progressing forward. POST
+  // /set-completions overwrites in place for a set_number that already has
+  // a row (see set_completion_service.save_set's own comment), so no new
+  // endpoint is needed to support this.
+  const [editingSetNumber, setEditingSetNumber] = useState<number | null>(null)
   const [feedback, setFeedback] = useState<SetFeedback | null>(null)
   const [isSavingFeedback, setIsSavingFeedback] = useState(false)
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
@@ -473,9 +506,49 @@ function SetLogger({
     }
   }
 
+  // Reps is the one number every set logs regardless of exercise type (the
+  // "Повторы" field always renders, tracked weight or not -- a duration-per-
+  // set input doesn't exist here, that's handled entirely outside SetLogger
+  // via target_duration_seconds), so an empty reps field is never a
+  // legitimate save -- it used to silently persist as reps_completed: null
+  // and render as a permanent, unfixable "—" (found 2026-08-27: "если не
+  // выбираешь подход оно ставится прочерком, не изменить нифига"). Mirrors
+  // the weight requirement the backend already enforces server-side for
+  // tracks_weight exercises (set_completion_service.save_set) -- gating it
+  // here too means that 400 case (misreported below as the sanity-check
+  // message) is no longer reachable from an empty field, only a real typo.
+  const repsMissing = repsInput.trim() === ''
+  const weightMissing = exercise.tracks_weight && weightInput.trim() === ''
+  const canSaveSet = !repsMissing && !weightMissing
+
+  function beginEditSet(
+    setNumber: number,
+    completed: Pick<SetCompletionSummary, 'weight_kg' | 'reps_completed'>,
+  ) {
+    setEditingSetNumber(setNumber)
+    setWeightInput(completed.weight_kg !== null ? String(completed.weight_kg) : '')
+    setRepsInput(completed.reps_completed !== null ? String(completed.reps_completed) : '')
+    setSaveError(null)
+  }
+
+  function cancelEditSet() {
+    setEditingSetNumber(null)
+    setWeightInput('')
+    setRepsInput('')
+    setSaveError(null)
+  }
+
   async function handleSaveSet() {
-    const reps = repsInput.trim() === '' ? null : Number(repsInput)
-    const weight = exercise.tracks_weight ? (weightInput.trim() === '' ? null : Number(weightInput)) : null
+    if (!canSaveSet) {
+      return
+    }
+    // Editing an already-logged set overwrites that same set_number in
+    // place (see set_completion_service.save_set) rather than advancing
+    // anything -- targetSetNumber is whichever this save is actually for.
+    const targetSetNumber = editingSetNumber ?? currentSetNumber
+    const isCorrection = editingSetNumber !== null
+    const reps = Number(repsInput)
+    const weight = exercise.tracks_weight ? Number(weightInput) : null
 
     setSaveError(null)
     setIsSaving(true)
@@ -484,25 +557,35 @@ function SetLogger({
         {
           exercise_id: exercise.id,
           training_session_id: trainingSessionId,
-          set_number: currentSetNumber,
+          set_number: targetSetNumber,
           weight_kg: weight,
           reps_completed: reps,
         },
         accessToken,
       )
-      setCompletedSets((previous) => ({ ...previous, [currentSetNumber]: result }))
+      setCompletedSets((previous) => ({ ...previous, [targetSetNumber]: result }))
+      setWeightInput('')
+      setRepsInput('')
+
+      if (isCorrection) {
+        // Fixing history, not progressing -- no rest timer, no
+        // auto-complete re-trigger, just back to the read-only list with
+        // the corrected numbers showing.
+        setEditingSetNumber(null)
+        setSuggestedWeightKg(result.suggested_weight_kg)
+        return
+      }
+
       // Next set's fields start blank, not pre-filled with the fresh
       // suggestion -- an athlete who never touches the field must not have
       // the system's own guess silently recorded as what they actually
       // lifted (Stage 1.5, 2026-08-20 planning session). The number still
       // shows as a placeholder + the hint line below, one tap away via
       // "Совпадает".
-      setWeightInput('')
       setSuggestedWeightKg(result.suggested_weight_kg)
 
       if (hasRepRange) {
         setIsLoadingRepsSuggestion(true)
-        setRepsInput('')
         exercisesApi
           .getSuggestedReps(exercise.id, accessToken)
           .then((repsResult) => {
@@ -514,16 +597,14 @@ function SetLogger({
           .finally(() => {
             setIsLoadingRepsSuggestion(false)
           })
-      } else {
-        setRepsInput('')
       }
 
-      // currentSetNumber is the set just saved (captured before this async
+      // targetSetNumber is the set just saved (captured before this async
       // call started) -- if it's the last one, tick the exercise off
       // automatically instead of making the user tap the checkbox
       // separately. onLastSetCompleted is undefined in read-only contexts
       // (NewSchedulePage), where this must never fire.
-      if (currentSetNumber === targetSets) {
+      if (targetSetNumber === targetSets) {
         if (onLastSetCompleted !== undefined) {
           onLastSetCompleted()
         }
@@ -531,13 +612,15 @@ function SetLogger({
         // Only between sets of *this* exercise -- there's no next set to
         // rest before once the last one is saved, whatever comes after
         // (next exercise, or done) isn't this formula's concern.
-        setRestState({ forSetNumber: currentSetNumber + 1, totalSeconds: exercise.rest_seconds })
+        setRestState({ forSetNumber: targetSetNumber + 1, totalSeconds: exercise.rest_seconds })
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
         // The specific case the backend's >3x sanity check guards against --
         // a typo like 500 instead of 50 -- gets this friendlier copy instead
-        // of the raw server message.
+        // of the raw server message. The "required" 400 case can't land
+        // here any more -- canSaveSet blocks an empty/missing weight before
+        // the request is even sent.
         setSaveError('Проверьте вес — сильно отличается от обычного.')
       } else {
         setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить подход.')
@@ -574,11 +657,17 @@ function SetLogger({
         {Array.from({ length: targetSets }, (_, index) => index + 1).map((setNumber) => {
           const completed = completedSets[setNumber]
 
-          if (completed !== undefined) {
+          if (completed !== undefined && setNumber !== editingSetNumber) {
             return (
-              <div
+              // Tappable -- reopens this set for correction (beginEditSet
+              // pre-fills the inputs below from its saved values). The old
+              // "—" a blank reps field left behind used to be permanent;
+              // this is what makes it fixable.
+              <button
                 key={setNumber}
-                className="flex min-w-0 items-center gap-2 rounded border border-white/5 bg-dark-card px-3 py-2 text-sm"
+                type="button"
+                onClick={() => beginEditSet(setNumber, completed)}
+                className="flex min-w-0 items-center gap-2 rounded border border-white/5 bg-dark-card px-3 py-2 text-left text-sm transition-colors hover:border-white/20"
               >
                 <i className="ti ti-check shrink-0 text-accent-ice" aria-hidden="true" />
                 <span className="min-w-0 truncate text-text-secondary">Подход {setNumber}</span>
@@ -587,7 +676,8 @@ function SetLogger({
                     ? `${completed.weight_kg}кг × ${completed.reps_completed ?? '—'}`
                     : (completed.reps_completed ?? '—')}
                 </span>
-              </div>
+                <i className="ti ti-pencil shrink-0 text-xs text-text-secondary" aria-hidden="true" />
+              </button>
             )
           }
 
@@ -604,8 +694,13 @@ function SetLogger({
           // under 178px stacked one per line. Side-by-side would need
           // ~142 + 12(gap) + ~112 =~ 266px, which does NOT fit -- that's why
           // weight and reps are stacked instead of in a row.
-          if (setNumber === currentSetNumber && !allSetsDone) {
-            if (restState !== null && restState.forSetNumber === setNumber) {
+          const isEditingThis = setNumber === editingSetNumber
+          if (isEditingThis || (setNumber === currentSetNumber && !allSetsDone && editingSetNumber === null)) {
+            // The rest timer only ever gates the forward "next pending set"
+            // flow -- reopening an earlier completed set for a correction
+            // must show its input card immediately, never a rest countdown
+            // left over from progressing past it the first time.
+            if (!isEditingThis && restState !== null && restState.forSetNumber === setNumber) {
               return (
                 <RestTimer
                   key={setNumber}
@@ -621,6 +716,9 @@ function SetLogger({
               >
                 <span className="min-w-0 truncate text-sm font-medium text-text-primary">
                   Подход {setNumber}
+                  {isEditingThis && (
+                    <span className="ml-2 text-xs font-normal text-text-secondary">(исправление)</span>
+                  )}
                 </span>
 
                 <div className="flex flex-col gap-2">
@@ -704,10 +802,38 @@ function SetLogger({
                   </div>
                 </div>
 
+                {/* Only reason canSaveSet can be false while the field is
+                    non-empty is a fat-fingered value the server rejects
+                    (FormError below covers that) -- this is specifically
+                    what a disabled "Готово" with nothing typed yet means. */}
+                {!canSaveSet && (
+                  <p className="text-xs text-text-secondary">
+                    {repsMissing
+                      ? 'Введите количество повторений, чтобы сохранить подход.'
+                      : 'Введите вес, чтобы сохранить подход.'}
+                  </p>
+                )}
                 <FormError message={saveError} />
-                <Button onClick={handleSaveSet} isLoading={isSaving} className="self-start">
-                  Готово
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button
+                    onClick={handleSaveSet}
+                    isLoading={isSaving}
+                    disabled={!canSaveSet}
+                    className="self-start"
+                  >
+                    Готово
+                  </Button>
+                  {isEditingThis && (
+                    <button
+                      type="button"
+                      onClick={cancelEditSet}
+                      disabled={isSaving}
+                      className="text-sm text-text-secondary underline underline-offset-2 hover:text-text-primary disabled:opacity-50"
+                    >
+                      Отмена
+                    </button>
+                  )}
+                </div>
               </div>
             )
           }

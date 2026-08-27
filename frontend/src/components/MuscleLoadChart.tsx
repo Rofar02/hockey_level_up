@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { BodyChart, INTENSITY_COLORS, ViewSide } from 'body-muscles'
 import type { MuscleLoadRead } from '../types/progress'
 import { MUSCLE_GROUP_LABELS, type MuscleGroup } from '../types/exercise'
+import type { UserTemporaryRestrictionRead } from '../types/userTemporaryRestriction'
 import {
   MUSCLE_LOAD_STAGES,
   MUSCLE_LOAD_STAGE_DESCRIPTIONS,
@@ -11,6 +12,7 @@ import {
   muscleLoadStage,
   type MuscleLoadStage,
 } from '../utils/muscleLoad'
+import { formatShortDate, parseIsoDate } from '../utils/date'
 
 // Pulled directly from the library's own INTENSITY_COLORS gradient (one
 // representative intensity per our 5-stage bucket: 0 / 1-2 / 3-5 / 6-8 /
@@ -37,16 +39,29 @@ const STAGE_SWATCH_COLORS: Record<(typeof MUSCLE_LOAD_STAGES)[number], string> =
 // public API (checked against the installed package, not just the
 // README) only exposes `view`/`showViewLabel` as passive options with no
 // built-in toggle control, contrary to what the planning doc assumed.
-export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
+export function MuscleLoadChart({
+  loads,
+  restrictions = [],
+}: {
+  loads: MuscleLoadRead[]
+  // Optional -- ProfilePage passes the player's active
+  // UserTemporaryRestriction rows so a restricted group renders on this
+  // same avatar too (2026-08-27: links RestrictionsPage's picker to the
+  // load heatmap), not just on RestrictionAvatar's own separate picker.
+  // Defaults to none so any other caller of this component is unaffected.
+  restrictions?: UserTemporaryRestrictionRead[]
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<BodyChart | null>(null)
   const [view, setView] = useState<ViewSide>(ViewSide.FRONT)
-  // Kept in a ref, not state -- read only from inside the onMuscleClick
+  // Kept in refs, not state -- read only from inside the onMuscleClick
   // closure below, which is bound once at chart construction time (see the
-  // mount-only effect's own comment) and would otherwise see a stale
-  // `loads` from whichever render first mounted the chart.
+  // mount-only effect's own comment) and would otherwise see stale
+  // `loads`/`restrictions` from whichever render first mounted the chart.
   const loadsRef = useRef(loads)
   loadsRef.current = loads
+  const restrictionsRef = useRef(restrictions)
+  restrictionsRef.current = restrictions
   const [clickedGroup, setClickedGroup] = useState<MuscleGroup | null>(null)
   // Tapping a legend swatch explains that stage in the abstract (no
   // specific muscle/intensity attached) -- separate from clickedGroup so
@@ -54,13 +69,17 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
   // the other.
   const [explainedStage, setExplainedStage] = useState<MuscleLoadStage | null>(null)
 
+  const restrictedGroups = new Set(
+    restrictions.flatMap((r) => (r.muscle_group !== null ? [r.muscle_group] : [])),
+  )
+
   useEffect(() => {
     if (containerRef.current === null) {
       return
     }
     const chart = new BodyChart(containerRef.current, {
       view,
-      bodyState: buildBodyMusclesState(loads, clickedGroup),
+      bodyState: buildBodyMusclesState(loads, clickedGroup, restrictedGroups),
       onMuscleClick: (libraryId: string) => {
         const group = muscleGroupForLibraryId(libraryId)
         if (group !== null) {
@@ -75,19 +94,30 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
       chartRef.current = null
     }
     // Instantiated once on mount -- the effect below keeps it in sync with
-    // later view/loads changes via chart.update(), the same split the
-    // library's own README example uses (construct once, update()
-    // afterwards) rather than destroying/recreating on every change.
+    // later view/loads/restrictions changes via chart.update(), the same
+    // split the library's own README example uses (construct once,
+    // update() afterwards) rather than destroying/recreating on every
+    // change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    chartRef.current?.update({ view, bodyState: buildBodyMusclesState(loads, clickedGroup) })
-  }, [view, loads, clickedGroup])
+    chartRef.current?.update({
+      view,
+      bodyState: buildBodyMusclesState(loads, clickedGroup, restrictedGroups),
+    })
+    // restrictedGroups is a fresh Set every render, keyed off `restrictions`
+    // (its actual dependency) instead -- same reasoning as `loads`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, loads, clickedGroup, restrictions])
 
   const clickedLoad =
     clickedGroup === null ? null : (loadsRef.current.find((load) => load.muscle_group === clickedGroup) ?? null)
   const clickedIntensity = clickedLoad?.intensity ?? 0
+  const clickedRestriction =
+    clickedGroup === null
+      ? undefined
+      : restrictionsRef.current.find((r) => r.muscle_group === clickedGroup)
 
   return (
     <div className="flex flex-col gap-3">
@@ -126,6 +156,29 @@ export function MuscleLoadChart({ loads }: { loads: MuscleLoadRead[] }) {
           version shrank it only while a panel was open, which read as the
           avatar recoiling/zooming out on tap. */}
       <div ref={containerRef} className="mx-auto w-full max-w-[280px] muscle-load-avatar" />
+      {/* Restriction banner is its own block, above the regular load info
+          below -- "why is this red" (restricted, independent of training
+          load) and "how recovered is it really" (the actual load reading,
+          untouched by the restriction override -- see buildBodyMusclesState)
+          are two different facts, both worth showing rather than one
+          replacing the other. */}
+      {clickedGroup !== null && clickedRestriction !== undefined && (
+        <div className="flex items-start justify-between gap-3 rounded-md border border-dashed border-accent-persimmon/40 bg-accent-persimmon/5 px-3 py-2">
+          <div>
+            <p className="flex items-center gap-1.5 text-sm font-medium text-accent-persimmon">
+              <i className="ti ti-ban" aria-hidden="true" />
+              Ограничено
+            </p>
+            {clickedRestriction.reason !== null && clickedRestriction.reason !== '' && (
+              <p className="mt-0.5 text-xs text-text-secondary">{clickedRestriction.reason}</p>
+            )}
+            <p className="mt-0.5 text-xs text-text-secondary">
+              Упражнения на эту область не предлагаются до{' '}
+              {formatShortDate(parseIsoDate(clickedRestriction.expires_at))}.
+            </p>
+          </div>
+        </div>
+      )}
       {clickedGroup !== null && (
         <div className="flex items-start justify-between gap-3 rounded-md border border-white/10 bg-dark-card px-3 py-2">
           <div>

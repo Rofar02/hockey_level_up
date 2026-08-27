@@ -255,6 +255,22 @@ class ExerciseRepository:
         result = await self._session.execute(
             select(UserTemporaryRestriction.movement_pattern).where(
                 UserTemporaryRestriction.user_id == user_id,
+                UserTemporaryRestriction.movement_pattern.is_not(None),
+                UserTemporaryRestriction.expires_at >= date.today(),
+                UserTemporaryRestriction.lifted_at.is_(None),
+            )
+        )
+        return set(result.scalars().all())
+
+    # Mirrors list_active_restricted_patterns exactly, muscle_group instead
+    # of movement_pattern -- the body-avatar picker's report path (see
+    # UserTemporaryRestriction's own docstring for why a restriction is one
+    # or the other, never both).
+    async def list_active_restricted_muscle_groups(self, user_id: uuid.UUID) -> set[MuscleGroup]:
+        result = await self._session.execute(
+            select(UserTemporaryRestriction.muscle_group).where(
+                UserTemporaryRestriction.user_id == user_id,
+                UserTemporaryRestriction.muscle_group.is_not(None),
                 UserTemporaryRestriction.expires_at >= date.today(),
                 UserTemporaryRestriction.lifted_at.is_(None),
             )
@@ -337,13 +353,19 @@ class ExerciseRepository:
         activation pick passes True, since a full warmup pool (e.g. loaded
         barbell work) isn't appropriate right before a game.
 
-        UserTemporaryRestriction (P3 item #7): unlike the equipment filter
-        above, this excludes an exercise for EVERY category, ON_ICE
-        included -- a restricted movement is restricted regardless of
-        where the exercise happens. Whole-exercise exclusion, not
-        per-pattern: an exercise tagged with both a restricted pattern and
-        an unrestricted one is still fully excluded, the same binary
-        "eligible or not" shape the equipment check above already uses.
+        UserTemporaryRestriction (P3 item #7, extended 2026-08-27 with
+        muscle_group): unlike the equipment filter above, this excludes an
+        exercise for EVERY category, ON_ICE included -- a restricted
+        movement/muscle is restricted regardless of where the exercise
+        happens. Whole-exercise exclusion, not per-pattern: an exercise
+        tagged with both a restricted pattern (or muscle group) and an
+        unrestricted one is still fully excluded, the same binary
+        "eligible or not" shape the equipment check above already uses. A
+        muscle_group restriction is checked against ExerciseMuscleGroup by
+        presence only, same "is this group tagged at all" contract
+        ScheduleService._apply_muscle_balance already uses -- not the
+        weight, which exists for that balancer's finer-grained use, not
+        this binary exclusion.
         """
         query = select(Exercise).where(Exercise.phase == phase)
         if category is not None:
@@ -379,6 +401,18 @@ class ExerciseRepository:
                 .exists()
             )
             query = query.where(~has_restricted_pattern)
+
+        restricted_muscle_groups = await self.list_active_restricted_muscle_groups(user.id)
+        if restricted_muscle_groups:
+            has_restricted_muscle_group = (
+                select(ExerciseMuscleGroup.id)
+                .where(
+                    ExerciseMuscleGroup.exercise_id == Exercise.id,
+                    ExerciseMuscleGroup.muscle_group.in_(restricted_muscle_groups),
+                )
+                .exists()
+            )
+            query = query.where(~has_restricted_muscle_group)
 
         result = await self._session.execute(query.order_by(Exercise.name))
         return list(result.scalars().all())

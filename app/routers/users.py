@@ -231,7 +231,7 @@ async def report_my_restriction(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await UserTemporaryRestrictionService(session).report(
-        current_user, body.movement_pattern, body.reason
+        current_user, body.movement_pattern, body.muscle_group, body.reason
     )
 
 

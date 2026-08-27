@@ -3,6 +3,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -283,11 +284,16 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
                 <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
                   <defs>
                     <linearGradient id="analyticsAreaFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={ICE} stopOpacity={0.35} />
+                      {/* Area fill is a wash (~10% opacity), not a saturated block --
+                          dataviz skill's mark spec. Was 35% before this pass. */}
+                      <stop offset="5%" stopColor={ICE} stopOpacity={0.1} />
                       <stop offset="95%" stopColor={ICE} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                  {/* Solid hairline grid, one step off the surface -- dashed
+                      gridlines are a flagged anti-pattern (reads as a
+                      threshold/projection line, not a grid). */}
+                  <CartesianGrid stroke="rgba(255,255,255,0.08)" />
                   <XAxis
                     dataKey="date"
                     tickFormatter={formatPointDate}
@@ -313,8 +319,21 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
                     stroke={ICE}
                     strokeWidth={2}
                     fill="url(#analyticsAreaFill)"
-                    dot={{ r: 3, fill: ICE }}
-                    activeDot={{ r: 5 }}
+                    dot={false}
+                    activeDot={{ r: 5, fill: ICE, stroke: '#171F30', strokeWidth: 2 }}
+                  />
+                  {/* The one persistent marker -- "now" -- sized and ringed
+                      per the mark spec (>=8px / r>=4, 2px surface ring) so it
+                      stays legible where it meets the line; every other point
+                      only shows on hover (activeDot above) rather than
+                      cluttering the line with a dot per day. */}
+                  <ReferenceDot
+                    x={points[points.length - 1].date}
+                    y={points[points.length - 1].value}
+                    r={5}
+                    fill={ICE}
+                    stroke="#171F30"
+                    strokeWidth={2}
                   />
                 </AreaChart>
               </ResponsiveContainer>

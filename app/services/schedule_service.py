@@ -1760,6 +1760,46 @@ class ScheduleService:
             exercise=exercise_to_read(new_exercise, target_stats),
         )
 
+    def _day_plan_to_read_schema(
+        self, day: DayPlan, stats_by_id: dict[uuid.UUID, list[TargetStat]]
+    ) -> DayPlanRead:
+        session_read = None
+        if day.training_session is not None:
+            # GAME has no ExerciseCategory of its own (see
+            # _build_game_day_session) -- warmup-only by construction, so
+            # its split is fixed rather than estimated from blocks that
+            # are all the same phase anyway.
+            block_pairs = [(block.phase, block.exercise) for block in day.training_session.blocks]
+            if day.session_type == DaySessionType.GAME:
+                phase_split = {TrainingPhase.WARMUP: 1.0}
+            else:
+                phase_split = compute_phase_split(block_pairs)
+            duration_seconds = estimate_session_duration_seconds(block_pairs)
+            blocks_read = [
+                SessionBlockRead(
+                    id=block.id,
+                    phase=block.phase,
+                    order=block.order,
+                    completed_at=block.completed_at,
+                    exercise=exercise_to_read(
+                        block.exercise, stats_by_id.get(block.exercise_id, [])
+                    ),
+                )
+                for block in day.training_session.blocks
+            ]
+            session_read = TrainingSessionRead(
+                id=day.training_session.id,
+                phase_split=phase_split,
+                duration_seconds=duration_seconds,
+                blocks=blocks_read,
+            )
+        return DayPlanRead(
+            id=day.id,
+            date=day.date,
+            session_type=day.session_type,
+            training_session=session_read,
+        )
+
     async def _to_read_schema(self, weekly_plan: WeeklyPlan) -> WeeklyPlanRead:
         exercise_ids = [
             block.exercise_id
@@ -1769,46 +1809,34 @@ class ScheduleService:
         ]
         stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
 
-        day_reads = []
-        for day in weekly_plan.day_plans:
-            session_read = None
-            if day.training_session is not None:
-                # GAME has no ExerciseCategory of its own (see
-                # _build_game_day_session) -- warmup-only by construction, so
-                # its split is fixed rather than estimated from blocks that
-                # are all the same phase anyway.
-                block_pairs = [(block.phase, block.exercise) for block in day.training_session.blocks]
-                if day.session_type == DaySessionType.GAME:
-                    phase_split = {TrainingPhase.WARMUP: 1.0}
-                else:
-                    phase_split = compute_phase_split(block_pairs)
-                duration_seconds = estimate_session_duration_seconds(block_pairs)
-                blocks_read = [
-                    SessionBlockRead(
-                        id=block.id,
-                        phase=block.phase,
-                        order=block.order,
-                        completed_at=block.completed_at,
-                        exercise=exercise_to_read(
-                            block.exercise, stats_by_id.get(block.exercise_id, [])
-                        ),
-                    )
-                    for block in day.training_session.blocks
-                ]
-                session_read = TrainingSessionRead(
-                    id=day.training_session.id,
-                    phase_split=phase_split,
-                    duration_seconds=duration_seconds,
-                    blocks=blocks_read,
-                )
-            day_reads.append(
-                DayPlanRead(
-                    id=day.id,
-                    date=day.date,
-                    session_type=day.session_type,
-                    training_session=session_read,
-                )
-            )
+        day_reads = [self._day_plan_to_read_schema(day, stats_by_id) for day in weekly_plan.day_plans]
         return WeeklyPlanRead(
             id=weekly_plan.id, week_start_date=weekly_plan.week_start_date, day_plans=day_reads
         )
+
+    async def get_day_plan_for_date(self, user: User, target_date: date) -> DayPlanRead:
+        """GET /schedule/day-plan -- a single day's plan (+ session/blocks if
+        one exists) by exact date, independent of which week is "current" or
+        "next" right now. Backs HomePage's activity-calendar day-detail modal:
+        that calendar covers any month of history via
+        GET /users/me/activity-calendar, but that endpoint only returns a
+        per-day completed boolean (see DayActivity), not the block-by-block
+        breakdown -- this is the other half, fetched lazily only once a
+        historical day is actually tapped. Reuses
+        ScheduleRepository.get_day_plan_for_date, the same lookup
+        TrainingPartyService already relies on for a single (user, date)
+        pair, rather than adding a second one.
+        """
+        day = await self._schedule.get_day_plan_for_date(user.id, target_date)
+        if day is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No day plan for {target_date.isoformat()}",
+            )
+        exercise_ids = (
+            [block.exercise_id for block in day.training_session.blocks]
+            if day.training_session is not None
+            else []
+        )
+        stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
+        return self._day_plan_to_read_schema(day, stats_by_id)

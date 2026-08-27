@@ -4,7 +4,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.exercise import MovementPattern
+from app.models.exercise import MovementPattern, MuscleGroup
 from app.models.user_temporary_restriction import UserTemporaryRestriction
 
 
@@ -33,6 +33,22 @@ class UserTemporaryRestrictionRepository:
             select(UserTemporaryRestriction).where(
                 UserTemporaryRestriction.user_id == user_id,
                 UserTemporaryRestriction.movement_pattern == pattern,
+                UserTemporaryRestriction.expires_at >= today,
+                UserTemporaryRestriction.lifted_at.is_(None),
+            )
+        )
+        return result.scalar_one_or_none()
+
+    # Mirrors get_active_for_pattern exactly, muscle_group instead of
+    # movement_pattern -- same upsert-on-repeat-report lookup, just for the
+    # other of the two mutually-exclusive restriction targets.
+    async def get_active_for_muscle_group(
+        self, user_id: uuid.UUID, group: MuscleGroup, today: date
+    ) -> UserTemporaryRestriction | None:
+        result = await self._session.execute(
+            select(UserTemporaryRestriction).where(
+                UserTemporaryRestriction.user_id == user_id,
+                UserTemporaryRestriction.muscle_group == group,
                 UserTemporaryRestriction.expires_at >= today,
                 UserTemporaryRestriction.lifted_at.is_(None),
             )
