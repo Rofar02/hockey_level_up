@@ -26,6 +26,13 @@ export function register(payload: RegisterPayload): Promise<UserRead> {
   return apiPost<UserRead>('/auth/register', payload)
 }
 
+// Public. Registration step 1 (AccountStep) uses this to tell the athlete
+// their email is already taken before they fill in the rest of the wizard,
+// instead of only finding out at the final submit (2026-08-29).
+export function checkEmailAvailability(email: string): Promise<{ available: boolean }> {
+  return apiGetPublic<{ available: boolean }>(`/auth/email-availability?email=${encodeURIComponent(email)}`)
+}
+
 export function getCurrentUser(accessToken: string): Promise<UserRead> {
   return apiGet<UserRead>('/auth/me', accessToken)
 }

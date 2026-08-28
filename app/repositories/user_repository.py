@@ -20,7 +20,12 @@ class UserRepository:
         return result.scalar_one_or_none()
 
     async def get_by_email(self, email: str) -> User | None:
-        result = await self._session.execute(select(User).where(User.email == email))
+        # Case-insensitive (2026-08-29: "Lexa95k@mail.ru и lexa95k@mail.ru
+        # разные почты") -- every row's email is stored lowercase (see
+        # create() below and the c7e4a1f9d2b3 backfill migration), so
+        # lowercasing the lookup value alone is enough to match either
+        # casing without needing a func.lower() index scan.
+        result = await self._session.execute(select(User).where(User.email == email.lower()))
         return result.scalar_one_or_none()
 
     async def get_by_friend_code(self, friend_code: str) -> User | None:
@@ -39,7 +44,7 @@ class UserRepository:
         # either from the client.
         user = User(
             username=username,
-            email=user_in.email,
+            email=user_in.email.lower(),
             password_hash=password_hash,
             last_name=user_in.last_name,
             first_name=user_in.first_name,

@@ -21,6 +21,10 @@ class DetailResponse(BaseModel):
     detail: str
 
 
+class EmailAvailabilityRead(BaseModel):
+    available: bool
+
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 

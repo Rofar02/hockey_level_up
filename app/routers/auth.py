@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -9,6 +10,7 @@ from app.models.user import User
 from app.routers.deps import get_current_user
 from app.schemas.auth import (
     DetailResponse,
+    EmailAvailabilityRead,
     PasswordResetConfirm,
     PasswordResetRequest,
     RefreshRequest,
@@ -28,6 +30,14 @@ _PASSWORD_RESET_REQUESTED_DETAIL = "Если такой email зарегистр
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(user_in: UserCreate, session: Annotated[AsyncSession, Depends(get_db)]):
     return await AuthService(session).register(user_in)
+
+
+@router.get("/email-availability", response_model=EmailAvailabilityRead)
+async def email_availability(email: EmailStr, session: Annotated[AsyncSession, Depends(get_db)]):
+    """Public -- registration step 1 needs this before the athlete fills in
+    the rest of the wizard, see AuthService.is_email_available."""
+    available = await AuthService(session).is_email_available(email)
+    return EmailAvailabilityRead(available=available)
 
 
 @router.post("/login", response_model=TokenPair)

@@ -47,6 +47,16 @@ class AuthService:
         self._tokens = AuthTokenService(session)
         self._email = EmailService()
 
+    async def is_email_available(self, email: str) -> bool:
+        """Public, pre-account check (2026-08-29: registration step 1 should
+        say the email is taken before the athlete fills in the rest of the
+        wizard, not just fail at the final submit). Unlike
+        request_password_reset, this one's whole point IS to reveal whether
+        an email is registered -- that's an accepted, deliberate trade-off
+        for a signup flow, not an oversight of the same anti-enumeration
+        concern password-reset guards against."""
+        return await self._users.get_by_email(email) is None
+
     async def register(self, user_in: UserCreate) -> User:
         if not user_in.privacy_consent:
             raise HTTPException(
