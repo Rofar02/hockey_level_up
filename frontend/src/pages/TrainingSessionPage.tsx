@@ -8,6 +8,7 @@ import { CARD_CLASS } from '../components/ui/cardStyle'
 import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { StatIcon } from '../components/ui/StatIcon'
 import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
 import * as authApi from '../api/auth'
@@ -1289,6 +1290,7 @@ function SessionCompleteModal({
           <div className="relative w-full overflow-hidden rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-5 text-center">
             <CardGlow color="persimmon" />
             <div className="relative flex flex-col items-center gap-1">
+              <ShieldIcon size={28} className="text-accent-persimmon" />
               <p className="text-sm font-medium text-accent-persimmon">Новый уровень!</p>
               <p className="font-display text-3xl font-bold text-accent-persimmon">{freshLevel}</p>
             </div>

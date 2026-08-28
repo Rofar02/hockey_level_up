@@ -1,16 +1,17 @@
 // Small heading accent for the auth-flow pages (Login, ForgotPassword,
-// ResetPassword) -- same jersey-collar shield silhouette already used for
-// the level chip on Home/Profile/TrainingSession, just as a heading icon
-// here instead. Shared rather than duplicated since it now appears on
-// multiple pages with the exact same markup.
-export function ShieldIcon({ size = 19, className }: { size?: number; className?: string }) {
+// ResetPassword) and CoachPage. Jersey-collar shield silhouette -- a
+// recurring hockey mark rather than a one-off, so `stroke="currentColor"`
+// + a color className (default: the app's usual ice accent, matching every
+// existing caller) lets it drop into a persimmon context too (e.g. the
+// level-up reveal) without a separate icon.
+export function ShieldIcon({ size = 19, className = 'text-accent-ice' }: { size?: number; className?: string }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#D7EFFF"
+      stroke="currentColor"
       strokeWidth="2"
       strokeLinejoin="round"
       className={className}
