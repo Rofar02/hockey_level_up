@@ -128,7 +128,12 @@ function completionStatusFromBlocks(blocks: SessionBlockRead[] | undefined): Day
   if (blocks === undefined || blocks.length === 0) {
     return 'not-started'
   }
-  const completedCount = blocks.filter((block) => block.completed_at !== null).length
+  // Skipped (warmup/cooldown-only, media-player redesign 2026-08-28) counts
+  // as resolved here too -- otherwise a day with a fully-skipped warmup but
+  // everything else done never reaches 'done'.
+  const completedCount = blocks.filter(
+    (block) => block.completed_at !== null || block.skipped_at !== null,
+  ).length
   if (completedCount === 0) {
     return 'not-started'
   }
@@ -138,6 +143,18 @@ function completionStatusFromBlocks(blocks: SessionBlockRead[] | undefined): Day
 const COMPLETION_BADGE_LABELS: Partial<Record<DayCompletionStatus, string>> = {
   'in-progress': 'уже начат',
   done: 'пройдено',
+}
+
+// 'уже начат' reads as an invitation to go finish it -- true for today (or,
+// in principle, in-progress can't really happen for a future day), but
+// wrong for a day that's already past: nothing left to "already start",
+// it just never got finished (2026-08-29: "пишет в прошлом дне типа
+// тренировка начата, не правильно").
+function completionBadgeLabel(row: DayRow, todayIso: string): string | undefined {
+  if (row.completionStatus === 'in-progress' && row.isoDate < todayIso) {
+    return 'не завершено'
+  }
+  return COMPLETION_BADGE_LABELS[row.completionStatus]
 }
 
 interface DayRow {
@@ -399,7 +416,11 @@ export function NewSchedulePage() {
   // (stat/XP/streak gain) never fires -- logging "through the Week page"
   // silently didn't count.
   async function handleBlockCompleted(dayIsoDate: string, block: SessionBlockRead) {
-    if (accessToken === null || block.completed_at !== null) {
+    // skipped_at also guarded here -- a warmup/cooldown block skipped from
+    // the live session must stay resolved when reopened from this page too,
+    // never completable a second time for stat/XP gain it already opted out
+    // of.
+    if (accessToken === null || block.completed_at !== null || block.skipped_at !== null) {
       return
     }
     setSubmitError(null)
@@ -466,6 +487,8 @@ export function NewSchedulePage() {
                   row={row}
                   weekdayLabel={WEEKDAY_LABELS[index]}
                   isToday={row.isoDate === todayIso}
+                  isPast={row.isoDate < todayIso}
+                  todayIso={todayIso}
                   onSelectType={(type) => setDayType(index, type)}
                 />
               ))}
@@ -503,7 +526,7 @@ export function NewSchedulePage() {
                 const isPreviewable = !started && trainingSession !== null
                 const isExpandable = started && trainingSession !== null
                 const isExpanded = isExpandable && expandedRowIsoDate === row.isoDate
-                const badgeLabel = COMPLETION_BADGE_LABELS[row.completionStatus]
+                const badgeLabel = completionBadgeLabel(row, todayIso)
                 const isToday = row.isoDate === todayIso
 
                 return (
@@ -620,6 +643,8 @@ export function NewSchedulePage() {
                   row={row}
                   weekdayLabel={WEEKDAY_LABELS[index]}
                   isToday={row.isoDate === todayIso}
+                  isPast={row.isoDate < todayIso}
+                  todayIso={todayIso}
                   onSelectType={(type) => setDayType(index, type)}
                 />
               ))}
@@ -692,11 +717,19 @@ function EditableDayRow({
   row,
   weekdayLabel,
   isToday,
+  isPast,
+  todayIso,
   onSelectType,
 }: {
   row: DayRow
   weekdayLabel: string
   isToday: boolean
+  // A past day's type is history, not a plan -- read-only regardless of
+  // whether it was ever started (2026-08-29: "странно что можно
+  // редактировать предыдущие дни"), same bar isPast uses everywhere else on
+  // this page.
+  isPast: boolean
+  todayIso: string
   onSelectType: (type: DaySessionType) => void
 }) {
   return (
@@ -715,15 +748,17 @@ function EditableDayRow({
             </span>
           )}
         </div>
-        {isStarted(row) ? (
+        {isStarted(row) || isPast ? (
           <div className="flex items-center gap-2">
             <span className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[row.sessionType]}`}>
               <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
               {DAY_SESSION_TYPE_LABELS[row.sessionType]}
             </span>
-            <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
-              {COMPLETION_BADGE_LABELS[row.completionStatus]}
-            </span>
+            {completionBadgeLabel(row, todayIso) !== undefined && (
+              <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
+                {completionBadgeLabel(row, todayIso)}
+              </span>
+            )}
           </div>
         ) : (
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
@@ -800,7 +835,9 @@ function StartedDayPhaseSection({
   onSelectExercise: (block: SessionBlockRead) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const doneCount = blocks.filter((block) => block.completed_at !== null).length
+  // Skipped counts as resolved here too (media-player redesign, 2026-08-28)
+  // -- same reasoning as completionStatusFromBlocks above.
+  const doneCount = blocks.filter((block) => block.completed_at !== null || block.skipped_at !== null).length
 
   return (
     <div className={`overflow-hidden rounded-md ${CARD_BORDER} bg-dark-bg/40`}>
@@ -830,8 +867,12 @@ function StartedDayPhaseSection({
                 onClick={() => onSelectExercise(block)}
                 className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
               >
-                {block.completed_at !== null && (
-                  <i className="ti ti-check shrink-0 text-xs text-accent-ice" aria-hidden="true" />
+                {block.skipped_at !== null ? (
+                  <i className="ti ti-player-skip-forward shrink-0 text-xs text-[#8A94A6]" aria-hidden="true" />
+                ) : (
+                  block.completed_at !== null && (
+                    <i className="ti ti-check shrink-0 text-xs text-accent-ice" aria-hidden="true" />
+                  )
                 )}
                 <span className="line-clamp-2 min-w-0 flex-1 text-sm text-[#F5F7FA]">{block.exercise.name}</span>
                 {volume !== null && (
