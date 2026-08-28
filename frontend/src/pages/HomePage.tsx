@@ -393,16 +393,21 @@ export function HomePage() {
       {showTour && <OnboardingTour onSkip={handleTourSkip} onComplete={handleTourComplete} />}
       <div className="relative z-[1] mx-auto flex min-h-svh max-w-3xl flex-col gap-4 px-4 py-8">
         <div className={`flex flex-col gap-4 p-4 ${CARD_CLASS}`}>
-          {/* Level now sits under the name (identity info, left-aligned
-              with it) instead of paired with the streak button on the
-              right -- the two read as unrelated facts (character level vs.
-              a daily-activity counter), so pairing them as matched pills
-              read as arbitrary rather than intentional. flex-wrap still
-              guards a long name: if name+position push past the streak
-              button's shrink-0 width, the button drops to its own row
-              instead of clipping anything. */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+          {/* Level sits under the name (identity info, left-aligned with
+              it) instead of paired with the streak button on the right --
+              the two read as unrelated facts (character level vs. a
+              daily-activity counter), so pairing them as matched pills
+              read as arbitrary rather than intentional.
+
+              No flex-wrap here (tried it, wrong call -- the streak button
+              would drop to a second row on a long name, which looks like
+              something broke, not like a deliberate layout). Instead
+              min-w-0 on both the left column and its name/position wrapper
+              lets THAT column shrink and wrap its own text across two
+              lines -- the streak button stays shrink-0 and pinned to this
+              same row no matter how long the name is. */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
               {/* Two-layer wrapper: the outer div carries the level-tier
                   border/glow (box-shadow), the inner one clips the photo to a
                   circle. Both on the same element would clip the glow itself
@@ -417,7 +422,7 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex min-w-0 flex-col gap-1">
                 <span className="text-xl font-bold leading-tight text-[#F5F7FA]">
                   {user !== null ? getDisplayName(user) : ''}
                 </span>
