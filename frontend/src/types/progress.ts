@@ -7,6 +7,10 @@ export interface TrainingStreakRead {
   last_activity_date: string | null
 }
 
+export interface RestDonePhraseRead {
+  text: string
+}
+
 // GET /users/me/activity-calendar -- one entry per DayPlan the user has in
 // the requested month, real completion history instead of the old
 // current-week-plus-last_activity_date stand-in (see HomePage.tsx). A date

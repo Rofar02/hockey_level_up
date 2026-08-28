@@ -15,6 +15,7 @@ from app.schemas.exercise import EquipmentItemsReplace
 from app.schemas.progress import (
     ActivityCalendarDayRead,
     MuscleLoadRead,
+    RestDonePhraseRead,
     StatHistoryPointRead,
     StatHistoryRead,
     TrainingStreakRead,
@@ -35,6 +36,7 @@ from app.schemas.user_temporary_restriction import (
 )
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_chat_service import CoachChatService
+from app.services.coach_personality_phrases import get_rest_done_body
 from app.services.progress_service import ProgressService
 from app.services.push_subscription_service import PushSubscriptionService
 from app.services.skill_service import SkillService
@@ -200,6 +202,15 @@ async def get_my_streak(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await ProgressService(session).get_streak(current_user.id)
+
+
+@router.get("/me/rest-done-phrase", response_model=RestDonePhraseRead)
+async def get_rest_done_phrase(current_user: Annotated[User, Depends(get_current_user)]):
+    """No DB access needed -- current_user.coach_personality is already
+    loaded off the auth dependency. Called once whenever a rest timer
+    starts (see frontend RestTimer) so the local end-of-rest notification
+    reads in the player's chosen coach voice."""
+    return RestDonePhraseRead(text=get_rest_done_body(current_user.coach_personality))
 
 
 @router.get("/me/training-diary", response_model=list[TrainingDiaryEntryListItem])

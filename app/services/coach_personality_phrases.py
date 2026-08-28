@@ -156,3 +156,32 @@ CHECKIN_PHRASES: dict[CoachPersonality, list[str]] = {
 
 def get_checkin_body(personality: CoachPersonality) -> str:
     return random.choice(CHECKIN_PHRASES[personality])
+
+
+# Exercise-player rest-timer local notification (icelevel_player_master_prompt.md,
+# 2026-08-28): "текст ... в стиле выбранной личности тренера, не generic".
+# Short on purpose -- rendered as a system notification title/body on a
+# locked screen, not a push card with room for a full line like the
+# reminder phrases above.
+REST_DONE_PHRASES: dict[CoachPersonality, list[str]] = {
+    CoachPersonality.CALM: [
+        "Отдых закончен. Возвращайтесь к подходу.",
+        "Время вышло. Продолжаем, когда будете готовы.",
+    ],
+    CoachPersonality.STRICT: [
+        "Отдых окончен. Хватит сидеть — продолжай.",
+        "Время вышло. Давай, следующий подход.",
+    ],
+    CoachPersonality.HUMOR: [
+        "Отдых закончен, звезда. Телефон отложи — подход ждёт.",
+        "Время вышло. Хватит листать — снаряд заскучал.",
+    ],
+    CoachPersonality.VIBE: [
+        "Го, отдых закончен. Погнали дальше.",
+        "Время вышло, бро. Продолжаем.",
+    ],
+}
+
+
+def get_rest_done_body(personality: CoachPersonality) -> str:
+    return random.choice(REST_DONE_PHRASES[personality])

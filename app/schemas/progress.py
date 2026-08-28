@@ -60,6 +60,14 @@ class TrainingStreakRead(BaseModel):
     last_activity_date: date | None
 
 
+# Exercise-player rest-timer local notification (icelevel_player_master_prompt.md,
+# 2026-08-28) -- fetched once when a rest timer starts (see
+# ExerciseDetailModal.tsx's RestTimer) so the notification text matches the
+# player's chosen coach personality instead of a generic system string.
+class RestDonePhraseRead(BaseModel):
+    text: str
+
+
 class ActivityCalendarDayRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

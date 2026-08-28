@@ -609,6 +609,39 @@ export function TrainingSessionPage() {
     setSelectedExercise(null)
   }
 
+  // Auto-advance within the player, no return to the list in between
+  // (icelevel_player_master_prompt.md, 2026-08-28) -- fires once feedback
+  // is answered (or immediately for the no-target_sets/no-duration
+  // fallback, which skips feedback entirely). Looks forward from the
+  // CURRENT exercise's position in the phase's own display order for the
+  // next one not yet done, rather than just "index + 1" -- a block that
+  // was already completed earlier (a previous partial session, or the
+  // athlete having tapped ahead out of order) must be skipped over, not
+  // reopened. Refreshes the set count first, same reason
+  // handleCloseExerciseDetail does -- the block-grouping/progress bar
+  // needs a fresh isExerciseDone read to find the right "next" block.
+  function handleExerciseSettled() {
+    if (selectedExercise === null) {
+      return
+    }
+    if (selectedExercise.target_sets !== null) {
+      refreshSetCount(selectedExercise.id)
+    }
+    const currentIndex = currentPhaseBlocks.findIndex(
+      (block) => block.exercise.id === selectedExercise.id,
+    )
+    const next = currentPhaseBlocks
+      .slice(currentIndex + 1)
+      .find((block) => !isExerciseDone(block, setCompletionCounts))
+    // No next incomplete exercise -- explicitly do NOT fall back to the
+    // list here. The just-finished exercise stays on screen in its own
+    // "Готово" state; returning to the list is only ever the athlete's own
+    // "Назад к этапу" tap, never automatic.
+    if (next !== undefined) {
+      setSelectedExercise(next.exercise)
+    }
+  }
+
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
@@ -699,6 +732,8 @@ export function TrainingSessionPage() {
               {selectedBlock !== null && trainingSessionId !== null && accessToken !== null ? (
                 <ExerciseFocusScreen
                   block={selectedBlock}
+                  phaseLabel={PHASE_LABELS[currentPhase]}
+                  phaseIcon={PHASE_ICONS[currentPhase]}
                   skills={skills}
                   trainingSessionId={trainingSessionId}
                   accessToken={accessToken}
@@ -706,6 +741,18 @@ export function TrainingSessionPage() {
                   onComplete={
                     selectedBlock.completed_at === null ? () => handleComplete(selectedBlock) : undefined
                   }
+                  // Deliberately NOT gated behind completed_at === null like
+                  // onComplete/blockId/onReplaced above -- found live-testing
+                  // this exact flow (2026-08-28): completed_at flips to
+                  // non-null as soon as the last set/round is logged, well
+                  // BEFORE the feedback tap that actually calls this. Gating
+                  // it the same way silently turned this into `undefined`
+                  // by the time the athlete answered feedback, so nothing
+                  // ever advanced. Safe to always pass unconditionally --
+                  // SetLogger/TimerPlayer each already refuse to re-fire
+                  // their own feedback flow on an exercise that was already
+                  // fully settled before this mount.
+                  onSettled={handleExerciseSettled}
                   blockId={selectedBlock.completed_at === null ? selectedBlock.id : undefined}
                   onReplaced={selectedBlock.completed_at === null ? handleExerciseReplaced : undefined}
                 />

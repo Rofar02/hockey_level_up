@@ -14,6 +14,7 @@ export interface SetCompletionCreate {
   set_number: number
   weight_kg: number | null
   reps_completed: number | null
+  duration_seconds_completed?: number | null
 }
 
 export interface SetCompletionRead {

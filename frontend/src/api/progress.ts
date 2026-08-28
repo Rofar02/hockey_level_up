@@ -3,6 +3,7 @@ import type { TargetStat } from '../types/exercise'
 import type {
   ActivityCalendarDayRead,
   MuscleLoadRead,
+  RestDonePhraseRead,
   StatHistoryPointRead,
   TrainingStreakRead,
   UserStatRead,
@@ -10,6 +11,10 @@ import type {
 
 export function getMyStreak(accessToken: string): Promise<TrainingStreakRead> {
   return apiGet<TrainingStreakRead>('/users/me/streak', accessToken)
+}
+
+export function getRestDonePhrase(accessToken: string): Promise<RestDonePhraseRead> {
+  return apiGet<RestDonePhraseRead>('/users/me/rest-done-phrase', accessToken)
 }
 
 export function getMyMuscleLoads(accessToken: string): Promise<MuscleLoadRead[]> {

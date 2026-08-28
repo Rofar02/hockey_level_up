@@ -7,6 +7,7 @@ import { Modal } from './ui/Modal'
 import { ExerciseTechnique } from './ExerciseTechnique'
 import { TimerPlayer } from './TimerPlayer'
 import * as exercisesApi from '../api/exercises'
+import * as progressApi from '../api/progress'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as setCompletionsApi from '../api/setCompletions'
 import * as trainingSessionsApi from '../api/trainingSessions'
@@ -19,6 +20,11 @@ import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletio
 import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
 import { exercisePlayerMode } from '../utils/exercisePlayerMode'
 import { hasExerciseDescription, hasExerciseTechnique } from '../utils/exerciseTechnique'
+import {
+  ensureNotificationPermission,
+  scheduleRestDoneNotification,
+  type ScheduledRestNotification,
+} from '../utils/restNotification'
 
 // Same volume formatting as NewSchedulePage's own (page-local there, for
 // its own unrelated display) -- duplicated rather than imported, matching
@@ -82,6 +88,13 @@ export interface ExerciseDetailBodyProps {
   // wrong. Just forwarded to SetLogger as-is; this component's own logic
   // doesn't otherwise change.
   onLastSetCompleted?: () => void
+  // Fires once the post-completion feedback prompt is answered
+  // (icelevel_player_master_prompt.md, 2026-08-28) -- ExerciseFocusScreen
+  // uses this to auto-advance to the next exercise in the phase. Distinct
+  // from onLastSetCompleted (which fires earlier, the moment the block
+  // itself is done, before feedback is even asked). Undefined wherever
+  // onLastSetCompleted is undefined -- same read-only/already-done gate.
+  onSettled?: () => void
   // Stage 1.5 (2026-08-20 planning session, "тренажёр занят"): both must be
   // supplied together to show the "Заменить упражнение" button -- omitted
   // by NewSchedulePage's call site for now (a started day viewed from the
@@ -112,6 +125,7 @@ export function ExerciseDetailBody({
   accessToken,
   onClose,
   onLastSetCompleted,
+  onSettled,
   blockId,
   onReplaced,
   variant = 'modal',
@@ -187,13 +201,18 @@ export function ExerciseDetailBody({
               trainingSessionId={trainingSessionId}
               accessToken={accessToken}
               onLastSetCompleted={onLastSetCompleted}
+              onSettled={onSettled}
             />
           ) : mode === 'duration' ? (
             <TimerPlayer
+              exercise={exercise}
+              trainingSessionId={trainingSessionId}
+              accessToken={accessToken}
               durationSeconds={exercise.target_duration_seconds!}
               rounds={exercise.target_sets ?? 1}
               isDone={onLastSetCompleted === undefined}
               onComplete={onLastSetCompleted}
+              onSettled={onSettled}
             />
           ) : (
             <div className="flex flex-col gap-3">
@@ -214,12 +233,20 @@ export function ExerciseDetailBody({
                   don't need. onLastSetCompleted undefined means the same
                   thing it does for both of those -- read-only context
                   (NewSchedulePage) or already completed -- so this mirrors
-                  that guard exactly. */}
+                  that guard exactly. No feedback prompt for this fallback
+                  (there's nothing real logged to attach it to) -- 'focus'
+                  goes straight to onSettled (auto-advance) instead of
+                  onClose, which would otherwise return to the list instead
+                  of moving to the next exercise like the other two modes do. */}
               {onLastSetCompleted !== undefined && (
                 <Button
                   onClick={() => {
                     onLastSetCompleted()
-                    onClose()
+                    if (variant === 'focus') {
+                      onSettled?.()
+                    } else {
+                      onClose()
+                    }
                   }}
                   className="self-start"
                 >
@@ -362,10 +389,50 @@ function alertRestDone() {
 // and fires alertRestDone + onDone once it reaches zero, so the next set's
 // input reappears on its own without another tap. "Пропустить" lets the
 // athlete end the rest early if they feel ready.
-function RestTimer({ totalSeconds, onDone }: { totalSeconds: number; onDone: () => void }) {
+//
+// Also schedules a local (on-device) notification for the same moment --
+// see utils/restNotification.ts for why this is web-PWA best-effort, not a
+// native guarantee -- so the athlete doesn't have to keep the screen
+// unlocked and watching the countdown. Cancelled on unmount, which covers
+// both "rest finished naturally" (this component unmounts right after
+// alertRestDone fires) and "Пропустить" (unmounts immediately) -- either
+// way there's nothing left to notify about.
+function RestTimer({
+  totalSeconds,
+  accessToken,
+  onDone,
+}: {
+  totalSeconds: number
+  accessToken: string
+  onDone: () => void
+}) {
   const [remaining, setRemaining] = useState(totalSeconds)
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
+
+  useEffect(() => {
+    let cancelled = false
+    let scheduled: ScheduledRestNotification = { cancel: () => {} }
+    ensureNotificationPermission()
+      .then(() => progressApi.getRestDonePhrase(accessToken))
+      .then((phrase) => {
+        if (!cancelled) {
+          scheduled = scheduleRestDoneNotification(totalSeconds, phrase.text)
+        }
+      })
+      .catch(() => {
+        // Best-effort -- worst case this specific rest period just has no
+        // background notification, the on-screen countdown still works.
+      })
+    return () => {
+      cancelled = true
+      scheduled.cancel()
+    }
+    // Deliberately mount-only (totalSeconds/accessToken don't change across
+    // this component's lifetime -- a new rest period is always a fresh
+    // RestTimer instance, per restState.forSetNumber's key in the caller).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (remaining <= 0) {
@@ -409,11 +476,18 @@ function SetLogger({
   trainingSessionId,
   accessToken,
   onLastSetCompleted,
+  onSettled,
 }: {
   exercise: ExerciseRead
   trainingSessionId: string
   accessToken: string
   onLastSetCompleted?: () => void
+  // Fires once the feedback prompt below is answered (icelevel_player_
+  // master_prompt.md, 2026-08-28: auto-advance to the next exercise) --
+  // distinct from onLastSetCompleted, which ticks the block's completed_at
+  // as soon as the LAST set is logged, before feedback is even asked.
+  // Undefined in read-only contexts, same gate as onLastSetCompleted.
+  onSettled?: () => void
 }) {
   const { user, updateUser } = useAuth()
   const targetSets = exercise.target_sets
@@ -708,6 +782,13 @@ function SetLogger({
         accessToken,
       )
       setFeedback(value)
+      // Fires the auto-advance-to-next-exercise flow (icelevel_player_
+      // master_prompt.md, 2026-08-28) -- only from a fresh tap here, never
+      // when `feedback` was already non-null on load (reopening a
+      // previously-answered exercise renders the read-only label below
+      // instead of this picker at all, so handleSaveFeedback can't
+      // re-run).
+      onSettled?.()
     } catch (err) {
       setFeedbackError(err instanceof ApiError ? err.message : 'Не удалось сохранить оценку.')
     } finally {
@@ -782,6 +863,7 @@ function SetLogger({
                 <RestTimer
                   key={setNumber}
                   totalSeconds={restState.totalSeconds}
+                  accessToken={accessToken}
                   onDone={() => setRestState(null)}
                 />
               )
@@ -897,3 +979,4 @@ function SetLogger({
     </div>
   )
 }
+
