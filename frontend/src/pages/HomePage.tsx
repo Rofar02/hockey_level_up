@@ -87,7 +87,8 @@ function getRestDayHint(phase: BlockPhase | null): string {
 // Card surface shared by every dashboard tile below: dark-card fill with a
 // thin icy top border, per the HomePage palette (see IceGlowBackground for
 // the matching bg tones). Read as the rink's blue line -- neutral/progress
-// content default to it.
+// content default to it. (Tried a bolder border-t-2/0.5 as a 2026-08-28
+// experiment -- reverted, the thin line was the right call.)
 const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 // Same card, red top line instead -- the rink's other line, reserved for
 // content that's a status/urgency call rather than routine progress (hockey
@@ -663,7 +664,15 @@ function SkillsNearMilestoneCard({
   }
 
   return (
-    <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
+    // Same rink-pattern.webp + dark overlay ProfilePage's own header card
+    // uses (2026-08-28) -- this card's whole content is faceoff-circle
+    // rings, so a literal top-down rink behind it (which has its own real
+    // faceoff circles) reads as the two things being the same idea, not
+    // just a texture slapped on for atmosphere.
+    <div className="relative overflow-hidden rounded-md border-t border-[rgba(215,239,255,0.35)]">
+      <div className="absolute inset-0 bg-[url('/images/rink-pattern.webp')] bg-cover bg-center" />
+      <div className="absolute inset-0 bg-dark-bg/[0.85]" />
+      <div className="relative flex flex-col gap-3 p-4">
       <h2 className="text-sm font-medium text-[#8A94A6]">Ближайшие пороги</h2>
       <div className="flex flex-col gap-4">
         {top.map((skill) => {
@@ -705,6 +714,7 @@ function SkillsNearMilestoneCard({
             </button>
           )
         })}
+      </div>
       </div>
     </div>
   )
