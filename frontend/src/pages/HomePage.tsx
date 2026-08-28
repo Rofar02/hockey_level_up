@@ -394,7 +394,7 @@ export function HomePage() {
       <div className="relative z-[1] mx-auto flex min-h-svh max-w-3xl flex-col gap-4 px-4 py-8">
         <div className={`flex flex-col gap-4 p-4 ${CARD_CLASS}`}>
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+            <div className="flex min-w-0 items-center gap-4">
               {/* Two-layer wrapper: the outer div carries the level-tier
                   border/glow (box-shadow), the inner one clips the photo to a
                   circle. Both on the same element would clip the glow itself
@@ -409,11 +409,16 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xl font-bold leading-tight text-[#F5F7FA]">
+              {/* min-w-0 above lets this column shrink below its text's
+                  natural width instead of pushing the level/streak pills
+                  (shrink-0) past the right edge of the screen on a long
+                  name -- truncate here is what actually stops the name
+                  itself from forcing that width. */}
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="truncate text-xl font-bold leading-tight text-[#F5F7FA]">
                   {user !== null ? getDisplayName(user) : ''}
                 </span>
-                <span className="text-sm text-[#8A94A6]">
+                <span className="truncate text-sm text-[#8A94A6]">
                   {user?.position != null ? POSITION_LABELS[user.position] : ''}
                 </span>
               </div>

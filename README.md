@@ -60,3 +60,7 @@ poetry run alembic upgrade head
 без публикации портов Postgres/RabbitMQ наружу, реальные секреты).
 Полный раннбук первого разворачивания и обновления через `git pull` —
 в [`docs/deploy.md`](docs/deploy.md).
+
+
+cd /opt/icelevel
+./deploy/deploy.sh

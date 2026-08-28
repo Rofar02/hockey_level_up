@@ -24,23 +24,26 @@
 /* body-muscles (MuscleLoadChart) sets max-height: 70vh inline on its own
    SVG -- sized for a full-page layout. Inside the ProfileDetailsModal
    "Нагрузка" tab that's taller than the view-toggle buttons + legend
-   around it leave room for, forcing the modal to scroll on phones.
-   !important is required to beat the library's inline style; width is
-   untouched so the SVG's own aspect-ratio scaling still applies.
+   around it leave room for. !important is required to beat the library's
+   inline style; width is untouched so the SVG's own aspect-ratio scaling
+   still applies.
 
-   One fixed budget, sized for the *worst case* (every info panel open
-   below the avatar at once) -- measured against real DOM heights
-   (2026-08-21 session; revised 2026-08-27 when the ~68px restriction
-   banner was added above the load-info panel, measured at 56px + its
-   own gap-3): fixed chrome (title + tabs + buttons + legend + both open
-   panels) now runs ~428px, so 17dvh (~113px on a 667px-tall iPhone SE)
-   keeps the whole tab under the modal's 85dvh cap (~567px there) with
-   the same ~27px to spare the original 27dvh/360px math had. Deliberately
-   NOT panel-state-dependent -- an earlier version used a taller budget
-   at rest and shrank only while a panel was open, which made the avatar
-   visibly resize on every tap (read as "recoiling"/zooming out). */
+   2026-08-28: previously clamped to 17dvh (~113px on an iPhone SE) so the
+   *whole* tab -- avatar + legend + both info panels open at once -- fit
+   under the modal's 85dvh cap without scrolling. That made this avatar
+   read as a different, much smaller figure than RestrictionAvatar's 45dvh
+   on RestrictionsPage, despite being the same body-muscles render. Modal's
+   own body (see Modal.tsx) already scrolls independently of the sticky
+   title bar, so there's no correctness reason to keep everything
+   scroll-free here -- 30dvh (~200px on that iPhone SE) roughly doubles the
+   avatar and brings it much closer to RestrictionAvatar's scale; if every
+   panel is open at once on a short phone screen the tab now scrolls
+   instead of the avatar being squashed to make room. Deliberately NOT
+   panel-state-dependent -- an earlier version used a taller budget at rest
+   and shrank only while a panel was open, which made the avatar visibly
+   resize on every tap (read as "recoiling"/zooming out). */
 .muscle-load-avatar .body-chart-svg {
-  max-height: 17dvh !important;
+  max-height: 30dvh !important;
 }
 
 /* RestrictionAvatar (RestrictionsPage) reuses the same body-muscles
