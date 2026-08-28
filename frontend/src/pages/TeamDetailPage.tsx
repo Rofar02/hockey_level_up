@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CardGlow } from '../components/ui/CardGlow'
 import { CARD_CLASS } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
@@ -379,13 +380,7 @@ export function TeamDetailPage() {
             </div>
 
             <div className={`relative flex flex-col gap-2 overflow-hidden p-4 ${CARD_CLASS}`}>
-              <div
-                className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full"
-                style={{
-                  background: 'radial-gradient(circle, rgba(215,239,255,0.12) 0%, rgba(215,239,255,0) 70%)',
-                }}
-                aria-hidden="true"
-              />
+              <CardGlow />
               <div className="relative flex items-center justify-between gap-3">
                 <span className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">
                   Рейтинг команды

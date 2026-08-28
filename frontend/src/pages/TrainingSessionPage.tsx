@@ -3,6 +3,7 @@ import type { TouchEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CardGlow } from '../components/ui/CardGlow'
 import { CARD_CLASS } from '../components/ui/cardStyle'
 import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
@@ -1285,9 +1286,12 @@ function SessionCompleteModal({
         </div>
 
         {leveledUp && (
-          <div className="flex w-full flex-col items-center gap-1 rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-5 text-center">
-            <p className="text-sm font-medium text-accent-persimmon">Новый уровень!</p>
-            <p className="font-display text-3xl font-bold text-accent-persimmon">{freshLevel}</p>
+          <div className="relative w-full overflow-hidden rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-5 text-center">
+            <CardGlow color="persimmon" />
+            <div className="relative flex flex-col items-center gap-1">
+              <p className="text-sm font-medium text-accent-persimmon">Новый уровень!</p>
+              <p className="font-display text-3xl font-bold text-accent-persimmon">{freshLevel}</p>
+            </div>
           </div>
         )}
 

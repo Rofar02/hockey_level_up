@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import { Button } from '../components/ui/Button'
+import { CardGlow } from '../components/ui/CardGlow'
 import { CARD_BORDER, CARD_CLASS } from '../components/ui/cardStyle'
 import { FaceoffProgressRing } from '../components/ui/FaceoffProgressRing'
 import { FormError } from '../components/ui/FormError'
@@ -555,16 +556,23 @@ function TodayCard({
     // -- checking session_type here too would just be redundant with it.
     const isRestDay = day !== null && day.session_type === 'rest'
     return (
-      <div className={`flex items-center gap-4 p-5 ${CARD_CLASS}`}>
-        <i
-          className={`ti ${isRestDay ? SESSION_TYPE_ICONS.rest : 'ti-calendar-off'} text-2xl text-[#8A94A6]`}
-          aria-hidden="true"
-        />
-        <div>
-          {eyebrow !== '' && <p className="mb-1 text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
-          <p className="text-lg font-semibold text-[#F5F7FA]">
-            {isRestDay ? getRestDayHint(phase) : 'Нет плана на сегодня'}
-          </p>
+      <div className={`relative overflow-hidden p-5 ${CARD_CLASS}`}>
+        <CardGlow />
+        {/* relative: an absolute sibling (CardGlow) with z-index:auto
+            actually paints ABOVE static in-flow content per CSS stacking
+            order -- relative (still z-index:auto) is what puts this back
+            on top, same fix TeamDetailPage's card-glow already needed. */}
+        <div className="relative flex items-center gap-4">
+          <i
+            className={`ti ${isRestDay ? SESSION_TYPE_ICONS.rest : 'ti-calendar-off'} text-2xl text-[#8A94A6]`}
+            aria-hidden="true"
+          />
+          <div>
+            {eyebrow !== '' && <p className="mb-1 text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
+            <p className="text-lg font-semibold text-[#F5F7FA]">
+              {isRestDay ? getRestDayHint(phase) : 'Нет плана на сегодня'}
+            </p>
+          </div>
         </div>
       </div>
     )
@@ -574,25 +582,28 @@ function TodayCard({
   const started = !completed && isSessionDayStarted(day)
 
   return (
-    <div className={`flex flex-col gap-4 p-5 ${CARD_CLASS}`}>
-      <div className="flex items-center justify-between gap-3">
-        {eyebrow !== '' && <p className="text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
-        {completed && (
-          <span className="flex items-center gap-1 rounded-full bg-accent-ice/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-ice">
-            <i className="ti ti-check" aria-hidden="true" />
-            Выполнено
-          </span>
+    <div className={`relative overflow-hidden p-5 ${CARD_CLASS}`}>
+      <CardGlow />
+      <div className="relative flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          {eyebrow !== '' && <p className="text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
+          {completed && (
+            <span className="flex items-center gap-1 rounded-full bg-accent-ice/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-ice">
+              <i className="ti ti-check" aria-hidden="true" />
+              Выполнено
+            </span>
+          )}
+        </div>
+        <p className="flex items-center gap-2 text-2xl font-bold text-[#F5F7FA]">
+          <i className={`ti ${SESSION_TYPE_ICONS[day.session_type]} ${SESSION_TYPE_COLORS[day.session_type]}`} aria-hidden="true" />
+          {DAY_SESSION_TYPE_LABELS[day.session_type]}
+        </p>
+        {!completed && (
+          <Button onClick={onStart} className="w-full">
+            {started ? 'Продолжить тренировку' : 'Начать тренировку'}
+          </Button>
         )}
       </div>
-      <p className="flex items-center gap-2 text-2xl font-bold text-[#F5F7FA]">
-        <i className={`ti ${SESSION_TYPE_ICONS[day.session_type]} ${SESSION_TYPE_COLORS[day.session_type]}`} aria-hidden="true" />
-        {DAY_SESSION_TYPE_LABELS[day.session_type]}
-      </p>
-      {!completed && (
-        <Button onClick={onStart} className="w-full">
-          {started ? 'Продолжить тренировку' : 'Начать тренировку'}
-        </Button>
-      )}
     </div>
   )
 }
