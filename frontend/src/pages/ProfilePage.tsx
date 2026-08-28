@@ -53,6 +53,13 @@ const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
   puck_handling: 'ШАЙ',
 }
 
+// A skill's value is a weighted sum of its underlying stats' effective
+// values (weights sum to <=1.0, validated server-side), each individually
+// hard-capped at 100 (app/events/handlers/block_completed.py's
+// STAT_HARD_CAP) -- so 100 is the real, architectural ceiling every skill's
+// value is bounded by, not a guess.
+const SKILL_VALUE_CAP = 100
+
 // Skills with a still-open next milestone sort first, closest (smallest
 // points_remaining) at the very top -- "almost there" is the motivating
 // view. Fully-maxed skills (next_milestone === null) sink to the bottom.
@@ -881,7 +888,19 @@ function ProfileDetailsModal({
             </p>
             <div className="flex flex-col gap-2">
               {unlockedSkills.map((skill) => {
-                const barMax = skill.next_milestone?.threshold ?? skill.value
+                // Once every seeded milestone is cleared, next_milestone is
+                // null -- falling back to the skill's OWN value here (as
+                // this used to) makes percent = value/value = 100% by
+                // construction, for ANY value past the last threshold (90
+                // today), and pins it there even as the underlying stats
+                // keep moving (2026-08-29: "точность броска у меня 100% а
+                // порог дальше не переходит"). SKILL_VALUE_CAP is the real
+                // ceiling instead (every skill's value is bounded by it --
+                // see block_completed.py's STAT_HARD_CAP and
+                // skill_service's weight-sum-<=1.0 validation), so the
+                // percent shown here stays honest and keeps climbing until
+                // the skill is genuinely maxed.
+                const barMax = skill.next_milestone?.threshold ?? SKILL_VALUE_CAP
                 const isPreferred = preferredSkillIds.has(skill.id)
                 const percent = barMax > 0 ? Math.max(0, Math.min(100, (skill.value / barMax) * 100)) : 100
                 return (
