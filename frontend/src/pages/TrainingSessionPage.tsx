@@ -101,7 +101,9 @@ function pluralizeExercises(count: number): string {
 function computeInitialPhaseIndex(sessionBlocks: SessionBlockRead[]): number {
   const active = PHASE_SEQUENCE.filter((phase) => sessionBlocks.some((block) => block.phase === phase))
   const firstNotDone = active.findIndex((phase) =>
-    sessionBlocks.some((block) => block.phase === phase && block.completed_at === null),
+    sessionBlocks.some(
+      (block) => block.phase === phase && block.completed_at === null && block.skipped_at === null,
+    ),
   )
   return firstNotDone === -1 ? Math.max(0, active.length - 1) : firstNotDone
 }
@@ -144,7 +146,7 @@ function estimateExerciseSeconds(exercise: ExerciseRead): number {
 // step-by-step flow's hard-locked "Завершить этап" button would get stuck
 // on forever (found 2026-08-27 testing the phase tracker manually).
 function isExerciseDone(block: SessionBlockRead, setCounts: Record<string, number>): boolean {
-  if (block.completed_at !== null) {
+  if (block.completed_at !== null || block.skipped_at !== null) {
     return true
   }
   if (block.exercise.target_sets !== null) {
@@ -450,7 +452,13 @@ export function TrainingSessionPage() {
   }
 
   async function handleComplete(block: SessionBlockRead) {
-    if (accessToken === null || block.completed_at !== null || pendingIds.has(block.id) || blocks === null) {
+    if (
+      accessToken === null ||
+      block.completed_at !== null ||
+      block.skipped_at !== null ||
+      pendingIds.has(block.id) ||
+      blocks === null
+    ) {
       return
     }
     setActionError(null)
@@ -460,11 +468,12 @@ export function TrainingSessionPage() {
       const mergedBlocks = blocks.map((b) => (b.id === updated.id ? updated : b))
       setBlocks(mergedBlocks)
 
-      if (mergedBlocks.every((b) => b.completed_at !== null)) {
+      if (mergedBlocks.every((b) => b.completed_at !== null || b.skipped_at !== null)) {
         // The block that was just ticked is the last one in the whole
         // session -- a small inline toast would undersell that moment, so
-        // skip it in favor of SessionCompleteModal.
-        setSessionComplete(computeSessionTotals(mergedBlocks))
+        // skip it in favor of SessionCompleteModal. Skipped blocks never
+        // earned a reward, so they're excluded from the totals shown there.
+        setSessionComplete(computeSessionTotals(mergedBlocks.filter((b) => b.skipped_at === null)))
       } else {
         setFeedbackByBlockId((previous) => ({
           ...previous,
@@ -485,6 +494,53 @@ export function TrainingSessionPage() {
         )
       } else {
         setActionError(err instanceof ApiError ? err.message : 'Не удалось отметить упражнение.')
+      }
+    } finally {
+      setPendingIds((previous) => {
+        const next = new Set(previous)
+        next.delete(block.id)
+        return next
+      })
+    }
+  }
+
+  // Warmup/cooldown-only (media-player redesign, 2026-08-28) -- mirrors
+  // handleComplete's shape exactly, except: no BLOCK_COMPLETED_EVENT means
+  // no reward, so no formatCompletionFeedback toast, and nothing to wait on
+  // (no feedback prompt for a skip) -- advance to the next not-done block
+  // immediately via handleExerciseSettled's own lookup instead.
+  async function handleSkip(block: SessionBlockRead) {
+    if (
+      accessToken === null ||
+      block.completed_at !== null ||
+      block.skipped_at !== null ||
+      pendingIds.has(block.id) ||
+      blocks === null
+    ) {
+      return
+    }
+    setActionError(null)
+    setPendingIds((previous) => new Set(previous).add(block.id))
+    try {
+      const updated = await sessionBlocksApi.skipSessionBlock(block.id, accessToken)
+      const mergedBlocks = blocks.map((b) => (b.id === updated.id ? updated : b))
+      setBlocks(mergedBlocks)
+
+      if (mergedBlocks.every((b) => b.completed_at !== null || b.skipped_at !== null)) {
+        setSessionComplete(computeSessionTotals(mergedBlocks.filter((b) => b.skipped_at === null)))
+      } else {
+        handleExerciseSettled()
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setBlocks(
+          (previous) =>
+            previous?.map((b) =>
+              b.id === block.id ? { ...b, skipped_at: new Date().toISOString() } : b,
+            ) ?? previous,
+        )
+      } else {
+        setActionError(err instanceof ApiError ? err.message : 'Не удалось пропустить упражнение.')
       }
     } finally {
       setPendingIds((previous) => {
@@ -633,12 +689,30 @@ export function TrainingSessionPage() {
     const next = currentPhaseBlocks
       .slice(currentIndex + 1)
       .find((block) => !isExerciseDone(block, setCompletionCounts))
-    // No next incomplete exercise -- explicitly do NOT fall back to the
-    // list here. The just-finished exercise stays on screen in its own
-    // "Готово" state; returning to the list is only ever the athlete's own
-    // "Назад к этапу" tap, never automatic.
     if (next !== undefined) {
       setSelectedExercise(next.exercise)
+      return
+    }
+    // No next incomplete exercise in THIS phase -- explicitly do NOT fall
+    // back to the list here regardless (returning to the list is only ever
+    // the athlete's own "Назад к этапу" tap, never automatic). But if that
+    // was the phase's last exercise and there's a next phase, continue the
+    // same continuous flow straight into it instead of stranding the
+    // athlete on a "Готово" screen waiting for a manual "Завершить [этап]"
+    // tap (found 2026-08-28: the media-player auto-advance stopped dead at
+    // every phase boundary). Manual list-driven completion (ExerciseRow's
+    // own checkbox, handleComplete) is untouched -- this only fires from
+    // the focus player's own settle callback.
+    if (canFinishPhase && !isLastPhase) {
+      const nextPhase = activePhases[safePhaseIndex + 1]
+      const nextPhaseBlocks = blocksByPhase[nextPhase]
+      const firstBlock =
+        nextPhaseBlocks.find((block) => !isExerciseDone(block, setCompletionCounts)) ?? nextPhaseBlocks[0]
+      setCurrentPhaseIndex((index) => index + 1)
+      if (firstBlock !== undefined) {
+        setSelectedExercise(firstBlock.exercise)
+      }
+      trackerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }
 
@@ -731,6 +805,15 @@ export function TrainingSessionPage() {
                   unaffected either way. */}
               {selectedBlock !== null && trainingSessionId !== null && accessToken !== null ? (
                 <ExerciseFocusScreen
+                  // Forces a full remount per exercise -- found live-testing
+                  // the skip feature (2026-08-28): without this, auto-advance
+                  // reuses the same ExerciseDetailBody/TimerPlayer/SetLogger
+                  // instances across exercises (only props change), so their
+                  // own local state (TimerPlayer's remaining/phase, the skip
+                  // confirm step, SetLogger's stepper values) leaked from the
+                  // just-finished exercise into the next one instead of
+                  // starting fresh.
+                  key={selectedBlock.id}
                   block={selectedBlock}
                   phaseLabel={PHASE_LABELS[currentPhase]}
                   phaseIcon={PHASE_ICONS[currentPhase]}
@@ -739,7 +822,9 @@ export function TrainingSessionPage() {
                   accessToken={accessToken}
                   onBack={handleCloseExerciseDetail}
                   onComplete={
-                    selectedBlock.completed_at === null ? () => handleComplete(selectedBlock) : undefined
+                    selectedBlock.completed_at === null && selectedBlock.skipped_at === null
+                      ? () => handleComplete(selectedBlock)
+                      : undefined
                   }
                   // Deliberately NOT gated behind completed_at === null like
                   // onComplete/blockId/onReplaced above -- found live-testing
@@ -753,8 +838,21 @@ export function TrainingSessionPage() {
                   // their own feedback flow on an exercise that was already
                   // fully settled before this mount.
                   onSettled={handleExerciseSettled}
-                  blockId={selectedBlock.completed_at === null ? selectedBlock.id : undefined}
-                  onReplaced={selectedBlock.completed_at === null ? handleExerciseReplaced : undefined}
+                  blockId={
+                    selectedBlock.completed_at === null && selectedBlock.skipped_at === null
+                      ? selectedBlock.id
+                      : undefined
+                  }
+                  onReplaced={
+                    selectedBlock.completed_at === null && selectedBlock.skipped_at === null
+                      ? handleExerciseReplaced
+                      : undefined
+                  }
+                  onSkip={
+                    selectedBlock.completed_at === null && selectedBlock.skipped_at === null
+                      ? () => handleSkip(selectedBlock)
+                      : undefined
+                  }
                 />
               ) : (
                 currentPhaseBlocks.map((block) => (
@@ -1169,6 +1267,7 @@ function ExerciseRow({
   showTargetStat?: boolean
 }) {
   const isCompleted = block.completed_at !== null
+  const isSkipped = block.skipped_at !== null
   const targetVolume = formatTargetVolume(block.exercise)
 
   return (
@@ -1188,7 +1287,16 @@ function ExerciseRow({
     >
       {/* stopPropagation keeps ticking the checkbox from also opening the detail modal */}
       <span onClick={(event) => event.stopPropagation()} className="mt-0.5 shrink-0">
-        <Checkbox checked={isCompleted} disabled={isCompleted || pending} onClick={onComplete} />
+        {isSkipped ? (
+          <span
+            className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white/15 text-text-secondary"
+            aria-label="Пропущено"
+          >
+            <i className="ti ti-player-skip-forward text-[11px]" aria-hidden="true" />
+          </span>
+        ) : (
+          <Checkbox checked={isCompleted} disabled={isCompleted || pending} onClick={onComplete} />
+        )}
       </span>
       <div className="min-w-0 flex-1">
         {/* Name gets its own full-width line, not squeezed onto a baseline
@@ -1199,7 +1307,9 @@ function ExerciseRow({
             NewSchedulePage's DayPreviewPhaseSection, so a long real name
             wraps once instead of losing its second half either way. */}
         <p
-          className={`line-clamp-2 text-sm ${isCompleted ? 'text-text-secondary line-through' : 'text-text-primary'}`}
+          className={`line-clamp-2 text-sm ${
+            isCompleted || isSkipped ? 'text-text-secondary line-through' : 'text-text-primary'
+          }`}
         >
           {block.exercise.name}
         </p>
@@ -1215,7 +1325,12 @@ function ExerciseRow({
               Сейчас
             </span>
           )}
-          {isDone && !isCompleted && (
+          {isSkipped && (
+            <span className="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-secondary">
+              Пропущено
+            </span>
+          )}
+          {isDone && !isCompleted && !isSkipped && (
             <i className="ti ti-check shrink-0 text-xs text-accent-ice" aria-hidden="true" />
           )}
           {showTargetStat && block.exercise.target_stats.length > 0 && (

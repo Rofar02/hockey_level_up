@@ -51,6 +51,7 @@ export interface SessionBlockRead {
   phase: TrainingPhase
   order: number
   completed_at: string | null
+  skipped_at: string | null
   exercise: ExerciseRead
 }
 

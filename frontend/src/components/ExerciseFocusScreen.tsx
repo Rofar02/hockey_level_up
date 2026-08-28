@@ -26,6 +26,7 @@ export function ExerciseFocusScreen({
   onSettled,
   blockId,
   onReplaced,
+  onSkip,
 }: {
   block: SessionBlockRead
   // Разминка/Основная часть/Заминка -- shown as its own chip here too, not
@@ -56,8 +57,19 @@ export function ExerciseFocusScreen({
   onSettled?: () => void
   blockId?: string
   onReplaced?: (updated: SessionBlockRead) => void
+  // Warmup/cooldown-only (media-player redesign, 2026-08-28) -- undefined
+  // from TrainingSessionPage whenever the block is already resolved, same
+  // gating style as onComplete/blockId. Phase-scope (warmup/cooldown, never
+  // MAIN) is enforced right here via canSkip below, mirroring the
+  // server-side check in SessionBlockService.skip_block.
+  onSkip?: () => void
 }) {
   const exercise = block.exercise
+  const canSkip =
+    (block.phase === 'warmup' || block.phase === 'cooldown') &&
+    block.completed_at === null &&
+    block.skipped_at === null &&
+    onSkip !== undefined
   const [skillNames, setSkillNames] = useState<string[]>([])
 
   useEffect(() => {
@@ -121,6 +133,7 @@ export function ExerciseFocusScreen({
         onSettled={onSettled}
         blockId={blockId}
         onReplaced={onReplaced}
+        onSkip={canSkip ? onSkip : undefined}
         variant="focus"
       />
     </div>

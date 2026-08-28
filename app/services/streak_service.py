@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, timedelta
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
@@ -47,7 +47,12 @@ async def list_activity_calendar(
             DayPlan.date,
             DayPlan.session_type,
             func.count(SessionBlock.id),
-            func.count(SessionBlock.completed_at),
+            # A skip resolves a block for calendar purposes exactly like a
+            # real completion does (media-player redesign, 2026-08-28) --
+            # see is_session_fully_completed's identical reasoning.
+            func.count(SessionBlock.id).filter(
+                or_(SessionBlock.completed_at.is_not(None), SessionBlock.skipped_at.is_not(None))
+            ),
         )
         .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
         .outerjoin(TrainingSession, TrainingSession.day_plan_id == DayPlan.id)
@@ -95,6 +100,7 @@ async def is_session_fully_completed(session: AsyncSession, session_block_id: uu
             .where(
                 SessionBlock.session_id == target_session_id,
                 SessionBlock.completed_at.is_(None),
+                SessionBlock.skipped_at.is_(None),
             )
             .limit(1)
         )
@@ -129,7 +135,9 @@ async def has_missed_training_day(
 
     has_any_block = exists().where(SessionBlock.session_id == TrainingSession.id)
     has_incomplete_block = exists().where(
-        SessionBlock.session_id == TrainingSession.id, SessionBlock.completed_at.is_(None)
+        SessionBlock.session_id == TrainingSession.id,
+        SessionBlock.completed_at.is_(None),
+        SessionBlock.skipped_at.is_(None),
     )
     session_fully_completed = (
         select(TrainingSession.id)

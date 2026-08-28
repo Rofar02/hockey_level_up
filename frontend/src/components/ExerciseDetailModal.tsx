@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button } from './ui/Button'
 import { CARD_BORDER } from './ui/cardStyle'
+import { CountdownRing } from './ui/CountdownRing'
 import { FormError } from './ui/FormError'
 import { Modal } from './ui/Modal'
 import { ExerciseTechnique } from './ExerciseTechnique'
@@ -103,6 +104,13 @@ export interface ExerciseDetailBodyProps {
   // simply doesn't render there rather than needing a second wiring pass.
   blockId?: string
   onReplaced?: (updated: SessionBlockRead) => void
+  // Warmup/cooldown-only (media-player redesign, 2026-08-28) -- undefined
+  // whenever the block isn't a skippable phase, is already resolved, or
+  // this is a read-only context, same gating style as onReplaced/blockId.
+  // The actual API call + blocks-state merge + auto-advance lives in
+  // TrainingSessionPage.handleSkip; this component only renders the
+  // confirm affordance and calls onSkip() once confirmed.
+  onSkip?: () => void
   // 'modal' (default): boxed Modal above supplies p-6 padding, so the tab
   // bar bleeds -mx-6/-mt-6 to sit flush with the modal's own edges, and the
   // no-target_sets fallback is the original plain "Объём: N сек" +
@@ -128,11 +136,14 @@ export function ExerciseDetailBody({
   onSettled,
   blockId,
   onReplaced,
+  onSkip,
   variant = 'modal',
 }: ExerciseDetailBodyProps) {
   const [activeTab, setActiveTab] = useState<ExerciseModalTab>('sets')
   const [isReplacing, setIsReplacing] = useState(false)
   const [replaceError, setReplaceError] = useState<string | null>(null)
+  const [isSkipConfirming, setIsSkipConfirming] = useState(false)
+  const [isSkipping, setIsSkipping] = useState(false)
 
   const targetVolume = formatTargetVolume(exercise)
   const mode = exercisePlayerMode(exercise)
@@ -164,6 +175,18 @@ export function ExerciseDetailBody({
     } finally {
       setIsReplacing(false)
     }
+  }
+
+  function handleSkipClick() {
+    if (onSkip === undefined || isSkipping) {
+      return
+    }
+    if (!isSkipConfirming) {
+      setIsSkipConfirming(true)
+      return
+    }
+    setIsSkipping(true)
+    onSkip()
   }
 
   // Both tabs always show, on every exercise -- this is the app's standard
@@ -263,17 +286,31 @@ export function ExerciseDetailBody({
             <p className="text-sm text-text-secondary">Описание техники пока не добавлено.</p>
           ))}
 
-        {canReplace && (
+        {(canReplace || onSkip !== undefined) && (
           <div className="flex flex-col gap-1.5 border-t border-white/5 pt-3">
-            <button
-              type="button"
-              onClick={handleReplace}
-              disabled={isReplacing}
-              className="self-start text-sm text-accent-ice hover:underline disabled:opacity-50"
-            >
-              {isReplacing ? 'Подбираем замену...' : 'Заменить упражнение'}
-            </button>
+            {canReplace && (
+              <button
+                type="button"
+                onClick={handleReplace}
+                disabled={isReplacing}
+                className="self-start text-sm text-accent-ice hover:underline disabled:opacity-50"
+              >
+                {isReplacing ? 'Подбираем замену...' : 'Заменить упражнение'}
+              </button>
+            )}
             <FormError message={replaceError} />
+            {onSkip !== undefined && (
+              <button
+                type="button"
+                onClick={handleSkipClick}
+                disabled={isSkipping}
+                className={`self-start text-sm hover:underline disabled:opacity-50 ${
+                  isSkipConfirming ? 'text-accent-persimmon' : 'text-text-secondary'
+                }`}
+              >
+                {isSkipping ? 'Пропускаем...' : isSkipConfirming ? 'Точно пропустить?' : 'Пропустить упражнение'}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -285,6 +322,14 @@ export function ExerciseDetailBody({
 // caller resolves as the current effective value (a suggestion, or an
 // already-saved value when reopened for correction) and only changes on an
 // explicit tap, never via typing.
+// The number in the middle is a real text input, not just a +/- readout
+// (2026-08-29: "хотелось бы добавить возможность писать вес и подходы
+// вручную") -- tapping it opens the device's numeric keyboard. Local `text`
+// state so a mid-edit value like "7." or an empty field while typing isn't
+// immediately clobbered by re-deriving from the numeric `value` prop; it
+// resyncs from `value` on blur/Enter (commit) and whenever `value` changes
+// for a reason other than this input itself (+/- taps, a fresh suggestion
+// loading in) via the effect below.
 function Stepper({
   value,
   unit,
@@ -300,27 +345,61 @@ function Stepper({
   disabled?: boolean
   onChange: (value: number) => void
 }) {
+  const [text, setText] = useState(String(value))
+
+  useEffect(() => {
+    setText(String(value))
+  }, [value])
+
+  function commit() {
+    const parsed = Number(text.replace(',', '.'))
+    if (!Number.isFinite(parsed)) {
+      setText(String(value))
+      return
+    }
+    const clamped = Math.max(min, parsed)
+    setText(String(clamped))
+    if (clamped !== value) {
+      onChange(clamped)
+    }
+  }
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-2">
       <button
         type="button"
         onClick={() => onChange(Math.max(min, value - step))}
         disabled={disabled}
         aria-label="Меньше"
-        className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-text-primary disabled:opacity-50"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/10 text-text-primary disabled:opacity-50"
       >
         <i className="ti ti-minus text-sm" aria-hidden="true" />
       </button>
-      <span className="min-w-[2.5rem] text-center font-display text-lg font-semibold text-text-primary">
-        {value}
-        {unit !== undefined && <span className="ml-0.5 text-xs font-sans text-text-secondary">{unit}</span>}
+      <span className="flex items-baseline">
+        <input
+          type="text"
+          inputMode="decimal"
+          value={text}
+          disabled={disabled}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              commit()
+              event.currentTarget.blur()
+            }
+          }}
+          aria-label={unit !== undefined ? `Вес, ${unit}` : 'Количество повторений'}
+          className="w-9 shrink-0 bg-transparent text-center font-display text-lg font-semibold text-text-primary outline-none disabled:opacity-50"
+        />
+        {unit !== undefined && <span className="text-xs font-sans text-text-secondary">{unit}</span>}
       </span>
       <button
         type="button"
         onClick={() => onChange(value + step)}
         disabled={disabled}
         aria-label="Больше"
-        className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-text-primary disabled:opacity-50"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/10 text-text-primary disabled:opacity-50"
       >
         <i className="ti ti-plus text-sm" aria-hidden="true" />
       </button>
@@ -343,12 +422,6 @@ function repsRangeTag(reps: number, min: number, max: number): 'match' | 'less' 
 }
 
 const REPS_TAG_LABELS = { match: 'совпадает', less: 'меньше', more: 'больше' } as const
-
-function formatRestClock(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${String(seconds).padStart(2, '0')}`
-}
 
 // Vibration + a short synthesized beep (Web Audio oscillator, no external
 // audio asset needed) when a rest countdown reaches zero. Both are
@@ -445,11 +518,17 @@ function RestTimer({
   }, [remaining])
 
   return (
-    <div className="flex min-w-0 flex-col items-center gap-2 rounded border-2 border-accent-ice bg-dark-card px-3 py-4">
+    <div className="flex min-w-0 flex-col items-center gap-2 py-2">
       <span className="text-xs font-medium uppercase tracking-wide text-text-secondary">
         Отдых перед следующим подходом
       </span>
-      <span className="font-mono text-2xl text-accent-ice">{formatRestClock(Math.max(0, remaining))}</span>
+      <CountdownRing
+        size={120}
+        totalSeconds={totalSeconds}
+        remainingSeconds={Math.max(0, remaining)}
+        label="Отдых"
+        accent="persimmon"
+      />
       <button
         type="button"
         onClick={onDone}
@@ -823,8 +902,8 @@ function SetLogger({
                 onClick={() => beginEditSet(setNumber, completed)}
                 className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-white/5 bg-dark-card px-3 py-2.5 text-left transition-colors hover:border-white/20"
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 truncate font-display text-sm font-semibold text-text-primary">
+                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="shrink-0 font-display text-sm font-semibold text-text-primary">
                     Подход {setNumber}
                   </span>
                   {tag !== null ? (
@@ -882,14 +961,20 @@ function SetLogger({
                     </Button>
                   </div>
                 )}
-                <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border-2 border-accent-persimmon bg-dark-card px-3 py-2.5">
-                  <span className="min-w-0 truncate font-display text-sm font-semibold text-text-primary">
+                <div className="flex flex-col gap-2 rounded-md border-2 border-accent-persimmon bg-dark-card px-3 py-2.5">
+                  <span className="font-display text-sm font-semibold text-text-primary">
                     Подход {setNumber}
                     {isEditingThis && (
                       <span className="ml-2 text-xs font-normal text-text-secondary">(исправление)</span>
                     )}
                   </span>
-                  <div className="flex shrink-0 items-center gap-3">
+                  {/* Own row, wrapping if needed -- both steppers side by
+                      side previously squeezed this row's label down to
+                      nothing on a narrow phone (2026-08-29: "слово подход
+                      теряется если есть вес"). Label now always gets its own
+                      full-width line above instead of sharing one row with
+                      the steppers. */}
+                  <div className="flex flex-wrap items-center gap-3">
                     {exercise.tracks_weight && (
                       <Stepper
                         value={effectiveWeight}

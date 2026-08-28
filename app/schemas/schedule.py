@@ -29,6 +29,7 @@ class SessionBlockRead(BaseModel):
     phase: TrainingPhase
     order: int
     completed_at: datetime | None
+    skipped_at: datetime | None
     exercise: ExerciseRead
 
 

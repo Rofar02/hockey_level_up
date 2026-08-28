@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.exercise import TrainingPhase
 from app.models.schedule import SessionBlock
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
@@ -70,19 +71,64 @@ class SessionBlockService:
             phase=block.phase,
             order=block.order,
             completed_at=block.completed_at,
+            skipped_at=block.skipped_at,
+            exercise=exercise_to_read(block.exercise, target_stats),
+        )
+
+    async def skip_block(self, block_id: uuid.UUID, user: User) -> SessionBlockRead:
+        block = await self._schedule.get_session_block_with_owner(block_id)
+        if block is None or block.session.day_plan.weekly_plan.user_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Session block not found"
+            )
+
+        # Server-side enforcement of the warmup/cooldown-only rule (media-
+        # player redesign, 2026-08-28) -- MAIN work must always be logged for
+        # real, never trusted from a frontend-only guard.
+        if block.phase not in (TrainingPhase.WARMUP, TrainingPhase.COOLDOWN):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="only warmup/cooldown blocks can be skipped",
+            )
+
+        if block.completed_at is not None or block.skipped_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="already resolved"
+            )
+
+        block.skipped_at = datetime.now(timezone.utc)
+        # Deliberately no BLOCK_COMPLETED_EVENT outbox row here -- a skip
+        # earns no stat/XP/muscle-load gain, that's the whole point. It still
+        # resolves the block for session/streak-completion purposes though,
+        # so the "any remaining unresolved blocks" check below (and every
+        # other completed_at.is_(None) consumer updated alongside this
+        # feature) treats skipped_at the same as completed_at.
+        await self._maybe_publish_training_completed(block, user)
+        await self._session.commit()
+        target_stats = await self._exercises.list_target_stats(block.exercise_id)
+        return SessionBlockRead(
+            id=block.id,
+            phase=block.phase,
+            order=block.order,
+            completed_at=block.completed_at,
+            skipped_at=block.skipped_at,
             exercise=exercise_to_read(block.exercise, target_stats),
         )
 
     async def _maybe_publish_training_completed(self, block: SessionBlock, user: User) -> None:
         # Flush first so the count below sees *this* block's just-set
-        # completed_at too -- it isn't persisted yet otherwise, and every
-        # sibling block in the session would need to already be complete for
-        # the count to reach zero.
+        # completed_at/skipped_at too -- it isn't persisted yet otherwise,
+        # and every sibling block in the session would need to already be
+        # resolved for the count to reach zero.
         await self._session.flush()
         remaining = await self._session.execute(
             select(func.count())
             .select_from(SessionBlock)
-            .where(SessionBlock.session_id == block.session_id, SessionBlock.completed_at.is_(None))
+            .where(
+                SessionBlock.session_id == block.session_id,
+                SessionBlock.completed_at.is_(None),
+                SessionBlock.skipped_at.is_(None),
+            )
         )
         if remaining.scalar_one() > 0:
             return

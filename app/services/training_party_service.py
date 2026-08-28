@@ -369,7 +369,10 @@ class TrainingPartyService:
     def _day_plan_has_completed_block(day_plan: DayPlan) -> bool:
         if day_plan.training_session is None:
             return False
-        return any(block.completed_at is not None for block in day_plan.training_session.blocks)
+        return any(
+            block.completed_at is not None or block.skipped_at is not None
+            for block in day_plan.training_session.blocks
+        )
 
     async def _has_completed_training(self, user_id: uuid.UUID, target_date: date) -> bool:
         day_plan = await self._schedule.get_day_plan_for_date(user_id, target_date)
@@ -458,7 +461,9 @@ class TrainingPartyService:
 
         blocks = day_plan.training_session.blocks if day_plan.training_session is not None else []
         total = len(blocks)
-        completed = sum(1 for block in blocks if block.completed_at is not None)
+        completed = sum(
+            1 for block in blocks if block.completed_at is not None or block.skipped_at is not None
+        )
         if completed == 0:
             return _MemberStatus("not_started", completed, total, day_plan.id)
         if total > 0 and completed == total:

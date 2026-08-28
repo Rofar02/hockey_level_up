@@ -23,6 +23,18 @@ async def complete_session_block(
     return await SessionBlockService(session).complete_block(block_id, current_user)
 
 
+@router.post("/{block_id}/skip", response_model=SessionBlockRead)
+async def skip_session_block(
+    block_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Warmup/cooldown-only (media-player redesign, 2026-08-28): resolves
+    the block without earning stat/XP/muscle-load gain, see
+    SessionBlockService.skip_block."""
+    return await SessionBlockService(session).skip_block(block_id, current_user)
+
+
 @router.post("/{block_id}/replace", response_model=SessionBlockRead)
 async def replace_session_block_exercise(
     block_id: uuid.UUID,

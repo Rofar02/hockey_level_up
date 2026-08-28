@@ -121,7 +121,11 @@ function buildMonthGrid(monthStart: Date): (Date | null)[] {
 
 function isSessionDayCompleted(day: DayPlanRead): boolean {
   const blocks = day.training_session?.blocks
-  return blocks !== undefined && blocks.length > 0 && blocks.every((block) => block.completed_at !== null)
+  return (
+    blocks !== undefined &&
+    blocks.length > 0 &&
+    blocks.every((block) => block.completed_at !== null || block.skipped_at !== null)
+  )
 }
 
 // Same fixed workout-flow order, labels and icons as NewSchedulePage/
@@ -162,7 +166,7 @@ function formatTargetVolume(exercise: ExerciseRead): string | null {
 // left off).
 function isSessionDayStarted(day: DayPlanRead): boolean {
   const blocks = day.training_session?.blocks
-  return blocks !== undefined && blocks.some((block) => block.completed_at !== null)
+  return blocks !== undefined && blocks.some((block) => block.completed_at !== null || block.skipped_at !== null)
 }
 
 // Backed by GET /users/me/activity-calendar (2026-08-19) -- real
@@ -935,7 +939,9 @@ function DayDetailSession({
   session: TrainingSessionRead
   sessionType: DaySessionType
 }) {
-  const doneCount = session.blocks.filter((block) => block.completed_at !== null).length
+  const doneCount = session.blocks.filter(
+    (block) => block.completed_at !== null || block.skipped_at !== null,
+  ).length
   const totalCount = session.blocks.length
   const durationMinutes = Math.max(1, Math.round(session.duration_seconds / 60))
 
@@ -975,11 +981,14 @@ function DayDetailSession({
           <div className="flex flex-col divide-y divide-white/5">
             {blocksByPhase[phase].map((block) => {
               const volume = formatTargetVolume(block.exercise)
-              const done = block.completed_at !== null
+              const skipped = block.skipped_at !== null
+              const done = block.completed_at !== null || skipped
               return (
                 <div key={block.id} className="flex items-center gap-3 px-3 py-2.5">
                   <i
-                    className={`ti ${done ? 'ti-check text-accent-ice' : 'ti-minus text-[#8A94A6]'} shrink-0 text-xs`}
+                    className={`ti ${
+                      skipped ? 'ti-player-skip-forward text-[#8A94A6]' : done ? 'ti-check text-accent-ice' : 'ti-minus text-[#8A94A6]'
+                    } shrink-0 text-xs`}
                     aria-hidden="true"
                   />
                   <span className={`line-clamp-2 min-w-0 flex-1 text-sm ${done ? 'text-[#F5F7FA]' : 'text-[#8A94A6]'}`}>

@@ -189,6 +189,13 @@ class SessionBlock(Base):
             "completed_at",
             postgresql_where=text("completed_at IS NOT NULL"),
         ),
+        # Same idiom, for warmup/cooldown skips (media-player redesign,
+        # 2026-08-28) -- see skipped_at's own comment below.
+        Index(
+            "ix_session_blocks_skipped_at_not_null",
+            "skipped_at",
+            postgresql_where=text("skipped_at IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -208,6 +215,13 @@ class SessionBlock(Base):
     )
     order: Mapped[int] = mapped_column(Integer, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Warmup/cooldown-only (media-player redesign, 2026-08-28): resolves the
+    # block for session/phase/streak-completion purposes exactly like
+    # completed_at does, but deliberately never fires block_completed --
+    # skipping earns no stat/XP/muscle-load gain. See SessionBlockService
+    # .skip_block for the phase-scope enforcement (server-side, not just
+    # trusted from the frontend).
+    skipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     session: Mapped["TrainingSession"] = relationship(back_populates="blocks")
     exercise: Mapped["Exercise"] = relationship()

@@ -50,7 +50,9 @@ class TrainingBlockRepository:
         """
         has_any_block = exists().where(SessionBlock.session_id == TrainingSession.id)
         has_incomplete_block = exists().where(
-            SessionBlock.session_id == TrainingSession.id, SessionBlock.completed_at.is_(None)
+            SessionBlock.session_id == TrainingSession.id,
+            SessionBlock.completed_at.is_(None),
+            SessionBlock.skipped_at.is_(None),
         )
         result = await self._session.execute(
             select(func.count(TrainingSession.id))

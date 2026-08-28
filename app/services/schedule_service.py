@@ -1709,7 +1709,7 @@ class ScheduleService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session block not found"
             )
-        if block.completed_at is not None:
+        if block.completed_at is not None or block.skipped_at is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="already completed"
             )
@@ -1757,6 +1757,7 @@ class ScheduleService:
             phase=block.phase,
             order=block.order,
             completed_at=block.completed_at,
+            skipped_at=block.skipped_at,
             exercise=exercise_to_read(new_exercise, target_stats),
         )
 
@@ -1781,6 +1782,7 @@ class ScheduleService:
                     phase=block.phase,
                     order=block.order,
                     completed_at=block.completed_at,
+                    skipped_at=block.skipped_at,
                     exercise=exercise_to_read(
                         block.exercise, stats_by_id.get(block.exercise_id, [])
                     ),
