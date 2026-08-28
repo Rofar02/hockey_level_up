@@ -393,8 +393,16 @@ export function HomePage() {
       {showTour && <OnboardingTour onSkip={handleTourSkip} onComplete={handleTourComplete} />}
       <div className="relative z-[1] mx-auto flex min-h-svh max-w-3xl flex-col gap-4 px-4 py-8">
         <div className={`flex flex-col gap-4 p-4 ${CARD_CLASS}`}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-4">
+          {/* Level now sits under the name (identity info, left-aligned
+              with it) instead of paired with the streak button on the
+              right -- the two read as unrelated facts (character level vs.
+              a daily-activity counter), so pairing them as matched pills
+              read as arbitrary rather than intentional. flex-wrap still
+              guards a long name: if name+position push past the streak
+              button's shrink-0 width, the button drops to its own row
+              instead of clipping anything. */}
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
               {/* Two-layer wrapper: the outer div carries the level-tier
                   border/glow (box-shadow), the inner one clips the photo to a
                   circle. Both on the same element would clip the glow itself
@@ -409,54 +417,41 @@ export function HomePage() {
                   )}
                 </div>
               </div>
-              {/* min-w-0 above lets this column shrink below its text's
-                  natural width instead of pushing the level/streak pills
-                  (shrink-0) past the right edge of the screen on a long
-                  name -- truncate here is what actually stops the name
-                  itself from forcing that width. */}
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="truncate text-xl font-bold leading-tight text-[#F5F7FA]">
+              <div className="flex flex-col gap-1">
+                <span className="text-xl font-bold leading-tight text-[#F5F7FA]">
                   {user !== null ? getDisplayName(user) : ''}
                 </span>
-                <span className="truncate text-sm text-[#8A94A6]">
+                <span className="text-sm text-[#8A94A6]">
                   {user?.position != null ? POSITION_LABELS[user.position] : ''}
+                </span>
+                {/* Same compact pill ProfilePage's own card uses for level
+                    (px-2.5 py-0.5, text-[11px]) -- one style for "level
+                    badge sitting under a name" wherever that pattern shows
+                    up, not a one-off sized to match a neighboring button. */}
+                <span className="mt-0.5 flex w-fit items-center gap-1.5 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5">
+                  <span className="font-mono text-[11px] font-bold tracking-wide text-accent-ice">
+                    УР. {user?.level ?? 1}
+                  </span>
                 </span>
               </div>
             </div>
 
-            {/* Same pill shape for both -- px-3 py-2, text-xs content, and
-                now the same min-w + centered content too -- so the level
-                badge and the streak button read as one matched pair, not
-                two different-sized controls sitting side by side. Padding
-                alone (2026-08-27, first pass) got the height to match but
-                left the streak button ~6px wider than the level badge --
-                two flanking icons vs. plain text -- still reading as "the
-                streak one is bigger". min-w pins both to the same footprint
-                regardless of content, which also means this doesn't quietly
-                drift apart again once the level hits double digits. */}
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="flex min-w-[70px] items-center justify-center gap-1.5 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-3 py-2">
-                <span className="font-mono text-xs font-bold tracking-wide text-accent-ice">
-                  УР. {user?.level ?? 1}
+            {streak !== null && (
+              <button
+                type="button"
+                onClick={() => setCalendarExpanded((value) => !value)}
+                className="flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-white/10 bg-dark-bg px-3 py-2 transition-colors hover:border-white/20"
+              >
+                <i className="ti ti-flame text-xs text-accent-persimmon" aria-hidden="true" />
+                <span className="font-mono text-xs font-bold text-accent-persimmon">
+                  {streak.current_streak}
                 </span>
-              </span>
-              {streak !== null && (
-                <button
-                  type="button"
-                  onClick={() => setCalendarExpanded((value) => !value)}
-                  className="flex min-w-[70px] items-center justify-center gap-1.5 rounded-md border border-white/10 bg-dark-bg px-3 py-2 transition-colors hover:border-white/20"
-                >
-                  <i className="ti ti-flame text-xs text-accent-persimmon" aria-hidden="true" />
-                  <span className="font-mono text-xs font-bold text-accent-persimmon">
-                    {streak.current_streak}
-                  </span>
-                  <i
-                    className={`ti ${calendarExpanded ? 'ti-chevron-up' : 'ti-chevron-down'} text-xs text-[#8A94A6]`}
-                    aria-hidden="true"
-                  />
-                </button>
-              )}
-            </div>
+                <i
+                  className={`ti ${calendarExpanded ? 'ti-chevron-up' : 'ti-chevron-down'} text-xs text-[#8A94A6]`}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
           </div>
 
           <XpBar level={user?.level ?? 1} xp={user?.xp ?? 0} />

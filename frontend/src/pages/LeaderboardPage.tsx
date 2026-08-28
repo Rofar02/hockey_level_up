@@ -111,7 +111,7 @@ export function LeaderboardPage() {
             <>
               <LeaderboardRow
                 rank={pinnedMe.rank}
-                displayName={user !== null ? getDisplayName(user) : ''}
+                displayName={user !== null ? getDisplayName(user, { patronymic: false }) : ''}
                 position={user?.position ?? null}
                 jerseyNumber={user?.jersey_number ?? null}
                 avatarUrl={user?.avatar_url ?? null}
@@ -126,7 +126,7 @@ export function LeaderboardPage() {
             <LeaderboardRow
               key={entry.id}
               rank={index + 4}
-              displayName={getDisplayName(entry)}
+              displayName={getDisplayName(entry, { patronymic: false })}
               position={entry.position}
               jerseyNumber={entry.jersey_number}
               avatarUrl={entry.avatar_url}
@@ -253,7 +253,7 @@ function PodiumSlot({
         )}
       </div>
       <span className="max-w-full truncate text-xs font-semibold text-[#F5F7FA]">
-        {getDisplayName(entry)}
+        {getDisplayName(entry, { patronymic: false })}
         {isSelf ? ' (вы)' : ''}
       </span>
       <span className="font-mono text-xs font-bold" style={{ color: medalColor }}>
