@@ -91,6 +91,21 @@ async def list_exercise_skill_tags(
     return await SkillService(session).list_tags_for_exercise(exercise_id)
 
 
+@router.get("/{exercise_id}/skills", response_model=list[SkillTagRead])
+async def list_exercise_skills_for_player(
+    exercise_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Same data as /skill-tags above, exposed to any authenticated player
+    instead of require_admin -- ExerciseFocusScreen's "Развивает: ..." line
+    (hockey design pass, 2026-08-28) found the admin route 403ing when it
+    tried to reuse it. Kept as a separate route rather than loosening
+    /skill-tags itself, so the admin route's own guard stays exactly what
+    its own docstring says it's for."""
+    return await SkillService(session).list_tags_for_exercise(exercise_id)
+
+
 @router.get("/{exercise_id}/movement-patterns", response_model=list[MovementPattern])
 async def list_exercise_movement_patterns(
     exercise_id: uuid.UUID,

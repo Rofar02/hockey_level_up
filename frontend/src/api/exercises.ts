@@ -80,11 +80,19 @@ export function deleteExercise(exerciseId: string, accessToken: string): Promise
   return apiDeleteAuth<void>(`/exercises/${exerciseId}`, accessToken)
 }
 
+// Admin-only (require_admin on the backend) -- AdminExercisesPage's edit
+// form.
 export function listExerciseSkillTags(
   exerciseId: string,
   accessToken: string,
 ): Promise<SkillTagRead[]> {
   return apiGet<SkillTagRead[]>(`/exercises/${exerciseId}/skill-tags`, accessToken)
+}
+
+// Same data, any authenticated player -- ExerciseFocusScreen's
+// "Развивает: ..." line.
+export function listExerciseSkills(exerciseId: string, accessToken: string): Promise<SkillTagRead[]> {
+  return apiGet<SkillTagRead[]>(`/exercises/${exerciseId}/skills`, accessToken)
 }
 
 export function listExerciseMovementPatterns(

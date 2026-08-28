@@ -10,11 +10,12 @@ import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { StatIcon } from '../components/ui/StatIcon'
-import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
+import { ExerciseFocusScreen } from '../components/ExerciseFocusScreen'
 import * as authApi from '../api/auth'
 import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
+import * as skillsApi from '../api/skills'
 import * as trainingBlockApi from '../api/trainingBlock'
 import * as trainingDiaryApi from '../api/trainingDiary'
 import * as trainingSessionsApi from '../api/trainingSessions'
@@ -25,6 +26,7 @@ import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { TrainingStreakRead } from '../types/progress'
 import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
 import type { DayPlanRead, SessionBlockRead, TrainingPhase } from '../types/schedule'
+import type { SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
 import { lockBodyScroll, unlockBodyScroll } from '../utils/bodyScrollLock'
@@ -222,6 +224,10 @@ export function TrainingSessionPage() {
   // single exercise when its detail modal (with SetLogger) closes.
   const [setCompletionCounts, setSetCompletionCounts] = useState<Record<string, number>>({})
   const [feedbackByBlockId, setFeedbackByBlockId] = useState<Record<string, string>>({})
+  // Id -> name for ExerciseFocusScreen's "Развивает: ..." line -- fetched
+  // once here rather than per-exercise, since it's the same ~12-skill
+  // catalog regardless of which exercise is focused.
+  const [skills, setSkills] = useState<SkillSummaryRead[]>([])
   const [selectedExercise, setSelectedExercise] = useState<ExerciseRead | null>(null)
   // Which step of the phase tracker is the active one -- advanced only by
   // an explicit "Завершить [этап]" tap (see handleFinishPhase), never
@@ -293,6 +299,27 @@ export function TrainingSessionPage() {
   // level-up. Reading it here (rather than off the cached AuthContext user)
   // guarantees it reflects this page visit, not a stale login-time snapshot.
   const [levelBeforeSession, setLevelBeforeSession] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    skillsApi
+      .listSkills(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setSkills(result)
+        }
+      })
+      .catch(() => {
+        // Best-effort -- ExerciseFocusScreen just shows no skill names/falls
+        // back to the generic zone if this fails.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
 
   useEffect(() => {
     if (accessToken === null || dayPlanId === undefined) {
@@ -665,20 +692,39 @@ export function TrainingSessionPage() {
 
           <div className={currentPhase === 'puck' ? BONUS_CARD_CLASS : CARD_CLASS}>
             <div className="flex flex-col gap-3 p-4">
-              {currentPhaseBlocks.map((block) => (
-                <ExerciseRow
-                  key={block.id}
-                  block={block}
-                  isCurrent={block.id === currentExerciseId}
-                  isDone={isExerciseDone(block, setCompletionCounts)}
-                  pending={pendingIds.has(block.id)}
-                  onComplete={() => handleComplete(block)}
-                  feedback={feedbackByBlockId[block.id]}
-                  onFeedbackDone={() => removeFeedback(block.id)}
-                  onOpenDetail={() => setSelectedExercise(block.exercise)}
-                  showTargetStat={currentPhase === 'main'}
+              {/* Row tap ("focus mode", 2026-08-28) expands in place, right
+                  here, instead of opening a boxed modal -- the progress
+                  bar/PhaseTracker/"Этап N из M" heading above this card are
+                  unaffected either way. */}
+              {selectedBlock !== null && trainingSessionId !== null && accessToken !== null ? (
+                <ExerciseFocusScreen
+                  block={selectedBlock}
+                  skills={skills}
+                  trainingSessionId={trainingSessionId}
+                  accessToken={accessToken}
+                  onBack={handleCloseExerciseDetail}
+                  onComplete={
+                    selectedBlock.completed_at === null ? () => handleComplete(selectedBlock) : undefined
+                  }
+                  blockId={selectedBlock.completed_at === null ? selectedBlock.id : undefined}
+                  onReplaced={selectedBlock.completed_at === null ? handleExerciseReplaced : undefined}
                 />
-              ))}
+              ) : (
+                currentPhaseBlocks.map((block) => (
+                  <ExerciseRow
+                    key={block.id}
+                    block={block}
+                    isCurrent={block.id === currentExerciseId}
+                    isDone={isExerciseDone(block, setCompletionCounts)}
+                    pending={pendingIds.has(block.id)}
+                    onComplete={() => handleComplete(block)}
+                    feedback={feedbackByBlockId[block.id]}
+                    onFeedbackDone={() => removeFeedback(block.id)}
+                    onOpenDetail={() => setSelectedExercise(block.exercise)}
+                    showTargetStat={currentPhase === 'main'}
+                  />
+                ))
+              )}
             </div>
           </div>
 
@@ -725,32 +771,6 @@ export function TrainingSessionPage() {
         && accessToken !== null && (
           <TrainingDiaryCard trainingSessionId={trainingSessionId} accessToken={accessToken} />
         )}
-
-      {selectedExercise !== null && trainingSessionId !== null && accessToken !== null && (
-        <ExerciseDetailModal
-          exercise={selectedExercise}
-          trainingSessionId={trainingSessionId}
-          accessToken={accessToken}
-          onClose={handleCloseExerciseDetail}
-          // Only when the block is actually known and not already ticked --
-          // handleComplete itself also no-ops on an already-completed block,
-          // this just avoids constructing a callback that would immediately
-          // no-op every time it's called.
-          onLastSetCompleted={
-            selectedBlock !== null && selectedBlock.completed_at === null
-              ? () => handleComplete(selectedBlock)
-              : undefined
-          }
-          blockId={
-            selectedBlock !== null && selectedBlock.completed_at === null ? selectedBlock.id : undefined
-          }
-          onReplaced={
-            selectedBlock !== null && selectedBlock.completed_at === null
-              ? handleExerciseReplaced
-              : undefined
-          }
-        />
-      )}
 
       {sessionComplete !== null && accessToken !== null && (
         <SessionCompleteModal

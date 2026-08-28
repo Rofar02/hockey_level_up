@@ -5,6 +5,7 @@ import { CARD_BORDER } from './ui/cardStyle'
 import { FormError } from './ui/FormError'
 import { Modal } from './ui/Modal'
 import { ExerciseTechnique } from './ExerciseTechnique'
+import { TimerPlayer } from './TimerPlayer'
 import * as exercisesApi from '../api/exercises'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as setCompletionsApi from '../api/setCompletions'
@@ -16,7 +17,8 @@ import type { ExerciseRead } from '../types/exercise'
 import type { SessionBlockRead } from '../types/schedule'
 import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletion'
 import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
-import { hasExerciseTechnique } from '../utils/exerciseTechnique'
+import { exercisePlayerMode } from '../utils/exercisePlayerMode'
+import { hasExerciseDescription, hasExerciseTechnique } from '../utils/exerciseTechnique'
 
 // Same volume formatting as NewSchedulePage's own (page-local there, for
 // its own unrelated display) -- duplicated rather than imported, matching
@@ -56,23 +58,20 @@ function TabButton({
   )
 }
 
-// The full exercise detail modal -- "Подходы" (SetLogger: suggested weight,
-// per-set logging, feedback, state recovery) + "Техника" (video/
-// description via the shared ExerciseTechnique). Used from
-// TrainingSessionPage (today's actual session) and from NewSchedulePage
-// (an already-started/completed day viewed from the weekly schedule) --
-// both cases need the real logged data, not just the plan, which is what
-// distinguishes this from NewSchedulePage's separate, genuinely read-only
-// DayPreviewModal for not-yet-started future days.
-export function ExerciseDetailModal({
-  exercise,
-  trainingSessionId,
-  accessToken,
-  onClose,
-  onLastSetCompleted,
-  blockId,
-  onReplaced,
-}: {
+// The boxed-modal shell -- used by NewSchedulePage (an already-started/
+// completed day viewed from the weekly schedule, not the live session).
+// TrainingSessionPage's own live flow uses ExerciseFocusScreen instead
+// (full-screen, not boxed), which wraps the same ExerciseDetailBody below
+// rather than duplicating it.
+export function ExerciseDetailModal(props: ExerciseDetailBodyProps) {
+  return (
+    <Modal title={props.exercise.name} onClose={props.onClose}>
+      <ExerciseDetailBody {...props} />
+    </Modal>
+  )
+}
+
+export interface ExerciseDetailBodyProps {
   exercise: ExerciseRead
   trainingSessionId: string
   accessToken: string
@@ -91,14 +90,44 @@ export function ExerciseDetailModal({
   // simply doesn't render there rather than needing a second wiring pass.
   blockId?: string
   onReplaced?: (updated: SessionBlockRead) => void
-}) {
+  // 'modal' (default): boxed Modal above supplies p-6 padding, so the tab
+  // bar bleeds -mx-6/-mt-6 to sit flush with the modal's own edges, and the
+  // no-target_sets fallback is the original plain "Объём: N сек" +
+  // "Выполнено" row. 'focus': ExerciseFocusScreen's parent card pads with
+  // p-4 instead (a -mx-6 there overflowed the card by 8px each side, found
+  // 2026-08-28 screenshotting this), and the no-target_sets case is the
+  // tactile Нужно/Старт/Подходы cluster (plan item 1a). SetLogger itself
+  // (the target_sets branch) is identical either way.
+  variant?: 'modal' | 'focus'
+}
+
+// "Подходы" (SetLogger: suggested weight, per-set logging, feedback, state
+// recovery) + "Техника" (video/description via the shared ExerciseTechnique).
+// Both cases need the real logged data, not just the plan, which is what
+// distinguishes this from NewSchedulePage's separate, genuinely read-only
+// DayPreviewModal for not-yet-started future days.
+export function ExerciseDetailBody({
+  exercise,
+  trainingSessionId,
+  accessToken,
+  onClose,
+  onLastSetCompleted,
+  blockId,
+  onReplaced,
+  variant = 'modal',
+}: ExerciseDetailBodyProps) {
   const [activeTab, setActiveTab] = useState<ExerciseModalTab>('sets')
   const [isReplacing, setIsReplacing] = useState(false)
   const [replaceError, setReplaceError] = useState<string | null>(null)
 
   const targetVolume = formatTargetVolume(exercise)
-  const hasSets = exercise.target_sets !== null
-  const hasTechnique = hasExerciseTechnique(exercise)
+  const mode = exercisePlayerMode(exercise)
+  // 'focus' hides the video here (ExerciseFocusScreen already shows it
+  // above the tabs) -- gate on the description alone then, or a
+  // video-only exercise would show an empty tab instead of either the
+  // video or the "not added yet" fallback below.
+  const hasTechnique =
+    variant === 'focus' ? hasExerciseDescription(exercise) : hasExerciseTechnique(exercise)
   const canReplace = blockId !== undefined && onReplaced !== undefined
 
   async function handleReplace() {
@@ -130,11 +159,21 @@ export function ExerciseDetailModal({
   // data (e.g. target_sets or description) -- catalog content gets filled
   // in separately (exercise admin edit), not invented here.
   return (
-    <Modal title={exercise.name} onClose={onClose}>
       <div className="flex flex-col gap-3">
-        <div className="-mx-6 -mt-6 flex border-b border-white/5 bg-dark-card">
+        <div
+          className={`flex border-b border-white/5 bg-dark-card ${
+            // 'focus': ExerciseDetailBody isn't the first thing in its
+            // parent card (the video block/skills line sit above it), so
+            // only the horizontal bleed matters here -- -mt-6 would just
+            // collapse the gap-4 spacing above it, not reach any edge.
+            // 'modal': ExerciseDetailBody IS the first child inside
+            // Modal's own p-6 body, so -mt-6 cancels that top padding to
+            // sit flush under the modal's title bar.
+            variant === 'focus' ? '-mx-4' : '-mx-6 -mt-6'
+          }`}
+        >
           <TabButton active={activeTab === 'sets'} onClick={() => setActiveTab('sets')}>
-            Подходы
+            {mode === 'duration' ? 'Выполнение' : 'Подходы'}
           </TabButton>
           <TabButton active={activeTab === 'technique'} onClick={() => setActiveTab('technique')}>
             Техника
@@ -142,12 +181,19 @@ export function ExerciseDetailModal({
         </div>
 
         {activeTab === 'sets' &&
-          (hasSets ? (
+          (mode === 'sets_reps' ? (
             <SetLogger
               exercise={exercise}
               trainingSessionId={trainingSessionId}
               accessToken={accessToken}
               onLastSetCompleted={onLastSetCompleted}
+            />
+          ) : mode === 'duration' ? (
+            <TimerPlayer
+              durationSeconds={exercise.target_duration_seconds!}
+              rounds={exercise.target_sets ?? 1}
+              isDone={onLastSetCompleted === undefined}
+              onComplete={onLastSetCompleted}
             />
           ) : (
             <div className="flex flex-col gap-3">
@@ -161,14 +207,14 @@ export function ExerciseDetailModal({
                   Количество подходов для этого упражнения ещё не задано.
                 </p>
               )}
-              {/* Without target_sets there's no SetLogger to auto-complete it
-                  on a last-set save -- previously the only way to mark this
-                  exercise done was to close the modal and tap the row's own
-                  checkbox separately, an inconsistent extra step that sets-
-                  based exercises don't need. onLastSetCompleted undefined
-                  means the same thing it does for SetLogger -- read-only
-                  context (NewSchedulePage) or already completed -- so this
-                  mirrors that guard exactly. */}
+              {/* Neither TimerPlayer nor SetLogger auto-completes this case
+                  -- previously the only way to mark this exercise done was
+                  to close the modal and tap the row's own checkbox
+                  separately, an inconsistent extra step the other two modes
+                  don't need. onLastSetCompleted undefined means the same
+                  thing it does for both of those -- read-only context
+                  (NewSchedulePage) or already completed -- so this mirrors
+                  that guard exactly. */}
               {onLastSetCompleted !== undefined && (
                 <Button
                   onClick={() => {
@@ -185,7 +231,7 @@ export function ExerciseDetailModal({
 
         {activeTab === 'technique' &&
           (hasTechnique ? (
-            <ExerciseTechnique exercise={exercise} />
+            <ExerciseTechnique exercise={exercise} hideVideo={variant === 'focus'} />
           ) : (
             <p className="text-sm text-text-secondary">Описание техники пока не добавлено.</p>
           ))}
@@ -204,49 +250,72 @@ export function ExerciseDetailModal({
           </div>
         )}
       </div>
-    </Modal>
   )
 }
 
-// Compact label+input+unit field for weight/reps -- stacked one-per-line in
-// the current-set row rather than side by side, so neither the label nor
-// the input ever has to shrink to fit a narrow modal (see the width budget
-// in SetLogger's current-set row comment below).
-function CompactNumberField({
-  label,
-  unit,
+// −/+ around a big number, replacing the old text-field-with-keyboard input
+// (icelevel_player_master_prompt.md, 2026-08-28) -- starts at whatever the
+// caller resolves as the current effective value (a suggestion, or an
+// already-saved value when reopened for correction) and only changes on an
+// explicit tap, never via typing.
+function Stepper({
   value,
-  placeholder,
+  unit,
+  step,
+  min = 0,
   disabled,
   onChange,
 }: {
-  label: string
+  value: number
   unit?: string
-  value: string
-  placeholder?: string
+  step: number
+  min?: number
   disabled?: boolean
-  onChange: (value: string) => void
+  onChange: (value: number) => void
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      {/* Natural content width, not a fixed one -- a fixed width tight
-          enough to matter (e.g. w-14) risks "Повторы" visually overflowing
-          its own box on narrow screens; letting it size to its text is both
-          simpler and safer. */}
-      <span className="shrink-0 whitespace-nowrap text-xs text-text-secondary">{label}</span>
-      <input
-        type="number"
-        inputMode={unit !== undefined ? 'decimal' : 'numeric'}
-        className="w-24 shrink-0 rounded-md border-2 border-white/10 bg-dark-bg px-3 py-2 font-mono text-lg font-semibold text-text-primary placeholder:text-text-secondary/50 focus:border-accent-ice focus:outline-none disabled:opacity-50"
-        value={value}
-        placeholder={placeholder}
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onChange(Math.max(min, value - step))}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      {unit !== undefined && <span className="shrink-0 text-xs text-text-secondary">{unit}</span>}
+        aria-label="Меньше"
+        className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-text-primary disabled:opacity-50"
+      >
+        <i className="ti ti-minus text-sm" aria-hidden="true" />
+      </button>
+      <span className="min-w-[2.5rem] text-center font-display text-lg font-semibold text-text-primary">
+        {value}
+        {unit !== undefined && <span className="ml-0.5 text-xs font-sans text-text-secondary">{unit}</span>}
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(value + step)}
+        disabled={disabled}
+        aria-label="Больше"
+        className="flex h-7 w-7 items-center justify-center rounded-md bg-white/10 text-text-primary disabled:opacity-50"
+      >
+        <i className="ti ti-plus text-sm" aria-hidden="true" />
+      </button>
     </div>
   )
 }
+
+// Inline "совпадает/меньше/больше" read on a saved rep count against the
+// exercise's own range -- the honest-reconciliation tag from the mockup,
+// computed fresh from what's already stored rather than needing to record
+// "what was suggested at save time" as new data.
+function repsRangeTag(reps: number, min: number, max: number): 'match' | 'less' | 'more' {
+  if (reps < min) {
+    return 'less'
+  }
+  if (reps > max) {
+    return 'more'
+  }
+  return 'match'
+}
+
+const REPS_TAG_LABELS = { match: 'совпадает', less: 'меньше', more: 'больше' } as const
 
 function formatRestClock(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60)
@@ -361,8 +430,18 @@ function SetLogger({
   const [completedSets, setCompletedSets] = useState<
     Record<number, Pick<SetCompletionSummary, 'weight_kg' | 'reps_completed'>>
   >({})
-  const [weightInput, setWeightInput] = useState('')
-  const [repsInput, setRepsInput] = useState('')
+  // null = "use the current suggestion" (icelevel_player_master_prompt.md,
+  // 2026-08-28: the stepper starts pre-filled at the suggested number, not
+  // empty) -- becomes a real number only once the athlete actually taps
+  // +/-. Reset to null on every advance to a fresh set, so a suggestion
+  // that finishes loading after that point still fills it in correctly.
+  // The old Stage-1.5 protection ("never silently record an untouched
+  // guess") is now the explicit tap on the confirm circle instead of a
+  // blank-field requirement -- confirming still requires a deliberate
+  // action, it's just not the deciding factor anymore whether the field
+  // was literally edited.
+  const [weightValue, setWeightValue] = useState<number | null>(null)
+  const [repsValue, setRepsValue] = useState<number | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   // A completed set reopened for correction (tapped in the list below) --
@@ -507,49 +586,41 @@ function SetLogger({
     }
   }
 
-  // Reps is the one number every set logs regardless of exercise type (the
-  // "Повторы" field always renders, tracked weight or not -- a duration-per-
-  // set input doesn't exist here, that's handled entirely outside SetLogger
-  // via target_duration_seconds), so an empty reps field is never a
-  // legitimate save -- it used to silently persist as reps_completed: null
-  // and render as a permanent, unfixable "—" (found 2026-08-27: "если не
-  // выбираешь подход оно ставится прочерком, не изменить нифига"). Mirrors
-  // the weight requirement the backend already enforces server-side for
-  // tracks_weight exercises (set_completion_service.save_set) -- gating it
-  // here too means that 400 case (misreported below as the sanity-check
-  // message) is no longer reachable from an empty field, only a real typo.
-  const repsMissing = repsInput.trim() === ''
-  const weightMissing = exercise.tracks_weight && weightInput.trim() === ''
-  const canSaveSet = !repsMissing && !weightMissing
+  // Stepper always shows a real number (never blank), so there's nothing
+  // left to validate before saving -- the effective value below is always
+  // a legitimate reps count. (Previously an empty reps field used to
+  // silently persist as reps_completed: null and render as a permanent,
+  // unfixable "—" -- found 2026-08-27, "если не выбираешь подход оно
+  // ставится прочерком, не изменить нифига" -- the stepper can't reach
+  // that state at all, there's no empty state to leave it in.)
+  const effectiveReps = repsValue ?? suggestedReps ?? exercise.rep_range_min ?? 1
+  const effectiveWeight = weightValue ?? suggestedWeightKg ?? 0
 
   function beginEditSet(
     setNumber: number,
     completed: Pick<SetCompletionSummary, 'weight_kg' | 'reps_completed'>,
   ) {
     setEditingSetNumber(setNumber)
-    setWeightInput(completed.weight_kg !== null ? String(completed.weight_kg) : '')
-    setRepsInput(completed.reps_completed !== null ? String(completed.reps_completed) : '')
+    setWeightValue(completed.weight_kg)
+    setRepsValue(completed.reps_completed)
     setSaveError(null)
   }
 
   function cancelEditSet() {
     setEditingSetNumber(null)
-    setWeightInput('')
-    setRepsInput('')
+    setWeightValue(null)
+    setRepsValue(null)
     setSaveError(null)
   }
 
   async function handleSaveSet() {
-    if (!canSaveSet) {
-      return
-    }
     // Editing an already-logged set overwrites that same set_number in
     // place (see set_completion_service.save_set) rather than advancing
     // anything -- targetSetNumber is whichever this save is actually for.
     const targetSetNumber = editingSetNumber ?? currentSetNumber
     const isCorrection = editingSetNumber !== null
-    const reps = Number(repsInput)
-    const weight = exercise.tracks_weight ? Number(weightInput) : null
+    const reps = effectiveReps
+    const weight = exercise.tracks_weight ? effectiveWeight : null
 
     setSaveError(null)
     setIsSaving(true)
@@ -565,8 +636,8 @@ function SetLogger({
         accessToken,
       )
       setCompletedSets((previous) => ({ ...previous, [targetSetNumber]: result }))
-      setWeightInput('')
-      setRepsInput('')
+      setWeightValue(null)
+      setRepsValue(null)
 
       if (isCorrection) {
         // Fixing history, not progressing -- no rest timer, no
@@ -577,12 +648,10 @@ function SetLogger({
         return
       }
 
-      // Next set's fields start blank, not pre-filled with the fresh
-      // suggestion -- an athlete who never touches the field must not have
-      // the system's own guess silently recorded as what they actually
-      // lifted (Stage 1.5, 2026-08-20 planning session). The number still
-      // shows as a placeholder + the hint line below, one tap away via
-      // "Совпадает".
+      // Next set's stepper starts at the fresh suggestion once it loads
+      // (repsValue/weightValue are already back to null above) --
+      // suggestions personalize per-set (RepsSuggestionService/
+      // WeightSuggestionService), not just once per exercise.
       setSuggestedWeightKg(result.suggested_weight_kg)
 
       if (hasRepRange) {
@@ -618,10 +687,9 @@ function SetLogger({
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
         // The specific case the backend's >3x sanity check guards against --
-        // a typo like 500 instead of 50 -- gets this friendlier copy instead
-        // of the raw server message. The "required" 400 case can't land
-        // here any more -- canSaveSet blocks an empty/missing weight before
-        // the request is even sent.
+        // a typo like 500 instead of 50. The "required" 400 case can't land
+        // here any more -- the stepper never produces an empty/missing
+        // weight, only a real out-of-range number the server itself flags.
         setSaveError('Проверьте вес — сильно отличается от обычного.')
       } else {
         setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить подход.')
@@ -659,42 +727,50 @@ function SetLogger({
           const completed = completedSets[setNumber]
 
           if (completed !== undefined && setNumber !== editingSetNumber) {
+            // Compact row, not a card -- icelevel_player_master_prompt.md
+            // (2026-08-28): each set is one tappable row (reopens for
+            // correction via beginEditSet), not a form-like card.
+            const reps = completed.reps_completed
+            const tag =
+              reps !== null && hasRepRange
+                ? repsRangeTag(reps, exercise.rep_range_min!, exercise.rep_range_max!)
+                : null
             return (
-              // Tappable -- reopens this set for correction (beginEditSet
-              // pre-fills the inputs below from its saved values). The old
-              // "—" a blank reps field left behind used to be permanent;
-              // this is what makes it fixable.
               <button
                 key={setNumber}
                 type="button"
                 onClick={() => beginEditSet(setNumber, completed)}
-                className="flex min-w-0 items-center gap-2 rounded border border-white/5 bg-dark-card px-3 py-2 text-left text-sm transition-colors hover:border-white/20"
+                className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-white/5 bg-dark-card px-3 py-2.5 text-left transition-colors hover:border-white/20"
               >
-                <i className="ti ti-check shrink-0 text-accent-ice" aria-hidden="true" />
-                <span className="min-w-0 truncate text-text-secondary">Подход {setNumber}</span>
-                <span className="ml-auto shrink-0 whitespace-nowrap font-mono text-text-primary">
-                  {exercise.tracks_weight && completed.weight_kg !== null
-                    ? `${completed.weight_kg}кг × ${completed.reps_completed ?? '—'}`
-                    : (completed.reps_completed ?? '—')}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 truncate font-display text-sm font-semibold text-text-primary">
+                    Подход {setNumber}
+                  </span>
+                  {tag !== null ? (
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 font-display text-[10px] uppercase tracking-wide ${
+                        tag === 'match' ? 'bg-accent-ice/15 text-accent-ice' : 'bg-white/10 text-text-secondary'
+                      }`}
+                    >
+                      {reps} {REPS_TAG_LABELS[tag]}
+                    </span>
+                  ) : (
+                    reps !== null && (
+                      <span className="shrink-0 font-mono text-xs text-text-secondary">
+                        {exercise.tracks_weight && completed.weight_kg !== null
+                          ? `${completed.weight_kg}кг x ${reps}`
+                          : reps}
+                      </span>
+                    )
+                  )}
                 </span>
-                <i className="ti ti-pencil shrink-0 text-xs text-text-secondary" aria-hidden="true" />
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-ice text-dark-bg">
+                  <i className="ti ti-check text-sm" aria-hidden="true" />
+                </span>
               </button>
             )
           }
 
-          // Current set: identified purely by a plain 2px persimmon outline
-          // around the row (dark fill unchanged) -- no extra "Сейчас" label,
-          // no filled/colored block. Width budget at the narrowest supported
-          // viewport (320px):
-          //   320 backdrop(-32, p-4×2) -> 288 card
-          //   288 border(-2)           -> 286 modal body
-          //   286 body p-6(-48)        -> 238 SetLogger p-4(-32) -> 206
-          //   206 this row border-2(-4) + px-3×2(-24) -> 178px content
-          // Each CompactNumberField (label ~30px + gap 8 + w-20 input 80px +
-          // gap 8 + optional unit ~16px) tops out around 142px -- still
-          // under 178px stacked one per line. Side-by-side would need
-          // ~142 + 12(gap) + ~112 =~ 266px, which does NOT fit -- that's why
-          // weight and reps are stacked instead of in a row.
           const isEditingThis = setNumber === editingSetNumber
           if (isEditingThis || (setNumber === currentSetNumber && !allSetsDone && editingSetNumber === null)) {
             // The rest timer only ever gates the forward "next pending set"
@@ -711,119 +787,47 @@ function SetLogger({
               )
             }
             return (
-              <div
-                key={setNumber}
-                className="flex min-w-0 flex-col gap-3 rounded border-2 border-accent-persimmon bg-dark-card px-3 py-3"
-              >
-                <span className="min-w-0 truncate text-sm font-medium text-text-primary">
-                  Подход {setNumber}
-                  {isEditingThis && (
-                    <span className="ml-2 text-xs font-normal text-text-secondary">(исправление)</span>
-                  )}
-                </span>
-
-                <div className="flex flex-col gap-2">
-                  {exercise.tracks_weight && (
-                    <div className="flex flex-col gap-1">
-                      {showWeightHint && (
-                        <div className="mb-1 flex flex-col gap-2 rounded border border-accent-ice/30 bg-accent-ice/5 px-3 py-2.5">
-                          <p className="text-xs leading-relaxed text-text-secondary">
-                            Мы подсказываем вес, но поле всегда пустое — впишите то, что реально
-                            подняли, или нажмите «Совпадает», если подсказка верна. После подхода
-                            скажите, как ощущалось — в следующий раз подберём точнее.
-                          </p>
-                          <Button
-                            variant="neutral"
-                            onClick={dismissWeightHint}
-                            className="self-start px-3 py-1 text-xs"
-                          >
-                            Понятно
-                          </Button>
-                        </div>
-                      )}
-                      <CompactNumberField
-                        label="Вес"
-                        unit="кг"
-                        value={weightInput}
-                        placeholder={suggestedWeightKg !== null ? String(suggestedWeightKg) : undefined}
-                        disabled={isLoadingSuggestion || isSaving}
-                        onChange={setWeightInput}
-                      />
-                      <span className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
-                        {isLoadingSuggestion
-                          ? 'Загрузка предложения...'
-                          : suggestedWeightKg !== null
-                            ? (
-                              <>
-                                <span>Сколько реально подняли? Предложено: {suggestedWeightKg} кг</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setWeightInput(String(suggestedWeightKg))}
-                                  className="inline-flex items-center rounded-full border border-accent-ice/40 bg-accent-ice/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent-ice transition-colors hover:bg-accent-ice/20"
-                                >
-                                  Совпадает
-                                </button>
-                              </>
-                            )
-                            : 'Нет предложения — введите вес вручную'}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-1">
-                    <CompactNumberField
-                      label="Повторы"
-                      value={repsInput}
-                      placeholder={suggestedReps !== null ? String(suggestedReps) : undefined}
-                      disabled={isLoadingRepsSuggestion || isSaving}
-                      onChange={setRepsInput}
-                    />
-                    {hasRepRange && (
-                      <span className="flex flex-wrap items-center gap-2 text-xs text-text-secondary">
-                        {isLoadingRepsSuggestion
-                          ? 'Загрузка предложения...'
-                          : suggestedReps !== null
-                            ? (
-                              <>
-                                <span>
-                                  Сколько реально сделали? Предложено: {suggestedReps} (диапазон{' '}
-                                  {exercise.rep_range_min}-{exercise.rep_range_max})
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setRepsInput(String(suggestedReps))}
-                                  className="inline-flex items-center rounded-full border border-accent-ice/40 bg-accent-ice/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent-ice transition-colors hover:bg-accent-ice/20"
-                                >
-                                  Совпадает
-                                </button>
-                              </>
-                            )
-                            : 'Нет предложения — введите повторы вручную'}
-                      </span>
+              <div key={setNumber} className="flex flex-col gap-2">
+                {showWeightHint && exercise.tracks_weight && (
+                  <div className="flex flex-col gap-2 rounded border border-accent-ice/30 bg-accent-ice/5 px-3 py-2.5">
+                    <p className="text-xs leading-relaxed text-text-secondary">
+                      Мы подсказываем вес, но стартовое значение можно скорректировать стрелками
+                      до того, что реально подняли. После подхода скажите, как ощущалось — в
+                      следующий раз подберём точнее.
+                    </p>
+                    <Button variant="neutral" onClick={dismissWeightHint} className="self-start px-3 py-1 text-xs">
+                      Понятно
+                    </Button>
+                  </div>
+                )}
+                <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border-2 border-accent-persimmon bg-dark-card px-3 py-2.5">
+                  <span className="min-w-0 truncate font-display text-sm font-semibold text-text-primary">
+                    Подход {setNumber}
+                    {isEditingThis && (
+                      <span className="ml-2 text-xs font-normal text-text-secondary">(исправление)</span>
                     )}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    {exercise.tracks_weight && (
+                      <Stepper
+                        value={effectiveWeight}
+                        unit="кг"
+                        step={2.5}
+                        disabled={isLoadingSuggestion || isSaving}
+                        onChange={setWeightValue}
+                      />
+                    )}
+                    <Stepper
+                      value={effectiveReps}
+                      step={1}
+                      min={1}
+                      disabled={isLoadingRepsSuggestion || isSaving}
+                      onChange={setRepsValue}
+                    />
                   </div>
                 </div>
-
-                {/* Only reason canSaveSet can be false while the field is
-                    non-empty is a fat-fingered value the server rejects
-                    (FormError below covers that) -- this is specifically
-                    what a disabled "Готово" with nothing typed yet means. */}
-                {!canSaveSet && (
-                  <p className="text-xs text-text-secondary">
-                    {repsMissing
-                      ? 'Введите количество повторений, чтобы сохранить подход.'
-                      : 'Введите вес, чтобы сохранить подход.'}
-                  </p>
-                )}
                 <FormError message={saveError} />
-                <div className="flex items-center gap-3">
-                  <Button
-                    onClick={handleSaveSet}
-                    isLoading={isSaving}
-                    disabled={!canSaveSet}
-                    className="self-start"
-                  >
-                    Готово
-                  </Button>
+                <div className="flex items-center justify-end gap-3">
                   {isEditingThis && (
                     <button
                       type="button"
@@ -834,6 +838,15 @@ function SetLogger({
                       Отмена
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleSaveSet}
+                    disabled={isSaving}
+                    aria-label="Подтвердить подход"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-ice text-dark-bg transition-opacity hover:opacity-90 disabled:opacity-50"
+                  >
+                    <i className="ti ti-check text-lg" aria-hidden="true" />
+                  </button>
                 </div>
               </div>
             )
@@ -842,9 +855,9 @@ function SetLogger({
           return (
             <div
               key={setNumber}
-              className="flex min-w-0 items-center rounded border border-white/5 px-3 py-2 text-sm text-text-secondary/50"
+              className="flex min-w-0 items-center rounded-md border border-white/5 px-3 py-2.5 text-text-secondary/50"
             >
-              <span className="min-w-0 truncate">Подход {setNumber}</span>
+              <span className="min-w-0 truncate font-display text-sm">Подход {setNumber}</span>
             </div>
           )
         })}
