@@ -14,6 +14,12 @@ export default {
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        // Condensed, bold-by-design -- the "number on a jersey" face for
+        // level/stat values (hockey design pass, 2026-08-28). Deliberately
+        // separate from `font-mono`: mono stays for tabular/utility digits
+        // (timers, the streak counter) where digit-width stability matters,
+        // display is for numbers that ARE the content (rank, stat value).
+        display: ['Oswald', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: '4px',

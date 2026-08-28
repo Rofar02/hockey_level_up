@@ -505,9 +505,12 @@ function OwnProfileView() {
 
                 <div className="mx-auto flex w-full max-w-[220px] flex-col gap-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5">
-                      <span className="font-mono text-[11px] font-bold tracking-wide text-accent-ice">
-                        УР. {user?.level ?? 1}
+                    <span className="flex items-center gap-1 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5">
+                      <span className="font-sans text-[9px] font-semibold uppercase tracking-wider text-accent-ice/70">
+                        Ур.
+                      </span>
+                      <span className="font-display text-sm font-semibold leading-none text-accent-ice">
+                        {user?.level ?? 1}
                       </span>
                     </span>
                   </div>
@@ -532,8 +535,12 @@ function OwnProfileView() {
                       <span className="text-xs text-[#8A94A6]">{STAT_ABBREVIATIONS[statType]}</span>
                       {/* Numbers use the ice accent, not primary text --
                           matches the "#D7EFFF for numbers" rule already
-                          applied on Home/TrainingSession. */}
-                      <span className="font-mono text-2xl font-bold text-accent-ice">
+                          applied on Home/TrainingSession. font-display
+                          (Oswald) instead of font-mono here specifically --
+                          this number IS the content (a stat value, same
+                          register as a jersey number), not a utility digit
+                          like a timer or the streak counter. */}
+                      <span className="font-display text-2xl font-bold text-accent-ice">
                         {Math.round(stat.effective_value)}
                       </span>
                     </button>
@@ -1029,7 +1036,7 @@ function StatDetailModal({
               in a modal reads as primary text, not the ice accent -- ice is
               reserved for compact numbers in card grids (see the 4-tile
               row above). */}
-          <p className="font-mono text-3xl font-bold leading-none text-[#F5F7FA]">
+          <p className="font-display text-3xl font-bold leading-none text-[#F5F7FA]">
             {Math.round(stat.effective_value)}
           </p>
           {stat.decay_active && (

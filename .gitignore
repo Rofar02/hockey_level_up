@@ -12,6 +12,10 @@ venv/
 .idea/
 .vscode/
 
+# Playwright MCP's own screenshot/console-log scratch output, not project
+# source
+.playwright-mcp/
+
 # User-uploaded content -- not source, shouldn't be committed
 static/avatars/
 static/reference-articles/

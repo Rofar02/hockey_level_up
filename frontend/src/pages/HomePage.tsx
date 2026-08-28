@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
 import { Button } from '../components/ui/Button'
+import { FaceoffProgressRing } from '../components/ui/FaceoffProgressRing'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
@@ -85,8 +86,13 @@ function getRestDayHint(phase: BlockPhase | null): string {
 
 // Card surface shared by every dashboard tile below: dark-card fill with a
 // thin icy top border, per the HomePage palette (see IceGlowBackground for
-// the matching bg tones).
+// the matching bg tones). Read as the rink's blue line -- neutral/progress
+// content default to it.
 const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
+// Same card, red top line instead -- the rink's other line, reserved for
+// content that's a status/urgency call rather than routine progress (hockey
+// design pass, 2026-08-28). Only TournamentTaperBanner uses this today.
+const CARD_CLASS_URGENT = 'rounded-md border-t border-accent-persimmon/50 bg-dark-card'
 
 function startOfMonth(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), 1)
@@ -433,9 +439,12 @@ export function HomePage() {
                     (px-2.5 py-0.5, text-[11px]) -- one style for "level
                     badge sitting under a name" wherever that pattern shows
                     up, not a one-off sized to match a neighboring button. */}
-                <span className="mt-0.5 flex w-fit items-center gap-1.5 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5">
-                  <span className="font-mono text-[11px] font-bold tracking-wide text-accent-ice">
-                    УР. {user?.level ?? 1}
+                <span className="mt-0.5 flex w-fit items-center gap-1 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5">
+                  <span className="font-sans text-[9px] font-semibold uppercase tracking-wider text-accent-ice/70">
+                    Ур.
+                  </span>
+                  <span className="font-display text-sm font-semibold leading-none text-accent-ice">
+                    {user?.level ?? 1}
                   </span>
                 </span>
               </div>
@@ -606,7 +615,7 @@ function StatsRow({ stats, onSelect }: { stats: UserStatRead[]; onSelect: (statT
           >
             <StatIcon stat={statType} size={18} className="text-accent-ice" />
             <span className="text-[11px] text-[#8A94A6]">{STAT_ABBREVIATIONS[statType]}</span>
-            <span className="font-mono text-xl font-bold text-accent-ice">{Math.round(stat.current_value)}</span>
+            <span className="font-display text-xl font-bold text-accent-ice">{Math.round(stat.current_value)}</span>
             <i
               className={`ti text-sm ${
                 stat.trend === 'up' ? 'ti-trending-up text-accent-ice' : 'ti-trending-down text-[#8A94A6]'
@@ -633,24 +642,11 @@ function StatDetailModal({
     <Modal title={TARGET_STAT_LABELS[statType]} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <p className="text-sm text-[#8A94A6]">{TARGET_STAT_DESCRIPTIONS[statType]}</p>
-        <p className="font-mono text-3xl font-bold leading-none text-[#F5F7FA]">
+        <p className="font-display text-3xl font-bold leading-none text-[#F5F7FA]">
           {Math.round(stat.current_value)}
         </p>
       </div>
     </Modal>
-  )
-}
-
-// ProgressBar.tsx is frozen for this pass, and this list wants noticeably
-// taller bars (esp. on md/lg) than its fixed h-2 -- a small local variant
-// instead of touching the shared component.
-function SkillProgressBar({ value, max, accent }: { value: number; max: number; accent: 'ice' | 'persimmon' }) {
-  const percent = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 100
-  const fill = accent === 'persimmon' ? 'bg-accent-persimmon' : 'bg-accent-ice'
-  return (
-    <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/10 md:h-3.5 lg:h-4">
-      <div className={`h-full rounded-full ${fill}`} style={{ width: `${percent}%` }} />
-    </div>
   )
 }
 
@@ -669,19 +665,35 @@ function SkillsNearMilestoneCard({
   return (
     <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
       <h2 className="text-sm font-medium text-[#8A94A6]">Ближайшие пороги</h2>
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-4">
         {top.map((skill) => {
           const milestone = skill.next_milestone!
           const nearThreshold = milestone.points_remaining < 5
+          const percent =
+            milestone.threshold > 0
+              ? Math.max(0, Math.min(100, (skill.value / milestone.threshold) * 100))
+              : 100
           return (
             <button
               key={skill.id}
               type="button"
               onClick={() => onSelectSkill(skill.id)}
-              className="flex flex-col gap-2 text-left"
+              className="flex items-center gap-3 text-left"
             >
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[#F5F7FA]">{skill.name}</span>
+              {/* Faceoff-circle ring, not a linear bar -- a milestone
+                  threshold is a target you're closing in on, which the
+                  ring reads as directly (hockey design pass, 2026-08-28).
+                  Center shows percent; the text beside it still carries
+                  the concrete "how many points" detail the ring can't. */}
+              <FaceoffProgressRing
+                value={skill.value}
+                max={milestone.threshold}
+                accent={nearThreshold ? 'persimmon' : 'ice'}
+                size={48}
+                centerValue={`${Math.round(percent)}%`}
+              />
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="truncate text-sm text-[#F5F7FA]">{skill.name}</span>
                 {nearThreshold ? (
                   <span className="text-xs font-medium text-accent-persimmon">почти порог</span>
                 ) : (
@@ -690,7 +702,6 @@ function SkillsNearMilestoneCard({
                   </span>
                 )}
               </div>
-              <SkillProgressBar value={skill.value} max={milestone.threshold} accent={nearThreshold ? 'persimmon' : 'ice'} />
             </button>
           )
         })}
@@ -717,7 +728,7 @@ function TournamentTaperBanner({ tournamentDate }: { tournamentDate: string | nu
   const isFinalWeek = daysUntil < TAPER_FINAL_WEEK_DAYS
 
   return (
-    <div className={`flex flex-col gap-2 p-4 ${CARD_CLASS}`}>
+    <div className={`flex flex-col gap-2 p-4 ${CARD_CLASS_URGENT}`}>
       <p className="text-xs text-accent-persimmon">
         {isFinalWeek
           ? `Финальная неделя перед турниром (через ${daysUntil} дн.) — объём тренировок снижен по максимуму.`
@@ -779,7 +790,7 @@ function RatingRow({ me, onClick }: { me: LeaderboardMeRead; onClick: () => void
           <span className="text-xs text-[#8A94A6]">Относительно вашего возраста и стажа</span>
         </div>
       </div>
-      <span className="font-mono text-lg text-accent-ice">{sign}{me.rating_excess.toFixed(1)}</span>
+      <span className="font-display text-lg font-semibold text-accent-ice">{sign}{me.rating_excess.toFixed(1)}</span>
     </button>
   )
 }

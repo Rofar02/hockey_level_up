@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef, useState } from 'react'
+
 interface JerseyBadgeProps {
   number: number | string
   label: string
@@ -15,6 +17,43 @@ interface JerseyBadgeProps {
 const ACCENT_CLASSES: Record<JerseyBadgeProps['accentColor'], string> = {
   ice: 'text-accent-ice',
   persimmon: 'text-accent-persimmon',
+}
+
+// The torso's actual width at the nameplate's y=34 (shoulder/sleeve
+// taper, per JERSEY_PATH) is well under the 130-unit viewBox -- a plain
+// fixed font-size overflowed the silhouette outright for a long hyphenated
+// surname (found via a mobile screenshot pass, 2026-08-28). Measuring the
+// real rendered width and compressing only when it doesn't fit (never
+// stretching a short one) is what an actual jersey printer does too.
+const SURNAME_MAX_WIDTH = 84
+
+function SurnameText({ surname }: { surname: string }) {
+  const textRef = useRef<SVGTextElement>(null)
+  const [compress, setCompress] = useState(false)
+
+  useLayoutEffect(() => {
+    const node = textRef.current
+    if (node === null) {
+      return
+    }
+    setCompress(node.getComputedTextLength() > SURNAME_MAX_WIDTH)
+  }, [surname])
+
+  return (
+    <text
+      ref={textRef}
+      x={65}
+      y={34}
+      textAnchor="middle"
+      fontSize={11}
+      letterSpacing={0.5}
+      fill="currentColor"
+      className="font-display font-semibold uppercase"
+      {...(compress ? { textLength: SURNAME_MAX_WIDTH, lengthAdjust: 'spacingAndGlyphs' as const } : {})}
+    >
+      {surname}
+    </text>
+  )
 }
 
 const JERSEY_PATH =
@@ -56,26 +95,14 @@ export function JerseyBadge({ number, label, accentColor, surname }: JerseyBadge
             strokeLinejoin="round"
           />
           <path d={COLLAR_PATH} fill="none" stroke="currentColor" strokeWidth={2} />
-          {hasSurname && (
-            <text
-              x={65}
-              y={34}
-              textAnchor="middle"
-              fontSize={11}
-              letterSpacing={0.5}
-              fill="currentColor"
-              className="font-sans font-bold uppercase"
-            >
-              {surname}
-            </text>
-          )}
+          {surname !== undefined && surname.trim() !== '' && <SurnameText surname={surname} />}
           <text
             x={65}
             y={numberY}
             textAnchor="middle"
             fontSize={26}
             fill="currentColor"
-            className="font-mono font-bold"
+            className="font-display font-bold"
           >
             {number}
           </text>
