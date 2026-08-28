@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -12,9 +13,6 @@ import { MOVEMENT_PATTERN_LABELS, MUSCLE_GROUP_LABELS } from '../types/exercise'
 import type { MuscleGroup } from '../types/exercise'
 import type { UserTemporaryRestrictionRead } from '../types/userTemporaryRestriction'
 import { formatShortDate, parseIsoDate } from '../utils/date'
-
-// Same icy top-border card convention as Home/Profile/Diary.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 // Only muscle_group is reportable from this page now (2026-08-27) --
 // RestrictionAvatar's body-map covers every real case; the earlier

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -15,9 +16,6 @@ import type { ExerciseRead } from '../types/exercise'
 import type { TrainingPartyDetailRead, TrainingPartyMemberRead } from '../types/trainingParty'
 import { formatShortDate, parseIsoDate } from '../utils/date'
 import { getDisplayName } from '../utils/displayName'
-
-// Same icy top-border card convention as Friends/Teams/Profile.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 // Refresh while the party is still open -- everyone's training on the same
 // shared exercise set once the organizer confirms it, this is the only way

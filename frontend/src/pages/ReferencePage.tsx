@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
+import { CARD_BORDER } from '../components/ui/cardStyle'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import * as referenceArticlesApi from '../api/referenceArticles'
@@ -16,9 +17,6 @@ const CATEGORY_ICONS: Record<string, string> = {
   основы: 'ti-flag',
 }
 const DEFAULT_CATEGORY_ICON = 'ti-book-2'
-
-// Same icy top-border card convention as Home/TrainingSession/Profile.
-const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
 function groupByCategory(
   articles: ReferenceArticleSummary[],

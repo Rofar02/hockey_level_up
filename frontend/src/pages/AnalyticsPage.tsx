@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import { BackLink } from '../components/ui/BackLink'
+import { CARD_BORDER } from '../components/ui/cardStyle'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { PremiumGate } from '../components/ui/PremiumGate'
@@ -78,7 +79,6 @@ function formatDelta(points: StatHistoryPointRead[]): string | null {
   return first !== 0 ? `${sign}${((diff / Math.abs(first)) * 100).toFixed(0)}%` : `${sign}${diff.toFixed(1)}`
 }
 
-const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 const ICE = '#D7EFFF'
 
 const ANALYTICS_PREMIUM_GATE_DESCRIPTION =
@@ -271,7 +271,7 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
             <div className="flex items-baseline justify-between">
               <div>
                 <span className="text-[10px] uppercase tracking-wide text-[#8A94A6]">{selectedLabel}</span>
-                <div className="font-mono text-[26px] font-extrabold leading-tight text-[#F5F7FA]">
+                <div className="font-display text-[26px] font-extrabold leading-tight text-[#F5F7FA]">
                   {points[points.length - 1].value}
                 </div>
               </div>

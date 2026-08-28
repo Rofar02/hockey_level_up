@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { TouchEvent } from 'react'
 import { Button } from './ui/Button'
+import { CARD_BORDER } from './ui/cardStyle'
 
 interface Slide {
   icon: string
@@ -113,7 +114,7 @@ export function OnboardingTour({ onSkip, onComplete }: OnboardingTourProps) {
       <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-6">
         <img src="/images/logo.webp" alt="IceLevel" className="mb-8 w-full max-w-[180px] opacity-80" />
         <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border-t border-[rgba(215,239,255,0.35)] bg-dark-card">
+          <div className={`flex h-20 w-20 items-center justify-center rounded-full ${CARD_BORDER} bg-dark-card`}>
             <i className={`ti ${slide.icon} text-4xl text-accent-ice`} aria-hidden="true" />
           </div>
           <div className="flex flex-col gap-3">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BackLink } from '../components/ui/BackLink'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -9,9 +10,6 @@ import { useAuth } from '../hooks/useAuth'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { TrainingDiaryEntryListItem } from '../types/trainingDiary'
 import { formatShortDate, parseIsoDate } from '../utils/date'
-
-// Same icy top-border card convention as Home/Profile/TrainingSession.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 // "Open my diary and read it back" -- the player's own notebook across
 // every ON_ICE/GAME session, newest first (entries are written from

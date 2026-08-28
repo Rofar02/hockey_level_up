@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_BORDER } from '../components/ui/cardStyle'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { PremiumGate } from '../components/ui/PremiumGate'
@@ -9,8 +10,6 @@ import * as coachChatApi from '../api/coachChat'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { CoachChatMessageRead } from '../types/coachChat'
-
-const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
 const COACH_PREMIUM_GATE_DESCRIPTION =
   'С премиум-подпиской откроется персональный AI-тренер: задавайте вопросы о своих тренировках и ' +

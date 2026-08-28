@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -17,9 +18,6 @@ import type { ActivityFeedEntryRead } from '../types/friendActivity'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
 import { getDisplayName } from '../utils/displayName'
-
-// Same icy top-border card convention as Teams/Leaderboard/Profile.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 type FriendsTab = 'friends' | 'add' | 'feed' | 'leaderboard'
 

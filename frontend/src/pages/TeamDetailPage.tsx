@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -15,9 +16,6 @@ import type { LeaderboardEntryRead } from '../types/leaderboard'
 import type { TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamScoreRead } from '../types/team'
 import { POSITION_LABELS } from '../types/user'
 import { getDisplayName } from '../utils/displayName'
-
-// Same icy top-border card convention as Home/Profile/TrainingSession.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 type DetailTab = 'members' | 'leaderboard' | 'requests'
 
@@ -392,7 +390,7 @@ export function TeamDetailPage() {
                 <span className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">
                   Рейтинг команды
                 </span>
-                <span className="font-mono text-2xl font-extrabold text-accent-ice">
+                <span className="font-display text-2xl font-extrabold text-accent-ice">
                   {formatTeamScore(teamScore.team_score)}
                 </span>
               </div>

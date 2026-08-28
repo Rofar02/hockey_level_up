@@ -1,4 +1,4 @@
-const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
+import { CARD_BORDER } from './cardStyle'
 
 interface PremiumGateProps {
   title?: string

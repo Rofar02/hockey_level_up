@@ -1,9 +1,7 @@
 import { Link } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
-
-// Same icy top-border card convention as Home/Profile/TrainingSession.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 interface MoreItem {
   icon: string

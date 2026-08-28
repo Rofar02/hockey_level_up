@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { Checkbox } from '../components/ui/Checkbox'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
@@ -21,9 +22,6 @@ import type {
 } from '../types/trainingParty'
 import { formatShortDate, parseIsoDate, toIsoDate } from '../utils/date'
 import { getDisplayName } from '../utils/displayName'
-
-// Same icy top-border card convention as Friends/Teams/Leaderboard.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 type PartiesTab = 'mine' | 'invites' | 'create'
 

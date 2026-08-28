@@ -3,13 +3,14 @@ import type { ChangeEvent, ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_BORDER } from '../components/ui/cardStyle'
 import { Coachmark } from '../components/ui/Coachmark'
 import { EquipmentIcon } from '../components/ui/EquipmentIcon'
+import { FaceoffProgressRing } from '../components/ui/FaceoffProgressRing'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { JerseyBadge } from '../components/ui/JerseyBadge'
 import { Modal } from '../components/ui/Modal'
-import { ProgressBar } from '../components/ui/ProgressBar'
 import { LockedSkillChip } from '../components/ui/SkillChip'
 import { StatIcon } from '../components/ui/StatIcon'
 import { XpBar } from '../components/ui/XpBar'
@@ -51,9 +52,6 @@ const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
   on_ice_skating: 'ЛЁД',
   puck_handling: 'ШАЙ',
 }
-
-// Same icy top-border card convention as HomePage/TrainingSessionPage.
-const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
 // Skills with a still-open next milestone sort first, closest (smallest
 // points_remaining) at the very top -- "almost there" is the motivating
@@ -885,18 +883,30 @@ function ProfileDetailsModal({
               {unlockedSkills.map((skill) => {
                 const barMax = skill.next_milestone?.threshold ?? skill.value
                 const isPreferred = preferredSkillIds.has(skill.id)
+                const percent = barMax > 0 ? Math.max(0, Math.min(100, (skill.value / barMax) * 100)) : 100
                 return (
                   <button
                     key={skill.id}
                     type="button"
                     onClick={() => onSelectSkill(skill.id)}
-                    className={`flex w-full flex-col gap-1.5 rounded-md border p-3 text-left transition-colors ${
+                    className={`flex w-full items-center gap-3 rounded-md border p-3 text-left transition-colors ${
                       isPreferred
                         ? 'border-accent-persimmon/40 bg-accent-persimmon/5 hover:border-accent-persimmon/60'
                         : 'border-white/10 hover:border-white/20'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
+                    {/* Same faceoff-circle ring as Home's "Ближайшие пороги"
+                        -- this list is the same concept (skill progress
+                        toward a threshold), so it should look like the same
+                        idea, not a second, older visual language for it. */}
+                    <FaceoffProgressRing
+                      value={skill.value}
+                      max={barMax}
+                      accent={isPreferred ? 'persimmon' : 'ice'}
+                      size={44}
+                      centerValue={`${Math.round(percent)}%`}
+                    />
+                    <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-1.5">
                         {isPreferred && (
                           <i
@@ -912,7 +922,6 @@ function ProfileDetailsModal({
                         </span>
                       )}
                     </div>
-                    <ProgressBar value={skill.value} max={barMax} accent={isPreferred ? 'persimmon' : 'ice'} />
                   </button>
                 )
               })}

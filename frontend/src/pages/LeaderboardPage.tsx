@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BackLink } from '../components/ui/BackLink'
+import { CARD_BORDER } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -11,9 +12,6 @@ import type { LeaderboardEntryRead, LeaderboardMeRead } from '../types/leaderboa
 import { POSITION_LABELS } from '../types/user'
 import { getDisplayName } from '../utils/displayName'
 
-// Same icy top-border card convention as Home/TrainingSession/Profile.
-const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
-
 function formatRatingExcess(value: number): string {
   const sign = value > 0 ? '+' : ''
   return `${sign}${value.toFixed(1)}`
@@ -21,7 +19,7 @@ function formatRatingExcess(value: number): string {
 
 function RatingExcess({ value }: { value: number }) {
   return (
-    <span className={`font-mono text-base font-bold ${value > 0 ? 'text-accent-ice' : 'text-[#8A94A6]'}`}>
+    <span className={`font-display text-base font-bold ${value > 0 ? 'text-accent-ice' : 'text-[#8A94A6]'}`}>
       {formatRatingExcess(value)}
     </span>
   )
@@ -256,7 +254,7 @@ function PodiumSlot({
         {getDisplayName(entry, { patronymic: false })}
         {isSelf ? ' (вы)' : ''}
       </span>
-      <span className="font-mono text-xs font-bold" style={{ color: medalColor }}>
+      <span className="font-display text-xs font-bold" style={{ color: medalColor }}>
         {formatRatingExcess(entry.rating_excess)}
       </span>
       <div
@@ -269,7 +267,7 @@ function PodiumSlot({
         {rank === 1 ? (
           <i className="ti ti-trophy text-xl" style={{ color: medalColor }} aria-hidden="true" />
         ) : (
-          <span className="font-mono text-xl font-extrabold" style={{ color: medalColor }}>
+          <span className="font-display text-xl font-extrabold" style={{ color: medalColor }}>
             {rank}
           </span>
         )}

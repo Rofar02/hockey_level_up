@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_BORDER } from '../components/ui/cardStyle'
 import { Coachmark } from '../components/ui/Coachmark'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -44,9 +45,6 @@ const SESSION_TYPE_ACTIVE_CLASSES: Record<DaySessionType, string> = {
   rest: 'border-white/25 bg-white/5 text-[#8A94A6]',
   game: 'border-accent-persimmon bg-accent-persimmon/10 text-accent-persimmon',
 }
-
-// Same icy top-border card convention as Home/TrainingSession/Profile.
-const CARD_BORDER = 'border-t border-[rgba(215,239,255,0.35)]'
 
 // Same labels TrainingSessionPage uses for these phases -- duplicated
 // locally rather than imported since PHASE_LABELS there is page-local, not

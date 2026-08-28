@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { RankBadge } from '../components/ui/RankBadge'
@@ -8,9 +9,6 @@ import * as teamsApi from '../api/teams'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { TeamScoreRead } from '../types/team'
-
-// Same icy top-border card convention as TeamsPage/TeamDetailPage/Leaderboard.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 function formatScore(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
@@ -79,7 +77,7 @@ export function TeamRankingPage() {
                     трен./нед на чел.
                   </span>
                 </div>
-                <span className="shrink-0 font-mono text-sm font-bold text-accent-ice">
+                <span className="shrink-0 font-display text-sm font-bold text-accent-ice">
                   {formatScore(team.team_score)}
                 </span>
               </button>

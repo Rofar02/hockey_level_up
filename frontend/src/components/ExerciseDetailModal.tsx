@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button } from './ui/Button'
+import { CARD_BORDER } from './ui/cardStyle'
 import { FormError } from './ui/FormError'
 import { Modal } from './ui/Modal'
 import { ExerciseTechnique } from './ExerciseTechnique'
@@ -647,7 +648,7 @@ function SetLogger({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-bg/40 p-4">
+    <div className={`flex flex-col gap-3 rounded-md ${CARD_BORDER} bg-dark-bg/40 p-4`}>
       <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">Подходы</p>
 
       {isLoadingSets && <p className="text-sm text-text-secondary">Загрузка...</p>}

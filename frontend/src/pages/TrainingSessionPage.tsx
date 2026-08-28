@@ -3,6 +3,7 @@ import type { TouchEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { Checkbox } from '../components/ui/Checkbox'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -597,7 +598,7 @@ export function TrainingSessionPage() {
         <div className="flex items-end justify-between">
           <div>
             <p className="mb-1 text-[11px] uppercase tracking-wide text-text-secondary">Прогресс тренировки</p>
-            <p className="font-mono text-[28px] font-bold leading-none text-text-primary">
+            <p className="font-display text-[28px] font-bold leading-none text-text-primary">
               {progressPercent}
               <span className="text-base text-text-secondary">%</span>
             </p>
@@ -761,11 +762,6 @@ export function TrainingSessionPage() {
     </div>
   )
 }
-
-// Card surface shared by the three phase blocks below -- dark-card fill with
-// a thin icy top border, matching the convention already established on
-// Home/Profile.
-const CARD_CLASS = 'rounded-md border-t border-[rgba(215,239,255,0.35)] bg-dark-card'
 
 // The optional "Владение шайбой" block is content the player unlocked (owns
 // a stick in inventory) rather than a required phase like the other three --
@@ -1291,7 +1287,7 @@ function SessionCompleteModal({
         {leveledUp && (
           <div className="flex w-full flex-col items-center gap-1 rounded-md border border-accent-persimmon/40 bg-accent-persimmon/10 p-5 text-center">
             <p className="text-sm font-medium text-accent-persimmon">Новый уровень!</p>
-            <p className="font-mono text-3xl font-bold text-accent-persimmon">{freshLevel}</p>
+            <p className="font-display text-3xl font-bold text-accent-persimmon">{freshLevel}</p>
           </div>
         )}
 
