@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
+import { CountdownRing } from './ui/CountdownRing'
 import { ExerciseFeedbackPrompt } from './ExerciseFeedbackPrompt'
 import * as setCompletionsApi from '../api/setCompletions'
 import type { ExerciseRead } from '../types/exercise'
 
-function formatSeconds(totalSeconds: number): string {
-  return String(Math.max(0, Math.ceil(totalSeconds)))
-}
+// Fallback rest between rounds when the exercise has no configured
+// rest_seconds -- preserves the old always-advances behavior instead of
+// skipping straight to the next round with zero pause.
+const FALLBACK_REST_SECONDS = 3
 
-// Mode A ("на время") from icelevel_player_master_prompt.md, 2026-08-28:
-// a real countdown ring instead of the old flat "Нужно/Старт/Подходы"
-// circles -- big Oswald number in the center, play/pause below, round-pips
-// only when there's more than one round (target_sets alongside a duration
-// means "N rounds of M seconds", e.g. plank hold x3).
+// Mode A ("на время") -- one CountdownRing that IS the player (media-player
+// redesign, 2026-08-28: "хочу чтобы это было прям как медиаплеер"). Tapping
+// the ring itself starts/pauses a round; the same ring switches to a
+// persimmon "Отдых" state between rounds using the exercise's real
+// rest_seconds, then auto-continues into the next round -- no separate
+// button, no fake pause-with-cancel.
 export function TimerPlayer({
   exercise,
   trainingSessionId,
@@ -35,12 +38,9 @@ export function TimerPlayer({
   onSettled?: () => void
 }) {
   const [completedRounds, setCompletedRounds] = useState(0)
+  const [phase, setPhase] = useState<'work' | 'rest'>('work')
   const [remaining, setRemaining] = useState(durationSeconds)
   const [running, setRunning] = useState(false)
-  // True for the brief auto-advance window after a round hits 0 -- lets
-  // the athlete cancel and redo that same round instead of being swept
-  // into the next one immediately.
-  const [pendingAdvance, setPendingAdvance] = useState(false)
   // Flips once the last round finishes -- gates the "Как ощущения?" prompt
   // below. Deliberately local-only (not derived from `isDone`): `isDone`
   // covers reopening an exercise that was ALREADY completed on a previous
@@ -54,41 +54,30 @@ export function TimerPlayer({
   // into a plain "Готово" like SetLogger's own (`feedback !== null`)
   // read-only branch already does for the exact same last-exercise case.
   const [feedbackAnswered, setFeedbackAnswered] = useState(false)
-  const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onCompleteRef = useRef(onComplete)
   onCompleteRef.current = onComplete
 
-  useEffect(() => {
-    return () => {
-      if (advanceTimeoutRef.current !== null) {
-        clearTimeout(advanceTimeoutRef.current)
-      }
-    }
-  }, [])
+  const restSeconds = exercise.rest_seconds ?? FALLBACK_REST_SECONDS
 
   useEffect(() => {
-    if (!running || pendingAdvance) {
+    if (!running) {
       return
     }
     if (remaining <= 0) {
       setRunning(false)
-      setPendingAdvance(true)
-      advanceTimeoutRef.current = setTimeout(() => {
-        advance()
-      }, 2000)
+      if (phase === 'work') {
+        advanceWork()
+      } else {
+        advanceRest()
+      }
       return
     }
     const timer = setTimeout(() => setRemaining((value) => value - 1), 1000)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running, pendingAdvance, remaining])
+  }, [running, remaining, phase])
 
-  function advance() {
-    if (advanceTimeoutRef.current !== null) {
-      clearTimeout(advanceTimeoutRef.current)
-      advanceTimeoutRef.current = null
-    }
-    setPendingAdvance(false)
+  function advanceWork() {
     const finishedSetNumber = completedRounds + 1
     // Honest record of what was actually done -- previously duration-mode
     // exercises left zero SetCompletion rows at all (found 2026-08-28
@@ -118,17 +107,20 @@ export function TimerPlayer({
       return
     }
     setCompletedRounds(finishedSetNumber)
+    setPhase('rest')
+    setRemaining(restSeconds)
+    setRunning(true)
+  }
+
+  function advanceRest() {
+    setPhase('work')
     setRemaining(durationSeconds)
     setRunning(true)
   }
 
-  function cancelAdvance() {
-    if (advanceTimeoutRef.current !== null) {
-      clearTimeout(advanceTimeoutRef.current)
-      advanceTimeoutRef.current = null
-    }
-    setPendingAdvance(false)
-    setRemaining(durationSeconds)
+  function skipRest() {
+    setRunning(false)
+    advanceRest()
   }
 
   // showFeedback checked BEFORE isDone -- once the last round's advance()
@@ -169,60 +161,34 @@ export function TimerPlayer({
     )
   }
 
-  const size = 148
-  const strokeWidth = 10
-  const radius = size / 2 - strokeWidth
-  const circumference = 2 * Math.PI * radius
-  const elapsed = durationSeconds - remaining
-  const percent = durationSeconds > 0 ? Math.max(0, Math.min(1, elapsed / durationSeconds)) : 0
-  const dashoffset = circumference * (1 - percent)
-  const center = size / 2
-
   return (
     <div className="flex flex-col items-center gap-4 py-2">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth={strokeWidth} />
-          <circle
-            cx={center}
-            cy={center}
-            r={radius}
-            fill="none"
-            stroke="#D7EFFF"
-            strokeWidth={strokeWidth}
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={dashoffset}
-            transform={`rotate(-90 ${center} ${center})`}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-display text-4xl font-semibold leading-none text-text-primary">
-            {formatSeconds(remaining)}
-          </span>
-          <span className="mt-1 text-[11px] uppercase tracking-wide text-text-secondary">
-            из {durationSeconds} сек
-          </span>
-        </div>
-      </div>
-
-      {pendingAdvance ? (
-        <button
-          type="button"
-          onClick={cancelAdvance}
-          className="rounded-md border border-white/15 px-4 py-2 text-sm text-text-secondary hover:text-text-primary"
-        >
-          Отменить переход
-        </button>
+      {phase === 'work' ? (
+        <CountdownRing
+          totalSeconds={durationSeconds}
+          remainingSeconds={remaining}
+          label={`из ${durationSeconds} сек`}
+          accent="ice"
+          interactive
+          running={running}
+          onToggle={() => setRunning((value) => !value)}
+        />
       ) : (
-        <button
-          type="button"
-          onClick={() => setRunning((value) => !value)}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-ice text-dark-bg"
-          aria-label={running ? 'Пауза' : 'Старт'}
-        >
-          <i className={`ti ${running ? 'ti-player-pause' : 'ti-player-play'} text-2xl`} aria-hidden="true" />
-        </button>
+        <div className="flex flex-col items-center gap-2">
+          <CountdownRing
+            totalSeconds={restSeconds}
+            remainingSeconds={remaining}
+            label="Отдых"
+            accent="persimmon"
+          />
+          <button
+            type="button"
+            onClick={skipRest}
+            className="text-xs text-text-secondary underline underline-offset-2 hover:text-text-primary"
+          >
+            Пропустить
+          </button>
+        </div>
       )}
 
       {rounds > 1 && (
