@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
 
+from fastapi import HTTPException
 from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,45 +40,66 @@ class QuestService:
         self._friends = FriendRepository(session)
 
     async def list_status(self, user_id: uuid.UUID, today: date | None = None) -> list[QuestStatusRead]:
-        """Evaluates every quest against current data, grants XP for any
-        newly-satisfied one (idempotent -- see _grant), and returns the
-        resulting status list. Lazy, read-time evaluation (same "check on
-        read, no background job" convention as ProgressService.get_streak)
-        rather than an event-driven consumer per quest -- most of these
-        quests just ask "does at least one qualifying row already exist",
-        which is cheaper to check on demand than to wire up a new outbox
-        consumer for each of 5+ different trigger points.
+        """Evaluates every quest against current data, marking any
+        newly-satisfied one as claimable (idempotent -- see _mark_satisfied)
+        without granting its XP yet -- that only happens once the player
+        taps "Получить" (see claim). Lazy, read-time evaluation (same
+        "check on read, no background job" convention as
+        ProgressService.get_streak) rather than an event-driven consumer
+        per quest -- most of these quests just ask "does at least one
+        qualifying row already exist", which is cheaper to check on demand
+        than to wire up a new outbox consumer for each of 5+ different
+        trigger points.
         """
         today = today or datetime.now(timezone.utc).date()
         this_monday = _monday_of(today)
-        seen_periods = await self._seen_periods(user_id)
+        rows = await self._existing_rows(user_id)
 
         statuses: list[QuestStatusRead] = []
         for quest in QUEST_DEFINITIONS:
             period_key = ONE_TIME_PERIOD_KEY if quest.type == QuestType.ONE_TIME else this_monday
-            completed = (quest.id, period_key) in seen_periods
-            if not completed and quest.id != "reference_first_visit":
+            row = rows.get((quest.id, period_key))
+            if row is None and quest.id != "reference_first_visit":
                 if await self._check(quest.id, user_id, today, this_monday):
-                    await self._grant(user_id, quest, period_key)
-                    completed = True
-            statuses.append(
-                QuestStatusRead(
-                    id=quest.id,
-                    type=quest.type,
-                    title=quest.title,
-                    description=quest.description,
-                    xp_reward=quest.xp_reward,
-                    completed=completed,
-                    period_start=None if quest.type == QuestType.ONE_TIME else this_monday.isoformat(),
-                )
-            )
+                    row = await self._mark_satisfied(user_id, quest, period_key)
+            statuses.append(self._to_status(quest, row, this_monday))
         return statuses
+
+    async def claim(self, user_id: uuid.UUID, quest_id: str, today: date | None = None) -> QuestStatusRead:
+        """Grants a claimable quest's XP -- the player-initiated action
+        behind QuestsPage's "Получить" button. Re-derives the current
+        period itself rather than trusting a client-supplied period, so a
+        stale client can't claim last week's row after Monday rolled over.
+        """
+        quest = QUEST_DEFINITIONS_BY_ID.get(quest_id)
+        if quest is None:
+            raise HTTPException(status_code=404, detail="Задание не найдено")
+        today = today or datetime.now(timezone.utc).date()
+        this_monday = _monday_of(today)
+        period_key = ONE_TIME_PERIOD_KEY if quest.type == QuestType.ONE_TIME else this_monday
+
+        result = await self._session.execute(
+            select(UserQuestCompletion).where(
+                UserQuestCompletion.user_id == user_id,
+                UserQuestCompletion.quest_id == quest.id,
+                UserQuestCompletion.period_key == period_key,
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None or row.claimed_at is not None:
+            raise HTTPException(status_code=400, detail="Задание ещё не выполнено или уже получено")
+
+        row.claimed_at = datetime.now(timezone.utc)
+        await self._grant_xp(user_id, quest.xp_reward)
+        await self._session.commit()
+        return self._to_status(quest, row, this_monday)
 
     async def mark_reference_visited(self, user_id: uuid.UUID) -> None:
         """reference_first_visit has no natural DB trace (a page view isn't
-        a row anywhere) -- this is the one quest granted by an explicit
-        client signal instead of a server-side check. Idempotent, safe to
-        call on every visit."""
+        a row anywhere) -- this is the one quest marked satisfied by an
+        explicit client signal instead of a server-side check. Only marks
+        it claimable, same as every other quest -- still needs an explicit
+        claim to grant XP. Idempotent, safe to call on every visit."""
         quest = QUEST_DEFINITIONS_BY_ID["reference_first_visit"]
         already = await self._session.execute(
             select(UserQuestCompletion.id).where(
@@ -87,30 +109,49 @@ class QuestService:
         )
         if already.scalar_one_or_none() is not None:
             return
-        await self._grant(user_id, quest, ONE_TIME_PERIOD_KEY)
+        await self._mark_satisfied(user_id, quest, ONE_TIME_PERIOD_KEY)
 
-    async def _seen_periods(self, user_id: uuid.UUID) -> set[tuple[str, date]]:
-        result = await self._session.execute(
-            select(UserQuestCompletion.quest_id, UserQuestCompletion.period_key).where(
-                UserQuestCompletion.user_id == user_id
-            )
+    def _to_status(
+        self, quest: QuestDefinition, row: UserQuestCompletion | None, this_monday: date
+    ) -> QuestStatusRead:
+        return QuestStatusRead(
+            id=quest.id,
+            type=quest.type,
+            title=quest.title,
+            description=quest.description,
+            xp_reward=quest.xp_reward,
+            completed=row is not None and row.claimed_at is not None,
+            claimable=row is not None and row.claimed_at is None,
+            period_start=None if quest.type == QuestType.ONE_TIME else this_monday.isoformat(),
         )
-        return set(result.all())
 
-    async def _grant(self, user_id: uuid.UUID, quest: QuestDefinition, period_key: date) -> None:
+    async def _existing_rows(self, user_id: uuid.UUID) -> dict[tuple[str, date], UserQuestCompletion]:
+        result = await self._session.execute(
+            select(UserQuestCompletion).where(UserQuestCompletion.user_id == user_id)
+        )
+        return {(row.quest_id, row.period_key): row for row in result.scalars().all()}
+
+    async def _mark_satisfied(
+        self, user_id: uuid.UUID, quest: QuestDefinition, period_key: date
+    ) -> UserQuestCompletion:
         stmt = (
             pg_insert(UserQuestCompletion)
             .values(user_id=user_id, quest_id=quest.id, period_key=period_key, xp_awarded=quest.xp_reward)
             .on_conflict_do_nothing(constraint="uq_user_quest_completions_period")
         )
-        result = await self._session.execute(stmt)
-        if result.rowcount == 0:
-            # Lost a race against a concurrent evaluation of the same
-            # (user, quest, period) -- it already got granted, don't award
-            # XP twice for one completion.
-            return
-        await self._grant_xp(user_id, quest.xp_reward)
+        await self._session.execute(stmt)
         await self._session.commit()
+        # Re-select rather than trust the insert result -- ON CONFLICT DO
+        # NOTHING returns no row on a lost race, but the row still exists
+        # (inserted by whichever request won it) and callers need it back.
+        result = await self._session.execute(
+            select(UserQuestCompletion).where(
+                UserQuestCompletion.user_id == user_id,
+                UserQuestCompletion.quest_id == quest.id,
+                UserQuestCompletion.period_key == period_key,
+            )
+        )
+        return result.scalar_one()
 
     async def _grant_xp(self, user_id: uuid.UUID, amount: int) -> None:
         """Same atomic-increment + level-up shape as

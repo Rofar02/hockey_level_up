@@ -13,7 +13,11 @@ export interface QuestStatusRead {
   title: string
   description: string
   xp_reward: number
+  // True once this period's XP has actually been claimed.
   completed: boolean
+  // True once the criteria are met but the player hasn't tapped
+  // "Получить" yet -- mutually exclusive with `completed`.
+  claimable: boolean
   // Set for weekly/long_term (the Monday the current period is tracked
   // under), null for one_time -- see app/schemas/quest.py.
   period_start: string | null

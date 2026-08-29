@@ -29,3 +29,12 @@ async def mark_reference_visited(
     (see QuestService's own docstring) -- ReferencePage calls this once its
     articles load successfully. Idempotent, safe on every visit."""
     await QuestService(session).mark_reference_visited(current_user.id)
+
+
+@router.post("/{quest_id}/claim", response_model=QuestStatusRead)
+async def claim_quest(
+    quest_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await QuestService(session).claim(current_user.id, quest_id)

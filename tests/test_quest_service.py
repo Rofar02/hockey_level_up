@@ -1,14 +1,18 @@
-"""QuestService (app/services/quest_service.py) -- item 6c of the roadmap.
+"""QuestService (app/services/quest_service.py) -- item 6c of the roadmap,
+plus the 2026-08-30 claim-button follow-up.
 
 Lazy read-time evaluation, same convention as has_missed_training_day /
 ProgressService.get_streak: list_status checks each quest against current
-data on every call and grants XP the moment a quest first becomes true,
-rather than via a background job or event consumer.
+data on every call and marks a newly-satisfied quest "claimable" the
+moment it first becomes true, rather than via a background job or event
+consumer. XP is only granted once the player explicitly calls claim() --
+list_status never grants on its own.
 """
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.models.exercise import Exercise, ExerciseCategory, MovementPattern, TrainingPhase
@@ -90,11 +94,11 @@ def _status_by_id(statuses, quest_id: str):
     return next(s for s in statuses if s.id == quest_id)
 
 
-# --- one-time quests ---
+# --- one-time quests: satisfying criteria makes a quest claimable ---
 
 
 @pytest.mark.asyncio
-async def test_diary_first_entry_completes_once_an_entry_exists(db_session) -> None:
+async def test_diary_first_entry_claimable_once_an_entry_exists(db_session) -> None:
     user = _make_user()
     exercise = _make_exercise()
     db_session.add_all([user, exercise])
@@ -107,22 +111,26 @@ async def test_diary_first_entry_completes_once_an_entry_exists(db_session) -> N
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "diary_first_entry").completed is True
+    status = _status_by_id(statuses, "diary_first_entry")
+    assert status.claimable is True
+    assert status.completed is False
 
 
 @pytest.mark.asyncio
-async def test_diary_first_entry_not_completed_with_no_entries(db_session) -> None:
+async def test_diary_first_entry_not_claimable_with_no_entries(db_session) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "diary_first_entry").completed is False
+    status = _status_by_id(statuses, "diary_first_entry")
+    assert status.claimable is False
+    assert status.completed is False
 
 
 @pytest.mark.asyncio
-async def test_restriction_first_logged_completes_once_a_restriction_exists(db_session) -> None:
+async def test_restriction_first_logged_claimable_once_a_restriction_exists(db_session) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -139,11 +147,11 @@ async def test_restriction_first_logged_completes_once_a_restriction_exists(db_s
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "restriction_first_logged").completed is True
+    assert _status_by_id(statuses, "restriction_first_logged").claimable is True
 
 
 @pytest.mark.asyncio
-async def test_first_friend_added_completes_once_an_accepted_friend_exists(db_session) -> None:
+async def test_first_friend_added_claimable_once_an_accepted_friend_exists(db_session) -> None:
     user = _make_user()
     other = _make_user()
     db_session.add_all([user, other])
@@ -157,11 +165,11 @@ async def test_first_friend_added_completes_once_an_accepted_friend_exists(db_se
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "first_friend_added").completed is True
+    assert _status_by_id(statuses, "first_friend_added").claimable is True
 
 
 @pytest.mark.asyncio
-async def test_first_friend_added_not_completed_for_pending_request(db_session) -> None:
+async def test_first_friend_added_not_claimable_for_pending_request(db_session) -> None:
     user = _make_user()
     other = _make_user()
     db_session.add_all([user, other])
@@ -171,11 +179,11 @@ async def test_first_friend_added_not_completed_for_pending_request(db_session) 
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "first_friend_added").completed is False
+    assert _status_by_id(statuses, "first_friend_added").claimable is False
 
 
 @pytest.mark.asyncio
-async def test_first_full_workout_completes_on_any_fully_completed_session(db_session) -> None:
+async def test_first_full_workout_claimable_on_any_fully_completed_session(db_session) -> None:
     user = _make_user()
     exercise = _make_exercise()
     db_session.add_all([user, exercise])
@@ -184,11 +192,11 @@ async def test_first_full_workout_completes_on_any_fully_completed_session(db_se
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "first_full_workout").completed is True
+    assert _status_by_id(statuses, "first_full_workout").claimable is True
 
 
 @pytest.mark.asyncio
-async def test_first_full_workout_not_completed_with_only_incomplete_sessions(db_session) -> None:
+async def test_first_full_workout_not_claimable_with_only_incomplete_sessions(db_session) -> None:
     user = _make_user()
     exercise = _make_exercise()
     db_session.add_all([user, exercise])
@@ -197,14 +205,14 @@ async def test_first_full_workout_not_completed_with_only_incomplete_sessions(db
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "first_full_workout").completed is False
+    assert _status_by_id(statuses, "first_full_workout").claimable is False
 
 
 # --- weekly quests ---
 
 
 @pytest.mark.asyncio
-async def test_weekly_three_workouts_completes_at_exactly_three(db_session) -> None:
+async def test_weekly_three_workouts_claimable_at_exactly_three(db_session) -> None:
     user = _make_user()
     exercise = _make_exercise()
     db_session.add_all([user, exercise])
@@ -214,11 +222,11 @@ async def test_weekly_three_workouts_completes_at_exactly_three(db_session) -> N
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "weekly_three_workouts").completed is True
+    assert _status_by_id(statuses, "weekly_three_workouts").claimable is True
 
 
 @pytest.mark.asyncio
-async def test_weekly_three_workouts_not_completed_with_only_two(db_session) -> None:
+async def test_weekly_three_workouts_not_claimable_with_only_two(db_session) -> None:
     user = _make_user()
     exercise = _make_exercise()
     db_session.add_all([user, exercise])
@@ -228,7 +236,7 @@ async def test_weekly_three_workouts_not_completed_with_only_two(db_session) -> 
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "weekly_three_workouts").completed is False
+    assert _status_by_id(statuses, "weekly_three_workouts").claimable is False
 
 
 @pytest.mark.asyncio
@@ -244,7 +252,7 @@ async def test_weekly_three_workouts_ignores_workouts_from_last_week(db_session)
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "weekly_three_workouts").completed is False
+    assert _status_by_id(statuses, "weekly_three_workouts").claimable is False
 
 
 @pytest.mark.asyncio
@@ -255,7 +263,7 @@ async def test_weekly_no_missed_day_false_when_nothing_scheduled_yet(db_session)
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "weekly_no_missed_day").completed is False
+    assert _status_by_id(statuses, "weekly_no_missed_day").claimable is False
 
 
 @pytest.mark.asyncio
@@ -269,7 +277,7 @@ async def test_weekly_no_missed_day_true_when_all_scheduled_days_done(db_session
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "weekly_no_missed_day").completed is True
+    assert _status_by_id(statuses, "weekly_no_missed_day").claimable is True
 
 
 @pytest.mark.asyncio
@@ -283,7 +291,7 @@ async def test_weekly_no_missed_day_false_after_one_incomplete_training_day(db_s
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "weekly_no_missed_day").completed is False
+    assert _status_by_id(statuses, "weekly_no_missed_day").claimable is False
 
 
 @pytest.mark.asyncio
@@ -303,7 +311,7 @@ async def test_weekly_restrictions_updated_true_for_restriction_created_this_wee
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "weekly_restrictions_updated").completed is True
+    assert _status_by_id(statuses, "weekly_restrictions_updated").claimable is True
 
 
 @pytest.mark.asyncio
@@ -328,7 +336,7 @@ async def test_weekly_restrictions_updated_false_for_older_restriction(db_sessio
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "weekly_restrictions_updated").completed is False
+    assert _status_by_id(statuses, "weekly_restrictions_updated").claimable is False
 
 
 # --- long-term quests ---
@@ -345,7 +353,7 @@ async def test_monthly_no_big_gap_true_with_regular_workouts(db_session) -> None
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "monthly_no_big_gap").completed is True
+    assert _status_by_id(statuses, "monthly_no_big_gap").claimable is True
 
 
 @pytest.mark.asyncio
@@ -359,7 +367,7 @@ async def test_monthly_no_big_gap_false_with_a_long_gap(db_session) -> None:
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "monthly_no_big_gap").completed is False
+    assert _status_by_id(statuses, "monthly_no_big_gap").claimable is False
 
 
 @pytest.mark.asyncio
@@ -370,7 +378,7 @@ async def test_monthly_no_big_gap_false_with_no_workouts(db_session) -> None:
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "monthly_no_big_gap").completed is False
+    assert _status_by_id(statuses, "monthly_no_big_gap").claimable is False
 
 
 @pytest.mark.asyncio
@@ -386,7 +394,7 @@ async def test_four_week_streak_goal_true_with_four_complete_prior_weeks(db_sess
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "four_week_streak_goal").completed is True
+    assert _status_by_id(statuses, "four_week_streak_goal").claimable is True
 
 
 @pytest.mark.asyncio
@@ -403,7 +411,7 @@ async def test_four_week_streak_goal_false_if_one_week_falls_short(db_session) -
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "four_week_streak_goal").completed is False
+    assert _status_by_id(statuses, "four_week_streak_goal").claimable is False
 
 
 @pytest.mark.asyncio
@@ -425,14 +433,14 @@ async def test_four_week_streak_goal_ignores_the_in_progress_current_week(db_ses
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "four_week_streak_goal").completed is False
+    assert _status_by_id(statuses, "four_week_streak_goal").claimable is False
 
 
-# --- granting mechanics: XP, level-up, idempotency ---
+# --- claim(): XP, level-up, idempotency ---
 
 
 @pytest.mark.asyncio
-async def test_completing_a_quest_grants_its_xp(db_session) -> None:
+async def test_satisfying_a_quest_does_not_grant_xp_by_itself(db_session) -> None:
     user = _make_user(xp=0, level=1)
     exercise = _make_exercise()
     db_session.add_all([user, exercise])
@@ -442,11 +450,74 @@ async def test_completing_a_quest_grants_its_xp(db_session) -> None:
     await QuestService(db_session).list_status(user.id, today=TODAY)
 
     await db_session.refresh(user)
+    assert user.xp == 0
+
+
+@pytest.mark.asyncio
+async def test_claiming_a_claimable_quest_grants_its_xp(db_session) -> None:
+    user = _make_user(xp=0, level=1)
+    exercise = _make_exercise()
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _add_completed_workout(db_session, user.id, exercise, day_date=TODAY - timedelta(days=30))
+
+    service = QuestService(db_session)
+    await service.list_status(user.id, today=TODAY)
+    result = await service.claim(user.id, "first_full_workout", today=TODAY)
+
+    assert result.completed is True
+    assert result.claimable is False
+    await db_session.refresh(user)
     assert user.xp == 50  # one_time reward
 
 
 @pytest.mark.asyncio
-async def test_re_evaluating_an_already_granted_quest_does_not_award_xp_twice(db_session) -> None:
+async def test_claiming_an_already_claimed_quest_raises_and_does_not_double_pay(db_session) -> None:
+    user = _make_user(xp=0, level=1)
+    exercise = _make_exercise()
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _add_completed_workout(db_session, user.id, exercise, day_date=TODAY - timedelta(days=30))
+
+    service = QuestService(db_session)
+    await service.list_status(user.id, today=TODAY)
+    await service.claim(user.id, "first_full_workout", today=TODAY)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.claim(user.id, "first_full_workout", today=TODAY)
+    assert exc_info.value.status_code == 400
+
+    await db_session.refresh(user)
+    assert user.xp == 50
+
+
+@pytest.mark.asyncio
+async def test_claiming_a_not_yet_satisfied_quest_raises(db_session) -> None:
+    user = _make_user(xp=0, level=1)
+    db_session.add(user)
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await QuestService(db_session).claim(user.id, "diary_first_entry", today=TODAY)
+    assert exc_info.value.status_code == 400
+
+    await db_session.refresh(user)
+    assert user.xp == 0
+
+
+@pytest.mark.asyncio
+async def test_claiming_an_unknown_quest_id_raises_404(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await QuestService(db_session).claim(user.id, "not_a_real_quest", today=TODAY)
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_re_evaluating_a_claimable_quest_does_not_duplicate_the_row(db_session) -> None:
     user = _make_user(xp=0, level=1)
     exercise = _make_exercise()
     db_session.add_all([user, exercise])
@@ -457,12 +528,17 @@ async def test_re_evaluating_an_already_granted_quest_does_not_award_xp_twice(db
     await service.list_status(user.id, today=TODAY)
     await service.list_status(user.id, today=TODAY)
 
-    await db_session.refresh(user)
-    assert user.xp == 50
+    result = await db_session.execute(
+        select(UserQuestCompletion).where(
+            UserQuestCompletion.user_id == user.id,
+            UserQuestCompletion.quest_id == "first_full_workout",
+        )
+    )
+    assert len(result.scalars().all()) == 1
 
 
 @pytest.mark.asyncio
-async def test_quest_xp_triggers_a_level_up_when_it_crosses_the_threshold(db_session) -> None:
+async def test_claim_xp_triggers_a_level_up_when_it_crosses_the_threshold(db_session) -> None:
     from app.events.handlers.block_completed import xp_to_next_level
 
     threshold = xp_to_next_level(1)
@@ -473,7 +549,9 @@ async def test_quest_xp_triggers_a_level_up_when_it_crosses_the_threshold(db_ses
     # first_full_workout (50 XP, > the 10 needed to cross the threshold)
     await _add_completed_workout(db_session, user.id, exercise, day_date=TODAY - timedelta(days=30))
 
-    await QuestService(db_session).list_status(user.id, today=TODAY)
+    service = QuestService(db_session)
+    await service.list_status(user.id, today=TODAY)
+    await service.claim(user.id, "first_full_workout", today=TODAY)
 
     await db_session.refresh(user)
     assert user.level == 2
@@ -491,7 +569,8 @@ async def test_weekly_quest_can_be_earned_again_in_a_later_week(db_session) -> N
 
     service = QuestService(db_session)
     week1_statuses = await service.list_status(user.id, today=TODAY)
-    assert _status_by_id(week1_statuses, "weekly_three_workouts").completed is True
+    assert _status_by_id(week1_statuses, "weekly_three_workouts").claimable is True
+    await service.claim(user.id, "weekly_three_workouts", today=TODAY)
 
     next_monday = THIS_MONDAY + timedelta(days=7)
     next_today = TODAY + timedelta(days=7)
@@ -499,8 +578,9 @@ async def test_weekly_quest_can_be_earned_again_in_a_later_week(db_session) -> N
         await _add_completed_workout(db_session, user.id, exercise, day_date=next_monday + timedelta(days=offset))
 
     week2_statuses = await service.list_status(user.id, today=next_today)
+    assert _status_by_id(week2_statuses, "weekly_three_workouts").claimable is True
+    await service.claim(user.id, "weekly_three_workouts", today=next_today)
 
-    assert _status_by_id(week2_statuses, "weekly_three_workouts").completed is True
     # Two distinct periods -> two separate completion rows, not one row
     # reused/blocked by the uniqueness constraint.
     result = await db_session.execute(
@@ -513,7 +593,7 @@ async def test_weekly_quest_can_be_earned_again_in_a_later_week(db_session) -> N
 
 
 @pytest.mark.asyncio
-async def test_completed_quest_stays_completed_in_status_list(db_session) -> None:
+async def test_claimed_quest_stays_completed_in_status_list(db_session) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -524,31 +604,60 @@ async def test_completed_quest_stays_completed_in_status_list(db_session) -> Non
             quest_id="diary_first_entry",
             period_key=ONE_TIME_PERIOD_KEY,
             xp_awarded=50,
+            claimed_at=datetime.now(timezone.utc),
         )
     )
     await db_session.flush()
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "diary_first_entry").completed is True
+    status = _status_by_id(statuses, "diary_first_entry")
+    assert status.completed is True
+    assert status.claimable is False
+
+
+@pytest.mark.asyncio
+async def test_unclaimed_satisfied_row_shows_as_claimable_not_completed(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(
+        UserQuestCompletion(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            quest_id="diary_first_entry",
+            period_key=ONE_TIME_PERIOD_KEY,
+            xp_awarded=50,
+            claimed_at=None,
+        )
+    )
+    await db_session.flush()
+
+    statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
+
+    status = _status_by_id(statuses, "diary_first_entry")
+    assert status.completed is False
+    assert status.claimable is True
 
 
 # --- reference_first_visit / mark_reference_visited ---
 
 
 @pytest.mark.asyncio
-async def test_reference_first_visit_not_completed_until_marked(db_session) -> None:
+async def test_reference_first_visit_not_claimable_until_marked(db_session) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
 
-    assert _status_by_id(statuses, "reference_first_visit").completed is False
+    status = _status_by_id(statuses, "reference_first_visit")
+    assert status.claimable is False
+    assert status.completed is False
 
 
 @pytest.mark.asyncio
-async def test_mark_reference_visited_completes_the_quest_and_grants_xp(db_session) -> None:
+async def test_mark_reference_visited_makes_the_quest_claimable_but_does_not_grant_xp(db_session) -> None:
     user = _make_user(xp=0, level=1)
     db_session.add(user)
     await db_session.flush()
@@ -556,7 +665,23 @@ async def test_mark_reference_visited_completes_the_quest_and_grants_xp(db_sessi
     await QuestService(db_session).mark_reference_visited(user.id)
 
     statuses = await QuestService(db_session).list_status(user.id, today=TODAY)
-    assert _status_by_id(statuses, "reference_first_visit").completed is True
+    status = _status_by_id(statuses, "reference_first_visit")
+    assert status.claimable is True
+    assert status.completed is False
+    await db_session.refresh(user)
+    assert user.xp == 0
+
+
+@pytest.mark.asyncio
+async def test_claiming_reference_first_visit_after_marking_grants_xp(db_session) -> None:
+    user = _make_user(xp=0, level=1)
+    db_session.add(user)
+    await db_session.flush()
+
+    service = QuestService(db_session)
+    await service.mark_reference_visited(user.id)
+    await service.claim(user.id, "reference_first_visit", today=TODAY)
+
     await db_session.refresh(user)
     assert user.xp == 50
 
@@ -571,8 +696,13 @@ async def test_mark_reference_visited_is_idempotent(db_session) -> None:
     await service.mark_reference_visited(user.id)
     await service.mark_reference_visited(user.id)
 
-    await db_session.refresh(user)
-    assert user.xp == 50
+    result = await db_session.execute(
+        select(UserQuestCompletion).where(
+            UserQuestCompletion.user_id == user.id,
+            UserQuestCompletion.quest_id == "reference_first_visit",
+        )
+    )
+    assert len(result.scalars().all()) == 1
 
 
 # --- period_start / type shape ---

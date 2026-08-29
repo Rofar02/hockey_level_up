@@ -10,18 +10,27 @@ from app.db.base import Base
 
 
 class UserQuestCompletion(Base):
-    """One row per (user, quest, period) grant -- item 6's quest system
-    (2026-08-30 gamification pass). `period_key` is what makes a grant
+    """One row per (user, quest, period) -- item 6's quest system
+    (2026-08-30 gamification pass). `period_key` is what makes a row
     idempotent and lets a recurring quest be earned again in a later
     period without a second table:
 
     - one_time quests: always `QuestService.ONE_TIME_PERIOD_KEY` ("once") --
       at most one row can ever exist per (user, quest).
-    - weekly/long_term quests: the ISO Monday of the week the grant
-      happened in (as a real date, not a string) -- a weekly quest can be
+    - weekly/long_term quests: the ISO Monday of the week the row was
+      created in (as a real date, not a string) -- a weekly quest can be
       re-earned every week, a long_term one (e.g. "4 consecutive weeks
       hitting the goal") whenever its rolling window becomes satisfied
       again, each a fresh row keyed by that week.
+
+    A row is inserted the moment QuestService detects the quest's criteria
+    are met (`completed_at`) but XP isn't granted yet -- `claimed_at` stays
+    NULL until the player explicitly taps "Получить" on QuestsPage
+    (2026-08-30 follow-up: the original always-auto-grant design skipped
+    that moment entirely, which read as XP silently appearing with no
+    feedback). `claimed_at is None` is "ready to claim"; once set, the
+    quest is done for this period and its XP has already landed on
+    User.xp -- see QuestService.claim.
 
     See app.core.quests for the quest definitions themselves and
     QuestService for the satisfaction checks that decide when a row gets
@@ -45,3 +54,4 @@ class UserQuestCompletion(Base):
     completed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

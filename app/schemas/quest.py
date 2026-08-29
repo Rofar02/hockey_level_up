@@ -9,9 +9,12 @@ class QuestStatusRead(BaseModel):
     title: str
     description: str
     xp_reward: int
-    # True if the *current* period (the one QuestService just evaluated --
-    # "once" for one_time, "this week" for weekly/long_term) is done.
+    # True once the *current* period's XP has actually been claimed (see
+    # QuestService.claim) -- not just satisfied.
     completed: bool
+    # True once the criteria are met but the player hasn't tapped
+    # "Получить" yet -- mutually exclusive with `completed`.
+    claimable: bool
     # None for one_time quests -- always set for weekly/long_term, ISO date
     # of the Monday the current period is tracked under, so the frontend
     # can show "this week" honestly rather than a vague label.
