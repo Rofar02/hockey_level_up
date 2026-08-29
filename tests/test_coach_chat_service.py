@@ -1,19 +1,19 @@
 """AI coach chat (CoachChatService / POST /users/me/coach-chat):
 
-- require_premium gates access regardless of the Anthropic key state (403,
+- require_premium gates access regardless of the Qwen key state (403,
   key irrelevant -- mirrors test_premium_gate.py's convention, scoped to
   this feature).
-- with premium access granted but no Anthropic key configured, the service
+- with premium access granted but no Qwen key configured, the service
   itself refuses with 503 ("feature not technically on yet") rather than
   403 -- a different state than "no access at all".
-- exceeding the monthly quota is a 429, and the Anthropic client is never
+- exceeding the monthly quota is a 429, and the Qwen client is never
   called to get there.
 - the system prompt actually carries the user's real stats/milestones/
   streak/phase/history, not a generic template.
 - both turns (user + assistant) land in coach_chat_messages, retrievable
   via list_history in ascending order.
 
-No real Anthropic call is ever made -- `_call_anthropic` is monkeypatched
+No real Qwen/DashScope call is ever made -- `_call_qwen` is monkeypatched
 at the module level in every test that reaches it, same convention
 test_push_subscription.py uses for webpush_async.
 """
@@ -47,36 +47,36 @@ def _make_user(*, has_premium: bool = True) -> User:
 
 
 def _settings_with_key(api_key: str | None) -> Settings:
-    return Settings(anthropic_api_key=api_key)
+    return Settings(qwen_api_key=api_key)
 
 
 def _install_fake_call(monkeypatch, *, reply: str = "Тестовый ответ тренера"):
-    """Replaces the Anthropic call with a fake that records exactly what it
+    """Replaces the Qwen call with a fake that records exactly what it
     was sent and returns a canned reply -- no network call, ever."""
     captured: dict = {}
 
-    async def _fake_call_anthropic(api_key: str, system_prompt: str, messages: list[dict]) -> str:
+    async def _fake_call_qwen(api_key: str, system_prompt: str, messages: list[dict]) -> str:
         captured["api_key"] = api_key
         captured["system_prompt"] = system_prompt
         captured["messages"] = messages
         return reply
 
-    monkeypatch.setattr(coach_chat_service, "_call_anthropic", _fake_call_anthropic)
+    monkeypatch.setattr(coach_chat_service, "_call_qwen", _fake_call_qwen)
     return captured
 
 
 def _fail_if_called(monkeypatch):
     async def _boom(*_args, **_kwargs):
-        raise AssertionError("Anthropic client must not be called")
+        raise AssertionError("Qwen client must not be called")
 
-    monkeypatch.setattr(coach_chat_service, "_call_anthropic", _boom)
+    monkeypatch.setattr(coach_chat_service, "_call_qwen", _boom)
 
 
 # -- access gating --
 
 
 @pytest.mark.asyncio
-async def test_require_premium_blocks_regardless_of_anthropic_key() -> None:
+async def test_require_premium_blocks_regardless_of_qwen_key() -> None:
     """require_premium never looks at settings -- a configured key changes
     nothing for a non-premium user, which is the point: 403 (no access at
     all) is a different failure than 503 (access granted, feature off)."""
@@ -111,7 +111,7 @@ async def test_send_message_without_api_key_returns_503_even_for_premium_user(
 
 
 @pytest.mark.asyncio
-async def test_send_message_over_monthly_limit_returns_429_without_calling_anthropic(
+async def test_send_message_over_monthly_limit_returns_429_without_calling_qwen(
     db_session, monkeypatch
 ) -> None:
     user = _make_user(has_premium=True)

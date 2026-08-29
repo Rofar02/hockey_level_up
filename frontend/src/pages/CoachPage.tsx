@@ -63,7 +63,7 @@ export function CoachPage() {
 }
 
 // Shown once a real 503 comes back from the backend (see CoachChatContent
-// below) -- the feature is technically off (no Anthropic key configured
+// below) -- the feature is technically off (no Qwen key configured
 // yet), a different state from "no premium access" above.
 function ComingSoonCard() {
   return (

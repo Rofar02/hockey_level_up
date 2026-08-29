@@ -47,7 +47,7 @@ def _register_payload(**overrides) -> UserCreate:
 def _install_fake_verification_send(monkeypatch):
     """Replaces EmailService.send_verification_email with a fake that
     records exactly what it was called with -- no real Resend call, ever,
-    same convention as CoachChatService tests fake _call_anthropic."""
+    same convention as CoachChatService tests fake _call_qwen."""
     captured: dict = {}
 
     async def _fake(self, user, raw_token):  # noqa: ANN001 -- mirrors bound method signature

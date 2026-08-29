@@ -54,10 +54,15 @@ class Settings(BaseSettings):
     # AI coach chat (POST /users/me/coach-chat) -- premium-gated but stays
     # functionally off (503) until this is filled in, since a real key
     # costs money per message. Заполнить перед включением ИИ-чата.
-    anthropic_api_key: str | None = None
+    #
+    # Qwen via Alibaba Cloud DashScope's OpenAI-compatible endpoint (not
+    # Anthropic/OpenAI directly) -- both of those 403 "Request not allowed"
+    # every request from a Russian server/IP, confirmed live 2026-08-30.
+    # DashScope has no such restriction. See coach_chat_service.py.
+    qwen_api_key: str | None = None
 
     # Email (Resend) -- same "empty means the feature is off, not broken"
-    # convention as anthropic_api_key above. EmailService checks this itself
+    # convention as qwen_api_key above. EmailService checks this itself
     # rather than each call site: verification email sends quietly no-op
     # when unset (registration/resend must never fail because of it), while
     # AuthService.request_password_reset 503s upfront instead, since a

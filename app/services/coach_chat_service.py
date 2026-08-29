@@ -1,18 +1,26 @@
 """AI coach chat (POST /users/me/coach-chat). Gated by require_premium at
 the router layer; this service adds a second, independent gate on top --
-whether the feature is technically switched on at all (settings.anthropic_api_key
+whether the feature is technically switched on at all (settings.qwen_api_key
 configured) -- which is why a premium user with no key configured still
-gets a 503, not a 403 (see app/core/config.py's anthropic_api_key comment).
+gets a 503, not a 403 (see app/core/config.py's qwen_api_key comment).
 
-The Anthropic call itself is a plain module-level function (`_call_anthropic`,
+Qwen via Alibaba Cloud DashScope's OpenAI-compatible endpoint, not
+Anthropic/OpenAI directly -- both of those reject every request from a
+Russian server/IP with 403 "Request not allowed" (confirmed live
+2026-08-30, this service originally called Anthropic). DashScope has no
+such restriction. `openai`'s own client works against it unchanged --
+DashScope's compatible-mode endpoint is a drop-in Chat Completions API,
+just a different base_url and API key.
+
+The Qwen call itself is a plain module-level function (`_call_qwen`,
 mirroring push_service.send_push / webpush_async) so tests can monkeypatch
 it and assert on exactly what was sent, with no real network call.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import anthropic
 from fastapi import HTTPException, status
+from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -28,10 +36,14 @@ from app.schemas.coach_chat import CoachChatMessageRead
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
 
-MODEL = "claude-haiku-4-5-20251001"
+DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# Open-weight Qwen2.5-Instruct, not the Coder variant -- an earlier explicit
+# product call (see project roadmap notes) made before DashScope was even
+# the chosen provider; DashScope serves this exact model id too.
+MODEL = "qwen2.5-72b-instruct"
 
 MONTHLY_MESSAGE_LIMIT = 150
-# How many prior turns get replayed back to Claude as dialogue context --
+# How many prior turns get replayed back to the model as dialogue context --
 # a rolling window, not the full history (which the /history endpoint
 # exposes separately, unbounded by this).
 HISTORY_REPLAY_TURNS = 10
@@ -116,17 +128,16 @@ def _format_history_section(entries: list[StatHistory]) -> str:
     return "Последние изменения характеристик: " + "; ".join(parts) + "."
 
 
-async def _call_anthropic(
+async def _call_qwen(
     api_key: str, system_prompt: str, messages: list[dict[str, str]]
 ) -> str:
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-    response = await client.messages.create(
+    client = AsyncOpenAI(api_key=api_key, base_url=DASHSCOPE_BASE_URL)
+    response = await client.chat.completions.create(
         model=MODEL,
         max_tokens=MAX_RESPONSE_TOKENS,
-        system=system_prompt,
-        messages=messages,
+        messages=[{"role": "system", "content": system_prompt}, *messages],
     )
-    return next((block.text for block in response.content if block.type == "text"), "")
+    return response.choices[0].message.content or ""
 
 
 class CoachChatService:
@@ -139,7 +150,7 @@ class CoachChatService:
 
     async def send_message(self, user: User, message: str) -> CoachChatMessageRead:
         settings = get_settings()
-        if not settings.anthropic_api_key:
+        if not settings.qwen_api_key:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Функция скоро будет доступна",
@@ -163,7 +174,7 @@ class CoachChatService:
         api_messages = [{"role": entry.role.value, "content": entry.content} for entry in history]
         api_messages.append({"role": "user", "content": message})
 
-        reply_text = await _call_anthropic(settings.anthropic_api_key, system_prompt, api_messages)
+        reply_text = await _call_qwen(settings.qwen_api_key, system_prompt, api_messages)
 
         # Explicit, strictly-increasing timestamps for the two rows --
         # they're inserted in the same transaction, and relying on the
