@@ -8,8 +8,11 @@ from app.repositories.push_subscription_repository import PushSubscriptionReposi
 from app.schemas.push_subscription import PushSubscriptionCreate
 from app.services.push_service import send_push
 
-TEST_NOTIFICATION_TITLE = "IceLevel"
-TEST_NOTIFICATION_BODY = "Тестовое уведомление — если вы это видите, push работает."
+# Not "IceLevel" -- see reminder_scheduler.REMINDER_TITLE's own comment on
+# why (the OS/browser already shows the PWA's name; repeating it as the
+# notification's own title just doubles it up).
+TEST_NOTIFICATION_TITLE = "Проверка push-уведомлений"
+TEST_NOTIFICATION_BODY = "Если вы это видите — push работает."
 
 
 class PushSubscriptionService:

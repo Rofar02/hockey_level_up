@@ -27,7 +27,12 @@ logger = logging.getLogger(__name__)
 
 TICK_INTERVAL_SECONDS = 300
 
-REMINDER_TITLE = "IceLevel"
+# Not "IceLevel" -- the OS/browser already shows the PWA's own name next to
+# every notification from it (confirmed live, 2026-08-30: a push titled
+# "IceLevel" renders as "IceLevel" twice, once from Windows/Chrome's own
+# site attribution and once from us saying it again). The title should
+# describe what the notification is *about*.
+REMINDER_TITLE = "Напоминание о тренировке"
 
 _REMINDER_WINDOWS: dict[ReminderPreference, tuple[time, time]] = {
     ReminderPreference.MORNING: (time(9, 0), time(9, 5)),

@@ -34,7 +34,10 @@ logger = logging.getLogger(__name__)
 
 TICK_INTERVAL_SECONDS = 300
 
-CHECKIN_TITLE = "IceLevel"
+# Not "IceLevel" -- see reminder_scheduler.REMINDER_TITLE's own comment on
+# why (the OS/browser already shows the PWA's name; repeating it as the
+# notification's own title just doubles it up).
+CHECKIN_TITLE = "Проверка самочувствия"
 
 # Same 5-minute morning window as reminder_scheduler's MORNING preference,
 # checked independently -- not imported from there, since this job's
