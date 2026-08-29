@@ -56,24 +56,64 @@ export function TimerPlayer({
   const [feedbackAnswered, setFeedbackAnswered] = useState(false)
   const onCompleteRef = useRef(onComplete)
   onCompleteRef.current = onComplete
+  // Wall-clock deadline for the currently-running segment, not a tick
+  // counter -- a plain "decrement once a second" timer stalls while the
+  // screen is locked (mobile browsers throttle/suspend setTimeout in a
+  // backgrounded tab), then just resumes counting from wherever it was
+  // frozen once unlocked, silently eating however long the phone was
+  // locked (found live-testing 2026-08-30: "поставил плей, заблокировал
+  // экран, всё сбилось"). Anchoring to Date.now() means the countdown is
+  // always correct the instant it's read, locked or not. A ref, not state
+  // -- it's an implementation detail the effect below reads, never
+  // something a render should react to.
+  const deadlineRef = useRef<number | null>(null)
 
   const restSeconds = exercise.rest_seconds ?? FALLBACK_REST_SECONDS
 
+  // Ticks the visible countdown down from deadlineRef while running. Only
+  // depends on `running`, not `remaining`/`phase` -- advanceWork/advanceRest
+  // below flip running false then true again in the same batch when moving
+  // between work and rest, which React collapses into a no-op transition,
+  // so this effect keeps the same interval/listener alive across a phase
+  // change rather than tearing down and missing that transition. Each
+  // advance*() call moves deadlineRef itself, which is all this effect
+  // needs to pick up the new segment.
   useEffect(() => {
     if (!running) {
       return
     }
-    if (remaining <= 0) {
-      setRunning(false)
-      if (phase === 'work') {
-        advanceWork()
-      } else {
-        advanceRest()
+    function sync() {
+      const deadline = deadlineRef.current
+      if (deadline === null) {
+        return
       }
+      setRemaining(Math.max(0, (deadline - Date.now()) / 1000))
+    }
+    sync()
+    const interval = setInterval(sync, 1000)
+    // Recompute immediately on regaining visibility (screen unlock, tab
+    // refocus) instead of waiting for the next 1s tick -- the whole point
+    // is snapping to the true elapsed time right away rather than however
+    // long is left on the throttled interval.
+    document.addEventListener('visibilitychange', sync)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', sync)
+    }
+  }, [running])
+
+  // Separate from the ticking effect above -- this one only reacts to
+  // remaining actually crossing zero, regardless of how it got there.
+  useEffect(() => {
+    if (!running || remaining > 0) {
       return
     }
-    const timer = setTimeout(() => setRemaining((value) => value - 1), 1000)
-    return () => clearTimeout(timer)
+    setRunning(false)
+    if (phase === 'work') {
+      advanceWork()
+    } else {
+      advanceRest()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, remaining, phase])
 
@@ -108,12 +148,14 @@ export function TimerPlayer({
     }
     setCompletedRounds(finishedSetNumber)
     setPhase('rest')
+    deadlineRef.current = Date.now() + restSeconds * 1000
     setRemaining(restSeconds)
     setRunning(true)
   }
 
   function advanceRest() {
     setPhase('work')
+    deadlineRef.current = Date.now() + durationSeconds * 1000
     setRemaining(durationSeconds)
     setRunning(true)
   }
@@ -171,7 +213,19 @@ export function TimerPlayer({
           accent="ice"
           interactive
           running={running}
-          onToggle={() => setRunning((value) => !value)}
+          onToggle={() =>
+            setRunning((value) => {
+              const next = !value
+              // Starting fresh or resuming from a pause both anchor a new
+              // deadline off whatever `remaining` currently is -- pausing
+              // itself needs no deadline (the ticking effect just isn't
+              // running), so only the false -> true edge sets one.
+              if (next) {
+                deadlineRef.current = Date.now() + remaining * 1000
+              }
+              return next
+            })
+          }
         />
       ) : (
         <div className="flex flex-col items-center gap-2">

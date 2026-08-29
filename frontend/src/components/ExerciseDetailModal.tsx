@@ -482,6 +482,14 @@ function RestTimer({
   const [remaining, setRemaining] = useState(totalSeconds)
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
+  // Same wall-clock-deadline fix as TimerPlayer's work/rest ring (found
+  // 2026-08-30 fixing that one): a tick-based countdown stalls while the
+  // screen is locked and just resumes from wherever it froze once unlocked,
+  // silently eating the locked time. This ring had no notification safety
+  // net covering it either way -- scheduleRestDoneNotification below only
+  // fires a background alert at the real deadline, it doesn't correct what
+  // the on-screen digits show once the athlete looks again.
+  const deadlineRef = useRef(Date.now() + totalSeconds * 1000)
 
   useEffect(() => {
     let cancelled = false
@@ -508,13 +516,26 @@ function RestTimer({
   }, [])
 
   useEffect(() => {
-    if (remaining <= 0) {
-      alertRestDone()
-      onDoneRef.current()
+    function sync() {
+      setRemaining(Math.max(0, (deadlineRef.current - Date.now()) / 1000))
+    }
+    sync()
+    const interval = setInterval(sync, 1000)
+    // Recompute immediately on regaining visibility (screen unlock, tab
+    // refocus) instead of waiting for the next 1s tick.
+    document.addEventListener('visibilitychange', sync)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', sync)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (remaining > 0) {
       return
     }
-    const timer = setTimeout(() => setRemaining((value) => value - 1), 1000)
-    return () => clearTimeout(timer)
+    alertRestDone()
+    onDoneRef.current()
   }, [remaining])
 
   return (
