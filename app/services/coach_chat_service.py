@@ -36,10 +36,11 @@ from app.schemas.coach_chat import CoachChatMessageRead
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
 
-DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 # Open-weight Qwen2.5-Instruct, not the Coder variant -- an earlier explicit
 # product call (see project roadmap notes) made before DashScope was even
-# the chosen provider; DashScope serves this exact model id too.
+# the chosen provider; DashScope serves this exact model id too. The base
+# URL itself lives in Settings.qwen_base_url, not here -- DashScope has two
+# regions with separate keys (see that field's own comment).
 MODEL = "qwen2.5-72b-instruct"
 
 MONTHLY_MESSAGE_LIMIT = 150
@@ -129,9 +130,9 @@ def _format_history_section(entries: list[StatHistory]) -> str:
 
 
 async def _call_qwen(
-    api_key: str, system_prompt: str, messages: list[dict[str, str]]
+    api_key: str, base_url: str, system_prompt: str, messages: list[dict[str, str]]
 ) -> str:
-    client = AsyncOpenAI(api_key=api_key, base_url=DASHSCOPE_BASE_URL)
+    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
     response = await client.chat.completions.create(
         model=MODEL,
         max_tokens=MAX_RESPONSE_TOKENS,
@@ -174,7 +175,9 @@ class CoachChatService:
         api_messages = [{"role": entry.role.value, "content": entry.content} for entry in history]
         api_messages.append({"role": "user", "content": message})
 
-        reply_text = await _call_qwen(settings.qwen_api_key, system_prompt, api_messages)
+        reply_text = await _call_qwen(
+            settings.qwen_api_key, settings.qwen_base_url, system_prompt, api_messages
+        )
 
         # Explicit, strictly-increasing timestamps for the two rows --
         # they're inserted in the same transaction, and relying on the

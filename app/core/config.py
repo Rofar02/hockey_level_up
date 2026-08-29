@@ -60,6 +60,15 @@ class Settings(BaseSettings):
     # every request from a Russian server/IP, confirmed live 2026-08-30.
     # DashScope has no such restriction. See coach_chat_service.py.
     qwen_api_key: str | None = None
+    # DashScope has two separate regions with separate keys: mainland China
+    # (dashscope.aliyuncs.com, needs Chinese real-name verification) and
+    # international (dashscope-intl.aliyuncs.com). A key issued on one
+    # region's console 401s ("invalid_api_key") against the other region's
+    # endpoint -- confirmed live 2026-08-30 against the mainland default.
+    # International is the only region reachable to sign up for from
+    # outside China, so it's the default here; override in .env if a
+    # mainland key is ever used instead.
+    qwen_base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 
     # Email (Resend) -- same "empty means the feature is off, not broken"
     # convention as qwen_api_key above. EmailService checks this itself

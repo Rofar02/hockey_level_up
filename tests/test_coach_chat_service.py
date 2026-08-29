@@ -55,8 +55,11 @@ def _install_fake_call(monkeypatch, *, reply: str = "Тестовый ответ
     was sent and returns a canned reply -- no network call, ever."""
     captured: dict = {}
 
-    async def _fake_call_qwen(api_key: str, system_prompt: str, messages: list[dict]) -> str:
+    async def _fake_call_qwen(
+        api_key: str, base_url: str, system_prompt: str, messages: list[dict]
+    ) -> str:
         captured["api_key"] = api_key
+        captured["base_url"] = base_url
         captured["system_prompt"] = system_prompt
         captured["messages"] = messages
         return reply
