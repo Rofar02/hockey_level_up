@@ -29,7 +29,13 @@ export function Modal({ title, onClose, children }: ModalProps) {
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-md border border-white/10 bg-dark-card"
+        // Full white/10 border for definition against the black/60 backdrop
+        // (a CARD_CLASS top-border-only card would read as unbounded while
+        // floating), but the top edge picks up the same icy tint CARD_CLASS
+        // uses everywhere else -- one shared modal shell should carry the
+        // same "blue line" cue as the cards it opens from (hockey design
+        // pass, 2026-08-30).
+        className="flex max-h-[85dvh] w-full max-w-md flex-col overflow-hidden rounded-md border border-white/10 border-t-[rgba(215,239,255,0.5)] bg-dark-card"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/5 px-6 py-4">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
-import { CARD_BORDER } from '../components/ui/cardStyle'
+import { CARD_CLASS } from '../components/ui/cardStyle'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import * as referenceArticlesApi from '../api/referenceArticles'
@@ -81,21 +81,36 @@ export function ReferencePage() {
       {groups !== null && (
         <div className="flex flex-col gap-6">
           {groups.map((group) => (
-            <div key={group.category} className="flex flex-col gap-3">
-              <h2 className="text-sm font-medium text-[#8A94A6]">{group.category}</h2>
+            <div key={group.category} className="flex flex-col gap-2">
+              {/* Same ice-line divider as MorePage's section headers --
+                  one convention for "labelled group of rows" everywhere it
+                  shows up (hockey design pass, 2026-08-30). */}
+              <div className="flex items-center gap-2 px-1">
+                <span className="h-px w-4 shrink-0 bg-accent-ice/60" aria-hidden="true" />
+                <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-[#8A94A6]">
+                  {group.category}
+                </span>
+                <span className="h-px flex-1 bg-white/10" aria-hidden="true" />
+              </div>
               <div className="flex flex-col gap-2">
                 {group.articles.map((article) => (
                   <button
                     key={article.id}
                     type="button"
                     onClick={() => navigate(`/reference/${article.id}`)}
-                    className={`flex items-center gap-3 rounded-md ${CARD_BORDER} bg-dark-card p-4 text-left transition-colors hover:border-white/20`}
+                    className={`group flex w-full items-center gap-3 p-4 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
                   >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-accent-ice/10">
+                      <i
+                        className={`ti ${CATEGORY_ICONS[article.category] ?? DEFAULT_CATEGORY_ICON} text-lg text-accent-ice`}
+                        aria-hidden="true"
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium text-[#F5F7FA]">{article.title}</span>
                     <i
-                      className={`ti ${CATEGORY_ICONS[article.category] ?? DEFAULT_CATEGORY_ICON} text-xl text-accent-ice`}
+                      className="ti ti-chevron-right shrink-0 text-lg text-[#8A94A6] transition-all group-hover:translate-x-0.5 group-hover:text-accent-ice"
                       aria-hidden="true"
                     />
-                    <span className="font-medium text-[#F5F7FA]">{article.title}</span>
                   </button>
                 ))}
               </div>

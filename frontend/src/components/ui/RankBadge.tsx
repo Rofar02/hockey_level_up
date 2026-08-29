@@ -15,7 +15,16 @@ const MEDAL_COLORS: Record<number, string> = {
 export function RankBadge({ rank }: { rank: number }) {
   const medalColor = MEDAL_COLORS[rank]
   if (medalColor === undefined) {
-    return <span className="w-8 shrink-0 text-center font-mono text-sm text-[#8A94A6]">{rank}</span>
+    // Same circle shape as the medal ranks below, just unlit (icy outline,
+    // no fill) -- a bare number floating next to a row read as disconnected
+    // from the podium's medal circles above it (hockey design pass,
+    // 2026-08-30); the shape now carries through past rank 3, only the
+    // color stops.
+    return (
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 font-mono text-sm text-[#8A94A6]">
+        {rank}
+      </div>
+    )
   }
   return (
     <div

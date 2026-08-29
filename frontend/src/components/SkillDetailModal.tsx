@@ -27,9 +27,16 @@ export function SkillDetailModal({
       {detail !== undefined && (
         <div className="flex flex-col gap-4">
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
-              Вклад характеристик
-            </p>
+            {/* Same ice-line divider as MorePage/ReferencePage section
+                headers -- one convention for "labelled group" everywhere
+                (hockey design pass, 2026-08-30). */}
+            <div className="mb-2 flex items-center gap-2">
+              <span className="h-px w-3 shrink-0 bg-accent-ice/60" aria-hidden="true" />
+              <p className="shrink-0 text-xs font-medium uppercase tracking-wide text-text-secondary">
+                Вклад характеристик
+              </p>
+              <span className="h-px flex-1 bg-white/10" aria-hidden="true" />
+            </div>
             <div className="flex flex-col gap-1.5">
               {detail.stat_breakdown.map((item) => (
                 <div key={item.stat_type} className="flex items-center justify-between text-sm">
@@ -41,9 +48,13 @@ export function SkillDetailModal({
           </div>
 
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-text-secondary">
-              Пороги
-            </p>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="h-px w-3 shrink-0 bg-accent-ice/60" aria-hidden="true" />
+              <p className="shrink-0 text-xs font-medium uppercase tracking-wide text-text-secondary">
+                Пороги
+              </p>
+              <span className="h-px flex-1 bg-white/10" aria-hidden="true" />
+            </div>
             <div className="flex flex-col gap-2.5">
               {detail.milestones.map((milestone) => (
                 <div key={milestone.id} className="flex items-start gap-2">

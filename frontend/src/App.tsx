@@ -19,7 +19,13 @@ import { ReferencePage } from './pages/ReferencePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { RestrictionsPage } from './pages/RestrictionsPage'
+import { SettingsAccountPage } from './pages/SettingsAccountPage'
+import { SettingsAssessmentsPage } from './pages/SettingsAssessmentsPage'
+import { SettingsEquipmentPage } from './pages/SettingsEquipmentPage'
+import { SettingsNotificationsPage } from './pages/SettingsNotificationsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { SettingsProfilePage } from './pages/SettingsProfilePage'
+import { SettingsTrainingPage } from './pages/SettingsTrainingPage'
 import { TeamDetailPage } from './pages/TeamDetailPage'
 import { TeamRankingPage } from './pages/TeamRankingPage'
 import { TeamsPage } from './pages/TeamsPage'
@@ -110,6 +116,12 @@ function App() {
         <Route path="/training-parties" element={<TrainingPartiesPage />} />
         <Route path="/training-parties/:partyId" element={<TrainingPartyDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/profile" element={<SettingsProfilePage />} />
+        <Route path="/settings/equipment" element={<SettingsEquipmentPage />} />
+        <Route path="/settings/training" element={<SettingsTrainingPage />} />
+        <Route path="/settings/assessments" element={<SettingsAssessmentsPage />} />
+        <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
+        <Route path="/settings/account" element={<SettingsAccountPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/teams/leaderboard" element={<TeamRankingPage />} />
