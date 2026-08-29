@@ -1,0 +1,6876 @@
+[
+  {
+    "name": "90/90 растяжка",
+    "description": "Сядь на пол, обе ноги согнуты под 90 градусов — одна впереди, другая сбоку. Наклоняйся к передней ноге, затем разворачивайся и повторяй в другую сторону, не отрывая таз от пола.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Dead Bug (Жук) + антиротация",
+    "description": "Учит держать нейтральный таз и противостоять разгибанию поясницы. Фундамент для всех силовых.\n\nЛяг на спину, руки вверх, колени 90°. Прижми поясницу к полу. Медленно выпрями противоположные руку и ногу. Вернись и поменяй сторону. Поясница не должна отрываться.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Party exercise 9adc07fc",
+    "description": null,
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": null,
+    "exercise_type": null,
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [],
+    "movement_patterns": [],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Spiderman + ротация грудного отдела",
+    "description": "Из положения планки шагнуть стопой к одноимённой руке (поза паука), затем развернуть корпус и потянуться внутренней рукой вверх, раскрывая грудной отдел. Плавно, поочерёдно в обе стороны.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Y на наклонной скамье",
+    "description": "Работа задних дельт и нижней части трапеций.\n\nЛёжа лицом вниз, поднимай руки в форме Y.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.24
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.08
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull",
+      "shoulder_mobility"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Австралийские подтягивания",
+    "description": "Горизонтальная тяга для начинающих.\n\nТело прямое, тянись грудью к рукоятям.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Активация плеч эспандером",
+    "description": "Упражнение на подвижность плечевого пояса — снижает риск травм при бросках и силовой борьбе.\n\nТехника: выполняйте движение плавно, без рывков, постепенно увеличивая амплитуду. При появлении боли — уменьшите амплитуду.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "shoulders",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "shoulder_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Антиротационный жим (Pallof)",
+    "description": "Классика антиротации.\n\nРезина сбоку, выжми руки вперёд, не поворачивай корпус.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Антиротационный жим (Pallof) + варианты",
+    "description": "Резина сбоку. Выжми руки вперёд и удержи. Не давай корпусу повернуться. Можно с дальней ногой вперёд.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Антиротационный жим на одном колене (изометрия)",
+    "description": "Полуприсед на одном колене боком к резине/блоку. Вытянуть рукоять вперёд от груди и удерживать 20 секунд, сопротивляясь ротации таза и корпуса. Более сложная (полуколенная) прогрессия, дополняющая существующие варианты Pallof-жима.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Антиротационный пресс с резиной (Pallof Press)",
+    "description": "Классика антиротации. Учит прессу сопротивляться скручиванию.\n\nРезина сбоку на уровне груди. Встань в устойчивую позицию. Выжми руки вперёд. Не давай корпусу разворачиваться. Задержись в вытянутом положении 1-2 сек.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Бег на месте",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": "raise",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Берд-дог",
+    "description": "Встань на четвереньки. Одновременно вытяни противоположные руку и ногу, удерживая спину ровной и таз неподвижным. Вернись и повтори на другую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Берпи (умеренно)",
+    "description": "Присед -> упор лёжа -> отжимание (опционально) -> прыжок.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.2
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      },
+      {
+        "muscle_group": "chest",
+        "weight": 0.1667
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.1333
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "squat",
+      "push",
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковая планка",
+    "description": "Латеральная стабилизация.\n\nОпора на предплечье, тело прямое. Можно ногу на лавку.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковая поверхность бедра - ролл",
+    "description": "Лечь на бок на ролик, опора на предплечье. Медленно прокатать боковую поверхность бедра (илиотибиальный тракт) от таза до колена, 8-10 проходов на каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковая ходьба с мини-бэндом",
+    "description": "Мини-резинка на голенях выше щиколоток, полуприсед, спина прямая. Приставными шагами двигаться в сторону, сохраняя натяжение резинки постоянным, не сводя колени. 10-12 шагов в каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковая часть голени - мяч",
+    "description": "Сидя, положить мяч под боковую часть голени (малоберцовая мышца), медленно прокатать от колена к лодыжке, 8-10 проходов на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковое раскачивание на четвереньках",
+    "description": "На четвереньках плавно перекатывать таз влево-вправо, слегка садясь к пяткам, растягивая поясницу и бок. Медленно, без резких движений.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковой выпад",
+    "description": "Развивает силу и мобильность в боковой плоскости.\n\nШирокий шаг в сторону. Опустись на рабочую ногу, таз назад. Вторая нога почти прямая. Грудь вверх.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.3,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковой выпад на колене + наружная ротация",
+    "description": "Из бокового выпада на одном колене плавно раскрыть таз наружной ротацией бедра в сторону задней ноги, удерживая корпус вертикально. Плавно, поочерёдно в обе стороны.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковой присед с касанием внутренней части стопы",
+    "description": "Широкая стойка, вес переносится в глубокий боковой присед на одну ногу, другая нога прямая. В нижней точке коснуться рукой внутренней части опорной стопы. Плавно, поочерёдно в обе стороны.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковой прыжок / скачок",
+    "description": "Прыжок в сторону с приземлением на внешнюю ногу. Контроль таза и колена.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Боковой скачок",
+    "description": "Боковая мощность и стабилизация.\n\nМощный прыжок в сторону + пауза на внешней ноге.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Болгарский присед",
+    "description": "Усложнённая версия сплита. Задняя нога на лавке.\n\nЗадняя нога на лавке (шнурки вниз). Опустись до параллели бедра с полом. Корпус слегка наклонён вперёд. Отталкивайся пяткой передней ноги.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.3,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Бросок набивного мяча от груди",
+    "description": "Толчковое упражнение — развивает грудные мышцы, плечи и трицепс.\n\nТехника: сохраняйте стабильное положение корпуса и лопаток на всём протяжении движения. Двигайтесь в полной, контролируемой амплитуде, без рывков. Дыхание — выдох на усилии.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Сила броска",
+        "transfer_note": "Взрывное разгибание рук и корпуса при броске мяча близко к фазе финального импульса броска — переносит именно мощность, а не саму технику броска клюшкой."
+      }
+    ]
+  },
+  {
+    "name": "Бёрпи",
+    "description": "Из положения стоя присядь, упрись руками в пол, прыжком уведи ноги назад в упор лёжа, верни их обратно и выпрыгни вверх с хлопком над головой.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.2
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      },
+      {
+        "muscle_group": "chest",
+        "weight": 0.1667
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.1333
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "squat",
+      "push",
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Выносливость",
+        "transfer_note": "Комплексное упражнение на всё тело в высоком темпе нагружает сердечно-сосудистую систему и держит общую выносливость."
+      }
+    ]
+  },
+  {
+    "name": "Ведение мяча / шайбы клюшкой (off-ice)",
+    "description": "Разные виды ведения: узкое, широкое, змейка, одной рукой.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "forearms",
+        "weight": 0.6
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "stick_handling"
+    ],
+    "equipment_items": [
+      "hockey_stick"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Ведение мяча между конусами",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Обводка",
+        "transfer_note": "Обводка конусов с мячом тренирует смену направления с сохранением контроля над снарядом — прямой аналог обводки соперника с шайбой."
+      }
+    ]
+  },
+  {
+    "name": "Ведение теннисного мяча клюшкой на асфальте",
+    "description": "Упражнение на владение клюшкой и шайбой — развивает контроль, мягкость кисти и периферийное зрение.\n\nТехника: держите голову поднятой, контролируйте шайбу мягкими движениями кистей, а не всей рукой. Постепенно увеличивайте темп по мере уверенного выполнения.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "forearms",
+        "weight": 0.6
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "stick_handling"
+    ],
+    "equipment_items": [
+      "hockey_stick"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Обводка",
+        "transfer_note": "Ведение мяча клюшкой тренирует контроль над снарядом клюшкой вне льда — тот же навык мягких рук, что и в обводке шайбы."
+      }
+    ]
+  },
+  {
+    "name": "Велосипед интервалы",
+    "description": "Работа на велотренажёре чередованием интенсивного усилия и лёгкого восстановления по таймеру или пульсу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Велотренажёр (лёгкая интенсивность)",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": "raise",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Внутренняя часть лопатки - ролл",
+    "description": "Лечь на ролик так, чтобы он проходил вдоль внутреннего края лопатки, руки скрещены на груди. Медленно прокатать зону между позвоночником и лопаткой, 8-10 проходов на каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Выпад назад с грифом (RPE 7-8)",
+    "description": "Шагни назад. Опустись до касания коленом. Оттолкнись передней ногой. Держи корпус стабильным.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.4,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Выпады с гантелями",
+    "description": "С гантелями в руках сделай широкий шаг вперёд, опускаясь до касания задним коленом пола. Оттолкнись передней ногой и вернись в исходное положение, чередуя ноги.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.3,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Голеностоп + резина",
+    "description": "Улучшает качество катания и снижает риск травм.\n\nЗакрепи резину, упирайся стопой и води голеностоп в разных направлениях с сопротивлением. 10-15 повторений.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": true,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Голеностоп у стены (ПНФ)",
+    "description": "Из положения мобильности голеностопа у стены: подать колено к стене до лёгкого натяжения, надавить стопой в пол на 5-6 секунд без движения (изометрия), расслабиться и на выдохе подать колено чуть дальше. Повторить 2-3 раза на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Голубь (ПНФ)",
+    "description": "В позе голубя: на лёгком натяжении напрячь ягодичную мышцу передней ноги на 5-6 секунд без движения, расслабиться и на выдохе мягко углубить позу. Повторить 2-3 раза на каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Голубь с рукой по диагонали",
+    "description": "Классическая поза голубя (передняя нога согнута под корпусом, задняя прямая назад), с диагональным вытягиванием разноимённой руки вперёд для усиления растяжения. Держать без резких движений.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Горизонтальная тяга (TRX / кольца / низкий блок)",
+    "description": "Отличная альтернатива подтягиваниям, особенно для начинающих.\n\nВозьмись за рукояти, тело прямое как доска. Тянись грудью к рукоятям. Сведи лопатки. Не проваливай таз.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Гребля (Concept2 или тренажёр)",
+    "description": "Ноги -> корпус -> руки. Обратный порядок на возврате.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Гребной тренажёр (лёгкий темп)",
+    "description": "Тяговое упражнение — развивает мышцы спины и плечевого пояса.\n\nТехника: начинайте движение со сведения лопаток, затем подключайте руки. Корпус стабилен, без раскачивания. Контролируйте как рабочую, так и обратную фазу движения.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": "raise",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Гребной тренажёр интервалами",
+    "description": "Работа на гребном тренажёре чередованием интенсивных отрезков и лёгкого темпа для восстановления.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Скоростная выносливость",
+        "transfer_note": "Интервалы на гребном тренажёре сочетают высокую мощность гребка с накоплением утомления — тренируют повторение взрывных усилий без потери скорости."
+      }
+    ]
+  },
+  {
+    "name": "Грудь у стены - мяч",
+    "description": "Прижать мяч к стене грудной мышцей чуть ниже ключицы, медленно перемещать вес тела, катая мяч по груди, 8-10 проходов на каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "shoulders",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "shoulder_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Диагональная дуга рукой лёжа на боку",
+    "description": "Лечь на бок, колени согнуты. Верхней рукой описать дугу от бедра вперёд, вверх и назад за спину, следя взглядом за кистью и раскрывая грудной отдел. Плавно, в темпе дыхания.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Диагональное раскачивание таза с выходом в шаг",
+    "description": "Из основной стойки плавно раскачивать таз по диагонали вперёд-в сторону, с плавным переходом в шаг вперёд. Повторять поочерёдно на обе стороны в динамике, не останавливаясь в крайних точках.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Динамическая растяжка (махи)",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Динамическая растяжка на льду перед стартом",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Динамическая растяжка ног",
+    "description": "Серия маховых и пружинящих движений ногами (махи вперёд-назад, в сторону, выпады в движении) для разогрева перед тренировкой.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Динамический выпад + открытие/закрытие бедра",
+    "description": "Шагай в выпад и в нижней точке открывай или закрывай таз/корпус.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": true,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.35
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "squat",
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Дровосек",
+    "description": "Диагональная мощность.\n\nДвижение по диагонали сверху вниз или снизу вверх.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Жим гантелей лёжа",
+    "description": "Лягте на скамью, стопы плотно стоят на полу, лопатки сведены и прижаты к скамье. Гантели держите над грудью на прямых руках, локти направлены в стороны примерно под углом 45 градусов к корпусу. Опускайте гантели до уровня груди подконтрольно, не роняя вес рывком, и выжимайте обратно вверх, не сталкивая гантели друг с другом.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.35,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Силовая борьба",
+        "transfer_note": "Жим лёжа строит силу груди и плеч в горизонтальном упоре — тот же вклад в верхнюю силу тела, что и жим гантелей от груди, другой вариант того же движения."
+      }
+    ]
+  },
+  {
+    "name": "Жим гантелей на наклонной скамье",
+    "description": "Больше загружает верхнюю часть груди и передние дельты. Хорошо переносится на бросок.\n\nАналогично горизонтальному жиму, но скамья под 30-45°.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.3,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Жим гантелей одной рукой",
+    "description": "Жимающая сила + антиротация.\n\nЖми одну гантель, не давай корпусу разворачиваться.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.18,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Жим гантелей от груди",
+    "description": "Толчковое упражнение — развивает грудные мышцы, плечи и трицепс.\n\nТехника: сохраняйте стабильное положение корпуса и лопаток на всём протяжении движения. Двигайтесь в полной, контролируемой амплитуде, без рывков. Дыхание — выдох на усилии.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.35,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Силовая борьба",
+        "transfer_note": "Развивает силу верхней части тела и плечевого пояса, которая нужна, чтобы удерживать позицию корпуса в контакте у борта — прямого игрового движения это упражнение не повторяет."
+      }
+    ]
+  },
+  {
+    "name": "Жим лендмайн / антиротационный жим",
+    "description": "Очень специфичное для хоккея упражнение. Учит давить и бороться с вращением.\n\nГриф одним концом в углу. Встань в спортивную стойку. Жми гриф от себя вверх и вперёд. Корпус не разворачивается -- сопротивляйся ротации. Можно делать с шагом.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.3,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.2
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.55
+      }
+    ],
+    "movement_patterns": [
+      "push",
+      "rotation"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Жим лёжа с темпом 6-0-0-0 (RPE 8)",
+    "description": "6 секунд вниз -> быстро вверх. Лопатки сведены, ноги упираются в пол.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.45,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Жим сидя на одном колене (горизонтальный)",
+    "description": "Полуприсед на одном колене (разноимённая рука с задней ногой работает), корпус вертикально. Жим гантели или рукояти блока вперёд на уровне груди, без раскачивания корпуса.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Жим штанги лёжа",
+    "description": "Лопатки сведены. Ноги упираются в пол. Штанга опускается на нижнюю часть груди.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.5,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Жонглирование двумя мячами",
+    "description": "Упражнение на координацию и равновесие — развивает общую двигательную координацию и устойчивость.\n\nТехника: выполняйте движение подконтрольно, сохраняя стабильное положение корпуса. При потере равновесия — сделайте паузу и восстановите положение, не форсируйте темп.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.25
+      }
+    ],
+    "movement_patterns": [
+      "coordination"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Координация и реакция",
+        "transfer_note": "Жонглирование развивает координацию рук и способность обрабатывать несколько быстрых стимулов одновременно."
+      }
+    ]
+  },
+  {
+    "name": "Жук (Dead Bug)",
+    "description": "Лечь на спину, руки вверх, колени согнуты под 90 градусов. Медленно опустить разноимённые руку и ногу к полу, не отрывая поясницу от пола, вернуться и повторить на другую сторону. Базовый вариант без анти-ротационного сопротивления -- проще, чем существующий Dead Bug + антиротация.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Жук + рол / статика",
+    "description": "Классический dead bug. Можно добавить удержание или лёгкий рол.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Задняя поверхность бедра (бицепс бедра) - ролл",
+    "description": "Сидя на полу, ролик под задней поверхностью бедра, руки в упоре сзади. Медленно прокатать от ягодицы до подколенной ямки, 8-10 проходов на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Задняя поверхность бедра на четвереньках",
+    "description": "На четвереньках, выпрямить одну ногу вперёд пяткой в пол, таз отвести назад до ощущения растяжения задней поверхности бедра. Держать спокойно, дышать ровно.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Задняя часть приводящих на тумбе",
+    "description": "Положить бедро на тумбу или скамью, мяч под задней частью приводящих у паха. Медленно прокатать, 8-10 проходов на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Зашагивание на тумбу",
+    "description": "Одностороннее разгибание бедра.\n\nВся стопа на тумбе, оттолкнись пяткой, встань полностью.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Изометрические удержания в отжимании",
+    "description": "Удержание в отжимании на середине амплитуды (локти согнуты примерно на 90 градусов), тело ровной линией от плеч до стоп. Держать без прогиба в пояснице.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Изометрический сплит-присед (макс. усилие)",
+    "description": "Статическое удержание в нижней точке сплита. Отлично учит контролю таза и колена.\n\nВстань в глубокий выпад. Задний край почти касается пола. Держи позицию максимально сильно 3-5 секунд. Корпус прямой, таз квадратный.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Имитация броска с резиной",
+    "description": "Закрепи резину сзади. Имитируй полный бросок с переносом веса.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Интервальный спринт 10×30м",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Скоростная выносливость",
+        "transfer_note": "Короткие спринты с неполным восстановлением — прямой аналог повторных ускорений в матче, тренирует сохранение скорости на фоне усталости."
+      }
+    ]
+  },
+  {
+    "name": "Йога-отжимание",
+    "description": "Из планки на прямых руках плавно перейти через позу собаки мордой вниз в позу собаки мордой вверх и обратно, сохраняя контроль в пояснице. Медленный, непрерывный переход.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Катание спиной вперёд",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Катание",
+        "transfer_note": "Прямое упражнение на конкретный навык катания — устойчивость и скорость при движении спиной вперёд, без переноса из другого движения."
+      }
+    ]
+  },
+  {
+    "name": "Катание спиной вперёд в медленном темпе",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Квадрицепс на тумбе с руками вверх",
+    "description": "Задняя нога стопой на тумбе позади, передняя согнута в выпаде. Поднять руки вверх и слегка отклонить корпус назад для усиления растяжения передней поверхности бедра задней ноги.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Квадрицепс с задней ногой на возвышении",
+    "description": "Стопа задней ноги на невысокой скамье позади, передняя нога в выпаде впереди. Слегка присесть, ощущая растяжение передней поверхности бедра задней ноги. Держать спокойно.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Колено к колену лёжа",
+    "description": "Лёжа на спине, одна нога согнута под 90 градусов над тазом, другая скрещена лодыжкой на колене. Мягко подтянуть колено к груди руками до ощущения растяжения ягодицы. Держать спокойно.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Комплекс голеностопа",
+    "description": "Обязательный прехаб для хоккеистов.\n\nПовороты голеностопа; пальцы вверх / носки к себе; ходьба на носках; спринг-анкл (удержания и пружины); присед у стены с давлением большого пальца.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Комплекс суставной гимнастики",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.15
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.1
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.5
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility",
+      "shoulder_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Мобильность",
+        "transfer_note": "Комплексная проработка подвижности суставов увеличивает амплитуду движения, нужную для глубокого приседа в стойке и широких шагов при катании."
+      }
+    ]
+  },
+  {
+    "name": "Координационная лестница",
+    "description": "Быстрые, точные шаги через ячейки координационной лестницы в разных рисунках — вперёд, боком, крест-накрест — для скорости и координации стоп.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Копенгаген-планка (короткий рычаг)",
+    "description": "Одно из лучших упражнений для приводящих мышц. Снижает риск травм паха.\n\nЛяг на бок, верхняя нога на лавке. Подними таз, опираясь на предплечье и верхнюю ногу. Нижняя нога может быть согнута или висеть. Держи тело в прямой линии. Начни с коротких интервалов (15-20 сек).",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Короткий спринт",
+    "description": "Максимально быстрый забег на короткую дистанцию (10-20 м) с полного или частичного разгона.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Кошка-корова",
+    "description": "Упражнение на мышцы кора — развивает статическую и динамическую стабильность корпуса.\n\nТехника: сохраняйте нейтральное положение позвоночника, не прогибайтесь и не округляйте поясницу. Дыхание ровное, без задержки.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Кошка-корова + дыхание",
+    "description": "На четвереньках. Поочерёдно прогиб и округление спины.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Кросс (бег на длинную дистанцию)",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Выносливость",
+        "transfer_note": "Длительный бег в равномерном темпе напрямую тренирует аэробную базу, которая определяет способность держать темп весь матч."
+      }
+    ]
+  },
+  {
+    "name": "Круги руками + лопатки",
+    "description": "Большие и маленькие круги. Сведение/разведение лопаток.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "shoulders",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "shoulder_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Латеральный выпад с гантелью на слайде",
+    "description": "Одна нога на слайдере. Уезжай в сторону, сгибая опорную ногу. Вернись мощным приведением.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.25,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Латеральный спринт из положения полуколена",
+    "description": "Старт из полуприседа на одном колене, боком к направлению движения. По команде резко подняться и выполнить короткий боковой спринт на 5-10 метров. Полное восстановление между повторениями.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Лежачее подтягивание поясничной мышцы с мини-бэндом",
+    "description": "Лёжа на спине, резинка закреплена на стопе. Подтянуть согнутое колено к груди против сопротивления резинки, контролируя возврат. 10-12 повторений на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Лестница для ног (agility ladder)",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Координация и реакция",
+        "transfer_note": "Быстрая работа стоп в лестнице тренирует координацию ног и скорость нервно-мышечной реакции, но не имитирует конкретное игровое движение."
+      }
+    ]
+  },
+  {
+    "name": "Ловля теннисного мяча на реакцию",
+    "description": "Упражнение на координацию и равновесие — развивает общую двигательную координацию и устойчивость.\n\nТехника: выполняйте движение подконтрольно, сохраняя стабильное положение корпуса. При потере равновесия — сделайте паузу и восстановите положение, не форсируйте темп.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.25
+      }
+    ],
+    "movement_patterns": [
+      "coordination"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Координация и реакция",
+        "transfer_note": "Ловля быстро летящего мяча тренирует зрительно-моторную реакцию — переносится на скорость реакции на льду, а не на конкретный игровой навык."
+      }
+    ]
+  },
+  {
+    "name": "Лягушка (прыжковые приседания)",
+    "description": "Базовое упражнение на паттерн приседа — развивает силу квадрицепсов и ягодичных мышц.\n\nТехника: стопы на ширине плеч, носки слегка развёрнуты наружу, спина прямая на всём протяжении движения. Опускайтесь до комфортной глубины, колени двигаются в одном направлении с носками. Вставайте, отталкиваясь пятками, полностью выпрямляя корпус в верхней точке.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.45
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "squat",
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Скоростная выносливость",
+        "transfer_note": "Повторяющиеся прыжковые приседания сочетают взрывное усилие ног с накоплением утомления — тренируют способность повторять быстрые действия без падения мощности."
+      }
+    ]
+  },
+  {
+    "name": "Лёгкое катание для заминки",
+    "description": "Спокойное катание на коньках в низком темпе после тренировки или игры для постепенного снижения пульса.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Лёгкое катание для разогрева",
+    "description": "Спокойное катание на коньках в низком темпе перед основной частью тренировки для разогрева мышц и суставов.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": "raise",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Малые игры 2х2 на льду",
+    "description": "Игровое упражнение на ограниченном участке льда в формате 2 на 2 — развивает игровое мышление, обводку и единоборства в тесном пространстве.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Игровое чтение",
+        "transfer_note": "Игра в меньшинстве состава заставляет постоянно принимать решения по расстановке и открываниям — прямая тренировка игрового чтения."
+      }
+    ]
+  },
+  {
+    "name": "Малые игры 3х3 на льду",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Игровое чтение",
+        "transfer_note": "Игра в ограниченном составе постоянно ставит перед выбором 'куда открыться / кого закрыть' — тренирует именно чтение игры, а не физические качества."
+      }
+    ]
+  },
+  {
+    "name": "Марш с санями",
+    "description": "Горизонтальное усилие, близкое к катанию.\n\nНизкий корпус, короткие мощные шаги.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Марш ягодицами у стены с мини-бэндом + изометрия",
+    "description": "Спина прижата к стене, мини-резинка на бёдрах, полуприсед. Поочерёдно поднимать колено к груди (марш), удерживая таз ровно, каждые несколько повторений добавлять изометрическую паузу 2-3 секунды в верхней точке. 10 повторений на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Миофасциальный релиз на роллере",
+    "description": "Медленное перекатывание на массажном роллере по крупным мышечным группам (бёдра, спина, икры) для снятия напряжения и улучшения подвижности.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [],
+    "movement_patterns": [],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Мобилизация квадрицепса в полуприседе на одном колене",
+    "description": "Встать в полуприсед на одно колено (задняя нога сзади согнута), подать таз вперёд, слегка отклоняя корпус назад для растяжения передней поверхности бедра задней ноги. Плавно покачиваться в этом положении.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Мобильность голеностопа у стены",
+    "description": "Встать лицом к стене, пальцы стопы на расстоянии ладони от стены. Не отрывая пятку от пола, подать колено вперёд к стене. Плавные повторяющиеся движения, 45 секунд на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Наружная ротация гантели сидя",
+    "description": "Сидя, локоть прижат к боку и согнут под 90 градусов, лёгкая гантель в руке. Развернуть предплечье наружу, не отрывая локоть от корпуса, вернуться в исходное. Медленный контролируемый темп.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.02,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Наружная часть лопатки - ролл",
+    "description": "Лечь на бок, ролик под наружным краем лопатки. Медленно прокатать зону, 8-10 проходов на каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Обводка в ограниченном пространстве",
+    "description": "Ведение и обводка шайбы на небольшом размеченном участке — развивает контроль шайбы под давлением и в тесноте.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [],
+    "movement_patterns": [],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Обводка",
+        "transfer_note": "Обводка в тесном пространстве на льду — это и есть целевой навык, тренируется напрямую без переноса из другого упражнения."
+      }
+    ]
+  },
+  {
+    "name": "Обратный выпад",
+    "description": "Более безопасный вариант выпада для коленей.\n\nШагни назад, опустись, оттолкнись передней ногой.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.3,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Обратный дровосек",
+    "description": "Обратное диагональное движение (снизу вверх через тело).",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Обхват колена в позиции 90/90 лёжа",
+    "description": "Лёжа на спине, обе ноги согнуты под 90 градусов в стороны (положение 90/90). Обхватить ближнее колено руками и подтянуть к груди, сохраняя таз на полу. Держать спокойно, затем сменить сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Отведение бедра с резиной",
+    "description": "Резина выше колен. Отводи ногу в сторону, не разворачивая таз. Можно стоя или на четвереньках.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": true,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Отведение гантели лёжа на боку",
+    "description": "Лечь на бок, гантель в верхней руке. Отвести прямую руку вверх до уровня плеча, контролируя темп, не раскачивая корпус. Лёгкий вес, акцент на среднюю дельту.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.03,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Отжимания",
+    "description": "Тело прямое. Локти ближе к корпусу. Грудь почти касается пола.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Отжимания на брусьях (если есть)",
+    "description": "Опускайся до угла 90° в локтях. Не проваливай плечи.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Отжимания с ногами на возвышении",
+    "description": "Ноги выше головы. Сложнее обычных отжиманий.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Отжимания с хлопком",
+    "description": "Толчковое упражнение — развивает грудные мышцы, плечи и трицепс.\n\nТехника: сохраняйте стабильное положение корпуса и лопаток на всём протяжении движения. Двигайтесь в полной, контролируемой амплитуде, без рывков. Дыхание — выдох на усилии.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "chest",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "push"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Силовая борьба",
+        "transfer_note": "Плиометрический отжим развивает взрывную силу груди и плеч, полезную при силовом отталкивании соперника у борта."
+      }
+    ]
+  },
+  {
+    "name": "Перевёрнутый reach (перевёрнутая тяга)",
+    "description": "Из глубокого выпада с опорой рукой на пол, развернуть корпус и потянуться свободной рукой вверх и назад по диагонали, раскрывая грудной отдел. Плавно, поочерёдно в обе стороны.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Передняя поверхность бедра (квадрицепс) - ролл",
+    "description": "Лечь на ролик животом вниз, опора на предплечья. Медленно прокатать переднюю поверхность бедра от таза до колена, 8-10 проходов. При болезненной точке остановиться и подышать спокойно, пока напряжение не спадёт.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Планка",
+    "description": "Обопритесь на предплечья и носки стоп, локти строго под плечами. Тело образует прямую линию от головы до пяток — таз не проваливается вниз и не поднимается вверх. Напрягите пресс и ягодицы, чтобы удерживать поясницу в нейтральном положении, и дышите ровно, не задерживая дыхание.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Планка в позе медведя (Bear Crawl Plank)",
+    "description": "Стойка на руках и стопах, колени приподняты на пару сантиметров над полом, спина ровная. Удерживать позицию, не давая тазу подниматься или проваливаться.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Планка на нестабильной поверхности",
+    "description": "Упражнение на мышцы кора — развивает статическую и динамическую стабильность корпуса.\n\nТехника: сохраняйте нейтральное положение позвоночника, не прогибайтесь и не округляйте поясницу. Дыхание ровное, без задержки.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Баланс и устойчивость",
+        "transfer_note": "Удержание планки на нестабильной поверхности тренирует стабилизаторы корпуса, которые держат равновесие при контакте и смене направления."
+      }
+    ]
+  },
+  {
+    "name": "Планка с вытягиванием рук вперёд",
+    "description": "Планка на прямых руках. Поочерёдно вытягивать прямую руку вперёд, удерживая таз и плечи неподвижными и ровными, без ротации корпуса. 8-10 повторений на каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Подбрасывание шайбы на крюке клюшки",
+    "description": "Упражнение на владение клюшкой и шайбой — развивает контроль, мягкость кисти и периферийное зрение.\n\nТехника: держите голову поднятой, контролируйте шайбу мягкими движениями кистей, а не всей рукой. Постепенно увеличивайте темп по мере уверенного выполнения.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "forearms",
+        "weight": 0.6
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "stick_handling"
+    ],
+    "equipment_items": [
+      "hockey_stick"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Обводка",
+        "transfer_note": "Удержание шайбы на крюке клюшки развивает чувство снаряда и мягкость кистей, нужные для уверенной обводки."
+      }
+    ]
+  },
+  {
+    "name": "Подтягивания (нейтральный хват)",
+    "description": "Одно из лучших упражнений верхнего тела. Нейтральный хват обычно комфортнее для плеч.\n\nВозьмись за перекладину, руки чуть шире плеч. Напряги пресс и ягодицы. Тянись грудью к перекладине. Локти идут вниз и назад. Опустись полностью под контролем.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Подтягивания на TRX / кольцах",
+    "description": "Тело прямое. Тянись грудью к рукоятям. Можно с темпом 2-1-x-1.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Подъём на носок на одной ноге с гантелью (медленный темп)",
+    "description": "Стоя на одной ноге с гантелью в одноимённой руке, медленно подняться на носок (2 секунды вверх, 2 секунды вниз), сохраняя баланс. Свободной рукой можно слегка придерживаться опоры.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.15,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Подъём таза стоя (Hip Thrust standing / Good Morning лёгкий)",
+    "description": "Резина над коленями или гриф на плечах. Таз назад, потом мощно вперёд + сжатие ягодиц.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.35,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Поза голубя",
+    "description": "Передняя нога согнута перед корпусом, задняя вытянута назад. Опускайся вперёд, сохраняя таз ровным, чтобы растянуть внешнюю поверхность бедра.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Поза голубя (активация перед игрой)",
+    "description": "Передняя нога согнута, задняя вытянута. Таз ровный. Дыши.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": true,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Полусгибатель у стены (ПНФ)",
+    "description": "Лечь на спину у стены, одну ногу поднять прямой к стене до лёгкого натяжения задней поверхности бедра. Надавить пяткой в воображаемую точку на 5-6 секунд (изометрия), расслабиться, на выдохе поднять ногу чуть выше. Повторить 2-3 раза на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Поясница - ролл",
+    "description": "Лечь на ролик поперёк поясницы, колени согнуты, стопы на полу. Очень медленно и аккуратно прокатать зону чуть выше таза, избегая давления прямо на позвоночник. 8-10 медленных проходов.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Приведение бедра с резиной",
+    "description": "Резина сбоку. Приводи ногу к средней линии тела. Контролируй движение.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Приводящие в длинной позиции (ПНФ)",
+    "description": "Широкая стойка ноги врозь, наклон в сторону одной ноги до лёгкого натяжения приводящих. Напрячь приводящую мышцу на 5-6 секунд без движения, расслабиться, на выдохе углубить наклон. Повторить 2-3 раза на каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Приводящие мышцы - ролл",
+    "description": "Лечь на живот, согнуть ногу в колене и развернуть в сторону, ролик под внутренней поверхностью бедра. Медленно прокатать приводящие мышцы, 8-10 проходов на каждую ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Присед на одной ноге (пистолетик)",
+    "description": "Базовое упражнение на паттерн приседа — развивает силу квадрицепсов и ягодичных мышц.\n\nТехника: стопы на ширине плеч, носки слегка развёрнуты наружу, спина прямая на всём протяжении движения. Опускайтесь до комфортной глубины, колени двигаются в одном направлении с носками. Вставайте, отталкиваясь пятками, полностью выпрямляя корпус в верхней точке.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Баланс и устойчивость",
+        "transfer_note": "Присед на одной ноге напрямую тренирует баланс и контроль корпуса на нестабильной опоре, что близко к балансу в развороте на коньках."
+      }
+    ]
+  },
+  {
+    "name": "Присед со штангой / гоблет-присед",
+    "description": "Базовое двустороннее упражнение. Гоблет проще для техники.\n\nНоги чуть шире плеч. Таз назад, грудь вверх. Опускайся до параллели или ниже. Колени в направлении носков.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.65,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Приседания с весом тела",
+    "description": "Ноги на ширине плеч, опускайся, отводя таз назад и сгибая колени, до параллели бёдер с полом, затем вернись в исходное положение.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Приседания со штангой",
+    "description": "Штанга лежит на верхней части трапеций, ноги на ширине плеч, носки чуть развёрнуты наружу. Приседайте, отводя таз назад и сохраняя естественный прогиб поясницы — колени двигаются в направлении носков, спина не округляется. Опускайтесь до параллели бёдер с полом или чуть ниже, затем вставайте, толкаясь через всю стопу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.75,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Взрывной старт",
+        "transfer_note": "Приседания со штангой строят базовую силу ног, из которой берётся мощность первого толчка при стартовом ускорении."
+      }
+    ]
+  },
+  {
+    "name": "Приставные шаги в стойке",
+    "description": "Передвижение приставными шагами в низкой игровой стойке, не скрещивая ноги и сохраняя корпус над центром тяжести.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": "raise",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Пронация / супинация кисти",
+    "description": "Предплечье зафиксировано. Вращай кисть внутрь и наружу под контролем.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "shoulders",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "wrist_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжки в сторону (имитация конькобежного бега)",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Взрывной старт",
+        "transfer_note": "Боковой прыжок с акцентом на отталкивание повторяет фазу толчка при разгоне на коньках — переносится на мощность первых шагов старта, но не на саму механику скольжения."
+      }
+    ]
+  },
+  {
+    "name": "Прыжки на скакалке (лёгкий темп)",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": "raise",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжки на тумбу",
+    "description": "Из полуприседа мощно выпрыгни на тумбу, мягко приземляясь на обе стопы, затем сойди (не спрыгивай) обратно.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Взрывной старт",
+        "transfer_note": "Прыжок на тумбу — это взрывное разгибание ног в чистом виде, тот же паттерн, что и в первых шагах разгона на коньках."
+      }
+    ]
+  },
+  {
+    "name": "Прыжки через барьеры / линии",
+    "description": "Быстрые прыжки двумя ногами или одной. Акцент на частоту и мягкое приземление.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжок барьер 1 нога + пауза",
+    "description": "Прыжок через барьер на одной ноге + обязательная пауза 1 сек в приземлении.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжок в длину с места + пауза",
+    "description": "Простое и очень показательное упражнение для оценки и развития взрывной силы.\n\nНоги на ширине плеч. Мах руками назад + полуприсед. Резко выпрыгни вперёд как можно дальше. Приземлились мягко, задержись на 1 секунду.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжок на одной ноге (на месте / вперёд)",
+    "description": "Прыгай на одной ноге, приземляйся мягко и стабильно. Начинай с маленькой амплитуды.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжок на тумбу (Box Jump)",
+    "description": "Развивает взрывную мощность ног. Важно не гнаться за высотой, а за качеством приземления.\n\nВстань на комфортном расстоянии от тумбы. Сделай полуприсед и резко выпрыгни вверх. Приземлились мягко на всю стопу, колени слегка согнуты. Встань в полный рост на тумбе. Спустись шагом (не спрыгивай постоянно).",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжок на тумбу 1 нога боком",
+    "description": "Боковой прыжок на одну ногу. Контроль таза и колена при приземлении.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжок на тумбу 1 нога лицом",
+    "description": "Оттолкнись одной ногой, приземлитесь на ту же ногу на тумбу. Мягкое приземление + стабилизация.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Прыжок на тумбу на одной ноге",
+    "description": "Односторонняя взрывная работа.\n\nПрыжок и приземление на одну ногу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Работа с пустым грифом",
+    "description": "Базовое упражнение на паттерн приседа — развивает силу квадрицепсов и ягодичных мышц.\n\nТехника: стопы на ширине плеч, носки слегка развёрнуты наружу, спина прямая на всём протяжении движения. Опускайтесь до комфортной глубины, колени двигаются в одном направлении с носками. Вставайте, отталкиваясь пятками, полностью выпрямляя корпус в верхней точке.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "dynamic",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Разгибание голеностопа с опорой о стену",
+    "description": "Сидя или стоя с опорой на стену, пятка на полу, носок тянуть вверх на себя (тыльное сгибание) против лёгкого сопротивления стопы другой ноги или без него. Контролируемый темп.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Раскатка на ролике / ab wheel",
+    "description": "Выкатывайся только на то расстояние, где держишь поясницу. Не прогибайся.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка",
+    "description": "Растягивайте в первую очередь мышцы, которые больше всего работали на тренировке, заходя в каждую позицию плавно, без рывков, до лёгкого натяжения — не до боли. Задержитесь 20-30 секунд на каждой мышце, дыхание при этом остаётся спокойным. Цель заминки — снизить мышечный тонус и вернуть пульс к норме, а не увеличить гибкость.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [],
+    "movement_patterns": [],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка голени у стены",
+    "description": "Упражнение на подвижность голеностопа — важно для устойчивости в коньке и амортизации при приземлениях.\n\nТехника: выполняйте движение в голеностопном суставе плавно, до появления лёгкого натяжения, без боли. Колено и бедро остаются стабильными.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка груди под 90 градусов",
+    "description": "Стоя боком у стены или дверного проёма, рука согнута под 90 градусов (локоть на уровне плеча), предплечье на опоре. Плавно развернуть корпус в противоположную сторону до растяжения груди. Держать спокойно.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "shoulders",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "shoulder_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка квадрицепса стоя",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка мышц ног после тренировки",
+    "description": "Статическая растяжка основных мышечных групп ног (квадрицепс, бицепс бедра, икры) после тренировки, удержание позы 20-30 секунд на каждую мышцу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка на мате в зале",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка на подвижность бедра",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Мобильность",
+        "transfer_note": "Растяжка тазобедренного сустава увеличивает амплитуду отведения ноги, важную для широкого толчка при катании."
+      }
+    ]
+  },
+  {
+    "name": "Растяжка плечевого пояса и спины",
+    "description": "Статическая растяжка мышц плеч, груди и спины — удержание каждой позы 20-30 секунд без резких движений.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "shoulders",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "shoulder_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка подколенных сухожилий стоя",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка с использованием скамьи",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка с полотенцем (подколенные)",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка сгибателя бедра в полуприседе на колене",
+    "description": "Полуприсед на одном колене, таз подать вперёд без прогиба в пояснице, до ощущения растяжения передней поверхности бедра задней ноги. Держать спокойно, дышать ровно.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Растяжка у борта",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Роллаут",
+    "description": "Антиразгибание на высоком уровне.\n\nВыкатывайся только пока держишь нейтральную поясницу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Ротационный бросок медбола",
+    "description": "Прямой перенос на бросок и борьбу.\n\nРазгон через бедро и корпус, бросок в стену. Варианты: сплит, фронтальный, боком.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Ротационный бросок медбола из сплита",
+    "description": "Сплит-стойка (одна нога впереди), медбол у бедра сзади. С разворотом таза и корпуса резко выбросить мяч в стену по диагонали вперёд. Вариант существующего ротационного броска медбола с фиксированной сплит-стойкой вместо свободной. Полное восстановление между повторениями.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Ротация бедра (внутренняя/наружная)",
+    "description": "Контролируемые вращения бедра. Можно сидя, лёжа или стоя.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": true,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Румынская тяга",
+    "description": "Держите штангу или гантели перед бёдрами, ноги слегка согнуты в коленях и остаются в этом положении на всём движении. Наклоняйтесь вперёд, отводя таз назад — это движение в тазобедренном суставе, а не сгибание спины, поясница остаётся прямой. Снаряд скользит близко вдоль ног до ощутимого растяжения задней поверхности бедра, обычно чуть ниже колена, после чего возвращайтесь наверх за счёт разгибания бёдер, а не рывком спины.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 1.0,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.34
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.34
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.17
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Взрывной старт",
+        "transfer_note": "Тазобедренный шарнир в румынской тяге строит силу задней поверхности бедра и ягодиц — то самое разгибание бедра, которое даёт мощность первого шага при разгоне на коньках."
+      }
+    ]
+  },
+  {
+    "name": "Румынская тяга на одной ноге",
+    "description": "Лучшее упражнение для задней цепи и баланса.\n\nСтоя на одной ноге, лёгкий изгиб в колене. Наклоняйся от бёдер, таз назад. Свободная нога уходит назад. Спина ровная. Возвращайся за счёт ягодицы опорной ноги.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.35,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.34
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.34
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.17
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Румынская тяга с гантелями (темп 6-0-0-0)",
+    "description": "Классическая задняя цепь с акцентом на медленный спуск.\n\nНоги почти прямые. Таз назад, 6 секунд вниз. Спина ровная. Вверху мощно сожми ягодицы.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.6,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.34
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.34
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.17
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Русский твист (аккуратно)",
+    "description": "Лёгкий наклон назад. Поворачивай корпус, а не только руки. Контроль.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "rotation",
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Сведение лопаток с резиной в полуприседе на колене",
+    "description": "Полуприсед на одном колене, резинка натянута перед собой на уровне груди. Свести лопатки, разводя руки в стороны, без прогиба в пояснице. Контролируемый темп.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "activation",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Сгибание ног на фитболе (эксцентрика)",
+    "description": "Лёжа на спине, пятки на фитболе, таз приподнят (ягодичный мост). Подкатить мяч к себе сгибанием ног, затем медленно, за 3-4 секунды, раскатить мяч обратно, контролируя эксцентрическую фазу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Сгибание-разгибание голеностопа",
+    "description": "Сила и контроль голеностопа.\n\nПолный диапазон, медленный контроль.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "sets_reps",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Сжатие приводящих с прямыми ногами в среднем диапазоне",
+    "description": "Лёжа на спине, ноги прямые, мяч между стопами или голенями в среднем диапазоне амплитуды. Изометрическое сжатие мяча ногами, 20 секунд удержания.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Скакалка",
+    "description": "Прыжки на двух ногах, на одной, крест-накрест, высокие колени. Держи ритм.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Скакалка для разогрева",
+    "description": "Лёгкие прыжки на скакалке в спокойном темпе для разогрева перед тренировкой.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "endurance",
+    "exercise_type": "duration",
+    "warmup_stage": "raise",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Складка сидя на коврике",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Скорпион / грудной отдел",
+    "description": "Лёжа на животе, отводи ногу в сторону с поворотом корпуса.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.15
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.1
+      }
+    ],
+    "movement_patterns": [
+      "rotation",
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Слалом с мячом / шайбой",
+    "description": "Быстрое прохождение змейки с контролем шайбы/мяча.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Слалом с шайбой между конусами",
+    "description": "Упражнение на общую локомоцию — развивает скорость и взрывную силу ног.\n\nТехника: сохраняйте контроль положения корпуса на протяжении всего движения. Работайте в максимально доступном, но контролируемом темпе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Обводка",
+        "transfer_note": "Слалом с шайбой на льду — это и есть обводка в чистом виде: смена направления с сохранением контроля над шайбой на скорости."
+      }
+    ]
+  },
+  {
+    "name": "Слэм медбола",
+    "description": "Вертикальная мощность через всё тело.\n\nМяч над головой -> мощный удар в пол.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Сплит-присед",
+    "description": "Одностороннее приседание в выпаде. Учит контролировать таз и колено, убирает дисбаланс между ногами.\n\nВстань в выпад, задняя нога на носке. Корпус прямой. Опустись до почти касания задним коленом пола. Переднее колено смотрит на носок, не заваливается внутрь. Оттолкнись передней ногой. Таз держи квадратным.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.25,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Спринт из положения полуколена",
+    "description": "Старт из полуприседа на одном колене. По команде резко подняться и выполнить короткий спринт с максимальным ускорением на 10-15 метров. Полное восстановление между повторениями.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Спринты с ускорением на льду",
+    "description": "Короткие ускорения на коньках от старта до максимальной скорости с полным восстановлением между попытками.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Катание",
+        "transfer_note": "Прямая работа над скоростью и техникой скольжения на льду, без переноса из другого движения."
+      },
+      {
+        "skill_name": "Взрывной старт",
+        "transfer_note": "Фаза ускорения в спринте на льду — это тот же взрывной старт, тренируемый напрямую в игровых коньках, а не в зале."
+      }
+    ]
+  },
+  {
+    "name": "Спрыгивание с тумбы + стабилизация",
+    "description": "Спрыгни с тумбы и задержись в полуприседе 1-2 сек. Колени не заваливаются внутрь.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Становая тяга",
+    "description": "Штанга у голеней, спина прямая. Возьми гриф хватом чуть шире плеч и, толкаясь ногами и разгибая бёдра, поднимись в полный рост, не округляя поясницу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 1.1,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.34
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.34
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.17
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.15
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": [
+      {
+        "skill_name": "Силовая борьба",
+        "transfer_note": "Становая тяга строит общую силу задней цепи и хват, которые определяют, кто выигрывает силовую борьбу у борта — это базовая сила, а не заученный игровой приём."
+      }
+    ]
+  },
+  {
+    "name": "Стойка на одной ноге с закрытыми глазами",
+    "description": "Упражнение на координацию и равновесие — развивает общую двигательную координацию и устойчивость.\n\nТехника: выполняйте движение подконтрольно, сохраняя стабильное положение корпуса. При потере равновесия — сделайте паузу и восстановите положение, не форсируйте темп.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.25
+      }
+    ],
+    "movement_patterns": [
+      "coordination"
+    ],
+    "equipment_items": [],
+    "skill_tags": [
+      {
+        "skill_name": "Баланс и устойчивость",
+        "transfer_note": "Упражнение убирает зрительный контроль и тренирует чистый вестибулярный баланс — базу для устойчивости на коньках."
+      }
+    ]
+  },
+  {
+    "name": "Стопа - мяч",
+    "description": "Встать, наступить сводом стопы на маленький мяч (теннисный или баскетбольный жёсткости). Медленно прокатать свод стопы, 8-10 проходов на каждую ногу, вес тела регулировать по ощущениям.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "calves",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "ankle_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Суставная гимнастика",
+    "description": "Упражнение на подвижность тазобедренного сустава — важно для глубины и амплитуды хоккейного катания.\n\nТехника: движение выполняется плавно и подконтрольно, в пределах комфортной амплитуды. Таз и поясница остаются стабильными, движение изолировано в тазобедренном суставе.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.15
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.1
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.5
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility",
+      "shoulder_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Суставная разминка (вращения)",
+    "description": "Последовательные вращательные движения во всех крупных суставах (шея, плечи, локти, кисти, таз, колени, голеностоп) для подготовки к нагрузке.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "joint_mobility",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.25
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.15
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.1
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.5
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility",
+      "shoulder_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Теневой бой / имитация борьбы",
+    "description": "Имитация упоров, толчков, работы корпуса в низкой стойке.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "skill",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "core",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "core"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Трёхпозиционное сжатие приводящих (статика)",
+    "description": "Лёжа на спине, мяч или подушка между коленями. Сжимать мяч изометрически в трёх позициях: колени согнуты под 90°, полусогнуты, почти прямые -- по 15-20 секунд в каждой позиции.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Тяга верхнего блока / горизонтального блока",
+    "description": "Тяни к груди/животу. Своди лопатки. Не раскачивайся.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.45,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Тяга гантели в наклоне (Single-Arm Dumbbell Row)",
+    "description": "Одностороннее тяговое движение. Учит стабилизировать корпус и сильно развивает широчайшие и середину спины.\n\nУпор одной рукой и коленом на лавку. Спина параллельна полу. Тяни гантель к бедру/нижней части живота. Локоть идёт назад, а не в сторону. В верхней точке сведи лопатку. Опусти под контролем.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.2,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Тяга к лицу",
+    "description": "Внешняя ротация и задние дельты.\n\nТяни к лицу, локти высоко, разводи лопатки.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.24
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.08
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull",
+      "shoulder_mobility"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Тяга резины к поясу / лицу",
+    "description": "Тяни к себе, разводя лопатки. Вариант «к лицу» -- локти высоко.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Тяга сидя на одном колене (горизонтальная)",
+    "description": "Полуприсед на одном колене, корпус вертикально. Тяга рукояти блока или резины к поясу, сводя лопатку, без раскачивания корпуса и без ротации таза.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Тяга штанги в наклоне",
+    "description": "Наклон ~45°. Тяни к низу живота. Спина ровная.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.5,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "back",
+        "weight": 0.48
+      },
+      {
+        "muscle_group": "shoulders",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.16
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "pull"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Фермерская прогулка",
+    "description": "Иди ровно, плечи опущены, корпус напряжён. Не раскачивайся.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.15
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.1125
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.1125
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.375
+      },
+      {
+        "muscle_group": "forearms",
+        "weight": 0.25
+      }
+    ],
+    "movement_patterns": [
+      "locomotion",
+      "core"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Фронтальный присед (эксцентрика)",
+    "description": "Присед с очень медленным опусканием (6 сек).\n\n6 секунд вниз -> быстро вверх. Грудь вверх, локти высоко.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": true,
+    "bodyweight_ratio": 0.55,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "core",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "squat"
+    ],
+    "equipment_items": [
+      "barbell"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Хамстринг на одной ноге (Nordic / с темпом)",
+    "description": "Эксцентрическая работа бицепса бедра. Одна из лучших для профилактики травм.\n\nНоги зафиксированы. Медленно опускай корпус вперёд на 6 секунд, сохраняя прямую линию от колен до плеч. Возвращайся руками или сильно сокращая бицепс бедра.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Челночный бег 5-10-5",
+    "description": "Челночный забег: от центральной линии 5 м в одну сторону, затем 10 м в другую, затем 5 м обратно к центру, с касанием линии на каждом развороте.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "power",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "quads",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "calves",
+        "weight": 0.3
+      }
+    ],
+    "movement_patterns": [
+      "locomotion"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Широчайшая + рука под себя",
+    "description": "На четвереньках, одну руку просунуть под корпус ладонью вверх, опуская плечо и висок к полу для растяжения широчайшей мышцы и грудного отдела. Держать без резких движений.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "shoulders",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "shoulder_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Широчайшая крест-накрест",
+    "description": "Стоя, взяться рукой за неподвижную опору на уровне таза, отвести таз в сторону от опоры, вытягивая бок и широчайшую мышцу. Держать спокойно, затем сменить сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "shoulders",
+        "weight": 1.0
+      }
+    ],
+    "movement_patterns": [
+      "shoulder_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Эксцентрическое сгибание ног с полотенцем (5 сек вниз)",
+    "description": "Стоя на одной ноге, полотенце под стопой на скользком полу. Медленно, за 5 секунд, разогнуть колено, скользя стопой вперёд, контролируя эксцентрическую фазу задней поверхности бедра. Вернуться в исходное и повторить.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Ягодица крест-накрест лёжа",
+    "description": "Лёжа на спине, лодыжка одной ноги на колене другой (фигура четыре). Обхватить бедро опорной ноги руками и подтянуть к груди до ощущения растяжения ягодицы скрещённой ноги. Держать спокойно.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "glutes",
+        "weight": 0.5
+      },
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.3
+      },
+      {
+        "muscle_group": "quads",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_mobility"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Ягодицы - ролл",
+    "description": "Сидя на ролике, закинуть одну ногу лодыжкой на колено другой, слегка завалиться в сторону рабочей ягодицы. Медленно прокатать, 8-10 проходов на каждую сторону.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "mobility",
+    "exercise_type": "duration",
+    "warmup_stage": "soft_tissue",
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Ягодичный мост",
+    "description": "Базовое упражнение для ягодиц.\n\nЛёжа на спине, стопы близко к ягодицам. Подними таз, сожми ягодицы вверху. Не прогибай сильно поясницу.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  },
+  {
+    "name": "Ягодичный мост на лавке (shoulders elevated)",
+    "description": "Лопатки на лавке. Стопы на полу. Поднимай таз до прямой линии от колен до плеч.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [
+      "dumbbells"
+    ],
+    "skill_tags": []
+  },
+  {
+    "name": "Ягодичный мост на одной ноге",
+    "description": "Усложнённая версия моста.\n\nКак обычный мост, но одна нога поднята. Пауза 1-3 сек вверху.",
+    "video_source_type": null,
+    "video_source_id": null,
+    "stimulus_type": "strength",
+    "exercise_type": "sets_reps",
+    "warmup_stage": null,
+    "tracks_weight": false,
+    "bodyweight_ratio": null,
+    "suitable_for_game_day": false,
+    "is_unilateral": null,
+    "muscle_groups": [
+      {
+        "muscle_group": "hamstrings",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "glutes",
+        "weight": 0.4
+      },
+      {
+        "muscle_group": "back",
+        "weight": 0.2
+      }
+    ],
+    "movement_patterns": [
+      "hip_hinge"
+    ],
+    "equipment_items": [],
+    "skill_tags": []
+  }
+]
