@@ -85,7 +85,14 @@ export function LeaderboardPage() {
       <IceGlowBackground />
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
       <div className="flex flex-col gap-2">
-        <BackLink to="/profile" />
+        {/* No fixed `to` -- unlike ReferenceArticleDetailPage/TeamRankingPage/
+            TrainingPartyDetailPage's single real entry point, this page is
+            reached from both Home and Profile, so hardcoding "/profile" here
+            corrupted history the same way Settings' sub-pages did (found and
+            fixed live, 2026-08-30): a push where a real back was needed,
+            which the next real back then bounces off of. Plain `navigate(-1)`
+            correctly returns to wherever the user actually came from. */}
+        <BackLink />
         <h1 className="text-xl font-semibold">Рейтинг</h1>
         <p className="text-sm text-[#8A94A6]">
           Превышение над ожидаемым уровнем для вашего возраста и стажа — не сырые характеристики.

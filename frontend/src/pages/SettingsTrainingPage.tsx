@@ -173,7 +173,7 @@ export function SettingsTrainingPage() {
       <IceGlowBackground />
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-8 px-4 py-8">
         <div className="flex flex-col gap-2">
-          <BackLink to="/settings" />
+          <BackLink />
           <h1 className="text-xl font-semibold">Тренировочный процесс</h1>
         </div>
 
