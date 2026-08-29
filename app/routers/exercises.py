@@ -58,6 +58,19 @@ async def list_exercise_equipment_requirements(
     return await ExerciseService(session).list_equipment_requirements()
 
 
+@router.get("/skill-tags", response_model=list[SkillTagRead])
+async def list_all_exercise_skill_tags(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Bulk, any authenticated player -- backs the read-only exercise
+    catalog browser (2026-08-30), which groups the whole exercise list by
+    skill and would otherwise need one GET .../{id}/skills per exercise.
+    Must be registered before GET /{exercise_id} below, same reason as
+    /equipment-requirements and /catalog-health above."""
+    return await SkillService(session).list_all_tags()
+
+
 @router.get("/catalog-health", response_model=list[CatalogHealthIssue])
 async def list_catalog_health_issues(
     _admin: Annotated[User, Depends(require_admin)],

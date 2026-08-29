@@ -382,6 +382,9 @@ class SkillService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found")
         return await self._skills.list_tags_for_exercise(exercise_id)
 
+    async def list_all_tags(self) -> list[SkillTag]:
+        return await self._skills.list_all_tags()
+
     async def create_tag(self, skill_id: uuid.UUID, data: SkillTagCreate) -> SkillTag:
         await self._get_skill_or_404(skill_id)
         exercise = await self._exercises.get_by_id(data.exercise_id)

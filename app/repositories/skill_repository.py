@@ -84,6 +84,13 @@ class SkillRepository:
         )
         return list(result.scalars().all())
 
+    async def list_all_tags(self) -> list[SkillTag]:
+        """Every exercise<->skill tag at once -- backs the player-facing
+        exercise catalog browser (2026-08-30), which needs to group ~170
+        exercises by skill without an N+1 GET .../{id}/skills per row."""
+        result = await self._session.execute(select(SkillTag))
+        return list(result.scalars().all())
+
     async def get_tag(self, tag_id: uuid.UUID) -> SkillTag | None:
         return await self._session.get(SkillTag, tag_id)
 

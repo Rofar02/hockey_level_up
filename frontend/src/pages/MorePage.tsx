@@ -25,7 +25,13 @@ const GROUPS: MoreGroup[] = [
   {
     label: 'Тренировочный процесс',
     items: [
-      { icon: 'ti-book', label: 'Справочник', description: 'Статьи и техника упражнений', to: '/reference' },
+      { icon: 'ti-book', label: 'Справочник', description: 'Статьи об экипировке и основах хоккея', to: '/reference' },
+      {
+        icon: 'ti-clipboard-list',
+        label: 'Каталог упражнений',
+        description: 'Все упражнения с техникой — только для просмотра',
+        to: '/exercise-catalog',
+      },
       { icon: 'ti-notebook', label: 'Дневник', description: 'Заметки о тренировках на льду и играх', to: '/diary' },
       {
         icon: 'ti-bandage',

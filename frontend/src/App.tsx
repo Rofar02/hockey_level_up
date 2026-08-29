@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { ScrollToTop } from './components/ScrollToTop'
 import { AppLoadingScreen } from './components/ui/AppLoadingScreen'
 import { DiaryPage } from './pages/DiaryPage'
+import { ExerciseCatalogPage } from './pages/ExerciseCatalogPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { FriendsPage } from './pages/FriendsPage'
 import { HomePage } from './pages/HomePage'
@@ -143,6 +144,7 @@ function App() {
           }
         />
         <Route path="/reference" element={<ReferencePage />} />
+        <Route path="/exercise-catalog" element={<ExerciseCatalogPage />} />
         <Route
           path="/reference/:articleId"
           element={

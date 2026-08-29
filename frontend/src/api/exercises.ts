@@ -38,6 +38,12 @@ export function listCatalogHealthIssues(accessToken: string): Promise<CatalogHea
   return apiGet<CatalogHealthIssue[]>('/exercises/catalog-health', accessToken)
 }
 
+// Every exercise<->skill tag at once -- backs ExerciseCatalogPage's
+// group-by-skill view without one GET .../{id}/skills per exercise.
+export function listAllExerciseSkillTags(accessToken: string): Promise<SkillTagRead[]> {
+  return apiGet<SkillTagRead[]>('/exercises/skill-tags', accessToken)
+}
+
 // -- admin CRUD --
 
 export interface ExerciseFilters {
