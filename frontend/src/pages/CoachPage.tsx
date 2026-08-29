@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { CoachPersonalityIntroModal } from '../components/CoachPersonalityIntroModal'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
-import { CARD_BORDER } from '../components/ui/cardStyle'
+import { CARD_CLASS } from '../components/ui/cardStyle'
+import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { PremiumGate } from '../components/ui/PremiumGate'
@@ -64,21 +65,16 @@ export function CoachPage() {
 
 // Shown once a real 503 comes back from the backend (see CoachChatContent
 // below) -- the feature is technically off (no Qwen key configured
-// yet), a different state from "no premium access" above.
+// yet), a different state from "no premium access" above. Reuses the same
+// shared EmptyState every other blank-list screen in the app uses, instead
+// of hand-rolling its own near-identical icon-circle+text markup.
 function ComingSoonCard() {
   return (
-    <div
-      className={`flex flex-col items-center gap-4 rounded-md ${CARD_BORDER} bg-dark-card p-8 text-center`}
-    >
-      <i className="ti ti-message-chatbot text-4xl text-accent-ice" aria-hidden="true" />
-      <div className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold text-[#F5F7FA]">Скоро</h2>
-        <p className="text-sm text-[#8A94A6]">
-          Персональный AI-тренер уже почти готов — совсем скоро сможете задавать ему вопросы о своих
-          тренировках.
-        </p>
-      </div>
-    </div>
+    <EmptyState
+      icon="ti-message-chatbot"
+      title="Скоро"
+      hint="Персональный AI-тренер уже почти готов — совсем скоро сможете задавать ему вопросы о своих тренировках."
+    />
   )
 }
 
@@ -160,14 +156,23 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
   }
 
   return (
-    <div className={`flex flex-col gap-3 rounded-md ${CARD_BORDER} bg-dark-card p-4`}>
+    <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
       <FormError message={loadError} />
-      <div className="flex max-h-[60vh] min-h-[240px] flex-col gap-3 overflow-y-auto">
+      <div className="flex max-h-[60vh] min-h-[240px] flex-col gap-4 overflow-y-auto">
         {messages === null && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
         {messages !== null && messages.length === 0 && (
-          <p className="py-12 text-center text-sm text-[#8A94A6]">
-            Задайте тренеру вопрос о своих тренировках, чтобы начать разговор.
-          </p>
+          // Same icon-in-a-circle language as the shared EmptyState, but
+          // without its own CARD_CLASS wrapper -- this already sits inside
+          // one (the chat card itself), and nesting two would double up
+          // the "blue line" border.
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-ice/10">
+              <ShieldIcon size={26} />
+            </span>
+            <p className="text-sm text-[#8A94A6]">
+              Задайте тренеру вопрос о своих тренировках, чтобы начать разговор.
+            </p>
+          </div>
         )}
         {messages?.map((message) => <ChatBubble key={message.id} message={message} />)}
         <div ref={bottomRef} />
@@ -180,7 +185,7 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
           event.preventDefault()
           void submitMessage()
         }}
-        className="flex items-end gap-2"
+        className="flex items-end gap-2 border-t border-white/5 pt-3"
       >
         <textarea
           value={input}
@@ -195,7 +200,7 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
           rows={2}
           maxLength={4000}
           disabled={isSending}
-          className="flex-1 resize-none rounded border border-white/10 bg-dark-bg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none"
+          className="flex-1 resize-none rounded-md border border-white/10 bg-dark-bg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none"
         />
         <Button type="submit" isLoading={isSending} disabled={input.trim() === ''}>
           Отправить
@@ -205,21 +210,37 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
   )
 }
 
+// Two voices, two accents -- the coach speaks in the app's calm/
+// informational ice tint (same one its own header badge and shield avatar
+// use), the player's own messages in persimmon (the app's one "this is you
+// acting" accent, e.g. Button's primary variant, XP numbers). Card-shaped
+// with a thin top hairline echoing CARD_CLASS's "blue line" convention,
+// not a generic messaging-app pill -- so a chat bubble still reads as part
+// of this app rather than a bolted-on widget.
 function ChatBubble({ message }: { message: CoachChatMessageRead }) {
   const isUser = message.role === 'user'
+  const time = new Date(message.created_at).toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
   return (
     <div className={`flex items-end gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {!isUser && (
-        <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border border-accent-ice/30 bg-accent-ice/10">
-          <ShieldIcon size={14} />
-        </div>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-ice/30 bg-accent-ice/10">
+          <ShieldIcon size={18} />
+        </span>
       )}
-      <div
-        className={`max-w-[85%] whitespace-pre-wrap rounded-md px-3 py-2 text-sm text-[#F5F7FA] ${
-          isUser ? 'bg-accent-ice/10' : 'bg-white/5'
-        }`}
-      >
-        {message.content}
+      <div className={`flex max-w-[85%] flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
+        <div
+          className={`whitespace-pre-wrap rounded-md border-t px-3 py-2 text-sm text-[#F5F7FA] ${
+            isUser
+              ? 'border-accent-persimmon/30 bg-accent-persimmon/[0.08]'
+              : 'border-accent-ice/25 bg-accent-ice/[0.06]'
+          }`}
+        >
+          {message.content}
+        </div>
+        <span className="px-1 text-[10px] text-[#8A94A6]">{time}</span>
       </div>
     </div>
   )
