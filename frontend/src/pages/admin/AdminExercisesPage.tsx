@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { AdminLayout } from '../../components/admin/AdminLayout'
 import { AdminModal } from '../../components/admin/AdminModal'
 import { Button } from '../../components/ui/Button'
@@ -38,6 +38,7 @@ import type {
   ExerciseWrite,
   MovementPattern,
   MuscleGroup,
+  MuscleGroupWeight,
   StimulusType,
   TargetStat,
   WarmupStage,
@@ -238,14 +239,14 @@ export function AdminExercisesPage() {
             onChange={(event) => setTargetStat(event.target.value as TargetStat | '')}
           />
           <SelectField
-            label="Stimulus type"
+            label="Тип стимула"
             options={STIMULUS_TYPE_OPTIONS}
             placeholder="Все"
             value={stimulusType}
             onChange={(event) => setStimulusType(event.target.value as StimulusType | '')}
           />
           <SelectField
-            label="Exercise type"
+            label="Формат выполнения"
             options={EXERCISE_TYPE_OPTIONS}
             placeholder="Все"
             value={exerciseType}
@@ -283,8 +284,8 @@ export function AdminExercisesPage() {
                   <th className="px-3 py-2 font-medium">Категория</th>
                   <th className="px-3 py-2 font-medium">Фаза</th>
                   <th className="px-3 py-2 font-medium">Характеристика</th>
-                  <th className="px-3 py-2 font-medium">Stimulus</th>
-                  <th className="px-3 py-2 font-medium">Exercise type</th>
+                  <th className="px-3 py-2 font-medium">Стимул</th>
+                  <th className="px-3 py-2 font-medium">Формат</th>
                   <th className="px-3 py-2 font-medium">Сложность</th>
                   <th className="px-3 py-2 font-medium">Здоровье</th>
                   <th className="px-3 py-2 font-medium" />
@@ -382,10 +383,10 @@ export function AdminExercisesPage() {
                 </p>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
                   <span>
-                    Stimulus: {exercise.stimulus_type === null ? '—' : STIMULUS_TYPE_LABELS[exercise.stimulus_type]}
+                    Стимул: {exercise.stimulus_type === null ? '—' : STIMULUS_TYPE_LABELS[exercise.stimulus_type]}
                   </span>
                   <span>
-                    Type: {exercise.exercise_type === null ? '—' : EXERCISE_TYPE_LABELS[exercise.exercise_type]}
+                    Формат: {exercise.exercise_type === null ? '—' : EXERCISE_TYPE_LABELS[exercise.exercise_type]}
                   </span>
                 </div>
                 {(issuesByExerciseId.get(exercise.id) ?? []).length > 0 && (
@@ -449,9 +450,9 @@ function ExerciseFormModal({
 
   // Tracks the record actually persisted so far -- distinct from the
   // `exercise` prop (the value the form was *opened* with): once a create
-  // succeeds this flips from null to the new record so the "Связанные
-  // навыки" section below can appear immediately, without closing the modal
-  // and making the admin reopen it just to tag their new exercise.
+  // succeeds this flips from null to the new record, same as before this
+  // rewrite (only used now to pick create vs update on a second save
+  // within the same modal session -- see handleSubmit).
   const [currentExercise, setCurrentExercise] = useState<ExerciseRead | null>(exercise)
 
   const [name, setName] = useState(exercise?.name ?? '')
@@ -495,6 +496,113 @@ function ExerciseFormModal({
     exercise?.warmup_stage ?? '',
   )
 
+  // -- tags (2026-08-30 redesign: lifted out of five separate sub-forms with
+  // five separate "Сохранить ..." buttons into one shared state saved by
+  // the same submit as everything above. A new exercise's tags are now
+  // editable immediately too -- previously these sections only rendered
+  // *after* the base record was created, so tagging a new exercise took a
+  // create, then a scroll-and-click per section. Skill tags stay a
+  // separate immediate add/delete list below (see ExerciseSkillTagsSection)
+  // since each tag is its own row-level create/delete against a real
+  // exercise id, not a "set" this form can hold locally before one exists.
+  const [targetStatPrimary, setTargetStatPrimary] = useState<TargetStat | ''>('')
+  const [targetStatAdditional, setTargetStatAdditional] = useState<Set<TargetStat>>(new Set())
+  const [movementPatterns, setMovementPatterns] = useState<Set<MovementPattern>>(new Set())
+  const [muscleGroupWeights, setMuscleGroupWeights] = useState<Partial<Record<MuscleGroup, string>>>({})
+  const [equipmentItems, setEquipmentItems] = useState<Set<EquipmentItem>>(new Set())
+  // Only meaningful for an existing exercise -- a brand-new one has no tags
+  // to fetch, so this starts true and the picker UI is usable right away.
+  const [tagsLoaded, setTagsLoaded] = useState(exercise === null)
+  const [tagsLoadError, setTagsLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (exercise === null || accessToken === null) {
+      return
+    }
+    let cancelled = false
+    Promise.all([
+      exercisesApi.listExerciseTargetStats(exercise.id, accessToken),
+      exercisesApi.listExerciseMovementPatterns(exercise.id, accessToken),
+      exercisesApi.listExerciseMuscleGroups(exercise.id, accessToken),
+      exercisesApi.listExerciseEquipmentItems(exercise.id, accessToken),
+    ])
+      .then(([targetStats, patterns, muscleGroups, items]) => {
+        if (cancelled) {
+          return
+        }
+        setTargetStatPrimary(targetStats[0] ?? '')
+        setTargetStatAdditional(new Set(targetStats.slice(1)))
+        setMovementPatterns(new Set(patterns))
+        const weights: Partial<Record<MuscleGroup, string>> = {}
+        for (const group of muscleGroups) {
+          weights[group.muscle_group] = String(group.weight)
+        }
+        setMuscleGroupWeights(weights)
+        setEquipmentItems(new Set(items))
+        setTagsLoaded(true)
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setTagsLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить теги.')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+    // Deliberately keyed on the exercise this modal was *opened* with, not
+    // `currentExercise` -- this only ever needs to run once, right after
+    // opening on an existing record; it must not re-fire and clobber
+    // in-progress local edits after a same-session create/save flips
+    // currentExercise from null to the new record.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercise, accessToken])
+
+  function toggleMovementPattern(pattern: MovementPattern) {
+    setMovementPatterns((previous) => {
+      const next = new Set(previous)
+      if (next.has(pattern)) {
+        next.delete(pattern)
+      } else {
+        next.add(pattern)
+      }
+      return next
+    })
+  }
+
+  function toggleEquipmentItem(item: EquipmentItem) {
+    setEquipmentItems((previous) => {
+      const next = new Set(previous)
+      if (next.has(item)) {
+        next.delete(item)
+      } else {
+        next.add(item)
+      }
+      return next
+    })
+  }
+
+  function toggleMuscleGroup(group: MuscleGroup) {
+    setMuscleGroupWeights((previous) => {
+      const next = { ...previous }
+      if (group in next) {
+        delete next[group]
+      } else {
+        next[group] = '1'
+      }
+      return next
+    })
+  }
+
+  function setMuscleGroupWeight(group: MuscleGroup, value: string) {
+    setMuscleGroupWeights((previous) => ({ ...previous, [group]: value }))
+  }
+
+  const muscleGroupWeightSum = Object.values(muscleGroupWeights).reduce(
+    (total, value) => total + (Number(value) || 0),
+    0,
+  )
+  const muscleGroupWeightSumExceeds = muscleGroupWeightSum > 1.0 + MUSCLE_GROUP_WEIGHT_SUM_EPSILON
+
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -525,6 +633,10 @@ function ExerciseFormModal({
       )
       return
     }
+    if (muscleGroupWeightSumExceeds) {
+      setFormError('Сумма весов мышечных групп превышает 1.0.')
+      return
+    }
 
     const payload: ExerciseWrite = {
       name: name.trim(),
@@ -552,16 +664,53 @@ function ExerciseFormModal({
 
     setIsSaving(true)
     try {
-      if (currentExercise === null) {
-        const created = await exercisesApi.createExercise(payload, accessToken)
-        setCurrentExercise(created)
-        onSaved(created)
-      } else {
-        const updated = await exercisesApi.updateExercise(currentExercise.id, payload, accessToken)
-        setCurrentExercise(updated)
-        onSaved(updated)
-        onClose()
+      const savedExercise =
+        currentExercise === null
+          ? await exercisesApi.createExercise(payload, accessToken)
+          : await exercisesApi.updateExercise(currentExercise.id, payload, accessToken)
+      setCurrentExercise(savedExercise)
+      onSaved(savedExercise)
+
+      const muscleGroupsPayload: MuscleGroupWeight[] = Object.entries(muscleGroupWeights).map(
+        ([muscle_group, weight]) => ({
+          muscle_group: muscle_group as MuscleGroup,
+          weight: Number(weight) || 0,
+        }),
+      )
+      const targetStatsPayload =
+        targetStatPrimary === '' ? [] : [targetStatPrimary, ...Array.from(targetStatAdditional)]
+
+      // allSettled, not all -- one section failing to save (a transient
+      // network blip, say) shouldn't hide that the other three + the base
+      // record above did save. Every one of these is a full-replace PUT,
+      // same idempotent shape the old five-button version used.
+      const results = await Promise.allSettled([
+        exercisesApi.replaceExerciseTargetStats(savedExercise.id, targetStatsPayload, accessToken),
+        exercisesApi.replaceExerciseMovementPatterns(
+          savedExercise.id,
+          Array.from(movementPatterns),
+          accessToken,
+        ),
+        exercisesApi.replaceExerciseMuscleGroups(savedExercise.id, muscleGroupsPayload, accessToken),
+        exercisesApi.replaceExerciseEquipmentItems(
+          savedExercise.id,
+          Array.from(equipmentItems),
+          accessToken,
+        ),
+      ])
+      const sectionLabels = ['целевые статы', 'двигательные паттерны', 'мышечные группы', 'инвентарь']
+      const failedSections = results
+        .map((result, index) => (result.status === 'rejected' ? sectionLabels[index] : null))
+        .filter((label): label is string => label !== null)
+
+      if (failedSections.length > 0) {
+        setFormError(
+          `Упражнение сохранено, но не удалось сохранить: ${failedSections.join(', ')}. Проверьте эти разделы и сохраните ещё раз.`,
+        )
+        return
       }
+
+      onClose()
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Не удалось сохранить упражнение.')
     } finally {
@@ -574,698 +723,383 @@ function ExerciseFormModal({
       title={currentExercise === null ? 'Новое упражнение' : `Редактирование: ${currentExercise.name}`}
       onClose={onClose}
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <TextField
-          label="Название"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          maxLength={255}
-          required
-        />
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm text-text-secondary" htmlFor="exercise-description">
-            Описание
-          </label>
-          <textarea
-            id="exercise-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            rows={3}
-            className="rounded border border-white/10 bg-dark-bg px-3 py-2 text-text-primary focus:border-accent-ice focus:outline-none"
-          />
-        </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        <AdminSection icon="ti-info-circle" title="Основное">
+          <div className="flex flex-col gap-4">
+            <TextField
+              label="Название"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={255}
+              required
+            />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-text-secondary" htmlFor="exercise-description">
+                Описание
+              </label>
+              <textarea
+                id="exercise-description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={3}
+                className="rounded border border-white/10 bg-dark-bg px-3 py-2 text-text-primary focus:border-accent-ice focus:outline-none"
+              />
+            </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <SelectField
-            label="Категория"
-            options={CATEGORY_OPTIONS}
-            value={category}
-            onChange={(event) => setCategory(event.target.value as ExerciseCategory)}
-            required
-          />
-          <SelectField
-            label="Фаза"
-            options={PHASE_OPTIONS}
-            value={phase}
-            onChange={(event) => {
-              const nextPhase = event.target.value as TrainingPhase
-              setPhase(nextPhase)
-              // Stage only means anything for a warmup exercise -- clear it
-              // on the way out so it can't linger unseen and reappear if the
-              // phase is switched back later with a stale, unreviewed value.
-              if (nextPhase !== 'warmup') {
-                setWarmupStage('')
-              }
-            }}
-            required
-          />
-          <SelectField
-            label="Stimulus type"
-            options={STIMULUS_TYPE_OPTIONS}
-            placeholder="Не задано"
-            value={stimulusType}
-            onChange={(event) => setStimulusType(event.target.value as StimulusType | '')}
-          />
-          <SelectField
-            label="Exercise type"
-            options={EXERCISE_TYPE_OPTIONS}
-            placeholder="Не задано"
-            value={exerciseType}
-            onChange={(event) => setExerciseType(event.target.value as ExerciseType | '')}
-          />
-        </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <SelectField
+                label="Категория"
+                options={CATEGORY_OPTIONS}
+                value={category}
+                onChange={(event) => setCategory(event.target.value as ExerciseCategory)}
+                required
+              />
+              <SelectField
+                label="Фаза"
+                options={PHASE_OPTIONS}
+                value={phase}
+                onChange={(event) => {
+                  const nextPhase = event.target.value as TrainingPhase
+                  setPhase(nextPhase)
+                  // Stage only means anything for a warmup exercise -- clear
+                  // it on the way out so it can't linger unseen and reappear
+                  // if the phase is switched back later with a stale,
+                  // unreviewed value.
+                  if (nextPhase !== 'warmup') {
+                    setWarmupStage('')
+                  }
+                }}
+                required
+              />
+              <SelectField
+                label="Тип стимула"
+                options={STIMULUS_TYPE_OPTIONS}
+                placeholder="Не задано"
+                value={stimulusType}
+                onChange={(event) => setStimulusType(event.target.value as StimulusType | '')}
+              />
+              <SelectField
+                label="Формат выполнения"
+                options={EXERCISE_TYPE_OPTIONS}
+                placeholder="Не задано"
+                value={exerciseType}
+                onChange={(event) => setExerciseType(event.target.value as ExerciseType | '')}
+              />
+            </div>
 
-        {phase === 'warmup' && (
-          <div className="flex flex-col gap-1.5 rounded border border-accent-persimmon/30 bg-accent-persimmon/5 p-3">
+            {phase === 'warmup' && (
+              <div className="flex flex-col gap-1.5 rounded border border-accent-persimmon/30 bg-accent-persimmon/5 p-3">
+                <SelectField
+                  label="Стадия разминки"
+                  options={WARMUP_STAGE_OPTIONS}
+                  placeholder="Не задано"
+                  value={warmupStage}
+                  onChange={(event) => setWarmupStage(event.target.value as WarmupStage | '')}
+                />
+                <p className="text-xs text-text-secondary">
+                  Комплекс разминки собирается по стадиям (миофасциальный релиз → подъём пульса →
+                  суставная мобильность → активация → динамическая). Без стадии это упражнение
+                  никогда не попадёт в собранную разминку — даже если всё остальное заполнено.
+                </p>
+              </div>
+            )}
+
+            <TextField
+              label="Сложность (1-5)"
+              type="number"
+              numeric
+              min={1}
+              max={5}
+              value={difficultyLevel}
+              onChange={(event) => setDifficultyLevel(event.target.value)}
+              required
+            />
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <TextField
+                label="Подходы"
+                type="number"
+                numeric
+                min={0}
+                value={targetSets}
+                onChange={(event) => setTargetSets(event.target.value)}
+              />
+              <TextField
+                label="Повторы, мин"
+                type="number"
+                numeric
+                min={0}
+                value={repRangeMin}
+                onChange={(event) => setRepRangeMin(event.target.value)}
+              />
+              <TextField
+                label="Повторы, макс"
+                type="number"
+                numeric
+                min={0}
+                value={repRangeMax}
+                onChange={(event) => setRepRangeMax(event.target.value)}
+              />
+              <TextField
+                label="Длительность, сек"
+                type="number"
+                numeric
+                min={0}
+                value={targetDurationSeconds}
+                onChange={(event) => setTargetDurationSeconds(event.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <TextField
+                label="Тип источника видео"
+                value={videoSourceType}
+                onChange={(event) => setVideoSourceType(event.target.value)}
+                placeholder="youtube, vimeo..."
+              />
+              <TextField
+                label="ID видео"
+                value={videoSourceId}
+                onChange={(event) => setVideoSourceId(event.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-text-primary">
+                <input
+                  type="checkbox"
+                  checked={tracksWeight}
+                  onChange={(event) => setTracksWeight(event.target.checked)}
+                  className="h-4 w-4"
+                />
+                Учитывает рабочий вес
+              </label>
+              <TextField
+                label="Коэффициент веса тела"
+                type="number"
+                numeric
+                min={0}
+                step="0.01"
+                value={bodyweightRatio}
+                onChange={(event) => setBodyweightRatio(event.target.value)}
+                className="max-w-[180px]"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-text-primary">
+              <input
+                type="checkbox"
+                checked={suitableForGameDay}
+                onChange={(event) => setSuitableForGameDay(event.target.checked)}
+                className="h-4 w-4"
+              />
+              Подходит для дня игры
+            </label>
+
             <SelectField
-              label="Стадия разминки"
-              options={WARMUP_STAGE_OPTIONS}
+              label="Нагрузка (squat/hip_hinge)"
+              options={[
+                { value: 'true', label: 'Унилатеральная (одна нога)' },
+                { value: 'false', label: 'Билатеральная (обе ноги)' },
+              ]}
               placeholder="Не задано"
-              value={warmupStage}
-              onChange={(event) => setWarmupStage(event.target.value as WarmupStage | '')}
+              value={isUnilateral}
+              onChange={(event) => setIsUnilateral(event.target.value as '' | 'true' | 'false')}
             />
-            <p className="text-xs text-text-secondary">
-              Комплекс разминки собирается по стадиям (миофасциальный релиз → подъём пульса →
-              суставная мобильность → активация → динамическая). Без стадии это упражнение
-              никогда не попадёт в собранную разминку — даже если всё остальное заполнено.
-            </p>
           </div>
-        )}
+        </AdminSection>
 
-        <TextField
-          label="Сложность (1-5)"
-          type="number"
-          numeric
-          min={1}
-          max={5}
-          value={difficultyLevel}
-          onChange={(event) => setDifficultyLevel(event.target.value)}
-          required
-        />
+        <FormError message={tagsLoadError} />
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <TextField
-            label="Подходы"
-            type="number"
-            numeric
-            min={0}
-            value={targetSets}
-            onChange={(event) => setTargetSets(event.target.value)}
-          />
-          <TextField
-            label="Повторы, мин"
-            type="number"
-            numeric
-            min={0}
-            value={repRangeMin}
-            onChange={(event) => setRepRangeMin(event.target.value)}
-          />
-          <TextField
-            label="Повторы, макс"
-            type="number"
-            numeric
-            min={0}
-            value={repRangeMax}
-            onChange={(event) => setRepRangeMax(event.target.value)}
-          />
-          <TextField
-            label="Длительность, сек"
-            type="number"
-            numeric
-            min={0}
-            value={targetDurationSeconds}
-            onChange={(event) => setTargetDurationSeconds(event.target.value)}
-          />
-        </div>
+        <AdminSection icon="ti-target-arrow" title="Целевые статы">
+          {!tagsLoaded ? (
+            <p className="text-sm text-text-secondary">Загрузка...</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <SelectField
+                label="Основной стат"
+                options={TARGET_STAT_OPTIONS}
+                placeholder="Не задано"
+                value={targetStatPrimary}
+                onChange={(event) => {
+                  const value = event.target.value as TargetStat | ''
+                  setTargetStatPrimary(value)
+                  setTargetStatAdditional((previous) => {
+                    if (value === '') {
+                      return previous
+                    }
+                    const next = new Set(previous)
+                    next.delete(value)
+                    return next
+                  })
+                }}
+              />
+              <div className="flex flex-col gap-1.5">
+                <span className="text-sm text-text-secondary">Дополнительные статы</span>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {TARGET_STATS.filter((stat) => stat !== targetStatPrimary).map((stat) => (
+                    <label key={stat} className="flex items-center gap-2 text-sm text-text-primary">
+                      <input
+                        type="checkbox"
+                        checked={targetStatAdditional.has(stat)}
+                        onChange={() =>
+                          setTargetStatAdditional((previous) => {
+                            const next = new Set(previous)
+                            if (next.has(stat)) {
+                              next.delete(stat)
+                            } else {
+                              next.add(stat)
+                            }
+                            return next
+                          })
+                        }
+                        className="h-4 w-4"
+                      />
+                      {TARGET_STAT_LABELS[stat]}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </AdminSection>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextField
-            label="Тип источника видео"
-            value={videoSourceType}
-            onChange={(event) => setVideoSourceType(event.target.value)}
-            placeholder="youtube, vimeo..."
-          />
-          <TextField
-            label="ID видео"
-            value={videoSourceId}
-            onChange={(event) => setVideoSourceId(event.target.value)}
-          />
-        </div>
+        <AdminSection icon="ti-activity" title="Двигательные паттерны">
+          {!tagsLoaded ? (
+            <p className="text-sm text-text-secondary">Загрузка...</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {MOVEMENT_PATTERNS.map((pattern) => (
+                <label key={pattern} className="flex items-center gap-2 text-sm text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={movementPatterns.has(pattern)}
+                    onChange={() => toggleMovementPattern(pattern)}
+                    className="h-4 w-4"
+                  />
+                  {MOVEMENT_PATTERN_LABELS[pattern]}
+                </label>
+              ))}
+            </div>
+          )}
+        </AdminSection>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-text-primary">
-            <input
-              type="checkbox"
-              checked={tracksWeight}
-              onChange={(event) => setTracksWeight(event.target.checked)}
-              className="h-4 w-4"
-            />
-            Учитывает рабочий вес
-          </label>
-          <TextField
-            label="Коэффициент веса тела"
-            type="number"
-            numeric
-            min={0}
-            step="0.01"
-            value={bodyweightRatio}
-            onChange={(event) => setBodyweightRatio(event.target.value)}
-            className="max-w-[180px]"
-          />
-        </div>
+        <AdminSection icon="ti-flame" title="Мышечные группы">
+          {!tagsLoaded ? (
+            <p className="text-sm text-text-secondary">Загрузка...</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {MUSCLE_GROUP_OPTIONS.map(({ value, label }) => (
+                <div key={value} className="flex items-center gap-2">
+                  <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-text-primary">
+                    <input
+                      type="checkbox"
+                      checked={value in muscleGroupWeights}
+                      onChange={() => toggleMuscleGroup(value)}
+                      className="h-4 w-4 shrink-0"
+                    />
+                    {label}
+                  </label>
+                  {value in muscleGroupWeights && (
+                    <input
+                      type="number"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={muscleGroupWeights[value] ?? ''}
+                      onChange={(event) => setMuscleGroupWeight(value, event.target.value)}
+                      className="w-20 shrink-0 rounded border border-white/10 bg-dark-bg px-2 py-1 font-mono text-sm text-text-primary focus:border-accent-ice focus:outline-none"
+                    />
+                  )}
+                </div>
+              ))}
+              <p
+                className={`font-mono text-xs ${
+                  muscleGroupWeightSumExceeds ? 'text-accent-persimmon' : 'text-text-secondary'
+                }`}
+              >
+                Сумма весов: {muscleGroupWeightSum.toFixed(2)}
+                {muscleGroupWeightSumExceeds && ' — превышает 1.0'}
+              </p>
+            </div>
+          )}
+        </AdminSection>
 
-        <label className="flex items-center gap-2 text-sm text-text-primary">
-          <input
-            type="checkbox"
-            checked={suitableForGameDay}
-            onChange={(event) => setSuitableForGameDay(event.target.checked)}
-            className="h-4 w-4"
-          />
-          Подходит для дня игры
-        </label>
-
-        <SelectField
-          label="Нагрузка (squat/hip_hinge)"
-          options={[
-            { value: 'true', label: 'Унилатеральная (одна нога)' },
-            { value: 'false', label: 'Билатеральная (обе ноги)' },
-          ]}
-          placeholder="Не задано"
-          value={isUnilateral}
-          onChange={(event) => setIsUnilateral(event.target.value as '' | 'true' | 'false')}
-        />
+        <AdminSection icon="ti-barbell" title="Инвентарь">
+          <p className="-mt-1 text-xs text-text-secondary">
+            Ничего не выбрано — упражнение доступно без инвентаря. Выбранные предметы нужны
+            одновременно (не любой один из них).
+          </p>
+          {!tagsLoaded ? (
+            <p className="text-sm text-text-secondary">Загрузка...</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {EQUIPMENT_ITEM_OPTIONS.map(({ value, label }) => (
+                <label key={value} className="flex items-center gap-2 text-sm text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={equipmentItems.has(value)}
+                    onChange={() => toggleEquipmentItem(value)}
+                    className="h-4 w-4"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          )}
+        </AdminSection>
 
         <FormError message={formError} />
-        <Button type="submit" isLoading={isSaving} className="self-start">
+        <Button type="submit" isLoading={isSaving} disabled={!tagsLoaded} className="self-start">
           {currentExercise === null ? 'Создать' : 'Сохранить'}
         </Button>
       </form>
 
       {currentExercise !== null && accessToken !== null && (
-        <ExerciseTargetStatsSection exerciseId={currentExercise.id} accessToken={accessToken} />
+        <AdminSection icon="ti-star" title="Связанные навыки">
+          <ExerciseSkillTagsSection exerciseId={currentExercise.id} accessToken={accessToken} />
+        </AdminSection>
       )}
-      {currentExercise !== null && accessToken !== null && (
-        <ExerciseSkillTagsSection exerciseId={currentExercise.id} accessToken={accessToken} />
-      )}
-      {currentExercise !== null && accessToken !== null && (
-        <ExerciseMovementPatternsSection exerciseId={currentExercise.id} accessToken={accessToken} />
-      )}
-      {currentExercise !== null && accessToken !== null && (
-        <ExerciseMuscleGroupsSection exerciseId={currentExercise.id} accessToken={accessToken} />
-      )}
-      {currentExercise !== null && accessToken !== null && (
-        <ExerciseEquipmentItemsSection exerciseId={currentExercise.id} accessToken={accessToken} />
+      {currentExercise === null && (
+        <p className="text-sm text-text-secondary">
+          Связанные навыки можно добавить после того, как упражнение будет создано.
+        </p>
       )}
     </AdminModal>
   )
 }
 
-function ExerciseTargetStatsSection({
-  exerciseId,
-  accessToken,
+// Shared visual wrapper for every field group in the exercise form -- an
+// icon + title header plus a bordered card, replacing five near-identical
+// bare "border-t + <h3>" dividers that made a single long scroll of
+// checkboxes hard to tell apart at a glance (found while making the whole
+// form save as one action instead of five, 2026-08-30).
+function AdminSection({
+  icon,
+  title,
+  children,
 }: {
-  exerciseId: string
-  accessToken: string
+  icon: string
+  title: string
+  children: ReactNode
 }) {
-  // Order matters here, unlike movement patterns: index 0 is the "primary"
-  // stat ScheduleService._pick_main/suggest_party_exercises bucket on for
-  // diversity (see ExerciseRead.target_stats). Modeled as a separate
-  // required "primary" select + checkboxes for the rest, rather than a
-  // plain multi-select, so that ordering survives the round trip without
-  // building a full drag-reorder UI -- only the primary slot's identity is
-  // functionally load-bearing, the relative order of the others isn't.
-  const [primary, setPrimary] = useState<TargetStat | ''>('')
-  const [additional, setAdditional] = useState<Set<TargetStat>>(new Set())
-  const [loaded, setLoaded] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    exercisesApi
-      .listExerciseTargetStats(exerciseId, accessToken)
-      .then((stats) => {
-        if (cancelled) {
-          return
-        }
-        setPrimary(stats[0] ?? '')
-        setAdditional(new Set(stats.slice(1)))
-        setLoaded(true)
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить статы.')
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [exerciseId, accessToken])
-
-  function toggleAdditional(stat: TargetStat) {
-    setAdditional((previous) => {
-      const next = new Set(previous)
-      if (next.has(stat)) {
-        next.delete(stat)
-      } else {
-        next.add(stat)
-      }
-      return next
-    })
-  }
-
-  async function handleSave() {
-    if (primary === '') {
-      setSaveError('Выберите основной стат.')
-      return
-    }
-    setSaveError(null)
-    setIsSaving(true)
-    try {
-      const saved = await exercisesApi.replaceExerciseTargetStats(
-        exerciseId,
-        [primary, ...Array.from(additional)],
-        accessToken,
-      )
-      setPrimary(saved[0] ?? '')
-      setAdditional(new Set(saved.slice(1)))
-    } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить статы.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   return (
-    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
-      <h3 className="text-sm font-medium text-text-secondary">Целевые статы</h3>
-      <FormError message={loadError} />
-
-      {loaded && (
-        <>
-          <SelectField
-            label="Основной стат"
-            options={TARGET_STAT_OPTIONS}
-            placeholder="Не задано"
-            value={primary}
-            onChange={(event) => {
-              const value = event.target.value as TargetStat | ''
-              setPrimary(value)
-              setAdditional((previous) => {
-                if (value === '') {
-                  return previous
-                }
-                const next = new Set(previous)
-                next.delete(value)
-                return next
-              })
-            }}
-          />
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm text-text-secondary">Дополнительные статы</span>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {TARGET_STATS.filter((stat) => stat !== primary).map((stat) => (
-                <label key={stat} className="flex items-center gap-2 text-sm text-text-primary">
-                  <input
-                    type="checkbox"
-                    checked={additional.has(stat)}
-                    onChange={() => toggleAdditional(stat)}
-                    className="h-4 w-4"
-                  />
-                  {TARGET_STAT_LABELS[stat]}
-                </label>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      <Button
-        type="button"
-        variant="neutral"
-        isLoading={isSaving}
-        disabled={!loaded}
-        onClick={handleSave}
-        className="self-start"
-      >
-        Сохранить статы
-      </Button>
-      <FormError message={saveError} />
+    <div className="flex flex-col gap-3 rounded-md border border-white/10 bg-white/[0.02] p-4">
+      <h3 className="flex items-center gap-2 text-sm font-medium text-text-primary">
+        <i className={`ti ${icon} text-accent-ice`} aria-hidden="true" />
+        {title}
+      </h3>
+      {children}
     </div>
   )
 }
 
-function ExerciseMovementPatternsSection({
-  exerciseId,
-  accessToken,
-}: {
-  exerciseId: string
-  accessToken: string
-}) {
-  const [selected, setSelected] = useState<Set<MovementPattern> | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    exercisesApi
-      .listExerciseMovementPatterns(exerciseId, accessToken)
-      .then((patterns) => {
-        if (!cancelled) {
-          setSelected(new Set(patterns))
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить паттерны.')
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [exerciseId, accessToken])
-
-  function toggle(pattern: MovementPattern) {
-    setSelected((previous) => {
-      const next = new Set(previous ?? [])
-      if (next.has(pattern)) {
-        next.delete(pattern)
-      } else {
-        next.add(pattern)
-      }
-      return next
-    })
-  }
-
-  async function handleSave() {
-    if (selected === null) {
-      return
-    }
-    setSaveError(null)
-    setIsSaving(true)
-    try {
-      const saved = await exercisesApi.replaceExerciseMovementPatterns(
-        exerciseId,
-        Array.from(selected),
-        accessToken,
-      )
-      setSelected(new Set(saved))
-    } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить паттерны.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
-      <h3 className="text-sm font-medium text-text-secondary">Двигательные паттерны</h3>
-      <FormError message={loadError} />
-
-      {selected !== null && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {MOVEMENT_PATTERNS.map((pattern) => (
-            <label
-              key={pattern}
-              className="flex items-center gap-2 text-sm text-text-primary"
-            >
-              <input
-                type="checkbox"
-                checked={selected.has(pattern)}
-                onChange={() => toggle(pattern)}
-                className="h-4 w-4"
-              />
-              {MOVEMENT_PATTERN_LABELS[pattern]}
-            </label>
-          ))}
-        </div>
-      )}
-
-      <Button
-        type="button"
-        variant="neutral"
-        isLoading={isSaving}
-        disabled={selected === null}
-        onClick={handleSave}
-        className="self-start"
-      >
-        Сохранить паттерны
-      </Button>
-      <FormError message={saveError} />
-    </div>
-  )
-}
-
-// Bare full-replace checkbox set, same shape as ExerciseMovementPatternsSection
-// above -- AND semantics, not weighted (Stage 2.2): every checked item is
-// required simultaneously for a non-gym user to see this exercise, see
-// ExerciseRepository.list_for_assembly.
-function ExerciseEquipmentItemsSection({
-  exerciseId,
-  accessToken,
-}: {
-  exerciseId: string
-  accessToken: string
-}) {
-  const [selected, setSelected] = useState<Set<EquipmentItem> | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    exercisesApi
-      .listExerciseEquipmentItems(exerciseId, accessToken)
-      .then((items) => {
-        if (!cancelled) {
-          setSelected(new Set(items))
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить инвентарь.')
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [exerciseId, accessToken])
-
-  function toggle(item: EquipmentItem) {
-    setSelected((previous) => {
-      const next = new Set(previous ?? [])
-      if (next.has(item)) {
-        next.delete(item)
-      } else {
-        next.add(item)
-      }
-      return next
-    })
-  }
-
-  async function handleSave() {
-    if (selected === null) {
-      return
-    }
-    setSaveError(null)
-    setIsSaving(true)
-    try {
-      const saved = await exercisesApi.replaceExerciseEquipmentItems(
-        exerciseId,
-        Array.from(selected),
-        accessToken,
-      )
-      setSelected(new Set(saved))
-    } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить инвентарь.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
-      <h3 className="text-sm font-medium text-text-secondary">Инвентарь</h3>
-      <p className="text-xs text-text-secondary">
-        Ничего не выбрано — упражнение доступно без инвентаря. Выбранные предметы нужны
-        одновременно (не любой один из них).
-      </p>
-      <FormError message={loadError} />
-
-      {selected !== null && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {EQUIPMENT_ITEM_OPTIONS.map(({ value, label }) => (
-            <label key={value} className="flex items-center gap-2 text-sm text-text-primary">
-              <input
-                type="checkbox"
-                checked={selected.has(value)}
-                onChange={() => toggle(value)}
-                className="h-4 w-4"
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-      )}
-
-      <Button
-        type="button"
-        variant="neutral"
-        isLoading={isSaving}
-        disabled={selected === null}
-        onClick={handleSave}
-        className="self-start"
-      >
-        Сохранить инвентарь
-      </Button>
-      <FormError message={saveError} />
-    </div>
-  )
-}
-
-// Same weighted-list shape as ExerciseTargetStatsSection's cousin,
-// SkillStatWeight (see AdminSkillDetailPage's WEIGHT_SUM_EPSILON) -- a
-// checkbox brings a group into the set at a default weight, its own number
-// input then edits that weight. Full-replace on save, same as
-// ExerciseMovementPatternsSection above, not per-row CRUD.
 const MUSCLE_GROUP_WEIGHT_SUM_EPSILON = 1e-6
 
-function ExerciseMuscleGroupsSection({
-  exerciseId,
-  accessToken,
-}: {
-  exerciseId: string
-  accessToken: string
-}) {
-  const [weights, setWeights] = useState<Partial<Record<MuscleGroup, string>> | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    exercisesApi
-      .listExerciseMuscleGroups(exerciseId, accessToken)
-      .then((groups) => {
-        if (!cancelled) {
-          const initial: Partial<Record<MuscleGroup, string>> = {}
-          for (const g of groups) {
-            initial[g.muscle_group] = String(g.weight)
-          }
-          setWeights(initial)
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить мышечные группы.')
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [exerciseId, accessToken])
-
-  function toggle(group: MuscleGroup) {
-    setWeights((previous) => {
-      const next = { ...(previous ?? {}) }
-      if (group in next) {
-        delete next[group]
-      } else {
-        next[group] = '1'
-      }
-      return next
-    })
-  }
-
-  function setWeight(group: MuscleGroup, value: string) {
-    setWeights((previous) => ({ ...(previous ?? {}), [group]: value }))
-  }
-
-  const sum =
-    weights === null
-      ? 0
-      : Object.values(weights).reduce((total, value) => total + (Number(value) || 0), 0)
-  const sumExceeds = sum > 1.0 + MUSCLE_GROUP_WEIGHT_SUM_EPSILON
-
-  async function handleSave() {
-    if (weights === null) {
-      return
-    }
-    setSaveError(null)
-    setIsSaving(true)
-    try {
-      const payload = Object.entries(weights).map(([muscle_group, weight]) => ({
-        muscle_group: muscle_group as MuscleGroup,
-        weight: Number(weight) || 0,
-      }))
-      const saved = await exercisesApi.replaceExerciseMuscleGroups(exerciseId, payload, accessToken)
-      const next: Partial<Record<MuscleGroup, string>> = {}
-      for (const g of saved) {
-        next[g.muscle_group] = String(g.weight)
-      }
-      setWeights(next)
-    } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить мышечные группы.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
-      <h3 className="text-sm font-medium text-text-secondary">Мышечные группы</h3>
-      <FormError message={loadError} />
-
-      {weights !== null && (
-        <div className="flex flex-col gap-2">
-          {MUSCLE_GROUP_OPTIONS.map(({ value, label }) => (
-            <div key={value} className="flex items-center gap-2">
-              <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-text-primary">
-                <input
-                  type="checkbox"
-                  checked={value in weights}
-                  onChange={() => toggle(value)}
-                  className="h-4 w-4 shrink-0"
-                />
-                {label}
-              </label>
-              {value in weights && (
-                <input
-                  type="number"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={weights[value] ?? ''}
-                  onChange={(event) => setWeight(value, event.target.value)}
-                  className="w-20 shrink-0 rounded border border-white/10 bg-dark-bg px-2 py-1 font-mono text-sm text-text-primary focus:border-accent-ice focus:outline-none"
-                />
-              )}
-            </div>
-          ))}
-          <p className={`font-mono text-xs ${sumExceeds ? 'text-accent-persimmon' : 'text-text-secondary'}`}>
-            Сумма весов: {sum.toFixed(2)}
-            {sumExceeds && ' — превышает 1.0'}
-          </p>
-        </div>
-      )}
-
-      <Button
-        type="button"
-        variant="neutral"
-        isLoading={isSaving}
-        disabled={weights === null || sumExceeds}
-        onClick={handleSave}
-        className="self-start"
-      >
-        Сохранить мышечные группы
-      </Button>
-      <FormError message={saveError} />
-    </div>
-  )
-}
-
+// Per-row immediate add/delete, not a full-replace-on-save set like the
+// four sections above -- each tag is its own create/delete against a real
+// exercise id, so there's no "unsaved local state" to lose and no reason
+// to fold it into the shared submit button.
 function ExerciseSkillTagsSection({
   exerciseId,
   accessToken,
@@ -1347,8 +1181,7 @@ function ExerciseSkillTagsSection({
   }
 
   return (
-    <div className="flex flex-col gap-3 border-t border-white/10 pt-6">
-      <h3 className="text-sm font-medium text-text-secondary">Связанные навыки</h3>
+    <div className="flex flex-col gap-3">
       <FormError message={loadError} />
 
       {tags !== null && tags.length === 0 && (
