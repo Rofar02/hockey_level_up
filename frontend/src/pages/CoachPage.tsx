@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { CoachPersonalityIntroModal } from '../components/CoachPersonalityIntroModal'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_BORDER } from '../components/ui/cardStyle'
@@ -18,6 +19,17 @@ const COACH_PREMIUM_GATE_DESCRIPTION =
 export function CoachPage() {
   const { user, accessToken } = useAuth()
   const hasPremium = user?.has_premium === true
+  // Shown regardless of premium status -- coach_personality drives every
+  // player's reminder/check-in notifications, not just this premium chat,
+  // so the explainer belongs to whoever taps into "Тренер" first, not only
+  // premium users.
+  const [showPersonalityIntro, setShowPersonalityIntro] = useState(false)
+
+  useEffect(() => {
+    if (user !== null && !user.has_seen_coach_personality_intro) {
+      setShowPersonalityIntro(true)
+    }
+  }, [user])
 
   return (
     <div className="relative min-h-svh overflow-hidden">
@@ -42,6 +54,10 @@ export function CoachPage() {
           />
         )}
       </div>
+
+      {showPersonalityIntro && (
+        <CoachPersonalityIntroModal onClose={() => setShowPersonalityIntro(false)} />
+      )}
     </div>
   )
 }

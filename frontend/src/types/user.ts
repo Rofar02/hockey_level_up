@@ -104,6 +104,7 @@ export interface UserRead {
   tournament_date: string | null
   has_seen_onboarding_tour: boolean
   has_seen_weight_hint: boolean
+  has_seen_coach_personality_intro: boolean
   created_at: string
 }
 

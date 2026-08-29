@@ -74,6 +74,16 @@ class UserService:
             await self._session.refresh(user)
         return user
 
+    async def mark_coach_personality_intro_seen(self, user: User) -> User:
+        # Same idempotent shape as mark_onboarding_tour_seen -- called
+        # whether the player picked a personality or just dismissed the
+        # intro, either way the explainer shouldn't show again.
+        if not user.has_seen_coach_personality_intro:
+            user.has_seen_coach_personality_intro = True
+            await self._session.commit()
+            await self._session.refresh(user)
+        return user
+
     async def update_avatar(self, user: User, file: UploadFile) -> User:
         content = await image_processing.read_limited(file, MAX_AVATAR_SIZE_BYTES)
         extension = image_processing.detect_image_extension(content)

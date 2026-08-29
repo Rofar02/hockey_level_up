@@ -83,6 +83,7 @@ class UserRead(UserBase):
     tournament_date: date | None = None
     has_seen_onboarding_tour: bool
     has_seen_weight_hint: bool
+    has_seen_coach_personality_intro: bool
     created_at: datetime
 
 
@@ -93,7 +94,8 @@ class UserPublicRead(BaseModel):
     relationship, per spec) and everything private on UserRead: email,
     is_admin, has_premium, has_gym_access, timezone, reminder_preference,
     season_period, coach_personality, tournament_date,
-    has_seen_onboarding_tour, has_seen_weight_hint, friend_code.
+    has_seen_onboarding_tour, has_seen_weight_hint,
+    has_seen_coach_personality_intro, friend_code.
     """
 
     model_config = ConfigDict(from_attributes=True)

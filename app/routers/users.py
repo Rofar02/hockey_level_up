@@ -74,6 +74,14 @@ async def mark_onboarding_tour_seen(
     return await UserService(session).mark_onboarding_tour_seen(current_user)
 
 
+@router.post("/me/coach-personality-intro-seen", response_model=UserRead)
+async def mark_coach_personality_intro_seen(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await UserService(session).mark_coach_personality_intro_seen(current_user)
+
+
 @router.get("/me/coachmarks-seen", response_model=list[str])
 async def get_my_seen_coachmarks(
     current_user: Annotated[User, Depends(get_current_user)],

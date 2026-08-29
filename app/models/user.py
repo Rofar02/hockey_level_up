@@ -227,6 +227,16 @@ class User(Base):
         nullable=False,
         server_default=CoachPersonality.CALM.value,
     )
+    # One-time explainer shown on first /coach visit (2026-08-30 follow-up):
+    # personality was silently defaulted to CALM for every user and buried
+    # in Settings with no explanation that it also drives reminder/check-in
+    # wording, not just this chat -- CoachPage now offers the real choice
+    # once, same "has_seen_X" pattern as has_seen_onboarding_tour above.
+    # False for every existing row too (not just new ones) since none of
+    # them ever actually saw this explanation.
+    has_seen_coach_personality_intro: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
     # Phase: П.5 tournament taper -- user-set target date for the deterministic
     # taper override (see app.core.training_block.is_tapering/

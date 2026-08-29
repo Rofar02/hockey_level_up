@@ -45,6 +45,10 @@ export function markOnboardingTourSeen(accessToken: string): Promise<UserRead> {
   return apiPostAuth<UserRead>('/users/me/onboarding-tour-seen', {}, accessToken)
 }
 
+export function markCoachPersonalityIntroSeen(accessToken: string): Promise<UserRead> {
+  return apiPostAuth<UserRead>('/users/me/coach-personality-intro-seen', {}, accessToken)
+}
+
 // Unlike markOnboardingTourSeen, this has no dedicated endpoint -- it's just
 // one more simple field on the existing PATCH /users/me, same as changing
 // reminder_preference or timezone from Settings.
