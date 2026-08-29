@@ -22,6 +22,7 @@ import * as trainingBlockApi from '../api/trainingBlock'
 import * as usersApi from '../api/users'
 import { useAuth } from '../hooks/useAuth'
 import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
+import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { LeaderboardMeRead } from '../types/leaderboard'
@@ -375,6 +376,11 @@ export function HomePage() {
   }
 
   const showTour = user !== null && !user.has_seen_onboarding_tour && !tourDismissed
+  // The welcome tour covers the page but doesn't unmount it -- without this,
+  // a coachmark registered by whatever's underneath (e.g. "Ближайшие
+  // пороги") renders right on top of the tour instead of waiting for it to
+  // close (found live, 2026-08-30, on a brand-new account's first visit).
+  useSuppressCoachmarks(showTour)
 
   const todayIso = toIsoDate(new Date())
   const today = weeklyPlan?.day_plans.find((day) => day.date === todayIso) ?? null

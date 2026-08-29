@@ -511,10 +511,8 @@ export function NewSchedulePage() {
             {/* "Campaign path" -- a connecting line + circular weekday node
                 per row, read-only view only (editing keeps EditableDayRow's
                 plain rows below: its interactive type-picker grid doesn't
-                map cleanly onto a path node). Coachmark ref on this
-                container (not a per-row one) -- the hint is about the whole
-                list, not any single day. */}
-            <div ref={dayListCoachmarkRef} className="relative flex flex-col">
+                map cleanly onto a path node). */}
+            <div className="relative flex flex-col">
               {rows.length > 1 && (
                 <div className="absolute bottom-[26px] left-[19px] top-[26px] w-0.5 bg-gradient-to-b from-accent-ice/20 via-white/10 to-white/5" />
               )}
@@ -533,7 +531,17 @@ export function NewSchedulePage() {
                 const isToday = row.isoDate === todayIso
 
                 return (
-                  <div key={row.isoDate} className="relative flex gap-3 pb-3 last:pb-0">
+                  <div
+                    key={row.isoDate}
+                    // Coachmark ref on today's row specifically, not the
+                    // whole list -- spotlighting all 7 rows at once read as
+                    // "the entire screen is selected" (found live-testing,
+                    // 2026-08-30), and today is both the most relevant row
+                    // and (being "current week") almost always already in
+                    // view, so pointing there needs little to no scroll.
+                    ref={isToday ? dayListCoachmarkRef : undefined}
+                    className="relative flex gap-3 pb-3 last:pb-0"
+                  >
                     <div
                       className={`z-[1] flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 bg-dark-bg font-mono text-[10px] font-bold ${
                         isToday ? 'border-accent-persimmon text-accent-persimmon' : 'border-white/15 text-[#8A94A6]'

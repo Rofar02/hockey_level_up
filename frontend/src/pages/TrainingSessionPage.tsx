@@ -21,6 +21,7 @@ import * as trainingDiaryApi from '../api/trainingDiary'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { TrainingStreakRead } from '../types/progress'
@@ -1134,6 +1135,8 @@ function PhasePreviewSheet({
   // drag makes an instant cut feel broken in a way a plain close tap doesn't.
   const [dragOffset, setDragOffset] = useState(0)
   const dragStartY = useRef<number | null>(null)
+  // Same reasoning as Modal.tsx's own -- this sheet covers the page too.
+  useSuppressCoachmarks(true)
 
   useEffect(() => {
     lockBodyScroll()
@@ -1379,6 +1382,8 @@ function SessionCompleteModal({
   const [freshLevel, setFreshLevel] = useState<number | null>(null)
   const [isLoadingServerState, setIsLoadingServerState] = useState(true)
   const [serverStateError, setServerStateError] = useState<string | null>(null)
+  // Same reasoning as Modal.tsx's own -- this covers the whole page too.
+  useSuppressCoachmarks(true)
 
   useEffect(() => {
     let cancelled = false

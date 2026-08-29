@@ -27,6 +27,9 @@ export function CoachmarkProvider({ children }: { children: ReactNode }) {
   // the same hintId (a re-render passing a new element) replaces its entry
   // in place rather than moving it to the back of the queue.
   const [steps, setSteps] = useState<RegisteredStep[]>([])
+  // Non-empty while any useSuppressCoachmarks caller is active -- see that
+  // hook and CoachmarkContextValue.setSuppressed for why.
+  const [suppressedBy, setSuppressedBy] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (accessToken === null) {
@@ -61,10 +64,25 @@ export function CoachmarkProvider({ children }: { children: ReactNode }) {
     setSteps((previous) => previous.filter((s) => s.hintId !== hintId))
   }, [])
 
-  const contextValue = useMemo(() => ({ registerStep, unregisterStep }), [registerStep, unregisterStep])
+  const setSuppressed = useCallback((id: string, suppressed: boolean) => {
+    setSuppressedBy((previous) => {
+      const next = new Set(previous)
+      if (suppressed) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+      return next
+    })
+  }, [])
+
+  const contextValue = useMemo(
+    () => ({ registerStep, unregisterStep, setSuppressed }),
+    [registerStep, unregisterStep, setSuppressed],
+  )
 
   const unseenSteps = seenIds !== null ? steps.filter((step) => !seenIds.has(step.hintId)) : []
-  const activeStep = unseenSteps[0] ?? null
+  const activeStep = suppressedBy.size === 0 ? (unseenSteps[0] ?? null) : null
 
   async function handleAdvance() {
     if (activeStep === null) {
@@ -126,6 +144,12 @@ function CoachmarkOverlay({
   // inset on a given phone. 0 on any screen without it mounted (falls back
   // to no reservation rather than crashing).
   const [bottomNavHeight, setBottomNavHeight] = useState(0)
+  // Fades the whole overlay in instead of it snapping to full darkness the
+  // instant `rect` resolves -- found live-testing, 2026-08-30 ("надо чтобы
+  // плавно показывалось, а то сейчас он сам экран как будто переводит"): a
+  // hard cut landing at the same moment as the page's own scroll read as
+  // one jarring jump rather than two separate, gentler motions.
+  const [entered, setEntered] = useState(false)
 
   useLayoutEffect(() => {
     function measure() {
@@ -134,7 +158,12 @@ function CoachmarkOverlay({
       setBottomNavHeight(nav?.getBoundingClientRect().height ?? 0)
     }
     measure()
-    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // 'nearest', not 'center' -- the target is very often already fully or
+    // mostly visible (this is a hint about something on the current
+    // screen, not a distant one), so this only scrolls the small amount
+    // actually needed instead of always recentering the whole page.
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    const enterFrame = requestAnimationFrame(() => setEntered(true))
     // scrollIntoView animates -- re-measure a few times as it settles
     // instead of only once before the scroll has actually happened.
     const timers = [50, 150, 300, 500].map((delay) => setTimeout(measure, delay))
@@ -143,6 +172,7 @@ function CoachmarkOverlay({
     // long exercise list) doesn't bubble to window otherwise.
     window.addEventListener('scroll', measure, true)
     return () => {
+      cancelAnimationFrame(enterFrame)
       timers.forEach(clearTimeout)
       window.removeEventListener('resize', measure)
       window.removeEventListener('scroll', measure, true)
@@ -167,7 +197,9 @@ function CoachmarkOverlay({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100]"
+      className={`fixed inset-0 z-[100] transition-opacity duration-300 ease-out ${
+        entered ? 'opacity-100' : 'opacity-0'
+      }`}
       // Swallow every tap on the dimmed page behind the tour -- same "read
       // it, then tap Далее" intent as a modal backdrop that doesn't
       // dismiss on its own tap (see Modal.tsx's own click-through guard).

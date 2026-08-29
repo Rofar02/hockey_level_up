@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { lockBodyScroll, unlockBodyScroll } from '../../utils/bodyScrollLock'
+import { useSuppressCoachmarks } from '../../hooks/useSuppressCoachmarks'
 
 interface ModalProps {
   title: string
@@ -22,6 +23,11 @@ export function Modal({ title, onClose, children }: ModalProps) {
     lockBodyScroll()
     return unlockBodyScroll
   }, [])
+  // Every Modal instance covers whatever's behind it -- suppress the
+  // coachmark tour for as long as one is open so it can never render
+  // through/over a modal the same way it briefly rendered over
+  // OnboardingTour's welcome screen (found live, 2026-08-30).
+  useSuppressCoachmarks(true)
 
   return (
     <div
