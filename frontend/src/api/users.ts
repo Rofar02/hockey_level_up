@@ -42,6 +42,14 @@ export function markWeightHintSeen(accessToken: string): Promise<UserRead> {
   return updateProfile({ has_seen_weight_hint: true }, accessToken)
 }
 
+export function getSeenCoachmarks(accessToken: string): Promise<string[]> {
+  return apiGet<string[]>('/users/me/coachmarks-seen', accessToken)
+}
+
+export function markCoachmarkSeen(hintId: string, accessToken: string): Promise<string[]> {
+  return apiPostAuth<string[]>(`/users/me/coachmarks-seen/${encodeURIComponent(hintId)}`, {}, accessToken)
+}
+
 export function uploadAvatar(file: File, accessToken: string): Promise<UserRead> {
   const formData = new FormData()
   formData.append('file', file)

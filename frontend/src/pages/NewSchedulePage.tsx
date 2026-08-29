@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_BORDER } from '../components/ui/cardStyle'
-import { Coachmark } from '../components/ui/Coachmark'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
@@ -13,6 +12,7 @@ import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
 import type { ExerciseRead } from '../types/exercise'
 import {
   DAY_SESSION_TYPE_LABELS,
@@ -238,6 +238,12 @@ export function NewSchedulePage() {
     trainingSessionId: string
     dayIsoDate: string
   } | null>(null)
+
+  const dayListCoachmarkRef = useCoachmarkStep(
+    'schedule-week-day-tap',
+    'Нажмите на день, чтобы посмотреть его упражнения: ещё не начатый день откроет превью, а начатый или пройденный — список с результатами.',
+    'ti-hand-click',
+  )
 
   useEffect(() => {
     if (accessToken === null) {
@@ -502,16 +508,13 @@ export function NewSchedulePage() {
 
         {weekStatus === 'view' && loadError === null && editSnapshot === null && (
           <>
-            <Coachmark
-              id="schedule-week-day-tap"
-              icon="ti-hand-click"
-              text="Нажмите на день, чтобы посмотреть его упражнения: ещё не начатый день откроет превью, а начатый или пройденный — список с результатами."
-            />
             {/* "Campaign path" -- a connecting line + circular weekday node
                 per row, read-only view only (editing keeps EditableDayRow's
                 plain rows below: its interactive type-picker grid doesn't
-                map cleanly onto a path node). */}
-            <div className="relative flex flex-col">
+                map cleanly onto a path node). Coachmark ref on this
+                container (not a per-row one) -- the hint is about the whole
+                list, not any single day. */}
+            <div ref={dayListCoachmarkRef} className="relative flex flex-col">
               {rows.length > 1 && (
                 <div className="absolute bottom-[26px] left-[19px] top-[26px] w-0.5 bg-gradient-to-b from-accent-ice/20 via-white/10 to-white/5" />
               )}

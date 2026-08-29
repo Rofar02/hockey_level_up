@@ -4,7 +4,6 @@ import { Link, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_BORDER } from '../components/ui/cardStyle'
-import { Coachmark } from '../components/ui/Coachmark'
 import { EquipmentIcon } from '../components/ui/EquipmentIcon'
 import { FaceoffProgressRing } from '../components/ui/FaceoffProgressRing'
 import { FormError } from '../components/ui/FormError'
@@ -24,6 +23,7 @@ import * as skillsApi from '../api/skills'
 import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
 import {
   EQUIPMENT_ITEM_LABELS,
   GYM_COVERED_ITEMS,
@@ -117,6 +117,12 @@ function OwnProfileView() {
   const [detailOpenedFromOverview, setDetailOpenedFromOverview] = useState(false)
 
   const [selectedStatType, setSelectedStatType] = useState<TargetStat | null>(null)
+
+  const statGridCoachmarkRef = useCoachmarkStep(
+    'profile-stat-unlocks',
+    'Новые упражнения открываются по мере роста характеристик выше — прокачивайте их тренировками, чтобы получить доступ к более сложным вариантам.',
+    'ti-lock-open',
+  )
 
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
@@ -523,7 +529,7 @@ function OwnProfileView() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div ref={statGridCoachmarkRef} className="grid grid-cols-3 gap-2">
                 {TARGET_STATS.map((statType) => {
                   const stat = statsByType.get(statType)
                   if (stat === undefined) {
@@ -556,14 +562,6 @@ function OwnProfileView() {
           </div>
           <FormError message={avatarError} />
         </div>
-      )}
-
-      {!isLoading && stats !== null && (
-        <Coachmark
-          id="profile-stat-unlocks"
-          icon="ti-lock-open"
-          text="Новые упражнения открываются по мере роста характеристик выше — прокачивайте их тренировками, чтобы получить доступ к более сложным вариантам."
-        />
       )}
 
       {/* 3 equal-width quick-action buttons in one row, directly under the

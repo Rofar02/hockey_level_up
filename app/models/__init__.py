@@ -1,4 +1,5 @@
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
+from app.models.coachmark import UserCoachmark
 from app.models.exercise import (
     Exercise,
     ExerciseEquipmentItem,
@@ -71,6 +72,7 @@ __all__ = [
     "TrainingSession",
     "TrainingStreak",
     "User",
+    "UserCoachmark",
     "UserEquipmentItem",
     "UserSkillPreference",
     "UserStat",

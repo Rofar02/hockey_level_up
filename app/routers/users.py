@@ -2,7 +2,7 @@ import uuid
 from datetime import date, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Header, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, Path, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -37,6 +37,7 @@ from app.schemas.user_temporary_restriction import (
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_chat_service import CoachChatService
 from app.services.coach_personality_phrases import get_rest_done_body
+from app.services.coachmark_service import CoachmarkService
 from app.services.progress_service import ProgressService
 from app.services.push_subscription_service import PushSubscriptionService
 from app.services.skill_service import SkillService
@@ -71,6 +72,23 @@ async def mark_onboarding_tour_seen(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await UserService(session).mark_onboarding_tour_seen(current_user)
+
+
+@router.get("/me/coachmarks-seen", response_model=list[str])
+async def get_my_seen_coachmarks(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await CoachmarkService(session).list_seen(current_user.id)
+
+
+@router.post("/me/coachmarks-seen/{hint_id}", response_model=list[str])
+async def mark_coachmark_seen(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    hint_id: Annotated[str, Path(min_length=1, max_length=100)],
+):
+    return await CoachmarkService(session).mark_seen(current_user.id, hint_id)
 
 
 @router.post("/me/avatar", response_model=UserRead)

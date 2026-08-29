@@ -21,6 +21,7 @@ import * as skillsApi from '../api/skills'
 import * as trainingBlockApi from '../api/trainingBlock'
 import * as usersApi from '../api/users'
 import { useAuth } from '../hooks/useAuth'
+import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
 import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { LeaderboardMeRead } from '../types/leaderboard'
@@ -671,13 +672,22 @@ function SkillsNearMilestoneCard({
   skills: SkillSummaryRead[]
   onSelectSkill: (skillId: string) => void
 }) {
+  // First real usage of the coachmark tour overlay (2026-08-30
+  // discoverability pass) -- these rows just picked up a chevron+accent
+  // affordance, but a first-time visitor still benefits from one explicit
+  // "these are tappable" nudge the first time this card appears.
+  const coachmarkRef = useCoachmarkStep(
+    'home-skill-milestones',
+    'Нажмите на навык, чтобы увидеть его пороги и вклад в характеристики.',
+    'ti-hand-click',
+  )
   const top = topSkillsNearMilestone(skills)
   if (top.length === 0) {
     return null
   }
 
   return (
-    <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
+    <div ref={coachmarkRef} className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
       <h2 className="text-sm font-medium text-[#8A94A6]">Ближайшие пороги</h2>
       <div className="flex flex-col gap-4">
         {top.map((skill) => {

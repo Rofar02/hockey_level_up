@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
+import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
 
@@ -43,11 +44,11 @@ export function ProtectedRoute() {
   // bottom content -- kept here rather than in each page so every protected
   // screen gets it automatically.
   return (
-    <>
+    <CoachmarkProvider>
       <div className="pb-16">
         <Outlet />
       </div>
       <BottomNav />
-    </>
+    </CoachmarkProvider>
   )
 }
