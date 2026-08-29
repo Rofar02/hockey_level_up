@@ -16,6 +16,7 @@ import { MorePage } from './pages/MorePage'
 import { NewSchedulePage } from './pages/NewSchedulePage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { QuestsPage } from './pages/QuestsPage'
 import { ReferencePage } from './pages/ReferencePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
@@ -145,6 +146,7 @@ function App() {
         />
         <Route path="/reference" element={<ReferencePage />} />
         <Route path="/exercise-catalog" element={<ExerciseCatalogPage />} />
+        <Route path="/quests" element={<QuestsPage />} />
         <Route
           path="/reference/:articleId"
           element={

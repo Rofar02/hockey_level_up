@@ -25,6 +25,7 @@ const GROUPS: MoreGroup[] = [
   {
     label: 'Тренировочный процесс',
     items: [
+      { icon: 'ti-target-arrow', label: 'Задания', description: 'Выполняйте задания за дополнительный опыт', to: '/quests' },
       { icon: 'ti-book', label: 'Справочник', description: 'Статьи об экипировке и основах хоккея', to: '/reference' },
       {
         icon: 'ti-clipboard-list',

@@ -13,6 +13,7 @@ from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.push_subscription import PushSubscription
+from app.models.quest import UserQuestCompletion
 from app.models.reference_article import ReferenceArticle
 from app.models.schedule import (
     DayPlan,
@@ -74,6 +75,7 @@ __all__ = [
     "User",
     "UserCoachmark",
     "UserEquipmentItem",
+    "UserQuestCompletion",
     "UserSkillPreference",
     "UserStat",
     "UserTemporaryRestriction",

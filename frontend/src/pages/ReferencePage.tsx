@@ -4,6 +4,7 @@ import { BackLink } from '../components/ui/BackLink'
 import { CARD_CLASS } from '../components/ui/cardStyle'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import * as questsApi from '../api/quests'
 import * as referenceArticlesApi from '../api/referenceArticles'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -50,6 +51,10 @@ export function ReferencePage() {
       .then((result) => {
         if (!cancelled) {
           setArticles(result)
+          // reference_first_visit has no DB trace of its own -- ping the
+          // quest endpoint once articles actually load (see
+          // app/routers/quests.py). Idempotent, fire-and-forget.
+          questsApi.markReferenceVisited(accessToken).catch(() => {})
         }
       })
       .catch((err: unknown) => {

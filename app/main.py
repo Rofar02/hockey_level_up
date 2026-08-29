@@ -19,6 +19,7 @@ from app.routers import (
     friends,
     leaderboard,
     push,
+    quests,
     reference_articles,
     schedule,
     session_blocks,
@@ -88,6 +89,7 @@ app.include_router(admin_users.router)
 app.include_router(teams.router)
 app.include_router(friends.router)
 app.include_router(training_parties.router)
+app.include_router(quests.router)
 
 # Mounted at the shared parent of avatar_upload_dir and
 # reference_article_image_upload_dir, so "/static/avatars/..." and
