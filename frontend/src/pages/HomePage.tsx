@@ -692,7 +692,7 @@ function SkillsNearMilestoneCard({
               key={skill.id}
               type="button"
               onClick={() => onSelectSkill(skill.id)}
-              className="flex items-center gap-3 text-left"
+              className="group flex items-center gap-3 text-left"
             >
               {/* Faceoff-circle ring, not a linear bar -- a milestone
                   threshold is a target you're closing in on, which the
@@ -707,7 +707,12 @@ function SkillsNearMilestoneCard({
                 centerValue={`${Math.round(percent)}%`}
               />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="truncate text-sm text-[#F5F7FA]">{skill.name}</span>
+                {/* Accent color, not plain white -- this row was tappable
+                    but read as inert label text (discoverability pass,
+                    2026-08-30: "Ближайшие пороги" names gave no visual
+                    affordance). Same treatment as the chevron pattern
+                    already used for row-style navigation elsewhere. */}
+                <span className="truncate text-sm font-medium text-accent-ice">{skill.name}</span>
                 {nearThreshold ? (
                   <span className="text-xs font-medium text-accent-persimmon">почти порог</span>
                 ) : (
@@ -716,6 +721,10 @@ function SkillsNearMilestoneCard({
                   </span>
                 )}
               </div>
+              <i
+                className="ti ti-chevron-right shrink-0 text-lg text-[#8A94A6] transition-all group-hover:translate-x-0.5 group-hover:text-accent-ice"
+                aria-hidden="true"
+              />
             </button>
           )
         })}
@@ -794,7 +803,7 @@ function RatingRow({ me, onClick }: { me: LeaderboardMeRead; onClick: () => void
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
+      className={`group flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
     >
       <div className="flex items-center gap-3">
         <RankBadge rank={me.rank} />
@@ -804,7 +813,15 @@ function RatingRow({ me, onClick }: { me: LeaderboardMeRead; onClick: () => void
           <span className="text-xs text-[#8A94A6]">Относительно вашего возраста и стажа</span>
         </div>
       </div>
-      <span className="font-display text-lg font-semibold text-accent-ice">{sign}{me.rating_excess.toFixed(1)}</span>
+      <span className="flex shrink-0 items-center gap-2">
+        <span className="font-display text-lg font-semibold text-accent-ice">{sign}{me.rating_excess.toFixed(1)}</span>
+        {/* Discoverability pass, 2026-08-30 -- a CARD_CLASS row that
+            navigates needs the same chevron cue /more and /reference's rows
+            already carry, not just "it's a button" left implicit. */}
+        <i
+          className="ti ti-chevron-right text-lg text-[#8A94A6] transition-all group-hover:translate-x-0.5 group-hover:text-accent-ice"
+          aria-hidden="true"
+        /></span>
     </button>
   )
 }
