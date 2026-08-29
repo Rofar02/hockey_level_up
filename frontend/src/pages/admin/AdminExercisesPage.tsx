@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { AdminLayout } from '../../components/admin/AdminLayout'
 import { AdminModal } from '../../components/admin/AdminModal'
+import { ExerciseGuideModal } from '../../components/admin/ExerciseGuideModal'
 import { Button } from '../../components/ui/Button'
 import { FormError } from '../../components/ui/FormError'
 import { SelectField } from '../../components/ui/SelectField'
@@ -106,6 +107,7 @@ export function AdminExercisesPage() {
   const [healthOnly, setHealthOnly] = useState(false)
 
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isGuideOpen, setIsGuideOpen] = useState(false)
   const [editingExercise, setEditingExercise] = useState<ExerciseRead | null>(null)
 
   useEffect(() => {
@@ -262,9 +264,15 @@ export function AdminExercisesPage() {
             {catalogHealthIssues !== null && ` (${catalogHealthIssues.length})`}
           </label>
         </div>
-        <Button type="button" onClick={openCreateForm}>
-          Добавить упражнение
-        </Button>
+        <div className="flex gap-3">
+          <Button type="button" variant="neutral" onClick={() => setIsGuideOpen(true)}>
+            <i className="ti ti-book mr-1.5" aria-hidden="true" />
+            Инструкция
+          </Button>
+          <Button type="button" onClick={openCreateForm}>
+            Добавить упражнение
+          </Button>
+        </div>
       </div>
 
       <FormError message={loadError} />
@@ -425,6 +433,7 @@ export function AdminExercisesPage() {
           onSaved={handleSaved}
         />
       )}
+      {isGuideOpen && <ExerciseGuideModal onClose={() => setIsGuideOpen(false)} />}
     </AdminLayout>
   )
 }
@@ -855,7 +864,7 @@ function ExerciseFormModal({
                 label="Тип источника видео"
                 value={videoSourceType}
                 onChange={(event) => setVideoSourceType(event.target.value)}
-                placeholder="youtube, vimeo..."
+                placeholder="youtube или vk"
               />
               <TextField
                 label="ID видео"
