@@ -36,12 +36,16 @@ from app.schemas.coach_chat import CoachChatMessageRead
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
 
-# Open-weight Qwen2.5-Instruct, not the Coder variant -- an earlier explicit
-# product call (see project roadmap notes) made before DashScope was even
-# the chosen provider; DashScope serves this exact model id too. The base
-# URL itself lives in Settings.qwen_base_url, not here -- DashScope has two
-# regions with separate keys (see that field's own comment).
-MODEL = "qwen2.5-72b-instruct"
+# Commercial Qwen (not a Coder-specialized variant -- a general chat/
+# instruct model, matching the original "Instruct, not Coder" product
+# call). The open-weight qwen2.5-72b-instruct id was tried first but
+# 403'd with AccessDenied.Unpurchased -- that model needs a separate
+# console activation/purchase step this account hasn't done, while the
+# commercial qwen-* series bills pay-as-you-go with no extra activation
+# (confirmed live 2026-08-30). The base URL itself lives in
+# Settings.qwen_base_url, not here -- DashScope has two regions with
+# separate keys (see that field's own comment).
+MODEL = "qwen-plus"
 
 MONTHLY_MESSAGE_LIMIT = 150
 # How many prior turns get replayed back to the model as dialogue context --
