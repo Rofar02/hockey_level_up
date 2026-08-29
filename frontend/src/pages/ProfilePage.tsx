@@ -9,6 +9,7 @@ import { FaceoffProgressRing } from '../components/ui/FaceoffProgressRing'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { JerseyBadge } from '../components/ui/JerseyBadge'
+import { LevelUnlocksModal } from '../components/ui/LevelUnlocksModal'
 import { Modal } from '../components/ui/Modal'
 import { LockedSkillChip } from '../components/ui/SkillChip'
 import { StatIcon } from '../components/ui/StatIcon'
@@ -130,6 +131,7 @@ function OwnProfileView() {
   const [isAvatarPreviewOpen, setIsAvatarPreviewOpen] = useState(false)
 
   const [isResendingVerification, setIsResendingVerification] = useState(false)
+  const [levelModalOpen, setLevelModalOpen] = useState(false)
   const [verificationResendResult, setVerificationResendResult] = useState<string | null>(null)
   const [verificationResendError, setVerificationResendError] = useState<string | null>(null)
 
@@ -520,14 +522,22 @@ function OwnProfileView() {
 
                 <div className="mx-auto flex w-full max-w-[220px] flex-col gap-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-1 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setLevelModalOpen(true)}
+                      className="group flex items-center gap-1 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5 transition-colors hover:border-accent-ice/40"
+                    >
                       <span className="font-sans text-[9px] font-semibold uppercase tracking-wider text-accent-ice/70">
                         Ур.
                       </span>
                       <span className="font-display text-sm font-semibold leading-none text-accent-ice">
                         {user?.level ?? 1}
                       </span>
-                    </span>
+                      <i
+                        className="ti ti-chevron-right text-xs text-accent-ice/50 transition-all group-hover:translate-x-0.5 group-hover:text-accent-ice"
+                        aria-hidden="true"
+                      />
+                    </button>
                   </div>
                   <XpBar level={user?.level ?? 1} xp={user?.xp ?? 0} />
                 </div>
@@ -675,6 +685,10 @@ function OwnProfileView() {
         <Modal title="Фото профиля" onClose={() => setIsAvatarPreviewOpen(false)}>
           <img src={avatarUrl} alt="Аватар" className="w-full rounded" />
         </Modal>
+      )}
+
+      {levelModalOpen && (
+        <LevelUnlocksModal level={user?.level ?? 1} onClose={() => setLevelModalOpen(false)} />
       )}
       </div>
     </div>

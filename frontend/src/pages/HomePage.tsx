@@ -8,6 +8,7 @@ import { CARD_BORDER, CARD_CLASS } from '../components/ui/cardStyle'
 import { FaceoffProgressRing } from '../components/ui/FaceoffProgressRing'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { LevelUnlocksModal } from '../components/ui/LevelUnlocksModal'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { RankBadge } from '../components/ui/RankBadge'
@@ -208,6 +209,7 @@ export function HomePage() {
 
   const [calendarExpanded, setCalendarExpanded] = useState(false)
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()))
+  const [levelModalOpen, setLevelModalOpen] = useState(false)
   const [calendarData, setCalendarData] = useState<Record<string, ActivityCalendarDayRead>>({})
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   // Lazily fetched fallback for a day the calendar shows activity for but
@@ -449,15 +451,26 @@ export function HomePage() {
                 {/* Same compact pill ProfilePage's own card uses for level
                     (px-2.5 py-0.5, text-[11px]) -- one style for "level
                     badge sitting under a name" wherever that pattern shows
-                    up, not a one-off sized to match a neighboring button. */}
-                <span className="mt-0.5 flex w-fit items-center gap-1 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5">
+                    up, not a one-off sized to match a neighboring button.
+                    Tappable -- opens LevelUnlocksModal so a level number
+                    isn't just an inert stat, matching the chevron
+                    discoverability convention used elsewhere (2026-08-30). */}
+                <button
+                  type="button"
+                  onClick={() => setLevelModalOpen(true)}
+                  className="group mt-0.5 flex w-fit items-center gap-1 rounded-md border border-accent-ice/25 bg-accent-ice/[0.08] px-2.5 py-0.5 transition-colors hover:border-accent-ice/40"
+                >
                   <span className="font-sans text-[9px] font-semibold uppercase tracking-wider text-accent-ice/70">
                     Ур.
                   </span>
                   <span className="font-display text-sm font-semibold leading-none text-accent-ice">
                     {user?.level ?? 1}
                   </span>
-                </span>
+                  <i
+                    className="ti ti-chevron-right text-xs text-accent-ice/50 transition-all group-hover:translate-x-0.5 group-hover:text-accent-ice"
+                    aria-hidden="true"
+                  />
+                </button>
               </div>
             </div>
 
@@ -542,6 +555,10 @@ export function HomePage() {
           error={skillDetailError}
           onClose={() => setSelectedSkillId(null)}
         />
+      )}
+
+      {levelModalOpen && (
+        <LevelUnlocksModal level={user?.level ?? 1} onClose={() => setLevelModalOpen(false)} />
       )}
     </div>
   )
