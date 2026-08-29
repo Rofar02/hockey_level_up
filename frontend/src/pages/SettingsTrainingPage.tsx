@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { BackLink } from '../components/ui/BackLink'
+import { Button } from '../components/ui/Button'
 import { ChoiceCard } from '../components/ui/ChoiceCard'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { Modal } from '../components/ui/Modal'
 import { LockedSkillChip, SkillChip } from '../components/ui/SkillChip'
 import { TextField } from '../components/ui/TextField'
 import * as skillsApi from '../api/skills'
@@ -38,6 +40,13 @@ export function SettingsTrainingPage() {
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set())
   const [skillsLoadError, setSkillsLoadError] = useState<string | null>(null)
   const [skillsSaveError, setSkillsSaveError] = useState<string | null>(null)
+  // Removing a priority skill is free (item 6, 2026-08-30 gamification
+  // pass) but needs an explicit confirm first -- adding one (still under
+  // the slot cap) doesn't deprioritize anything, so only removal pauses
+  // for confirmation.
+  const [pendingSkillRemoval, setPendingSkillRemoval] = useState<{ id: string; name: string } | null>(
+    null,
+  )
 
   useEffect(() => {
     if (accessToken === null) {
@@ -120,6 +129,22 @@ export function SettingsTrainingPage() {
     } finally {
       setIsSavingTournamentDate(false)
     }
+  }
+
+  function handleSkillChipClick(skill: SkillOption) {
+    if (selectedSkillIds.has(skill.id)) {
+      setPendingSkillRemoval({ id: skill.id, name: skill.name })
+      return
+    }
+    void toggleSkill(skill.id)
+  }
+
+  function confirmSkillRemoval() {
+    if (pendingSkillRemoval === null) {
+      return
+    }
+    void toggleSkill(pendingSkillRemoval.id)
+    setPendingSkillRemoval(null)
   }
 
   async function toggleSkill(id: string) {
@@ -225,8 +250,9 @@ export function SettingsTrainingPage() {
             <p className="text-sm text-[#8A94A6]">Загрузка...</p>
           )}
           <FormError message={skillsLoadError} />
-          {/* maxSkillPreferences is null at level 25+ (unlimited) -- omitted
-              entirely rather than showing "X из ∞". */}
+          {/* maxSkillPreferences is only null before `user` itself has
+              loaded -- every level has a real numeric cap now (hard-capped
+              at 6 from level 15 on, see skillPreferenceLimit.ts). */}
           {maxSkillPreferences !== null && (
             <p className="text-sm text-[#8A94A6]">
               Выбрано {selectedSkillIds.size} из {maxSkillPreferences}
@@ -256,7 +282,7 @@ export function SettingsTrainingPage() {
                     label={skill.name}
                     selected={isSelected}
                     disabled={!isSelected && limitReached}
-                    onClick={() => toggleSkill(skill.id)}
+                    onClick={() => handleSkillChipClick(skill)}
                   />
                 )
               })}
@@ -265,6 +291,23 @@ export function SettingsTrainingPage() {
           <FormError message={skillsSaveError} />
         </section>
       </div>
+
+      {pendingSkillRemoval !== null && (
+        <Modal title={`Убрать «${pendingSkillRemoval.name}»?`} onClose={() => setPendingSkillRemoval(null)}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-text-secondary">
+              Подбор упражнений изменится начиная со следующей тренировки. Прогресс по порогам
+              этого навыка никуда не денется — можно выбрать его снова в любой момент.
+            </p>
+            <div className="flex gap-3">
+              <Button onClick={confirmSkillRemoval}>Убрать</Button>
+              <Button variant="neutral" onClick={() => setPendingSkillRemoval(null)}>
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

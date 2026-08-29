@@ -30,6 +30,27 @@ export const SEASON_PERIOD_CHOICES: { value: SeasonPeriod; title: string; descri
   { value: 'playoffs', title: 'Плей-офф', description: 'Финальная часть сезона — тренировки легче, разгрузки заметно чаще' },
 ]
 
+// Level-gated cosmetics (item 6, 2026-08-30 gamification pass) -- see
+// utils/levelUnlocks.ts for the level thresholds.
+export const AVATAR_RING_ACCENTS = ['ice', 'persimmon', 'mix'] as const
+export type AvatarRingAccent = (typeof AVATAR_RING_ACCENTS)[number]
+
+export const AVATAR_RING_ACCENT_LABELS: Record<AvatarRingAccent, string> = {
+  ice: 'Лёд',
+  persimmon: 'Огонь',
+  mix: 'Микс',
+}
+
+export const JERSEY_COLORS = ['white', 'ice', 'persimmon', 'gold'] as const
+export type JerseyColor = (typeof JERSEY_COLORS)[number]
+
+export const JERSEY_COLOR_LABELS: Record<JerseyColor, string> = {
+  white: 'Белый',
+  ice: 'Лёд',
+  persimmon: 'Огонь',
+  gold: 'Золото',
+}
+
 export const COACH_PERSONALITIES = ['calm', 'strict', 'humor', 'vibe'] as const
 export type CoachPersonality = (typeof COACH_PERSONALITIES)[number]
 
@@ -61,6 +82,8 @@ export interface UserRead {
   years_of_experience: number | null
   jersey_number: number | null
   avatar_url: string | null
+  avatar_ring_accent: AvatarRingAccent | null
+  jersey_color: JerseyColor | null
   // Only ever present on your own UserRead -- share it so a friend can send
   // you a request (see api/friends.ts). Never shown for anyone else (see
   // UserPublicRead below).
@@ -93,8 +116,10 @@ export interface UserPublicRead {
   last_name: string
   patronymic: string | null
   avatar_url: string | null
+  avatar_ring_accent: AvatarRingAccent | null
   position: Position | null
   jersey_number: number | null
+  jersey_color: JerseyColor | null
   years_of_experience: number | null
   level: number
   xp: number

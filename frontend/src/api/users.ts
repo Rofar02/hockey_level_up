@@ -7,7 +7,15 @@ import {
   apiPutAuth,
 } from './client'
 import type { EquipmentItem } from '../types/exercise'
-import type { CoachPersonality, ReminderPreference, SeasonPeriod, UserPublicRead, UserRead } from '../types/user'
+import type {
+  AvatarRingAccent,
+  CoachPersonality,
+  JerseyColor,
+  ReminderPreference,
+  SeasonPeriod,
+  UserPublicRead,
+  UserRead,
+} from '../types/user'
 import type { UserSkillPreference } from '../types/skill'
 
 export interface UserProfileUpdate {
@@ -22,6 +30,8 @@ export interface UserProfileUpdate {
   timezone?: string
   has_seen_weight_hint?: boolean
   has_gym_access?: boolean
+  avatar_ring_accent?: AvatarRingAccent | null
+  jersey_color?: JerseyColor | null
 }
 
 export function updateProfile(

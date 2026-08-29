@@ -1,9 +1,16 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 
+// 'white'/'gold' added for the level-15+ custom jersey-number color choice
+// (2026-08-30 gamification pass, see types/user.ts's own JerseyColor) --
+// the rating badge (always 'ice') and the default number badge (always
+// 'white' unless the player has picked something else) both still just
+// pass one of these four.
+export type JerseyAccentColor = 'white' | 'ice' | 'persimmon' | 'gold'
+
 interface JerseyBadgeProps {
   number: number | string
   label: string
-  accentColor: 'ice' | 'persimmon'
+  accentColor: JerseyAccentColor
   // Optional nameplate above the number (e.g. the player-number badge, not
   // the rating one). Grows the viewBox/box height to make room and shifts
   // the number down to match -- see NUMBER_Y_BY_VARIANT below.
@@ -14,9 +21,14 @@ interface JerseyBadgeProps {
 // both the outline strokes and the number's/surname's fill read it via
 // currentColor, so there's a single source of truth for the accent instead
 // of separate stroke-*/text-* classes.
-const ACCENT_CLASSES: Record<JerseyBadgeProps['accentColor'], string> = {
+const ACCENT_CLASSES: Record<JerseyAccentColor, string> = {
+  white: 'text-[#F5F7FA]',
   ice: 'text-accent-ice',
   persimmon: 'text-accent-persimmon',
+  // Same gold as the leaderboard podium's 1st-place ring/rank (RankBadge's
+  // own MEDAL_COLORS) -- one "prestige gold" across the app, not a second
+  // invented shade.
+  gold: 'text-[#FFC94A]',
 }
 
 // The torso's actual width at the nameplate's y=34 (shoulder/sleeve

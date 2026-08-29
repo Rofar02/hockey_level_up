@@ -375,7 +375,7 @@ function OwnProfileView() {
     user?.years_of_experience != null ? `${user.years_of_experience} лет стажа` : null,
   ].filter((part): part is string => part !== null)
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
-  const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1)
+  const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1, user?.avatar_ring_accent)
 
   return (
     <div className="relative min-h-svh overflow-hidden">
@@ -446,7 +446,11 @@ function OwnProfileView() {
                   <JerseyBadge
                     number={user.jersey_number}
                     label="Номер"
-                    accentColor="persimmon"
+                    // null (no choice made, or not level 15 yet) keeps the
+                    // pre-existing persimmon look -- 'white' is one of the
+                    // four selectable options, not the fallback, so nobody's
+                    // badge silently changes color the moment this shipped.
+                    accentColor={user.jersey_color ?? 'persimmon'}
                     surname={transliterate(user.last_name)}
                   />
                 )}
@@ -719,7 +723,7 @@ function OtherUserProfileView({ userId }: { userId: string }) {
     }
   }, [accessToken, userId])
 
-  const avatarTierStyle = getAvatarTierStyle(profile?.level ?? 1)
+  const avatarTierStyle = getAvatarTierStyle(profile?.level ?? 1, profile?.avatar_ring_accent)
   const avatarUrl = profile?.avatar_url != null ? `${API_BASE_URL}${profile.avatar_url}` : null
 
   return (
@@ -758,7 +762,7 @@ function OtherUserProfileView({ userId }: { userId: string }) {
                     <JerseyBadge
                       number={profile.jersey_number}
                       label="Номер"
-                      accentColor="persimmon"
+                      accentColor={profile.jersey_color ?? 'persimmon'}
                       surname={transliterate(profile.last_name)}
                     />
                   )}

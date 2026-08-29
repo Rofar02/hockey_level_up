@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.core.level_unlocks import has_avatar_ring_choice, has_jersey_color_choice
 from app.core.security import verify_password
 from app.models.exercise import EquipmentItem
 from app.models.team import TeamMembership
@@ -31,6 +32,21 @@ class UserService:
 
     async def update_profile(self, user: User, data: UserUpdate) -> User:
         updates = data.model_dump(exclude_unset=True)
+        # Level-gated cosmetics (item 6, 2026-08-30 gamification pass) --
+        # resetting to null (clearing a choice) is always allowed regardless
+        # of level, only *setting* a real value is gated. Checked here, not
+        # via a pydantic validator, since the gate depends on `user` (the
+        # request's authenticated user), which the schema itself never sees.
+        if updates.get("avatar_ring_accent") is not None and not has_avatar_ring_choice(user.level):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Выбор кольца аватарки станет доступен с 10 уровня",
+            )
+        if updates.get("jersey_color") is not None and not has_jersey_color_choice(user.level):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Выбор цвета номера станет доступен с 15 уровня",
+            )
         for field, value in updates.items():
             setattr(user, field, value)
         await self._session.commit()

@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.skill_preferences import max_skill_preferences_for_level
+from app.core.level_unlocks import max_skill_slots_for_level
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag
@@ -235,8 +235,8 @@ class SkillService:
         # already over a since-lowered cap would unwind below it), and
         # submitting one that's still over the cap is rejected outright --
         # existing rows are never force-trimmed here.
-        max_allowed = max_skill_preferences_for_level(user.level)
-        if max_allowed is not None and len(unique_skill_ids) > max_allowed:
+        max_allowed = max_skill_slots_for_level(user.level)
+        if len(unique_skill_ids) > max_allowed:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Доступно не более {max_allowed} навыков на вашем уровне",

@@ -4,7 +4,14 @@ from zoneinfo import available_timezones
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from app.models.user import CoachPersonality, Position, ReminderPreference, SeasonPeriod
+from app.models.user import (
+    AvatarRingAccent,
+    CoachPersonality,
+    JerseyColor,
+    Position,
+    ReminderPreference,
+    SeasonPeriod,
+)
 
 
 class UserBase(BaseModel):
@@ -52,6 +59,8 @@ class UserRead(UserBase):
     username: str
     jersey_number: int | None = Field(default=None, ge=0, le=99)
     avatar_url: str | None = None
+    avatar_ring_accent: AvatarRingAccent | None = None
+    jersey_color: JerseyColor | None = None
     # Only ever populated on the caller's own UserRead (this schema is never
     # returned for anyone else -- see UserPublicRead for what's shown about
     # other users) -- shared out-of-band so a friend can send a request to
@@ -94,8 +103,10 @@ class UserPublicRead(BaseModel):
     last_name: str
     patronymic: str | None = None
     avatar_url: str | None = None
+    avatar_ring_accent: AvatarRingAccent | None = None
     position: Position | None = None
     jersey_number: int | None = None
+    jersey_color: JerseyColor | None = None
     years_of_experience: float | None = None
     level: int
     xp: int
@@ -114,6 +125,8 @@ class UserUpdate(BaseModel):
     coach_personality: CoachPersonality | None = None
     tournament_date: date | None = None
     has_seen_weight_hint: bool | None = None
+    avatar_ring_accent: AvatarRingAccent | None = None
+    jersey_color: JerseyColor | None = None
 
     @field_validator("timezone")
     @classmethod

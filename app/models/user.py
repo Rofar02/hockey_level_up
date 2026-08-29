@@ -22,6 +22,27 @@ class FitnessTier(enum.StrEnum):
     ADVANCED = "advanced"
 
 
+# Level-gated cosmetics (item 6, 2026-08-30 gamification pass) -- see
+# app.core.level_unlocks for the level thresholds. NULL means "no choice
+# made yet, use the automatic default" for both: avatar_ring_accent falls
+# back to the tier-based ring app.utils avatarTier.ts already draws
+# automatically (this only lets a level>=10 player override *which* accent
+# that ring uses below the level-15 tier, which always shows the automatic
+# gradient regardless); jersey_color falls back to the jersey number
+# badge's existing default (white).
+class AvatarRingAccent(enum.StrEnum):
+    ICE = "ice"
+    PERSIMMON = "persimmon"
+    MIX = "mix"
+
+
+class JerseyColor(enum.StrEnum):
+    WHITE = "white"
+    ICE = "ice"
+    PERSIMMON = "persimmon"
+    GOLD = "gold"
+
+
 class ReminderPreference(enum.StrEnum):
     NONE = "none"
     MORNING = "morning"
@@ -79,6 +100,12 @@ class User(Base):
     patronymic: Mapped[str | None] = mapped_column(String(100), nullable=True)
     jersey_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     avatar_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_ring_accent: Mapped[AvatarRingAccent | None] = mapped_column(
+        enum_column(AvatarRingAccent, "avatar_ring_accent"), nullable=True
+    )
+    jersey_color: Mapped[JerseyColor | None] = mapped_column(
+        enum_column(JerseyColor, "jersey_color"), nullable=True
+    )
 
     height: Mapped[float | None] = mapped_column(Float, nullable=True)
     weight: Mapped[float | None] = mapped_column(Float, nullable=True)

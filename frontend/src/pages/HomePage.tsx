@@ -385,7 +385,7 @@ export function HomePage() {
   const todayIso = toIsoDate(new Date())
   const today = weeklyPlan?.day_plans.find((day) => day.date === todayIso) ?? null
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
-  const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1)
+  const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1, user?.avatar_ring_accent)
   const selectedIsoDate = selectedDay !== null ? toIsoDate(selectedDay) : null
   const selectedDayWeeklyPlanDay =
     selectedIsoDate !== null ? weeklyPlan?.day_plans.find((day) => day.date === selectedIsoDate) : undefined

@@ -1,7 +1,7 @@
 """UserSkillPreference replace/list round-trip (PUT/GET /users/me/skill-preferences),
 including the User.level-scaled cap on how many can be selected at once
-(see app/core/skill_preferences.py): level 1-7 -> 3, 8-14 -> 6, 15-24 -> 9,
-25+ -> unlimited.
+(see app/core/level_unlocks.max_skill_slots_for_level): level 1-4 -> 3,
+5-9 -> 4, 10-14 -> 5, 15+ -> 6 (hard cap, no further growth).
 """
 import uuid
 
@@ -100,16 +100,20 @@ async def test_replace_succeeds_exactly_at_the_level_cap(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_replace_has_no_limit_at_level_25(db_session) -> None:
-    user = _make_user(level=25)
-    skills = _make_skills(12)  # well past every finite tier's cap
+async def test_replace_rejects_more_than_the_hard_cap_even_at_a_high_level(db_session) -> None:
+    """Unlike the old tiers, level 15+ has no unlimited tier -- 6 is a hard
+    ceiling, not just the last named step."""
+    user = _make_user(level=99)
+    skills = _make_skills(7)
     db_session.add(user)
     db_session.add_all(skills)
     await db_session.flush()
 
     service = SkillService(db_session)
-    result = await service.replace_user_preferences(user, [s.id for s in skills])
-    assert {p.skill_id for p in result} == {s.id for s in skills}
+    with pytest.raises(HTTPException) as exc_info:
+        await service.replace_user_preferences(user, [s.id for s in skills])
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Доступно не более 6 навыков на вашем уровне"
 
 
 @pytest.mark.asyncio
@@ -134,8 +138,8 @@ async def test_swap_one_skill_at_a_full_cap_succeeds(db_session) -> None:
 
 @pytest.mark.asyncio
 async def test_boundary_levels_match_the_documented_tiers(db_session) -> None:
-    # level 7 (just under the level-8 tier) -> cap 3; 8/14 -> 6; 15/24 -> 9.
-    for level, cap in ((7, 3), (8, 6), (14, 6), (15, 9), (24, 9)):
+    # level 4 (just under the level-5 tier) -> cap 3; 5/9 -> 4; 10/14 -> 5; 15/99 -> 6.
+    for level, cap in ((4, 3), (5, 4), (9, 4), (10, 5), (14, 5), (15, 6), (99, 6)):
         user = _make_user(level=level)
         skills = _make_skills(cap + 1)
         db_session.add(user)
@@ -199,7 +203,7 @@ async def test_slot_limit_and_level_gate_apply_independently(db_session) -> None
     """Both checks run unconditionally on every submitted id: being within
     the slot cap doesn't excuse a level-locked skill, and every skill being
     unlocked doesn't excuse exceeding the slot cap."""
-    user = _make_user(level=10)  # slot cap = 6 (8-14 tier)
+    user = _make_user(level=10)  # slot cap = 5 (10-14 tier)
     unlocked = _make_skills(3, required_level=1)
     locked = _make_skills(1, required_level=15)
     db_session.add(user)
@@ -208,7 +212,7 @@ async def test_slot_limit_and_level_gate_apply_independently(db_session) -> None
 
     service = SkillService(db_session)
 
-    # Within the slot cap (4 <= 6), but one skill is level-locked -> 400.
+    # Within the slot cap (4 <= 5), but one skill is level-locked -> 400.
     with pytest.raises(HTTPException) as exc_info:
         await service.replace_user_preferences(
             user, [s.id for s in unlocked] + [locked[0].id]
@@ -216,15 +220,15 @@ async def test_slot_limit_and_level_gate_apply_independently(db_session) -> None
     assert exc_info.value.status_code == 400
     assert "доступен с уровня 15" in exc_info.value.detail
 
-    # All unlocked, but the count (7) exceeds the slot cap (6) -> 400, the
+    # All unlocked, but the count (6) exceeds the slot cap (5) -> 400, the
     # distinct slot-limit message, even though none are level-gated.
-    more_unlocked = _make_skills(7, required_level=1)
+    more_unlocked = _make_skills(6, required_level=1)
     db_session.add_all(more_unlocked)
     await db_session.flush()
     with pytest.raises(HTTPException) as exc_info:
         await service.replace_user_preferences(user, [s.id for s in more_unlocked])
     assert exc_info.value.status_code == 400
-    assert exc_info.value.detail == "Доступно не более 6 навыков на вашем уровне"
+    assert exc_info.value.detail == "Доступно не более 5 навыков на вашем уровне"
 
     # Within the cap AND all unlocked -> succeeds.
     result = await service.replace_user_preferences(user, [s.id for s in unlocked])
