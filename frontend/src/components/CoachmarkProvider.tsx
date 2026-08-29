@@ -103,6 +103,9 @@ export function CoachmarkProvider({ children }: { children: ReactNode }) {
 
 const SPOTLIGHT_PADDING = 8
 const TOOLTIP_GAP = 12
+// Kept clear of the very top of the screen (status bar / notch territory)
+// and, combined with the measured BottomNav height, off the nav bar too.
+const TOP_BOTTOM_SAFE_MARGIN = 16
 
 function CoachmarkOverlay({
   target,
@@ -118,10 +121,17 @@ function CoachmarkOverlay({
   onAdvance: () => void
 }) {
   const [rect, setRect] = useState<DOMRect | null>(null)
+  // How much of the viewport's bottom edge BottomNav actually occupies --
+  // measured, not guessed, so this stays correct regardless of safe-area
+  // inset on a given phone. 0 on any screen without it mounted (falls back
+  // to no reservation rather than crashing).
+  const [bottomNavHeight, setBottomNavHeight] = useState(0)
 
   useLayoutEffect(() => {
     function measure() {
       setRect(target.getBoundingClientRect())
+      const nav = document.querySelector('[data-app-bottom-nav]')
+      setBottomNavHeight(nav?.getBoundingClientRect().height ?? 0)
     }
     measure()
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -144,10 +154,16 @@ function CoachmarkOverlay({
   }
 
   const viewportHeight = window.innerHeight
-  const spaceBelow = viewportHeight - rect.bottom
-  // Rough tooltip-height guess -- good enough to pick a side; the tooltip
-  // itself still just flows to whatever height its text needs.
-  const placeBelow = spaceBelow > 180 || spaceBelow > rect.top
+  // The usable band excludes BottomNav's real footprint and a small top
+  // margin -- without this, a target sitting low on a short phone screen
+  // (the exact case found live, 2026-08-30: "маленько не симпатично
+  // смотрится" on mobile) could place the tooltip right on top of the nav
+  // bar instead of respecting it.
+  const safeBottom = viewportHeight - bottomNavHeight - TOP_BOTTOM_SAFE_MARGIN
+  const safeTop = TOP_BOTTOM_SAFE_MARGIN
+  const spaceBelow = safeBottom - (rect.bottom + SPOTLIGHT_PADDING + TOOLTIP_GAP)
+  const spaceAbove = rect.top - SPOTLIGHT_PADDING - TOOLTIP_GAP - safeTop
+  const placeBelow = spaceBelow >= spaceAbove
 
   return createPortal(
     <div
@@ -171,11 +187,21 @@ function CoachmarkOverlay({
       />
       <div
         role="tooltip"
-        className="fixed inset-x-4 flex flex-col gap-3 rounded-md border-t border-accent-ice/40 bg-dark-card p-4 shadow-xl transition-all duration-200 ease-out"
+        className="fixed inset-x-4 flex flex-col gap-3 overflow-y-auto rounded-md border-t border-accent-ice/40 bg-dark-card p-4 shadow-xl transition-all duration-200 ease-out"
         style={
           placeBelow
-            ? { top: rect.bottom + SPOTLIGHT_PADDING + TOOLTIP_GAP }
-            : { bottom: viewportHeight - rect.top + SPOTLIGHT_PADDING + TOOLTIP_GAP }
+            ? {
+                top: rect.bottom + SPOTLIGHT_PADDING + TOOLTIP_GAP,
+                // Safety net, not the primary layout mechanism -- caps the
+                // card at whatever room is actually left above BottomNav so
+                // it scrolls internally in the pathological case (very long
+                // hint text) instead of ever visually overlapping the nav.
+                maxHeight: Math.max(spaceBelow, 0),
+              }
+            : {
+                bottom: viewportHeight - rect.top + SPOTLIGHT_PADDING + TOOLTIP_GAP,
+                maxHeight: Math.max(spaceAbove, 0),
+              }
         }
       >
         <div className="flex items-start gap-3">

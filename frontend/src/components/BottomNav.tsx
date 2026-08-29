@@ -13,6 +13,12 @@ const TABS: { to: string; icon: string; label: string; end?: boolean }[] = [
 export function BottomNav() {
   return (
     <nav
+      // Queried by CoachmarkOverlay to reserve exactly this much space at
+      // the bottom of the viewport, rather than guessing a pixel constant --
+      // see that component's own comment for why (2026-08-30: a tooltip
+      // placed "below" a spotlighted element could land right on top of
+      // this nav on a short phone screen).
+      data-app-bottom-nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
