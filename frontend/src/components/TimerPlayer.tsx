@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { CountdownRing } from './ui/CountdownRing'
+import { Stepper } from './ui/Stepper'
 import { ExerciseFeedbackPrompt } from './ExerciseFeedbackPrompt'
 import * as setCompletionsApi from '../api/setCompletions'
 import type { ExerciseRead } from '../types/exercise'
@@ -41,6 +42,15 @@ export function TimerPlayer({
   const [phase, setPhase] = useState<'work' | 'rest'>('work')
   const [remaining, setRemaining] = useState(durationSeconds)
   const [running, setRunning] = useState(false)
+  // Honest-fact override for the round currently paused mid-count (referencing
+  // a competitor's flow the athlete asked to bring over, 2026-08-31): null
+  // means "not paused mid-round" (either still running, or never started).
+  // Set to the elapsed seconds the instant the ring is paused, so the
+  // athlete can confirm early with what they actually did instead of only
+  // ever being able to log the full target duration -- editable via the
+  // Stepper below before confirming, same "suggestion, not a mandate"
+  // pattern SetLogger's reps/weight steppers already use.
+  const [manualSeconds, setManualSeconds] = useState<number | null>(null)
   // Flips once the last round finishes -- gates the "Как ощущения?" prompt
   // below. Deliberately local-only (not derived from `isDone`): `isDone`
   // covers reopening an exercise that was ALREADY completed on a previous
@@ -117,7 +127,11 @@ export function TimerPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, remaining, phase])
 
-  function advanceWork() {
+  // actualSeconds defaults to the full target -- the natural "ring counted
+  // down to zero" path below always means the whole thing was done. A
+  // manual early confirm (see the paused-mid-round controls further down)
+  // passes whatever the athlete actually logged instead.
+  function advanceWork(actualSeconds: number = durationSeconds) {
     const finishedSetNumber = completedRounds + 1
     // Honest record of what was actually done -- previously duration-mode
     // exercises left zero SetCompletion rows at all (found 2026-08-28
@@ -134,11 +148,13 @@ export function TimerPlayer({
           set_number: finishedSetNumber,
           weight_kg: null,
           reps_completed: null,
-          duration_seconds_completed: durationSeconds,
+          duration_seconds_completed: actualSeconds,
         },
         accessToken,
       )
       .catch(() => {})
+
+    setManualSeconds(null)
 
     if (finishedSetNumber >= rounds) {
       setCompletedRounds(rounds)
@@ -206,27 +222,58 @@ export function TimerPlayer({
   return (
     <div className="flex flex-col items-center gap-4 py-2">
       {phase === 'work' ? (
-        <CountdownRing
-          totalSeconds={durationSeconds}
-          remainingSeconds={remaining}
-          label={`из ${durationSeconds} сек`}
-          accent="ice"
-          interactive
-          running={running}
-          onToggle={() =>
-            setRunning((value) => {
-              const next = !value
-              // Starting fresh or resuming from a pause both anchor a new
-              // deadline off whatever `remaining` currently is -- pausing
-              // itself needs no deadline (the ticking effect just isn't
-              // running), so only the false -> true edge sets one.
-              if (next) {
-                deadlineRef.current = Date.now() + remaining * 1000
-              }
-              return next
-            })
-          }
-        />
+        <div className="flex flex-col items-center gap-3">
+          <CountdownRing
+            totalSeconds={durationSeconds}
+            remainingSeconds={remaining}
+            label={`из ${durationSeconds} сек`}
+            accent="ice"
+            interactive
+            running={running}
+            onToggle={() =>
+              setRunning((value) => {
+                const next = !value
+                if (next) {
+                  // Resuming (or starting fresh) anchors a new deadline off
+                  // whatever `remaining` currently is, and drops any
+                  // honest-fact override from a previous pause -- the
+                  // athlete chose to keep going, so the round isn't
+                  // finishing early after all.
+                  deadlineRef.current = Date.now() + remaining * 1000
+                  setManualSeconds(null)
+                } else {
+                  // Paused mid-round -- capture what's actually elapsed so
+                  // far as the starting point for an early honest confirm.
+                  setManualSeconds(Math.round(durationSeconds - remaining))
+                }
+                return next
+              })
+            }
+          />
+          {manualSeconds !== null && (
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-xs text-text-secondary">Сколько сек. реально сделали</span>
+              <div className="flex items-center gap-3">
+                <Stepper
+                  value={manualSeconds}
+                  unit="сек"
+                  step={1}
+                  min={0}
+                  ariaLabel="Секунд выполнено"
+                  onChange={setManualSeconds}
+                />
+                <button
+                  type="button"
+                  onClick={() => advanceWork(manualSeconds)}
+                  aria-label="Подтвердить подход"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-ice text-dark-bg transition-opacity hover:opacity-90"
+                >
+                  <i className="ti ti-check text-lg" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="flex flex-col items-center gap-2">
           <CountdownRing
