@@ -714,8 +714,17 @@ export function NewSchedulePage() {
             trainingSessionId={selectedExercise.trainingSessionId}
             accessToken={accessToken}
             onClose={() => setSelectedExercise(null)}
-            onLastSetCompleted={() =>
-              handleBlockCompleted(selectedExercise.dayIsoDate, selectedExercise.block)
+            // Gated on the block's real completed_at/skipped_at, same as
+            // TrainingSessionPage's own onComplete -- previously this was
+            // always defined regardless of state, which made TimerPlayer's
+            // `isDone={onLastSetCompleted === undefined}` always false here.
+            // Reopening an already-finished duration exercise from the
+            // weekly schedule showed it as freshly startable instead of the
+            // "Готово" state (found 2026-08-29, fixed 2026-08-31).
+            onLastSetCompleted={
+              selectedExercise.block.completed_at === null && selectedExercise.block.skipped_at === null
+                ? () => handleBlockCompleted(selectedExercise.dayIsoDate, selectedExercise.block)
+                : undefined
             }
           />
         )}
