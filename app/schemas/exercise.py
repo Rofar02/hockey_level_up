@@ -54,6 +54,10 @@ class ExerciseRead(BaseModel):
     # never selects a WARMUP exercise with this unset -- see the admin form's
     # own warning copy.
     warmup_stage: WarmupStage | None
+    # Admin-only checklist flag (see Exercise.admin_reviewed) -- no gameplay
+    # meaning, just lets the admin panel filter out exercises already gone
+    # over while working through the catalog.
+    admin_reviewed: bool
 
     # Computed, not stored -- see app.core.rest. Derived from stimulus_type
     # and difficulty_level (None only when stimulus_type is unclassified),
@@ -94,6 +98,7 @@ def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> Exer
         stimulus_type=exercise.stimulus_type,
         exercise_type=exercise.exercise_type,
         warmup_stage=exercise.warmup_stage,
+        admin_reviewed=exercise.admin_reviewed,
     )
 
 
@@ -143,6 +148,11 @@ class ExerciseUpdate(BaseModel):
     stimulus_type: StimulusType | None = None
     exercise_type: ExerciseType | None = None
     warmup_stage: WarmupStage | None = None
+    # Not exposed in the main admin form's save payload -- toggled through
+    # its own dedicated button/request instead (see AdminExercisesPage's
+    # setExerciseReviewed), so a routine content edit never accidentally
+    # resets it.
+    admin_reviewed: bool | None = None
 
 
 class MovementPatternsReplace(BaseModel):

@@ -306,6 +306,17 @@ class Exercise(Base):
     # the catalog isn't classified yet.
     is_unilateral: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
+    # Admin bookkeeping only -- never read by ScheduleService or any other
+    # gameplay logic, purely a checklist flag so an admin working through
+    # the catalog can filter out exercises they've already gone over
+    # (2026-08-31: "флаг уже отредактировано чтобы оно не попадалось").
+    # Toggled explicitly via its own button, not auto-set on save -- an
+    # admin may want to mark an exercise reviewed without changing anything
+    # on it, or edit something small without that counting as a full review.
+    admin_reviewed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+
 
 # Bare m2m tag, unlike SkillTag -- no per-pair metadata is needed, so this is
 # a plain association table (no relationship() on Exercise, consistent with

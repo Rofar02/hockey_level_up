@@ -86,6 +86,23 @@ export function deleteExercise(exerciseId: string, accessToken: string): Promise
   return apiDeleteAuth<void>(`/exercises/${exerciseId}`, accessToken)
 }
 
+// Separate from updateExercise -- the admin form's own save always sends
+// the full ExerciseWrite shape, which deliberately excludes admin_reviewed
+// (see its own comment in types/exercise.ts) so a routine content edit
+// never resets it. This hits the same PATCH endpoint with just the one
+// field, relying on the backend's ExerciseUpdate being a partial schema.
+export function setExerciseReviewed(
+  exerciseId: string,
+  adminReviewed: boolean,
+  accessToken: string,
+): Promise<ExerciseRead> {
+  return apiPatchAuth<ExerciseRead>(
+    `/exercises/${exerciseId}`,
+    { admin_reviewed: adminReviewed },
+    accessToken,
+  )
+}
+
 // Admin-only (require_admin on the backend) -- AdminExercisesPage's edit
 // form.
 export function listExerciseSkillTags(

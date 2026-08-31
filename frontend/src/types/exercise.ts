@@ -288,6 +288,11 @@ export interface ExerciseRead {
   stimulus_type: StimulusType | null
   exercise_type: ExerciseType | null
   warmup_stage: WarmupStage | null
+  // Admin-only checklist flag, no gameplay meaning -- lets the admin panel
+  // filter out exercises already gone over while working through the
+  // catalog. Toggled via its own button (setExerciseReviewed in
+  // api/exercises.ts), not part of the main form's save payload.
+  admin_reviewed: boolean
   // Computed server-side from stimulus_type/difficulty_level (see
   // app/core/rest.py) -- not a stored field, and not part of ExerciseWrite
   // below.

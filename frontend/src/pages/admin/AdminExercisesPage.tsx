@@ -81,6 +81,10 @@ const WARMUP_STAGE_OPTIONS = WARMUP_STAGES.map((value) => ({
   value,
   label: WARMUP_STAGE_LABELS[value],
 }))
+const REVIEWED_FILTER_OPTIONS = [
+  { value: 'unreviewed', label: 'Непроверенные' },
+  { value: 'reviewed', label: 'Проверенные' },
+]
 
 export function AdminExercisesPage() {
   const { accessToken } = useAuth()
@@ -105,6 +109,10 @@ export function AdminExercisesPage() {
   // small (one row per *problem* exercise, not the whole catalog).
   const [catalogHealthIssues, setCatalogHealthIssues] = useState<CatalogHealthIssue[] | null>(null)
   const [healthOnly, setHealthOnly] = useState(false)
+  // Admin-only checklist flag (2026-08-31: "флаг уже отредактировано чтобы
+  // оно не попадалось") -- client-side like stimulusType/exerciseType above,
+  // same reasoning (no server-side filter needed for this catalog size).
+  const [reviewedFilter, setReviewedFilter] = useState<'' | 'reviewed' | 'unreviewed'>('')
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isGuideOpen, setIsGuideOpen] = useState(false)
@@ -212,7 +220,9 @@ export function AdminExercisesPage() {
     (exercise) =>
       (stimulusType === '' || exercise.stimulus_type === stimulusType)
       && (exerciseType === '' || exercise.exercise_type === exerciseType)
-      && (!healthOnly || (issuesByExerciseId.get(exercise.id)?.length ?? 0) > 0),
+      && (!healthOnly || (issuesByExerciseId.get(exercise.id)?.length ?? 0) > 0)
+      && (reviewedFilter === ''
+        || (reviewedFilter === 'reviewed' ? exercise.admin_reviewed : !exercise.admin_reviewed)),
   )
 
   return (
@@ -253,6 +263,13 @@ export function AdminExercisesPage() {
             placeholder="Все"
             value={exerciseType}
             onChange={(event) => setExerciseType(event.target.value as ExerciseType | '')}
+          />
+          <SelectField
+            label="Проверка админом"
+            options={REVIEWED_FILTER_OPTIONS}
+            placeholder="Все"
+            value={reviewedFilter}
+            onChange={(event) => setReviewedFilter(event.target.value as '' | 'reviewed' | 'unreviewed')}
           />
           <label className="flex items-center gap-2 self-end pb-2 text-sm text-text-secondary">
             <input
@@ -296,6 +313,7 @@ export function AdminExercisesPage() {
                   <th className="px-3 py-2 font-medium">Формат</th>
                   <th className="px-3 py-2 font-medium">Сложность</th>
                   <th className="px-3 py-2 font-medium">Здоровье</th>
+                  <th className="px-3 py-2 font-medium">Проверено</th>
                   <th className="px-3 py-2 font-medium" />
                 </tr>
               </thead>
@@ -341,6 +359,15 @@ export function AdminExercisesPage() {
                           </span>
                         )}
                     </td>
+                    <td className="px-3 py-2">
+                      {exercise.admin_reviewed ? (
+                        <span className="text-accent-ice" title="Проверено админом">
+                          <i className="ti ti-check" aria-hidden="true" />
+                        </span>
+                      ) : (
+                        <span className="text-text-secondary">—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex justify-end gap-3">
                         <button
@@ -383,6 +410,11 @@ export function AdminExercisesPage() {
                     )}
                   </span>
                   <span className="font-mono">Сложность: {exercise.difficulty_level}</span>
+                  {exercise.admin_reviewed && (
+                    <span className="text-accent-ice">
+                      <i className="ti ti-check" aria-hidden="true" /> Проверено
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1 text-xs text-text-secondary">
                   {exercise.target_stats.length === 0
@@ -504,6 +536,11 @@ function ExerciseFormModal({
   const [warmupStage, setWarmupStage] = useState<WarmupStage | ''>(
     exercise?.warmup_stage ?? '',
   )
+  // Admin checklist flag -- toggled by its own button below, independently
+  // of the main form submit (see setExerciseReviewed's own comment).
+  const [adminReviewed, setAdminReviewed] = useState(exercise?.admin_reviewed ?? false)
+  const [isTogglingReviewed, setIsTogglingReviewed] = useState(false)
+  const [reviewedError, setReviewedError] = useState<string | null>(null)
 
   // -- tags (2026-08-30 redesign: lifted out of five separate sub-forms with
   // five separate "Сохранить ..." buttons into one shared state saved by
@@ -614,6 +651,28 @@ function ExerciseFormModal({
 
   const [formError, setFormError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+
+  async function handleToggleReviewed() {
+    if (accessToken === null || currentExercise === null) {
+      return
+    }
+    setReviewedError(null)
+    setIsTogglingReviewed(true)
+    try {
+      const updated = await exercisesApi.setExerciseReviewed(
+        currentExercise.id,
+        !adminReviewed,
+        accessToken,
+      )
+      setCurrentExercise(updated)
+      setAdminReviewed(updated.admin_reviewed)
+      onSaved(updated)
+    } catch (err) {
+      setReviewedError(err instanceof ApiError ? err.message : 'Не удалось обновить отметку.')
+    } finally {
+      setIsTogglingReviewed(false)
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -733,6 +792,30 @@ function ExerciseFormModal({
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        {currentExercise !== null && (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-dark-bg/40 px-3 py-2.5">
+            <span className="text-sm text-text-secondary">
+              {adminReviewed ? (
+                <span className="text-accent-ice">
+                  <i className="ti ti-check mr-1" aria-hidden="true" />
+                  Проверено админом
+                </span>
+              ) : (
+                'Ещё не проверено'
+              )}
+            </span>
+            <Button
+              type="button"
+              variant="neutral"
+              onClick={handleToggleReviewed}
+              isLoading={isTogglingReviewed}
+              className="px-3 py-1.5 text-xs"
+            >
+              {adminReviewed ? 'Снять отметку' : 'Отметить проверенным'}
+            </Button>
+          </div>
+        )}
+        <FormError message={reviewedError} />
         <AdminSection icon="ti-info-circle" title="Основное">
           <div className="flex flex-col gap-4">
             <TextField
