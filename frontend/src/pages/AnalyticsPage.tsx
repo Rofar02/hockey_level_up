@@ -272,7 +272,7 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
               <div>
                 <span className="text-[10px] uppercase tracking-wide text-[#8A94A6]">{selectedLabel}</span>
                 <div className="font-display text-[26px] font-extrabold leading-tight text-[#F5F7FA]">
-                  {points[points.length - 1].value}
+                  {points[points.length - 1].value.toFixed(1)}
                 </div>
               </div>
               {formatDelta(points) !== null && (
@@ -305,6 +305,10 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
                     labelFormatter={(label) =>
                       typeof label === 'string' ? formatPointDate(label) : label
                     }
+                    // Same one-decimal rounding as the headline number above --
+                    // without this, recharts shows the raw float straight from
+                    // the API on hover (2026-08-31: "бешеные цифры").
+                    formatter={(value) => (typeof value === 'number' ? value.toFixed(1) : value)}
                     contentStyle={{
                       background: '#0D1420',
                       border: '1px solid rgba(255,255,255,0.1)',

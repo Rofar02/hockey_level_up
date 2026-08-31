@@ -115,7 +115,7 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' })
-  }, [messages])
+  }, [messages, isSending])
 
   if (unavailable) {
     return <ComingSoonCard />
@@ -175,6 +175,7 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
           </div>
         )}
         {messages?.map((message) => <ChatBubble key={message.id} message={message} />)}
+        {isSending && <TypingIndicator />}
         <div ref={bottomRef} />
       </div>
 
@@ -200,7 +201,12 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
           rows={2}
           maxLength={4000}
           disabled={isSending}
-          className="flex-1 resize-none rounded-md border border-white/10 bg-dark-bg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none"
+          // text-base (16px), not text-sm (14px) -- a smaller font size on
+          // a focused input makes iOS Safari (and some Android browsers)
+          // auto-zoom the whole page in, since they assume anything under
+          // 16px is too small to read/tap comfortably. Found live-testing,
+          // 2026-08-31: "когда пишу тренеру приближается".
+          className="flex-1 resize-none rounded-md border border-white/10 bg-dark-bg px-3 py-2 text-base text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none"
         />
         <Button type="submit" isLoading={isSending} disabled={input.trim() === ''}>
           Отправить
@@ -241,6 +247,32 @@ function ChatBubble({ message }: { message: CoachChatMessageRead }) {
           {message.content}
         </div>
         <span className="px-1 text-[10px] text-[#8A94A6]">{time}</span>
+      </div>
+    </div>
+  )
+}
+
+// Shown in the thread itself (not just the send button's own "Загрузка..."
+// text) while waiting on the reply -- found live-testing, 2026-08-31: a
+// player looking at the message log during the several-second wait for a
+// real LLM reply saw nothing at all change there, which read as the app
+// having silently hung rather than actually working. Same coach-side
+// avatar/bubble shape as ChatBubble's own assistant bubble so it reads as
+// "the coach is about to say something" rather than a generic spinner.
+function TypingIndicator() {
+  return (
+    <div className="flex items-end gap-2 justify-start">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-ice/30 bg-accent-ice/10">
+        <ShieldIcon size={18} />
+      </span>
+      <div className="flex items-center gap-1 rounded-md border-t border-accent-ice/25 bg-accent-ice/[0.06] px-3 py-2.5">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-ice/70"
+            style={{ animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
       </div>
     </div>
   )
