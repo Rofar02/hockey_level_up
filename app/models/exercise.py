@@ -86,6 +86,15 @@ class EquipmentItem(enum.StrEnum):
     # VARCHAR-backed enum (see app/db/enum_column.py), not a native
     # Postgres enum type, and nothing CHECK-constrains it to a fixed list.
     WEIGHTED_VEST = "weighted_vest"
+    # 2026-08-31: catch-all for fixed gym equipment with no item of its own
+    # yet (leg press, lat pulldown, seated row, Smith machine, rowing
+    # machine, assault bike, GHD...) -- found live-testing the new master
+    # catalog import: those exercises had nothing to tag at all (or were
+    # wrongly tagged dumbbells/barbell, which they don't actually need),
+    # so a bodyweight-only home user was seeing them anyway. Gym-covered by
+    # default (not in PERSONAL_GEAR_ITEMS below), same as every other item
+    # here except HOCKEY_STICK -- a commercial gym has all of these.
+    GYM_MACHINE = "gym_machine"
     # 2026-08-22: first "personal gear" item -- see PERSONAL_GEAR_ITEMS
     # below. A commercial gym doesn't hand out hockey sticks, so this must
     # never be covered by User.has_gym_access, only by explicitly owning

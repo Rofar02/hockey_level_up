@@ -175,9 +175,9 @@ EXERCISES += [
     E("Боковая планка + ягодица", "Боковая планка с дополнительным подъёмом-опусканием верхней ноги для включения средней ягодичной.", phase="warmup", stage="activation", stats=("agility",), patterns=["core"], muscles={"core": 0.5, "glutes": 0.5}, uni=True, vtype="sr", vol=(2, 10, 10)),
     E("Боковая планка + привод", "Боковая планка с подтягиванием нижней ноги к верхней (зажатой на возвышении) — акцент на приводящие.", phase="warmup", stage="activation", stats=("agility",), patterns=["core"], muscles={"core": 0.5, "glutes": 0.3, "hamstrings": 0.2}, equip=["step_platform"], uni=True, diff=3, vtype="sr", vol=(2, 10, 10)),
     E("Прямая планка", "Упор на предплечьях, тело прямой линией, таз не поднят и не провисает.", phase="warmup", stage="activation", stats=("agility",), patterns=["core"], muscles=CORE_M, vtype="dur", vol=30),
-    E("Ходьба лопатками по стене", "Спина у стены, руки скользят вверх-вниз по стене с сохранением контакта поясницы и лопаток.", phase="warmup", stage="activation", stats=("agility",), patterns=["shoulder_mobility"], muscles=SHOULDER_M, vtype="sr", vol=(2, 10, 10)),
-    E("Слайд лопаток у стены", "Руки в позиции W у стены, скольжение вверх в Y с сохранением контакта локтей и запястий со стеной.", phase="warmup", stage="activation", stats=("agility",), patterns=["shoulder_mobility"], muscles=SHOULDER_M, vtype="sr", vol=(2, 10, 10)),
-    E("Круг лопатки в упоре лежа", "В упоре лёжа на прямых руках, круговые протракции-ретракции лопаток без сгибания локтей.", phase="warmup", stage="activation", stats=("agility",), patterns=["shoulder_mobility"], muscles=SHOULDER_M, vtype="sr", vol=(2, 10, 10)),
+    E("Ходьба лопатками по стене", "Спина у стены, руки скользят вверх-вниз по стене с сохранением контакта поясницы и лопаток.", phase="warmup", stage="activation", stats=("agility",), patterns=["shoulder_mobility"], muscles=SHOULDER_M, vtype="sr", vol=(2, 10, 10), game=True),
+    E("Слайд лопаток у стены", "Руки в позиции W у стены, скольжение вверх в Y с сохранением контакта локтей и запястий со стеной.", phase="warmup", stage="activation", stats=("agility",), patterns=["shoulder_mobility"], muscles=SHOULDER_M, vtype="sr", vol=(2, 10, 10), game=True),
+    E("Круг лопатки в упоре лежа", "В упоре лёжа на прямых руках, круговые протракции-ретракции лопаток без сгибания локтей.", phase="warmup", stage="activation", stats=("agility",), patterns=["shoulder_mobility"], muscles=SHOULDER_M, vtype="sr", vol=(2, 10, 10), game=True),
     E("Антиротационный жим стоя", "Резина сбоку на уровне груди, жим вперёд прямыми руками с сопротивлением развороту корпуса.", phase="warmup", stage="activation", stats=("agility",), patterns=["core"], muscles=CORE_ROT_M, equip=["resistance_band"], vtype="sr", vol=(2, 10, 10)),
     E("Антиротационный жим сидя на коленях", "Та же схема жима сидя на одном/двух коленях — снижена компенсация ногами, выше требование к кору.", phase="warmup", stage="activation", stats=("agility",), patterns=["core"], muscles=CORE_ROT_M, equip=["resistance_band"], vtype="sr", vol=(2, 10, 10)),
     E("Антиротационный жим half-kneeling", "Половинное коленопреклонённое положение, жим резины вперёд с сопротивлением ротации таза.", phase="warmup", stage="activation", stats=("agility",), patterns=["core"], muscles=CORE_ROT_M, equip=["resistance_band"], uni=True, vtype="sr", vol=(2, 10, 10)),
@@ -211,8 +211,34 @@ _dyn = [
     ("Линейный марш", "Марш с высоким подъёмом колена по прямой линии, контролируемый темп."),
     ("Марш с прямой ногой", "Марш с махом прямой ногой вперёд к разноимённой руке."),
 ]
+# Simple, general pulse-raising drills (RAISE) vs. the more technical/
+# coordination-heavy majority (DYNAMIC) -- found live-testing the
+# assembled warmup complex, 2026-08-31: RAISE had zero exercises across
+# the whole catalog (every dynamic-warmup item defaulted to "dynamic"),
+# so the RAMP-protocol complex could never fill that stage for anyone.
+_RAISE_STAGE_NAMES = {
+    "Высокие бёдра", "Захлёст", "Приставной шаг", "Линейный марш",
+    "Бег прямые ноги", "Марш с прямой ногой", "Спиной вперёд",
+    "Марш на месте с высоким коленом и паузой",
+}
+# Light enough (bodyweight, low-fatigue) for GAME-day pre-game activation
+# (Exercise.suitable_for_game_day) -- found live-testing the game-day
+# builder, 2026-08-31: zero exercises across the whole catalog had this
+# flag, so GAME days assembled completely empty.
+_GAME_DAY_NAMES = {"Высокие бёдра", "Захлёст", "Линейный марш"}
 EXERCISES += [
-    E(name, desc, phase="warmup", stage="dynamic", stats=("agility",), patterns=["locomotion"], muscles=LOCOMOTION_M, vtype="dur", vol=30)
+    E(
+        name,
+        desc,
+        phase="warmup",
+        stage="raise" if name in _RAISE_STAGE_NAMES else "dynamic",
+        stats=("agility",),
+        patterns=["locomotion"],
+        muscles=LOCOMOTION_M,
+        vtype="dur",
+        vol=30,
+        game=name in _GAME_DAY_NAMES,
+    )
     for name, desc in _dyn
 ]
 
@@ -237,7 +263,7 @@ EXERCISES += [
     E("Латеральный выпад с гантелью на слайде", "Гантель у груди, скользящий боковой выпад на слайд-диске с контролируемым возвратом.", stats=("strength",), patterns=["squat"], muscles=LUNGE_M, equip=["dumbbells"], tw=True, bwr=0.2, uni=True, diff=3, vtype="sr", vol=(3, 8, 10)),
     E("Внутренний выпад + слайд", "Скользящий шаг внутрь скрестно с приведением бедра, акцент на приводящие мышцы.", stats=("strength",), patterns=["squat"], muscles={"quads": 0.3, "glutes": 0.3, "hamstrings": 0.2, "core": 0.2}, uni=True, diff=3, vtype="sr", vol=(3, 8, 10)),
     E("Сгибание ног на мяче", "Лёжа на спине, пятки на фитболе, подъём таза и подкат мяча сгибанием голени.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, diff=2, vtype="sr", vol=(3, 10, 12)),
-    E("Сгибание ног на тренажёре", "Изолированное сгибание голени лёжа на животе в тренажёре, акцент на заднюю поверхность бедра.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, equip=["dumbbells"], diff=2, vtype="sr", vol=(3, 10, 12)),
+    E("Сгибание ног на тренажёре", "Изолированное сгибание голени лёжа на животе в тренажёре, акцент на заднюю поверхность бедра.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, equip=["gym_machine"], diff=2, vtype="sr", vol=(3, 10, 12)),
     E("Приведение бедра с резиной", "Резина фиксирована сбоку на уровне лодыжки, приведение прямой ноги к центру против сопротивления.", stats=("strength",), patterns=["hip_mobility"], muscles=ADDUCTOR_M, equip=["resistance_band"], uni=True, diff=2, vtype="sr", vol=(3, 12, 15)),
     E("Разгибание голеностопа с резиной сидя", "Сидя, резина на стопе, разгибание (тыльное сгибание) стопы против сопротивления резины.", stats=("strength",), patterns=["ankle_mobility"], muscles=ANKLE_M, equip=["resistance_band"], diff=1, vtype="sr", vol=(3, 12, 15)),
 ]
@@ -332,7 +358,7 @@ EXERCISES += [
     E("Двойные прыжки на скакалке", "Скакалка проходит под ногами дважды за один прыжок, требует высокой координации.", stats=("agility", "endurance"), patterns=["coordination"], muscles=CALF_M, equip=["jump_rope"], diff=3, vtype="dur", vol=30),
     E("Split jump", "Выпад, взрывная смена ног в прыжке, мягкое приземление в выпад на другую ногу.", stats=("agility",), patterns=["squat"], muscles=LUNGE_M, stimulus="power", diff=3, vtype="sr", vol=(3, 8, 10)),
     E("Отжимания на кольцах", "Упор на кольцах, стабилизация в стороны, сгибание рук до ~90°.", stats=("strength",), patterns=["push"], muscles=PUSH_M, diff=4, vtype="sr", vol=(3, 6, 10)),
-    E("Тяга блока к груди широким хватом", "Хват шире плеч, тяга к верху груди, лопатки сводятся в конце движения.", stats=("strength",), patterns=["pull"], muscles=PULL_M, equip=["dumbbells"], diff=2, vtype="sr", vol=(3, 8, 12)),
+    E("Тяга блока к груди широким хватом", "Хват шире плеч, тяга к верху груди, лопатки сводятся в конце движения.", stats=("strength",), patterns=["pull"], muscles=PULL_M, equip=["gym_machine"], diff=2, vtype="sr", vol=(3, 8, 12)),
     E("Жим гантелей сидя на наклонной скамье под углом", "Угол скамьи 30-45°, жим вверх без полного запирания локтя.", stats=("strength",), patterns=["push"], muscles=PUSH_M, equip=["dumbbells", "step_platform"], tw=True, bwr=0.4, diff=2, vtype="sr", vol=(3, 8, 12)),
     E("Тяга гантели одной рукой в упоре на скамью", "Упор коленом и рукой на скамью, тяга гантели к бедру, локоть идёт вдоль корпуса.", stats=("strength",), patterns=["pull"], muscles=PULL_M, equip=["dumbbells", "step_platform"], tw=True, bwr=0.3, uni=True, diff=2, vtype="sr", vol=(3, 8, 12)),
     E("Face pull", "Тяга к лицу с разведением локтей в стороны, акцент на заднюю дельту и ротаторы.", stats=("strength",), patterns=["pull"], muscles=SHOULDER_M, equip=["resistance_band"], diff=1, vtype="sr", vol=(3, 12, 15)),
@@ -342,8 +368,8 @@ EXERCISES += [
     E("Terminal knee extension с резиной", "Небольшой сгиб колена, разгибание в последних градусах амплитуды под контролем — реабилитация колена.", phase="cooldown", stats=("strength",), patterns=["squat"], muscles={"quads": 0.8, "core": 0.2}, equip=["resistance_band"], uni=True, diff=1, vtype="sr", vol=(3, 12, 15)),
     E("Степ-даун с контролем", "Медленный контролируемый спуск с возвышения на одной ноге, колено не заваливается внутрь — реабилитация колена.", phase="cooldown", stats=("strength",), patterns=["squat"], muscles=LUNGE_M, equip=["step_platform"], uni=True, diff=2, vtype="sr", vol=(3, 8, 10)),
     E("Настенный присед (wall sit)", "Спина к стене, бёдра параллельно полу, удержание позиции.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, diff=1, vtype="dur", vol=30),
-    E("Гребной тренажёр интервалы", "Интервальная работа с акцентом на технику (ноги-спина-руки в тяге).", stats=("endurance",), patterns=["locomotion"], muscles=LOCOMOTION_M, equip=["dumbbells"], stimulus="endurance", diff=2, vtype="dur", vol=120),
-    E("Ассальт-байк интервалы", "Короткие максимальные интервалы с полным восстановлением между подходами.", stats=("endurance",), patterns=["locomotion"], muscles=LOCOMOTION_M, stimulus="endurance", diff=2, vtype="dur", vol=60),
+    E("Гребной тренажёр интервалы", "Интервальная работа с акцентом на технику (ноги-спина-руки в тяге).", stats=("endurance",), patterns=["locomotion"], muscles=LOCOMOTION_M, equip=["gym_machine"], stimulus="endurance", diff=2, vtype="dur", vol=120),
+    E("Ассальт-байк интервалы", "Короткие максимальные интервалы с полным восстановлением между подходами.", stats=("endurance",), patterns=["locomotion"], muscles=LOCOMOTION_M, equip=["gym_machine"], stimulus="endurance", diff=2, vtype="dur", vol=60),
     E("Скакалка на выносливость интервалы", "Интервальная работа со скакалкой, короткие раунды с отдыхом.", stats=("endurance", "agility"), patterns=["coordination"], muscles=CALF_M, equip=["jump_rope"], stimulus="endurance", diff=2, vtype="dur", vol=60),
 ]
 
@@ -362,7 +388,7 @@ EXERCISES += [
     E("Растяжка сгибателей пальцев", "Разгибание пальцев и запястья с лёгким давлением второй рукой — для хвата после подтягиваний.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["wrist_mobility"], muscles=WRIST_M, diff=1, vtype="dur", vol=20),
     E("Мобилизация голеностопа с лентой", "Лента фиксирует голеностоп сзади, приседания в выпаде с усиленной тракцией сустава для увеличения амплитуды тыльного сгибания.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["ankle_mobility"], muscles=ANKLE_M, equip=["resistance_band"], diff=2, vtype="sr", vol=(2, 8, 8)),
     E("Растяжка передней поверхности бедра стоя", "Стоя на одной ноге, вторая нога сгибается назад, стопа к ягодице рукой.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles=HIP_FLEXOR_M, uni=True, diff=1, vtype="dur", vol=30),
-    E("Ротация шейного отдела активная", "Плавные повороты головы в стороны с полным контролем амплитуды, без рывков.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["shoulder_mobility"], muscles=NECK_M, diff=1, vtype="sr", vol=(2, 8, 8)),
+    E("Ротация шейного отдела активная", "Плавные повороты головы в стороны с полным контролем амплитуды, без рывков.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["shoulder_mobility"], muscles=NECK_M, diff=1, vtype="sr", vol=(2, 8, 8), game=True),
     E("Растяжка задней поверхности бедра на возвышении", "Прямая нога на возвышении, наклон корпуса вперёд к стопе с прямой спиной.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles={"hamstrings": 0.7, "back": 0.3}, equip=["step_platform"], uni=True, diff=1, vtype="dur", vol=30),
     E("Мобилизация грудного отдела с роликом под лопатками", "Валик под лопатками, руки за головой, плавные перекаты для мобилизации сегментов грудного отдела.", phase="warmup", stage="soft_tissue", stats=("agility",), patterns=["shoulder_mobility"], muscles=THORACIC_M, equip=["foam_roller"], diff=1, vtype="dur", vol=30),
     E("Растяжка приводящих в широкой стойке стоя", "Широкая стойка, перенос веса на одну сторону со сгибанием этого колена, вторая нога остаётся прямой.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles=ADDUCTOR_M, uni=True, diff=1, vtype="dur", vol=30),
@@ -401,7 +427,17 @@ _dyn_e = [
     ("Марш на месте с высоким коленом и паузой", "Подъём колена до уровня бедра с короткой изометрической паузой перед сменой ноги."),
 ]
 EXERCISES += [
-    E(name, desc, phase="warmup", stage="dynamic", stats=("agility",), patterns=["locomotion"], muscles=LOCOMOTION_M, vtype="dur", vol=30)
+    E(
+        name,
+        desc,
+        phase="warmup",
+        stage="raise" if name in _RAISE_STAGE_NAMES else "dynamic",
+        stats=("agility",),
+        patterns=["locomotion"],
+        muscles=LOCOMOTION_M,
+        vtype="dur",
+        vol=30,
+    )
     for name, desc in _dyn_e
 ]
 
@@ -409,9 +445,9 @@ EXERCISES += [
 # PART F -- lower body strength, round 2
 # =========================================================================
 EXERCISES += [
-    E("Присед в тренажёре Смита", "Фиксированная траектория штанги, позволяет безопасно работать с большим весом при контроле глубины.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, equip=["barbell"], tw=True, bwr=0.6, diff=2, vtype="sr", vol=(3, 8, 12)),
-    E("Жим ногами в тренажёре", "Ноги на платформе на ширине плеч, сгибание коленей до ~90°, разгибание без полного запирания сустава.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, diff=2, vtype="sr", vol=(3, 10, 12)),
-    E("Гакк-присед в тренажёре", "Спина фиксирована на подушке тренажёра, акцент на квадрицепс при сниженной нагрузке на поясницу.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, diff=2, vtype="sr", vol=(3, 8, 12)),
+    E("Присед в тренажёре Смита", "Фиксированная траектория штанги, позволяет безопасно работать с большим весом при контроле глубины.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, equip=["gym_machine"], tw=True, bwr=0.6, diff=2, vtype="sr", vol=(3, 8, 12)),
+    E("Жим ногами в тренажёре", "Ноги на платформе на ширине плеч, сгибание коленей до ~90°, разгибание без полного запирания сустава.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, equip=["gym_machine"], diff=2, vtype="sr", vol=(3, 10, 12)),
+    E("Гакк-присед в тренажёре", "Спина фиксирована на подушке тренажёра, акцент на квадрицепс при сниженной нагрузке на поясницу.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, equip=["gym_machine"], diff=2, vtype="sr", vol=(3, 8, 12)),
     E("Становая тяга на прямых ногах", "Минимальный сгиб колена, акцент на растяжении задней поверхности бедра через движение от таза.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, equip=["barbell"], tw=True, bwr=0.5, diff=3, vtype="sr", vol=(3, 8, 10)),
     E("Тяга сумо с гирей", "Широкая стойка, гиря между ног, подъём через разгибание бёдер и колен одновременно.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, equip=["kettlebell"], tw=True, bwr=0.5, diff=2, vtype="sr", vol=(3, 10, 12)),
     E("Присед с паузой в нижней точке", "Обычный присед с остановкой на 2-3 секунды в нижней точке перед подъёмом — убирает реактивный отскок.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, equip=["barbell"], tw=True, bwr=0.5, diff=3, vtype="sr", vol=(3, 6, 8)),
@@ -434,9 +470,9 @@ EXERCISES += [
     E("Жим узким хватом", "Хват на ширине плеч или чуть уже, локти идут вдоль корпуса, акцент на трицепс.", stats=("strength",), patterns=["push"], muscles=PUSH_M, equip=["barbell"], tw=True, bwr=0.5, diff=2, vtype="sr", vol=(3, 8, 12)),
     E("Жим штанги стоя", "Штанга от уровня ключиц, жим вертикально вверх без прогиба в пояснице, корпус напряжён.", stats=("strength",), patterns=["push"], muscles=PUSH_M, equip=["barbell"], tw=True, bwr=0.4, diff=3, vtype="sr", vol=(3, 6, 10)),
     E("Жим Арнольда", "Начало с гантелями у плеч ладонями к себе, жим вверх с одновременным разворотом ладоней наружу.", stats=("strength",), patterns=["push"], muscles=PUSH_M, equip=["dumbbells"], tw=True, bwr=0.3, diff=2, vtype="sr", vol=(3, 8, 12)),
-    E("Тяга верхнего блока широким хватом", "Хват шире плеч, тяга к верху груди, лопатки сводятся в конце.", stats=("strength",), patterns=["pull"], muscles=PULL_M, equip=["dumbbells"], diff=2, vtype="sr", vol=(3, 8, 12)),
-    E("Тяга верхнего блока обратным хватом", "Узкий обратный хват, тяга к груди с акцентом на нижнюю часть широчайших.", stats=("strength",), patterns=["pull"], muscles=PULL_M, diff=2, vtype="sr", vol=(3, 8, 12)),
-    E("Тяга нижнего блока сидя", "Сидя, тяга рукояти к животу с сохранением нейтральной спины, лопатки сводятся в конце.", stats=("strength",), patterns=["pull"], muscles=PULL_M, diff=2, vtype="sr", vol=(3, 8, 12)),
+    E("Тяга верхнего блока широким хватом", "Хват шире плеч, тяга к верху груди, лопатки сводятся в конце.", stats=("strength",), patterns=["pull"], muscles=PULL_M, equip=["gym_machine"], diff=2, vtype="sr", vol=(3, 8, 12)),
+    E("Тяга верхнего блока обратным хватом", "Узкий обратный хват, тяга к груди с акцентом на нижнюю часть широчайших.", stats=("strength",), patterns=["pull"], muscles=PULL_M, equip=["gym_machine"], diff=2, vtype="sr", vol=(3, 8, 12)),
+    E("Тяга нижнего блока сидя", "Сидя, тяга рукояти к животу с сохранением нейтральной спины, лопатки сводятся в конце.", stats=("strength",), patterns=["pull"], muscles=PULL_M, equip=["gym_machine"], diff=2, vtype="sr", vol=(3, 8, 12)),
     E("Разведение гантелей лёжа", "Дуговое разведение гантелей на скамье с лёгким сгибом локтей, растяжка и сведение груди.", stats=("strength",), patterns=["push"], muscles=PUSH_M, equip=["dumbbells"], tw=True, bwr=0.2, diff=2, vtype="sr", vol=(3, 10, 12)),
     E("Отжимания на брусьях (грудь)", "Корпус наклонён вперёд, локти слегка в стороны, глубокое опускание с акцентом на нижнюю часть груди.", stats=("strength",), patterns=["push"], muscles=PUSH_M, diff=3, vtype="sr", vol=(3, 6, 10)),
     E("Отжимания на брусьях (трицепс)", "Корпус вертикальный, локти вдоль корпуса, короткая амплитуда с акцентом на трицепс.", stats=("strength",), patterns=["push"], muscles=PUSH_M, diff=3, vtype="sr", vol=(3, 6, 10)),
@@ -527,7 +563,7 @@ EXERCISES += [
     E("Бег на выносливость", "Непрерывный бег в разговорном темпе. Прогрессия по дистанции: 6 км → 8 → 10 → 12 → 15 км по мере роста выносливости.", stats=("endurance",), patterns=["locomotion"], muscles=LOCOMOTION_M, stimulus="endurance", diff=2, vtype="dur", vol=1800),
     E("Темповый бег", "Бег на ~70% усилия, на грани разговорного темпа. Прогрессия по времени: 15 → 20 → 25 → 30 → 35 мин.", stats=("endurance",), patterns=["locomotion"], muscles=LOCOMOTION_M, stimulus="endurance", diff=3, vtype="dur", vol=900),
     E("Велосипед интервалы", "Интервалы работа/отдых до восстановления пульса. Прогрессия: 6×1 мин → 7×1:30 → 8×2 → 8×2:30 → 10×3 мин.", stats=("endurance",), patterns=["locomotion"], muscles=LOCOMOTION_M, stimulus="endurance", diff=2, vtype="dur", vol=600),
-    E("Гребной тренажёр на дистанцию", "Гребля на фиксированную дистанцию с акцентом на технику. Прогрессия: 1000 → 1500 → 2000 → 3000 → 5000 м.", stats=("endurance",), patterns=["pull"], muscles={"back": 0.4, "quads": 0.3, "core": 0.3}, stimulus="endurance", diff=2, vtype="dur", vol=300),
+    E("Гребной тренажёр на дистанцию", "Гребля на фиксированную дистанцию с акцентом на технику. Прогрессия: 1000 → 1500 → 2000 → 3000 → 5000 м.", stats=("endurance",), patterns=["pull"], muscles={"back": 0.4, "quads": 0.3, "core": 0.3}, equip=["gym_machine"], stimulus="endurance", diff=2, vtype="dur", vol=300),
     E("Плавание на выносливость", "Непрерывное плавание любым стилем. Прогрессия по дистанции: 400 → 600 → 800 → 1000 → 1500 м.", stats=("endurance",), patterns=["pull"], muscles=LOCOMOTION_M, stimulus="endurance", diff=2, vtype="dur", vol=600),
     E("Скоростные подъёмы по лестнице", "Непрерывный подъём по лестнице в быстром темпе. Прогрессия: 5 → 8 → 12 → 16 → 20 этажей.", stats=("endurance",), patterns=["locomotion"], muscles=LOCOMOTION_M, stimulus="endurance", diff=3, vtype="dur", vol=300),
     E("Шаттл-раны на выносливость", "Отрезки по 20 м с нарастающим темпом (в духе beep-теста). Прогрессия: 10 → 15 → 20 → 25 → 30 отрезков.", stats=("endurance", "agility"), patterns=["locomotion"], muscles=LOCOMOTION_M, stimulus="endurance", diff=3, vtype="dur", vol=600),
@@ -545,13 +581,13 @@ EXERCISES += [
     E("Румынская тяга на 1 ноге со штангой", "Как гантельная версия, но со штангой — выше требования к балансу и хвату.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, equip=["barbell"], tw=True, bwr=0.4, uni=True, diff=4, vtype="sr", vol=(3, 6, 8)),
     E("Казачий присед", "Глубокий боковой присед с полным переносом веса на одну ногу, вторая — прямая с опорой на пятку.", stats=("strength", "agility"), patterns=["squat"], muscles=LUNGE_M, equip=["kettlebell"], tw=True, bwr=0.2, uni=True, diff=3, vtype="sr", vol=(3, 6, 8)),
     E("Нордическое сгибание голени", "Колени зафиксированы, медленное контролируемое опускание корпуса вперёд за счёт эксцентрической работы задней поверхности бедра.", stats=("strength",), patterns=["hip_hinge"], muscles={"hamstrings": 0.8, "glutes": 0.2}, diff=4, vtype="sr", vol=(3, 4, 6)),
-    E("Гиперэкстензия на тренажёре", "Бёдра зафиксированы на подушке, разгибание корпуса из наклона вверх за счёт ягодиц и задней поверхности бедра.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, diff=2, vtype="sr", vol=(3, 10, 12)),
+    E("Гиперэкстензия на тренажёре", "Бёдра зафиксированы на подушке, разгибание корпуса из наклона вверх за счёт ягодиц и задней поверхности бедра.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, equip=["gym_machine"], diff=2, vtype="sr", vol=(3, 10, 12)),
     E("Обратная гиперэкстензия", "Корпус зафиксирован, разгибание прямых ног назад-вверх за счёт ягодичных мышц.", stats=("strength",), patterns=["hip_hinge"], muscles=GLUTE_M, diff=2, vtype="sr", vol=(3, 10, 12)),
     E("Протяжка на прямых ногах", "Трос между ног, наклон вперёд с отведением таза назад, разгибание через ягодицы, тяга троса вперёд-вверх.", stats=("strength",), patterns=["hip_hinge"], muscles=HINGE_M, diff=2, vtype="sr", vol=(3, 10, 12)),
     E("Присед с ходьбой через шаг", "Выпадный шаг вперёд с гантелями, поочерёдно через шаг на разные ноги, без остановки.", stats=("strength",), patterns=["squat"], muscles=LUNGE_M, equip=["dumbbells"], tw=True, bwr=0.3, diff=2, vtype="sr", vol=(3, 10, 10)),
-    E("Жим ногами одной ногой в тренажёре", "Платформа прорабатывается одной ногой за подход — устраняет компенсацию сильной ногой.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, uni=True, diff=3, vtype="sr", vol=(3, 8, 10)),
-    E("Приведение бедра в тренажёре", "Сидя, сведение бёдер против сопротивления тренажёра — здоровье паха напрямую значимо для хоккея.", stats=("strength",), patterns=["hip_mobility"], muscles=ADDUCTOR_M, diff=1, vtype="sr", vol=(3, 12, 15)),
-    E("Отведение бедра в тренажёре", "Сидя, разведение бёдер против сопротивления тренажёра.", stats=("strength",), patterns=["hip_mobility"], muscles=GLUTE_M, diff=1, vtype="sr", vol=(3, 12, 15)),
+    E("Жим ногами одной ногой в тренажёре", "Платформа прорабатывается одной ногой за подход — устраняет компенсацию сильной ногой.", stats=("strength",), patterns=["squat"], muscles=SQUAT_M, equip=["gym_machine"], uni=True, diff=3, vtype="sr", vol=(3, 8, 10)),
+    E("Приведение бедра в тренажёре", "Сидя, сведение бёдер против сопротивления тренажёра — здоровье паха напрямую значимо для хоккея.", stats=("strength",), patterns=["hip_mobility"], muscles=ADDUCTOR_M, equip=["gym_machine"], diff=1, vtype="sr", vol=(3, 12, 15)),
+    E("Отведение бедра в тренажёре", "Сидя, разведение бёдер против сопротивления тренажёра.", stats=("strength",), patterns=["hip_mobility"], muscles=GLUTE_M, equip=["gym_machine"], diff=1, vtype="sr", vol=(3, 12, 15)),
     E("Подъём на носок одной ногой стоя", "Подъём на переднюю часть стопы одной ногой с гантелью — напрямую связано с отталкиванием при катании.", stats=("strength", "on_ice_skating"), patterns=["ankle_mobility"], muscles=CALF_M, equip=["dumbbells"], tw=True, bwr=0.2, uni=True, diff=2, vtype="sr", vol=(3, 12, 15)),
     E("Подъём голени с резиной", "Резина на передней части стопы, подъём стопы на себя против сопротивления — профилактика переднего отдела голени.", stats=("strength", "on_ice_skating"), patterns=["ankle_mobility"], muscles=ANKLE_M, equip=["resistance_band"], diff=1, vtype="sr", vol=(3, 15, 20)),
 ]
@@ -591,12 +627,12 @@ EXERCISES += [
 EXERCISES += [
     E("Растяжка кушетка", "Заднее колено согнуто, голень вертикально у стены, глубокая растяжка сгибателя бедра и квадрицепса одновременно.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles=HIP_FLEXOR_M, uni=True, diff=2, vtype="dur", vol=30),
     E("Скорпион", "Лёжа на животе, нога заводится по диагонали к противоположной руке с ротацией таза.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles=GLUTE_M, uni=True, diff=1, vtype="sr", vol=(2, 6, 6)),
-    E("Кошка-корова", "На четвереньках, чередование прогиба и округления спины синхронно с дыханием.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["shoulder_mobility"], muscles=THORACIC_M, diff=1, vtype="sr", vol=(2, 10, 10)),
+    E("Кошка-корова", "На четвереньках, чередование прогиба и округления спины синхронно с дыханием.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["shoulder_mobility"], muscles=THORACIC_M, diff=1, vtype="sr", vol=(2, 10, 10), game=True),
     E("Величайшая растяжка мира", "Глубокий выпад вперёд с опорой руки на пол, ротация корпуса с поднятием второй руки вверх, комбинированная мобилизация бедра и грудного отдела.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles=HIP_FLEXOR_M, uni=True, diff=2, vtype="sr", vol=(2, 6, 6)),
     E("Растяжка задней поверхности бедра с ремнём", "Лёжа на спине, ремень на стопе, подъём прямой ноги с мягким притягиванием к себе.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles={"hamstrings": 0.8, "core": 0.2}, uni=True, diff=1, vtype="dur", vol=30),
     E("Растяжка грушевидной мышцы", "Лёжа на спине, лодыжка одной ноги на колене другой, притягивание бедра к груди.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles=GLUTE_M, uni=True, diff=1, vtype="dur", vol=30),
-    E("Контролируемые вращения ТБС", "Стоя у опоры, максимально полная контролируемая круговая амплитуда бедром во всех направлениях.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles=GLUTE_M, uni=True, diff=2, vtype="sr", vol=(2, 5, 5)),
-    E("Контролируемые вращения плеча", "Медленное максимально полное круговое движение прямой рукой с сохранением стабильного корпуса.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["shoulder_mobility"], muscles=SHOULDER_M, uni=True, diff=2, vtype="sr", vol=(2, 5, 5)),
+    E("Контролируемые вращения ТБС", "Стоя у опоры, максимально полная контролируемая круговая амплитуда бедром во всех направлениях.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["hip_mobility"], muscles=GLUTE_M, uni=True, diff=2, vtype="sr", vol=(2, 5, 5), game=True),
+    E("Контролируемые вращения плеча", "Медленное максимально полное круговое движение прямой рукой с сохранением стабильного корпуса.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["shoulder_mobility"], muscles=SHOULDER_M, uni=True, diff=2, vtype="sr", vol=(2, 5, 5), game=True),
     E("Мобилизация голеностопа колено к стене", "Стопа на расстоянии от стены, наклон колена к стене без отрыва пятки — тест и мобилизация тыльного сгибания.", phase="warmup", stage="joint_mobility", stats=("agility",), patterns=["ankle_mobility"], muscles=ANKLE_M, uni=True, diff=1, vtype="sr", vol=(2, 10, 10)),
 ]
 

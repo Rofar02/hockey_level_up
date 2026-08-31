@@ -73,6 +73,7 @@ export const EQUIPMENT_ITEMS = [
   'slide_board',
   'medicine_ball',
   'weighted_vest',
+  'gym_machine',
   'hockey_stick',
 ] as const
 export type EquipmentItem = (typeof EQUIPMENT_ITEMS)[number]
@@ -89,6 +90,7 @@ export const EQUIPMENT_ITEM_LABELS: Record<EquipmentItem, string> = {
   slide_board: 'Слайд-борд',
   medicine_ball: 'Медбол',
   weighted_vest: 'Утяжелительный жилет',
+  gym_machine: 'Тренажёр (блок/платформа/Смит и т.п.)',
   hockey_stick: 'Клюшка',
 }
 
