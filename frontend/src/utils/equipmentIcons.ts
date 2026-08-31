@@ -24,6 +24,11 @@ export const EQUIPMENT_ICONS: Record<Exclude<EquipmentItem, 'hockey_stick'>, str
   slide_board: 'ti-arrows-left-right',
   medicine_ball: 'ti-exercise-ball',
   weighted_vest: 'ti-jacket',
+  // No dedicated "gym machine" glyph in this webfont either -- .ti-gym-
+  // machine/.ti-machine don't exist (checked the same way as the two
+  // substitutes above). .ti-treadmill does exist and reads as generic gym
+  // equipment closely enough for a catch-all category.
+  gym_machine: 'ti-treadmill',
 }
 
 export const EQUIPMENT_ITEM_DESCRIPTIONS: Record<EquipmentItem, string> = {
@@ -38,6 +43,7 @@ export const EQUIPMENT_ITEM_DESCRIPTIONS: Record<EquipmentItem, string> = {
   slide_board: 'Слайд-борд — латеральные скользящие движения, как на льду.',
   medicine_ball: 'Медбол — бросковые и взрывные упражнения.',
   weighted_vest: 'Утяжелительный жилет — добавляет вес к упражнениям с собственным телом.',
+  gym_machine: 'Тренажёр — блок, платформа, Смит-машина и т.п. фиксированное оборудование зала.',
   hockey_stick:
     'Клюшка — своё снаряжение, не покрывается доступом в зал. Нужна для упражнений на владение шайбой.',
 }
