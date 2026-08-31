@@ -1,21 +1,24 @@
 """AI coach chat (CoachChatService / POST /users/me/coach-chat):
 
-- require_premium gates access regardless of the Qwen key state (403,
-  key irrelevant -- mirrors test_premium_gate.py's convention, scoped to
-  this feature).
-- with premium access granted but no Qwen key configured, the service
-  itself refuses with 503 ("feature not technically on yet") rather than
-  403 -- a different state than "no access at all".
-- exceeding the monthly quota is a 429, and the Qwen client is never
-  called to get there.
+- require_premium gates access regardless of the OpenRouter key state
+  (403, key irrelevant -- mirrors test_premium_gate.py's convention,
+  scoped to this feature).
+- with premium access granted but no OpenRouter key configured, the
+  service itself refuses with 503 ("feature not technically on yet")
+  rather than 403 -- a different state than "no access at all".
+- exceeding the monthly quota is a 429, and the OpenRouter client is
+  never called to get there.
 - the system prompt actually carries the user's real stats/milestones/
   streak/phase/history, not a generic template.
+- the system prompt's persona block changes with the user's
+  coach_personality, while the data-summary/guardrails part stays intact
+  regardless.
 - both turns (user + assistant) land in coach_chat_messages, retrievable
   via list_history in ascending order.
 
-No real Qwen/DashScope call is ever made -- `_call_qwen` is monkeypatched
-at the module level in every test that reaches it, same convention
-test_push_subscription.py uses for webpush_async.
+No real OpenRouter call is ever made -- `_call_openrouter` is
+monkeypatched at the module level in every test that reaches it, same
+convention test_push_subscription.py uses for webpush_async.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -29,57 +32,63 @@ from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.schedule import BlockPhase, TrainingBlock
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight
-from app.models.user import User
+from app.models.user import CoachPersonality, User
 from app.routers.deps import require_premium
 from app.services import coach_chat_service
 from app.services.coach_chat_service import MONTHLY_MESSAGE_LIMIT, CoachChatService
+from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 
 
-def _make_user(*, has_premium: bool = True) -> User:
+def _make_user(*, has_premium: bool = True, coach_personality: CoachPersonality | None = None) -> User:
     unique = uuid.uuid4().hex[:8]
+    kwargs = {}
+    if coach_personality is not None:
+        kwargs["coach_personality"] = coach_personality
     return User(
         id=uuid.uuid4(),
         username=f"coach_{unique}",
         email=f"coach_{unique}@example.com",
         password_hash="irrelevant",
         has_premium=has_premium,
+        **kwargs,
     )
 
 
 def _settings_with_key(api_key: str | None) -> Settings:
-    return Settings(qwen_api_key=api_key)
+    return Settings(openrouter_api_key=api_key)
 
 
 def _install_fake_call(monkeypatch, *, reply: str = "Тестовый ответ тренера"):
-    """Replaces the Qwen call with a fake that records exactly what it
-    was sent and returns a canned reply -- no network call, ever."""
+    """Replaces the OpenRouter call with a fake that records exactly what
+    it was sent and returns a canned reply -- no network call, ever."""
     captured: dict = {}
 
-    async def _fake_call_qwen(
-        api_key: str, base_url: str, system_prompt: str, messages: list[dict]
+    async def _fake_call_openrouter(
+        api_key: str, base_url: str, model: str, system_prompt: str, messages: list[dict]
     ) -> str:
         captured["api_key"] = api_key
         captured["base_url"] = base_url
+        captured["model"] = model
         captured["system_prompt"] = system_prompt
         captured["messages"] = messages
         return reply
 
-    monkeypatch.setattr(coach_chat_service, "_call_qwen", _fake_call_qwen)
+    monkeypatch.setattr(coach_chat_service, "_call_openrouter", _fake_call_openrouter)
     return captured
 
 
 def _fail_if_called(monkeypatch):
     async def _boom(*_args, **_kwargs):
-        raise AssertionError("Qwen client must not be called")
+        raise AssertionError("OpenRouter client must not be called")
 
-    monkeypatch.setattr(coach_chat_service, "_call_qwen", _boom)
+    monkeypatch.setattr(coach_chat_service, "_call_openrouter", _boom)
 
 
 # -- access gating --
 
 
 @pytest.mark.asyncio
-async def test_require_premium_blocks_regardless_of_qwen_key() -> None:
+async def test_require_premium_blocks_regardless_of_openrouter_key() -> None:
     """require_premium never looks at settings -- a configured key changes
     nothing for a non-premium user, which is the point: 403 (no access at
     all) is a different failure than 503 (access granted, feature off)."""
@@ -114,7 +123,7 @@ async def test_send_message_without_api_key_returns_503_even_for_premium_user(
 
 
 @pytest.mark.asyncio
-async def test_send_message_over_monthly_limit_returns_429_without_calling_qwen(
+async def test_send_message_over_monthly_limit_returns_429_without_calling_openrouter(
     db_session, monkeypatch
 ) -> None:
     user = _make_user(has_premium=True)
@@ -288,6 +297,62 @@ async def test_system_prompt_carries_real_user_context(db_session, monkeypatch) 
     assert "врачу" in prompt
     assert "диагноз" in prompt.lower()
     assert "дозировк" in prompt.lower()
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_persona_follows_the_users_coach_personality(
+    db_session, monkeypatch
+) -> None:
+    """Each CoachPersonality gets a distinct persona block up front, while
+    the data-summary/guardrails assembly underneath it is unaffected --
+    same UserStat/streak/phase machinery test_system_prompt_carries_real_
+    user_context already covers, just checked here for two different
+    personalities to prove it isn't personality-specific."""
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+
+    prompts_by_personality: dict[CoachPersonality, str] = {}
+    for personality in (CoachPersonality.STRICT, CoachPersonality.VIBE):
+        user = _make_user(coach_personality=personality)
+        db_session.add(user)
+        await db_session.flush()
+
+        captured = _install_fake_call(monkeypatch)
+        service = CoachChatService(db_session)
+        await service.send_message(user, "Как настроиться на тренировку?")
+        prompts_by_personality[personality] = captured["system_prompt"]
+
+    strict_prompt = prompts_by_personality[CoachPersonality.STRICT]
+    vibe_prompt = prompts_by_personality[CoachPersonality.VIBE]
+
+    # Each prompt opens with its own persona text, and not the other one's.
+    assert strict_prompt.startswith(PERSONALITY_SYSTEM_PROMPTS[CoachPersonality.STRICT])
+    assert vibe_prompt.startswith(PERSONALITY_SYSTEM_PROMPTS[CoachPersonality.VIBE])
+    assert PERSONALITY_SYSTEM_PROMPTS[CoachPersonality.VIBE] not in strict_prompt
+    assert PERSONALITY_SYSTEM_PROMPTS[CoachPersonality.STRICT] not in vibe_prompt
+
+    # The rest of the assembly (data summary + guardrails) is identical
+    # between the two prompts regardless of personality -- both users are
+    # freshly created with no UserStat/TrainingStreak/TrainingBlock/
+    # StatHistory rows, so every per-user section falls back the same way
+    # for both (milestones aren't "no data" here -- see
+    # test_system_prompt_carries_real_user_context's own comment: the
+    # catalog's seeded skills always have a next milestone, even at zero
+    # stats -- which is exactly why this compares the two prompts to each
+    # other rather than hardcoding that section's text).
+    for prompt in (strict_prompt, vibe_prompt):
+        assert "Сводка данных пользователя" in prompt
+        assert "Текущие характеристики: данных пока нет." in prompt
+        assert "Текущий стрик тренировок: 0 дн. подряд." in prompt
+        assert "Фаза периодизации: блок ещё не начат." in prompt
+        assert "Последние изменения характеристик: нет записей." in prompt
+        assert "врачу" in prompt
+
+    def _strip_persona(prompt: str, personality: CoachPersonality) -> str:
+        return prompt.removeprefix(PERSONALITY_SYSTEM_PROMPTS[personality])
+
+    assert _strip_persona(strict_prompt, CoachPersonality.STRICT) == _strip_persona(
+        vibe_prompt, CoachPersonality.VIBE
+    )
 
 
 @pytest.mark.asyncio

@@ -55,23 +55,23 @@ class Settings(BaseSettings):
     # functionally off (503) until this is filled in, since a real key
     # costs money per message. Заполнить перед включением ИИ-чата.
     #
-    # Qwen via Alibaba Cloud DashScope's OpenAI-compatible endpoint (not
-    # Anthropic/OpenAI directly) -- both of those 403 "Request not allowed"
-    # every request from a Russian server/IP, confirmed live 2026-08-30.
-    # DashScope has no such restriction. See coach_chat_service.py.
-    qwen_api_key: str | None = None
-    # DashScope has two separate regions with separate keys: mainland China
-    # (dashscope.aliyuncs.com, needs Chinese real-name verification) and
-    # international (dashscope-intl.aliyuncs.com). A key issued on one
-    # region's console 401s ("invalid_api_key") against the other region's
-    # endpoint -- confirmed live 2026-08-30 against the mainland default.
-    # International is the only region reachable to sign up for from
-    # outside China, so it's the default here; override in .env if a
-    # mainland key is ever used instead.
-    qwen_base_url: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    # OpenRouter (single OpenAI-compatible endpoint in front of many
+    # providers/models) -- see coach_chat_service.py. Previously Qwen via
+    # Alibaba Cloud DashScope (2026-08-30 - 2026-08-31), replaced outright
+    # rather than kept as a fallback; see git history for that code if it's
+    # ever needed again.
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Which model OpenRouter routes the coach-chat call to -- a plain
+    # setting (not a constant in coach_chat_service.py) so switching models
+    # (e.g. to "deepseek/deepseek-v4-pro") is a config change, not a code
+    # change. GLM-5.2 is a reasoning model -- see MAX_RESPONSE_TOKENS in
+    # coach_chat_service.py for why the response token budget is sized
+    # accordingly.
+    coach_chat_model: str = "z-ai/glm-5.2"
 
     # Email (Resend) -- same "empty means the feature is off, not broken"
-    # convention as qwen_api_key above. EmailService checks this itself
+    # convention as openrouter_api_key above. EmailService checks this itself
     # rather than each call site: verification email sends quietly no-op
     # when unset (registration/resend must never fail because of it), while
     # AuthService.request_password_reset 503s upfront instead, since a

@@ -1,20 +1,23 @@
 """AI coach chat (POST /users/me/coach-chat). Gated by require_premium at
 the router layer; this service adds a second, independent gate on top --
-whether the feature is technically switched on at all (settings.qwen_api_key
-configured) -- which is why a premium user with no key configured still
-gets a 503, not a 403 (see app/core/config.py's qwen_api_key comment).
+whether the feature is technically switched on at all
+(settings.openrouter_api_key configured) -- which is why a premium user
+with no key configured still gets a 503, not a 403 (see
+app/core/config.py's openrouter_api_key comment).
 
-Qwen via Alibaba Cloud DashScope's OpenAI-compatible endpoint, not
-Anthropic/OpenAI directly -- both of those reject every request from a
-Russian server/IP with 403 "Request not allowed" (confirmed live
-2026-08-30, this service originally called Anthropic). DashScope has no
-such restriction. `openai`'s own client works against it unchanged --
-DashScope's compatible-mode endpoint is a drop-in Chat Completions API,
-just a different base_url and API key.
+OpenRouter's OpenAI-compatible endpoint -- one API in front of many
+providers/models, so the actual model is a setting
+(Settings.coach_chat_model), not hardcoded here; swapping models (e.g. to
+"deepseek/deepseek-v4-pro") is a config change, not a code change.
+`openai`'s own client works against it unchanged -- OpenRouter's endpoint
+is a drop-in Chat Completions API, just a different base_url and API key.
+(2026-08-31: replaced Qwen/DashScope outright, see git history if that
+code is ever needed again.)
 
-The Qwen call itself is a plain module-level function (`_call_qwen`,
-mirroring push_service.send_push / webpush_async) so tests can monkeypatch
-it and assert on exactly what was sent, with no real network call.
+The OpenRouter call itself is a plain module-level function
+(`_call_openrouter`, mirroring push_service.send_push / webpush_async) so
+tests can monkeypatch it and assert on exactly what was sent, with no real
+network call.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -29,23 +32,13 @@ from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, UserStat
 from app.models.schedule import BlockPhase
-from app.models.user import User
+from app.models.user import CoachPersonality, User
 from app.repositories.coach_chat_repository import CoachChatRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.schemas.coach_chat import CoachChatMessageRead
+from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
-
-# Commercial Qwen (not a Coder-specialized variant -- a general chat/
-# instruct model, matching the original "Instruct, not Coder" product
-# call). The open-weight qwen2.5-72b-instruct id was tried first but
-# 403'd with AccessDenied.Unpurchased -- that model needs a separate
-# console activation/purchase step this account hasn't done, while the
-# commercial qwen-* series bills pay-as-you-go with no extra activation
-# (confirmed live 2026-08-30). The base URL itself lives in
-# Settings.qwen_base_url, not here -- DashScope has two regions with
-# separate keys (see that field's own comment).
-MODEL = "qwen-plus"
 
 MONTHLY_MESSAGE_LIMIT = 150
 # How many prior turns get replayed back to the model as dialogue context --
@@ -53,7 +46,13 @@ MONTHLY_MESSAGE_LIMIT = 150
 # exposes separately, unbounded by this).
 HISTORY_REPLAY_TURNS = 10
 
-MAX_RESPONSE_TOKENS = 1024
+# Settings.coach_chat_model (2026-08-31: "z-ai/glm-5.2") is a reasoning
+# model -- it spends part of this budget on its own hidden reasoning
+# tokens before ever producing the visible reply, unlike the old
+# non-reasoning qwen-plus this replaced (which ran fine at 1024). Sized up
+# so reasoning overhead can't silently eat the whole budget and leave the
+# athlete with a truncated or empty answer.
+MAX_RESPONSE_TOKENS = 2048
 
 TOP_MILESTONES_COUNT = 3
 RECENT_HISTORY_COUNT = 5
@@ -133,12 +132,12 @@ def _format_history_section(entries: list[StatHistory]) -> str:
     return "Последние изменения характеристик: " + "; ".join(parts) + "."
 
 
-async def _call_qwen(
-    api_key: str, base_url: str, system_prompt: str, messages: list[dict[str, str]]
+async def _call_openrouter(
+    api_key: str, base_url: str, model: str, system_prompt: str, messages: list[dict[str, str]]
 ) -> str:
     client = AsyncOpenAI(api_key=api_key, base_url=base_url)
     response = await client.chat.completions.create(
-        model=MODEL,
+        model=model,
         max_tokens=MAX_RESPONSE_TOKENS,
         messages=[{"role": "system", "content": system_prompt}, *messages],
     )
@@ -155,7 +154,7 @@ class CoachChatService:
 
     async def send_message(self, user: User, message: str) -> CoachChatMessageRead:
         settings = get_settings()
-        if not settings.qwen_api_key:
+        if not settings.openrouter_api_key:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Функция скоро будет доступна",
@@ -174,13 +173,17 @@ class CoachChatService:
                 ),
             )
 
-        system_prompt = await self._build_system_prompt(user)
+        system_prompt = await self._build_system_prompt(user, user.coach_personality)
         history = await self._chat.list_recent(user.id, HISTORY_REPLAY_TURNS)
         api_messages = [{"role": entry.role.value, "content": entry.content} for entry in history]
         api_messages.append({"role": "user", "content": message})
 
-        reply_text = await _call_qwen(
-            settings.qwen_api_key, settings.qwen_base_url, system_prompt, api_messages
+        reply_text = await _call_openrouter(
+            settings.openrouter_api_key,
+            settings.openrouter_base_url,
+            settings.coach_chat_model,
+            system_prompt,
+            api_messages,
         )
 
         # Explicit, strictly-increasing timestamps for the two rows --
@@ -203,7 +206,7 @@ class CoachChatService:
         entries = await self._chat.list_recent(user_id, limit)
         return [CoachChatMessageRead.model_validate(entry) for entry in entries]
 
-    async def _build_system_prompt(self, user: User) -> str:
+    async def _build_system_prompt(self, user: User, coach_personality: CoachPersonality) -> str:
         now = datetime.now(timezone.utc)
 
         stats = await self._progress.list_user_stats(user.id)
@@ -234,8 +237,8 @@ class CoachChatService:
         history_section = _format_history_section(recent_history)
 
         return (
-            "Ты -- персональный AI-тренер по хоккею в приложении IceLevel. "
-            "Отвечай по-русски, по делу, дружелюбно и кратко. Используй приведённую "
+            f"{PERSONALITY_SYSTEM_PROMPTS[coach_personality]}\n\n"
+            "Отвечай по-русски, по делу и кратко. Используй приведённую "
             "ниже сводку данных пользователя, чтобы давать конкретные, персональные "
             "советы по тренировкам, а не общие фразы.\n\n"
             f"Сводка данных пользователя (на {now.date().isoformat()}):\n"

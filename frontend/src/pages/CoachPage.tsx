@@ -64,7 +64,7 @@ export function CoachPage() {
 }
 
 // Shown once a real 503 comes back from the backend (see CoachChatContent
-// below) -- the feature is technically off (no Qwen key configured
+// below) -- the feature is technically off (no OpenRouter key configured
 // yet), a different state from "no premium access" above. Reuses the same
 // shared EmptyState every other blank-list screen in the app uses, instead
 // of hand-rolling its own near-identical icon-circle+text markup.
