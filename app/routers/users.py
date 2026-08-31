@@ -206,8 +206,8 @@ async def send_coach_chat_message(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Premium gates *access*; a 503 here means access is fine but the
-    feature isn't technically switched on yet (no OpenRouter API key
-    configured -- see Settings.openrouter_api_key), which is a different
+    feature isn't technically switched on yet (no z.ai API key
+    configured -- see Settings.zai_api_key), which is a different
     state from the 403 require_premium raises."""
     reply = await CoachChatService(session).send_message(current_user, body.message)
     return CoachChatReplyRead(reply=reply)

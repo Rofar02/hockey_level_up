@@ -55,23 +55,27 @@ class Settings(BaseSettings):
     # functionally off (503) until this is filled in, since a real key
     # costs money per message. Заполнить перед включением ИИ-чата.
     #
-    # OpenRouter (single OpenAI-compatible endpoint in front of many
-    # providers/models) -- see coach_chat_service.py. Previously Qwen via
-    # Alibaba Cloud DashScope (2026-08-30 - 2026-08-31), replaced outright
-    # rather than kept as a fallback; see git history for that code if it's
-    # ever needed again.
-    openrouter_api_key: str | None = None
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    # Which model OpenRouter routes the coach-chat call to -- a plain
-    # setting (not a constant in coach_chat_service.py) so switching models
-    # (e.g. to "deepseek/deepseek-v4-pro") is a config change, not a code
-    # change. GLM-5.2 is a reasoning model -- see MAX_RESPONSE_TOKENS in
-    # coach_chat_service.py for why the response token budget is sized
-    # accordingly.
-    coach_chat_model: str = "z-ai/glm-5.2"
+    # Zhipu AI's (z.ai) own OpenAI-compatible endpoint, called directly --
+    # see coach_chat_service.py. NOT OpenRouter (2026-08-31 attempt):
+    # OpenRouter's Cloudflare edge hard-blocks every request from this
+    # server's IP/ASN with a 403 "Access denied by security policy" before
+    # it ever reaches OpenRouter's own app layer -- confirmed with OpenRouter
+    # support (ticket, cf-ray ids on file) as an IP/ASN-reputation issue on
+    # their Cloudflare config, not an OpenRouter policy. z.ai (like the
+    # Qwen/DashScope endpoint this replaced before that) isn't behind that
+    # same edge and has no such restriction from this server.
+    zai_api_key: str | None = None
+    zai_base_url: str = "https://api.z.ai/api/paas/v4/"
+    # Which model the coach-chat call uses -- a plain setting (not a
+    # constant in coach_chat_service.py) so switching models (e.g. to a
+    # paid "glm-5.3" once real usage justifies the cost) is a config
+    # change, not a code change. glm-4.7-flash is z.ai's free tier -- no
+    # per-token cost, deliberately chosen to start with while validating
+    # the feature actually gets used before paying for a bigger model.
+    coach_chat_model: str = "glm-4.7-flash"
 
     # Email (Resend) -- same "empty means the feature is off, not broken"
-    # convention as openrouter_api_key above. EmailService checks this itself
+    # convention as zai_api_key above. EmailService checks this itself
     # rather than each call site: verification email sends quietly no-op
     # when unset (registration/resend must never fail because of it), while
     # AuthService.request_password_reset 503s upfront instead, since a

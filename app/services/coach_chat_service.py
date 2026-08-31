@@ -1,23 +1,31 @@
 """AI coach chat (POST /users/me/coach-chat). Gated by require_premium at
 the router layer; this service adds a second, independent gate on top --
 whether the feature is technically switched on at all
-(settings.openrouter_api_key configured) -- which is why a premium user
-with no key configured still gets a 503, not a 403 (see
-app/core/config.py's openrouter_api_key comment).
+(settings.zai_api_key configured) -- which is why a premium user with no
+key configured still gets a 503, not a 403 (see app/core/config.py's
+zai_api_key comment).
 
-OpenRouter's OpenAI-compatible endpoint -- one API in front of many
-providers/models, so the actual model is a setting
-(Settings.coach_chat_model), not hardcoded here; swapping models (e.g. to
-"deepseek/deepseek-v4-pro") is a config change, not a code change.
-`openai`'s own client works against it unchanged -- OpenRouter's endpoint
-is a drop-in Chat Completions API, just a different base_url and API key.
-(2026-08-31: replaced Qwen/DashScope outright, see git history if that
-code is ever needed again.)
+Zhipu AI's (z.ai) own OpenAI-compatible endpoint, called directly -- the
+actual model is a setting (Settings.coach_chat_model), not hardcoded here,
+so swapping models (e.g. to a paid "glm-5.3") is a config change, not a
+code change. `openai`'s own client works against it unchanged -- z.ai's
+endpoint is a drop-in Chat Completions API, just a different base_url and
+API key.
 
-The OpenRouter call itself is a plain module-level function
-(`_call_openrouter`, mirroring push_service.send_push / webpush_async) so
-tests can monkeypatch it and assert on exactly what was sent, with no real
-network call.
+(2026-08-31: tried OpenRouter first -- its Cloudflare edge hard-blocks
+every request from this server's IP/ASN with a 403 "Access denied by
+security policy" before it ever reaches OpenRouter's own app layer,
+confirmed via OpenRouter support as an IP/ASN-reputation issue on their
+Cloudflare config, reproducible even on an unauthenticated GET with curl.
+z.ai isn't behind that edge and has no such restriction from here -- same
+reason Qwen/DashScope was originally chosen over Anthropic/OpenAI
+directly, before this file briefly went through OpenRouter. See git
+history for the OpenRouter-specific code if that block ever gets resolved
+and it's worth revisiting.)
+
+The z.ai call itself is a plain module-level function (`_call_zai`,
+mirroring push_service.send_push / webpush_async) so tests can monkeypatch
+it and assert on exactly what was sent, with no real network call.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -46,12 +54,11 @@ MONTHLY_MESSAGE_LIMIT = 150
 # exposes separately, unbounded by this).
 HISTORY_REPLAY_TURNS = 10
 
-# Settings.coach_chat_model (2026-08-31: "z-ai/glm-5.2") is a reasoning
-# model -- it spends part of this budget on its own hidden reasoning
-# tokens before ever producing the visible reply, unlike the old
-# non-reasoning qwen-plus this replaced (which ran fine at 1024). Sized up
-# so reasoning overhead can't silently eat the whole budget and leave the
-# athlete with a truncated or empty answer.
+# Generous on purpose: cheap insurance against a truncated reply, and
+# glm-4.7-flash (the current default model) is free-tier, so there's no
+# cost pressure to shrink it. Revisit if/when Settings.coach_chat_model
+# switches to a paid reasoning model that spends part of this budget on
+# hidden chain-of-thought before the visible reply.
 MAX_RESPONSE_TOKENS = 2048
 
 TOP_MILESTONES_COUNT = 3
@@ -132,7 +139,7 @@ def _format_history_section(entries: list[StatHistory]) -> str:
     return "Последние изменения характеристик: " + "; ".join(parts) + "."
 
 
-async def _call_openrouter(
+async def _call_zai(
     api_key: str, base_url: str, model: str, system_prompt: str, messages: list[dict[str, str]]
 ) -> str:
     client = AsyncOpenAI(api_key=api_key, base_url=base_url)
@@ -154,7 +161,7 @@ class CoachChatService:
 
     async def send_message(self, user: User, message: str) -> CoachChatMessageRead:
         settings = get_settings()
-        if not settings.openrouter_api_key:
+        if not settings.zai_api_key:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Функция скоро будет доступна",
@@ -178,9 +185,9 @@ class CoachChatService:
         api_messages = [{"role": entry.role.value, "content": entry.content} for entry in history]
         api_messages.append({"role": "user", "content": message})
 
-        reply_text = await _call_openrouter(
-            settings.openrouter_api_key,
-            settings.openrouter_base_url,
+        reply_text = await _call_zai(
+            settings.zai_api_key,
+            settings.zai_base_url,
             settings.coach_chat_model,
             system_prompt,
             api_messages,

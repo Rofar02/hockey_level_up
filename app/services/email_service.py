@@ -2,11 +2,11 @@
 integration in the project (see AuthTokenService for the token side of the
 verify-email/password-reset flows this exists for) -- no `resend` SDK
 dependency added, httpx (already a dependency, see coach_chat_service's
-OpenRouter call for the equivalent pattern) is enough for Resend's single
+z.ai call for the equivalent pattern) is enough for Resend's single
 POST /emails endpoint.
 
 Send calls are plain module-level functions (`_send_email`), not methods --
-same style as push_service.send_push / coach_chat_service._call_openrouter --
+same style as push_service.send_push / coach_chat_service._call_zai --
 so tests can monkeypatch them and assert on exactly what was sent, with no
 real network call and no real Resend key needed.
 """
