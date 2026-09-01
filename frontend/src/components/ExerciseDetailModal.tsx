@@ -25,6 +25,7 @@ import type { SkillTagRead } from '../types/skill'
 import { exercisePlayerMode } from '../utils/exercisePlayerMode'
 import { hasExerciseDescription, hasExerciseTechnique } from '../utils/exerciseTechnique'
 import {
+  alertTimerDone,
   ensureNotificationPermission,
   scheduleRestDoneNotification,
   type ScheduledRestNotification,
@@ -394,52 +395,20 @@ function repsRangeTag(reps: number, min: number, max: number): 'match' | 'less' 
 
 const REPS_TAG_LABELS = { match: 'совпадает', less: 'меньше', more: 'больше' } as const
 
-// Vibration + a short synthesized beep (Web Audio oscillator, no external
-// audio asset needed) when a rest countdown reaches zero. Both are
-// best-effort -- navigator.vibrate isn't available on desktop browsers, and
-// AudioContext can be blocked without a prior user gesture on some mobile
-// browsers -- the visual countdown hitting 0:00 is the signal that always
-// works regardless of whether either of these actually fires.
-function alertRestDone() {
-  if (typeof navigator.vibrate === 'function') {
-    navigator.vibrate(200)
-  }
-  try {
-    const AudioContextClass =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    if (AudioContextClass === undefined) {
-      return
-    }
-    const ctx = new AudioContextClass()
-    const oscillator = ctx.createOscillator()
-    const gain = ctx.createGain()
-    oscillator.frequency.value = 880
-    gain.gain.setValueAtTime(0.2, ctx.currentTime)
-    oscillator.connect(gain)
-    gain.connect(ctx.destination)
-    oscillator.start()
-    oscillator.stop(ctx.currentTime + 0.3)
-    oscillator.onended = () => ctx.close()
-  } catch {
-    // Best-effort -- see comment above, the visual countdown already
-    // reached zero regardless of whether this succeeds.
-  }
-}
-
 // Auto-started by SetLogger right after a non-final set is saved (see
 // restState there) -- counts down from the exercise's computed
 // rest_seconds (app/core/rest.py's stimulus_type/difficulty_level formula)
-// and fires alertRestDone + onDone once it reaches zero, so the next set's
-// input reappears on its own without another tap. "Пропустить" lets the
-// athlete end the rest early if they feel ready.
+// and fires alertTimerDone (vibration + beep, see utils/restNotification.ts)
+// + onDone once it reaches zero, so the next set's input reappears on its
+// own without another tap. "Пропустить" lets the athlete end the rest early
+// if they feel ready.
 //
 // Also schedules a local (on-device) notification for the same moment --
 // see utils/restNotification.ts for why this is web-PWA best-effort, not a
 // native guarantee -- so the athlete doesn't have to keep the screen
 // unlocked and watching the countdown. Cancelled on unmount, which covers
 // both "rest finished naturally" (this component unmounts right after
-// alertRestDone fires) and "Пропустить" (unmounts immediately) -- either
+// alertTimerDone fires) and "Пропустить" (unmounts immediately) -- either
 // way there's nothing left to notify about.
 function RestTimer({
   totalSeconds,
@@ -505,7 +474,7 @@ function RestTimer({
     if (remaining > 0) {
       return
     }
-    alertRestDone()
+    alertTimerDone()
     onDoneRef.current()
   }, [remaining])
 

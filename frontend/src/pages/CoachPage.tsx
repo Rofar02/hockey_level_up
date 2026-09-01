@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { CoachPersonalityIntroModal } from '../components/CoachPersonalityIntroModal'
+import { MarkdownContent } from '../components/MarkdownContent'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_CLASS } from '../components/ui/cardStyle'
@@ -238,13 +239,13 @@ function ChatBubble({ message }: { message: CoachChatMessageRead }) {
       )}
       <div className={`flex max-w-[85%] flex-col gap-1 ${isUser ? 'items-end' : 'items-start'}`}>
         <div
-          className={`whitespace-pre-wrap rounded-md border-t px-3 py-2 text-sm text-[#F5F7FA] ${
+          className={`rounded-md border-t px-3 py-2 text-sm text-[#F5F7FA] ${
             isUser
-              ? 'border-accent-persimmon/30 bg-accent-persimmon/[0.08]'
+              ? 'whitespace-pre-wrap border-accent-persimmon/30 bg-accent-persimmon/[0.08]'
               : 'border-accent-ice/25 bg-accent-ice/[0.06]'
           }`}
         >
-          {message.content}
+          {isUser ? message.content : <MarkdownContent content={message.content} />}
         </div>
         <span className="px-1 text-[10px] text-[#8A94A6]">{time}</span>
       </div>

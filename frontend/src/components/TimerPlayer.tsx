@@ -2,8 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { CountdownRing } from './ui/CountdownRing'
 import { Stepper } from './ui/Stepper'
 import { ExerciseFeedbackPrompt } from './ExerciseFeedbackPrompt'
+import * as progressApi from '../api/progress'
 import * as setCompletionsApi from '../api/setCompletions'
 import type { ExerciseRead } from '../types/exercise'
+import {
+  alertTimerDone,
+  ensureNotificationPermission,
+  scheduleRestDoneNotification,
+  type ScheduledRestNotification,
+} from '../utils/restNotification'
 
 // Fallback rest between rounds when the exercise has no configured
 // rest_seconds -- preserves the old always-advances behavior instead of
@@ -77,6 +84,12 @@ export function TimerPlayer({
   // -- it's an implementation detail the effect below reads, never
   // something a render should react to.
   const deadlineRef = useRef<number | null>(null)
+  // Background (on-device) notification for the current rest segment, same
+  // mechanism as ExerciseDetailModal's RestTimer -- scheduled the instant
+  // rest starts (see advanceWork below) and cancelled the instant it's no
+  // longer relevant (rest ends naturally, is skipped, or this component
+  // unmounts mid-rest), so it never fires stale.
+  const scheduledRestNotificationRef = useRef<ScheduledRestNotification>({ cancel: () => {} })
 
   const restSeconds = exercise.rest_seconds ?? FALLBACK_REST_SECONDS
 
@@ -114,11 +127,17 @@ export function TimerPlayer({
 
   // Separate from the ticking effect above -- this one only reacts to
   // remaining actually crossing zero, regardless of how it got there.
+  // alertTimerDone() (vibration + beep) fires here for both segments: the
+  // work ring running out and the rest ring running out, matching what
+  // RestTimer already does for the sets/reps flow. Deliberately not inside
+  // advanceWork() itself -- that function is also called from the manual
+  // early-confirm button below, which shouldn't play the "time's up" alert.
   useEffect(() => {
     if (!running || remaining > 0) {
       return
     }
     setRunning(false)
+    alertTimerDone()
     if (phase === 'work') {
       advanceWork()
     } else {
@@ -126,6 +145,14 @@ export function TimerPlayer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, remaining, phase])
+
+  // Cancels any still-pending background rest notification if the athlete
+  // navigates away mid-rest -- same cleanup RestTimer's own unmount does.
+  useEffect(() => {
+    return () => {
+      scheduledRestNotificationRef.current.cancel()
+    }
+  }, [])
 
   // actualSeconds defaults to the full target -- the natural "ring counted
   // down to zero" path below always means the whole thing was done. A
@@ -167,9 +194,23 @@ export function TimerPlayer({
     deadlineRef.current = Date.now() + restSeconds * 1000
     setRemaining(restSeconds)
     setRunning(true)
+
+    // Same local-notification safety net as RestTimer, for whenever the
+    // athlete backgrounds the tab mid-rest -- see utils/restNotification.ts
+    // for why this is web-PWA best-effort, not a native guarantee.
+    ensureNotificationPermission()
+      .then(() => progressApi.getRestDonePhrase(accessToken))
+      .then((phrase) => {
+        scheduledRestNotificationRef.current = scheduleRestDoneNotification(restSeconds, phrase.text)
+      })
+      .catch(() => {
+        // Best-effort -- worst case this specific rest period just has no
+        // background notification, the on-screen countdown still works.
+      })
   }
 
   function advanceRest() {
+    scheduledRestNotificationRef.current.cancel()
     setPhase('work')
     deadlineRef.current = Date.now() + durationSeconds * 1000
     setRemaining(durationSeconds)

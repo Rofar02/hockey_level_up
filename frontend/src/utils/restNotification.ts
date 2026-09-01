@@ -14,6 +14,42 @@ export interface ScheduledRestNotification {
   cancel: () => void
 }
 
+// Vibration + a short synthesized beep (Web Audio oscillator, no external
+// audio asset needed) -- the immediate, always-on-screen alert for "a
+// countdown just reached zero". Shared by both timer surfaces: RestTimer
+// (sets/reps flow, between-set rest) and TimerPlayer (duration-mode media
+// player, both the work ring and its own rest ring). Both effects are
+// best-effort -- navigator.vibrate isn't available on desktop browsers, and
+// AudioContext can be blocked without a prior user gesture on some mobile
+// browsers -- the visual countdown hitting 0:00 is the signal that always
+// works regardless of whether either of these actually fires.
+export function alertTimerDone() {
+  if (typeof navigator.vibrate === 'function') {
+    navigator.vibrate(200)
+  }
+  try {
+    const AudioContextClass =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (AudioContextClass === undefined) {
+      return
+    }
+    const ctx = new AudioContextClass()
+    const oscillator = ctx.createOscillator()
+    const gain = ctx.createGain()
+    oscillator.frequency.value = 880
+    gain.gain.setValueAtTime(0.2, ctx.currentTime)
+    oscillator.connect(gain)
+    gain.connect(ctx.destination)
+    oscillator.start()
+    oscillator.stop(ctx.currentTime + 0.3)
+    oscillator.onended = () => ctx.close()
+  } catch {
+    // Best-effort -- see comment above, the visual countdown already
+    // reached zero regardless of whether this succeeds.
+  }
+}
+
 // No-op cancel object so callers don't need an extra null check when
 // scheduling was skipped (permission not granted, or API unsupported).
 const NOOP: ScheduledRestNotification = { cancel: () => {} }
@@ -36,9 +72,9 @@ export function scheduleRestDoneNotification(
       return
     }
     // Only as a system notification when the page isn't the one on screen
-    // -- RestTimer's own alertRestDone() (vibration + beep) already covers
-    // the athlete looking at the countdown; a second OS banner on top of
-    // that would just be noise.
+    // -- alertTimerDone() (vibration + beep) already covers the athlete
+    // looking at the countdown; a second OS banner on top of that would
+    // just be noise.
     if (!document.hidden) {
       return
     }
