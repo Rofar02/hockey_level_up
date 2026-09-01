@@ -12,6 +12,7 @@ import * as exercisesApi from '../api/exercises'
 import * as progressApi from '../api/progress'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as setCompletionsApi from '../api/setCompletions'
+import * as skillsApi from '../api/skills'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
@@ -20,6 +21,7 @@ import type { ExerciseRead } from '../types/exercise'
 import type { SessionBlockRead } from '../types/schedule'
 import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletion'
 import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
+import type { SkillTagRead } from '../types/skill'
 import { exercisePlayerMode } from '../utils/exercisePlayerMode'
 import { hasExerciseDescription, hasExerciseTechnique } from '../utils/exerciseTechnique'
 import {
@@ -42,7 +44,7 @@ function formatTargetVolume(exercise: ExerciseRead): string | null {
   return null
 }
 
-type ExerciseModalTab = 'sets' | 'technique'
+type ExerciseModalTab = 'sets' | 'technique' | 'transfer'
 
 function TabButton({
   active,
@@ -145,6 +147,36 @@ export function ExerciseDetailBody({
   const [replaceError, setReplaceError] = useState<string | null>(null)
   const [isSkipConfirming, setIsSkipConfirming] = useState(false)
   const [isSkipping, setIsSkipping] = useState(false)
+  // "Перенос на лёд" tab: this exercise's own SkillTag rows (transfer_note,
+  // written per (exercise, skill) pair -- see AdminExercisesPage's
+  // ExerciseSkillTagsSection) with skill names resolved against the full
+  // catalog. Self-fetched here rather than threaded down from a caller --
+  // same independent-fetch shape as SetLogger's suggested weight/reps
+  // below, and this way it works for both variants (ExerciseFocusScreen's
+  // live session AND NewSchedulePage's boxed modal) without either call
+  // site needing to already have this data loaded.
+  const [transferTags, setTransferTags] = useState<SkillTagRead[] | null>(null)
+  const [skillNameById, setSkillNameById] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([exercisesApi.listExerciseSkills(exercise.id, accessToken), skillsApi.listSkills(accessToken)])
+      .then(([tags, skills]) => {
+        if (cancelled) {
+          return
+        }
+        setTransferTags(tags)
+        setSkillNameById(Object.fromEntries(skills.map((skill) => [skill.id, skill.name])))
+      })
+      .catch(() => {
+        // Best-effort, same as every other suggestion fetch in this file --
+        // the tab just falls back to its "not set up yet" line.
+        setTransferTags([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exercise.id, accessToken])
 
   const targetVolume = formatTargetVolume(exercise)
   const mode = exercisePlayerMode(exercise)
@@ -216,6 +248,9 @@ export function ExerciseDetailBody({
           <TabButton active={activeTab === 'technique'} onClick={() => setActiveTab('technique')}>
             Техника
           </TabButton>
+          <TabButton active={activeTab === 'transfer'} onClick={() => setActiveTab('transfer')}>
+            Перенос на лёд
+          </TabButton>
         </div>
 
         {activeTab === 'sets' &&
@@ -285,6 +320,26 @@ export function ExerciseDetailBody({
             <ExerciseTechnique exercise={exercise} hideVideo={variant === 'focus'} />
           ) : (
             <p className="text-sm text-text-secondary">Описание техники пока не добавлено.</p>
+          ))}
+
+        {activeTab === 'transfer' &&
+          (transferTags === null ? (
+            <p className="text-sm text-text-secondary">Загрузка...</p>
+          ) : transferTags.length === 0 ? (
+            <p className="text-sm text-text-secondary">
+              Пока не указано, как это упражнение переносится на лёд.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {transferTags.map((tag) => (
+                <div key={tag.id} className="flex flex-col gap-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-accent-ice">
+                    {skillNameById[tag.skill_id] ?? 'Навык'}
+                  </span>
+                  <p className="text-sm leading-relaxed text-text-primary">{tag.transfer_note}</p>
+                </div>
+              ))}
+            </div>
           ))}
 
         {(canReplace || onSkip !== undefined) && (
