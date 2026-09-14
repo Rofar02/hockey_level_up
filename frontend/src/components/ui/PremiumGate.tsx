@@ -8,10 +8,15 @@ interface PremiumGateProps {
 // Purely informational -- no payment flow exists yet, so this is a preview
 // of what premium unlocks, not an upsell with a call to action. Shared by
 // every premium-gated screen (analytics, AI coach, ...) so the visual
-// treatment and default copy only live in one place.
+// treatment and default copy only live in one place. Both real call sites
+// (AnalyticsPage/CoachPage) override title/description with copy specific
+// to what THAT screen unlocks, so these defaults only render if PremiumGate
+// is ever used bare -- keep them accurate to what's actually shipped (both
+// analytics and coach chat are real today, not "coming soon") rather than
+// stale placeholder text nobody actually sees day to day.
 export function PremiumGate({
   title = 'Эта функция — часть премиум-подписки',
-  description = 'С премиум-подпиской откроются графики роста характеристик и навыков, текстовые инсайты о вашем прогрессе, а скоро — персональный AI-тренер.',
+  description = 'С премиум-подпиской откроются графики роста характеристик и навыков, текстовые инсайты о вашем прогрессе, и персональный AI-тренер.',
 }: PremiumGateProps) {
   return (
     <div

@@ -82,7 +82,7 @@ function formatDelta(points: StatHistoryPointRead[]): string | null {
 const ICE = '#D7EFFF'
 
 const ANALYTICS_PREMIUM_GATE_DESCRIPTION =
-  'С премиум-подпиской откроются графики роста характеристик и навыков, текстовые инсайты о вашем прогрессе, а скоро — персональный AI-тренер.'
+  'С премиум-подпиской откроются графики роста характеристик и навыков, текстовые инсайты о вашем прогрессе, а также персональный AI-тренер: задавайте вопросы о своих тренировках и получайте советы с учётом ваших реальных данных.'
 
 export function AnalyticsPage() {
   const { user, accessToken } = useAuth()
