@@ -4,10 +4,28 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.coach_chat import CoachChatRole
+from app.models.coach_chat_proposed_action import CoachActionStatus, CoachActionType
 
 
 class CoachChatMessageCreate(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
+
+
+class ProposedActionRead(BaseModel):
+    """One coach-proposed action attached to an assistant message -- see
+    CoachChatProposedAction. `summary` is a ready-to-render, already
+    localized description of what confirming would do (built server-side
+    from `action_type`/`payload` by
+    CoachChatService._build_action_summary), so the frontend never needs
+    its own per-action_type copy dictionary."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    action_type: CoachActionType
+    payload: dict
+    status: CoachActionStatus
+    summary: str
 
 
 class CoachChatMessageRead(BaseModel):
@@ -17,6 +35,7 @@ class CoachChatMessageRead(BaseModel):
     role: CoachChatRole
     content: str
     created_at: datetime
+    proposed_action: ProposedActionRead | None = None
 
 
 class CoachChatReplyRead(BaseModel):

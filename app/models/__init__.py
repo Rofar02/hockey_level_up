@@ -1,4 +1,9 @@
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
+from app.models.coach_chat_proposed_action import (
+    CoachActionStatus,
+    CoachActionType,
+    CoachChatProposedAction,
+)
 from app.models.coachmark import UserCoachmark
 from app.models.exercise import (
     Exercise,
@@ -37,7 +42,10 @@ from app.models.user import User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
 
 __all__ = [
+    "CoachActionStatus",
+    "CoachActionType",
     "CoachChatMessage",
+    "CoachChatProposedAction",
     "CoachChatRole",
     "DayPlan",
     "DaySessionType",

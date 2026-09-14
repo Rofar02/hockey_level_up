@@ -3,16 +3,17 @@ import { CoachPersonalityIntroModal } from '../components/CoachPersonalityIntroM
 import { MarkdownContent } from '../components/MarkdownContent'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
-import { CARD_CLASS } from '../components/ui/cardStyle'
+import { CARD_BORDER, CARD_CLASS } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { PremiumGate } from '../components/ui/PremiumGate'
 import { ShieldIcon } from '../components/ui/ShieldIcon'
+import * as authApi from '../api/auth'
 import * as coachChatApi from '../api/coachChat'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import type { CoachChatMessageRead } from '../types/coachChat'
+import type { CoachChatMessageRead, ProposedActionRead } from '../types/coachChat'
 
 const COACH_PREMIUM_GATE_DESCRIPTION =
   'С премиум-подпиской откроется персональный AI-тренер: задавайте вопросы о своих тренировках и ' +
@@ -80,6 +81,7 @@ function ComingSoonCard() {
 }
 
 function CoachChatContent({ accessToken }: { accessToken: string }) {
+  const { updateUser } = useAuth()
   const [messages, setMessages] = useState<CoachChatMessageRead[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   // Optimistic by default: we only learn the feature is switched off (503)
@@ -91,7 +93,50 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
   const [input, setInput] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [decidingActionId, setDecidingActionId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  function applyActionResult(actionId: string, updated: ProposedActionRead) {
+    setMessages((prev) =>
+      (prev ?? []).map((message) =>
+        message.proposed_action?.id === actionId
+          ? { ...message, proposed_action: updated }
+          : message,
+      ),
+    )
+  }
+
+  async function handleConfirmAction(actionId: string) {
+    setDecidingActionId(actionId)
+    setActionError(null)
+    try {
+      const result = await coachChatApi.confirmProposedAction(actionId, accessToken)
+      applyActionResult(actionId, result)
+      // The confirmed action may have changed a User field (e.g.
+      // tournament_date) that other screens read from auth state -- refetch
+      // rather than guess which fields changed for which action_type.
+      const refreshedUser = await authApi.getCurrentUser(accessToken)
+      updateUser(refreshedUser)
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : 'Не удалось подтвердить предложение.')
+    } finally {
+      setDecidingActionId(null)
+    }
+  }
+
+  async function handleDismissAction(actionId: string) {
+    setDecidingActionId(actionId)
+    setActionError(null)
+    try {
+      const result = await coachChatApi.dismissProposedAction(actionId, accessToken)
+      applyActionResult(actionId, result)
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : 'Не удалось отклонить предложение.')
+    } finally {
+      setDecidingActionId(null)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -133,6 +178,7 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
       role: 'user',
       content: trimmed,
       created_at: new Date().toISOString(),
+      proposed_action: null,
     }
     setMessages((prev) => [...(prev ?? []), pendingUserMessage])
     setInput('')
@@ -175,11 +221,20 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
             </p>
           </div>
         )}
-        {messages?.map((message) => <ChatBubble key={message.id} message={message} />)}
+        {messages?.map((message) => (
+          <ChatBubble
+            key={message.id}
+            message={message}
+            decidingActionId={decidingActionId}
+            onConfirmAction={handleConfirmAction}
+            onDismissAction={handleDismissAction}
+          />
+        ))}
         {isSending && <TypingIndicator />}
         <div ref={bottomRef} />
       </div>
 
+      <FormError message={actionError} />
       <FormError message={sendError} />
 
       <form
@@ -224,7 +279,17 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
 // with a thin top hairline echoing CARD_CLASS's "blue line" convention,
 // not a generic messaging-app pill -- so a chat bubble still reads as part
 // of this app rather than a bolted-on widget.
-function ChatBubble({ message }: { message: CoachChatMessageRead }) {
+function ChatBubble({
+  message,
+  decidingActionId,
+  onConfirmAction,
+  onDismissAction,
+}: {
+  message: CoachChatMessageRead
+  decidingActionId: string | null
+  onConfirmAction: (actionId: string) => void
+  onDismissAction: (actionId: string) => void
+}) {
   const isUser = message.role === 'user'
   const time = new Date(message.created_at).toLocaleTimeString('ru-RU', {
     hour: '2-digit',
@@ -248,6 +313,69 @@ function ChatBubble({ message }: { message: CoachChatMessageRead }) {
           {isUser ? message.content : <MarkdownContent content={message.content} />}
         </div>
         <span className="px-1 text-[10px] text-[#8A94A6]">{time}</span>
+        {message.proposed_action !== null && (
+          <ProposedActionCard
+            action={message.proposed_action}
+            isDeciding={decidingActionId === message.proposed_action.id}
+            onConfirm={() => message.proposed_action !== null && onConfirmAction(message.proposed_action.id)}
+            onDismiss={() => message.proposed_action !== null && onDismissAction(message.proposed_action.id)}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Inline card, not a Modal -- sits right under the coach's bubble that
+// proposed it (same "accept/dismiss row" shape as FriendsPage's incoming
+// friend-request cards). Only PENDING actions get the button pair; a
+// decided one becomes a small status line instead, so scrolling back
+// through history still shows what happened without offering a stale
+// re-confirm.
+function ProposedActionCard({
+  action,
+  isDeciding,
+  onConfirm,
+  onDismiss,
+}: {
+  action: ProposedActionRead
+  isDeciding: boolean
+  onConfirm: () => void
+  onDismiss: () => void
+}) {
+  if (action.status !== 'pending') {
+    return (
+      <div className={`flex items-center gap-2 px-3 py-2 text-xs text-[#8A94A6] ${CARD_BORDER} rounded-md bg-dark-card/60`}>
+        <i
+          className={`ti ${action.status === 'confirmed' ? 'ti-circle-check text-accent-ice' : 'ti-circle-x'}`}
+          aria-hidden="true"
+        />
+        {action.summary}
+      </div>
+    )
+  }
+
+  return (
+    <div className={`flex flex-col gap-2 p-3 ${CARD_BORDER} rounded-md bg-dark-card`}>
+      <p className="text-sm text-[#F5F7FA]">{action.summary}</p>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          isLoading={isDeciding}
+          onClick={onConfirm}
+          className="!px-3 !py-1.5 !text-xs"
+        >
+          Подтвердить
+        </Button>
+        <Button
+          type="button"
+          variant="neutral"
+          disabled={isDeciding}
+          onClick={onDismiss}
+          className="!px-3 !py-1.5 !text-xs"
+        >
+          Не сейчас
+        </Button>
       </div>
     </div>
   )

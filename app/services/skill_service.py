@@ -277,6 +277,26 @@ class SkillService:
         await self._session.commit()
         return await self.list_user_preferences(user.id)
 
+    async def add_priority_skill(
+        self, user: User, skill_id: uuid.UUID
+    ) -> list[UserSkillPreferenceRead]:
+        """Adds one skill to the user's existing priority set -- there's no
+        incremental-add column/repository method (replace_user_preferences
+        above is deliberately always a full replace), so this just reads
+        the current set and delegates to that same method with the new
+        skill appended, getting its full validation (slot cap,
+        required_level) for free. Used by the coach-chat proposed-action
+        confirm flow (CoachChatService) -- a no-op, not an error, if the
+        skill is already in the set."""
+        current = await self.list_user_preferences(user.id)
+        current_ids = [row.skill_id for row in current]
+        if skill_id in current_ids:
+            return current
+        return await self.replace_user_preferences(user, [*current_ids, skill_id])
+
+    async def find_skill_by_name(self, name: str) -> Skill | None:
+        return await self._skills.get_skill_by_name(name)
+
     # -- Skill admin CRUD --
 
     async def list_skills(self) -> list[Skill]:

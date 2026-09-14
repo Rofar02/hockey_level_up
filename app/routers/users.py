@@ -10,7 +10,12 @@ from app.models.exercise import EquipmentItem, TargetStat
 from app.models.user import User
 from app.routers.deps import get_current_user, require_premium
 from app.schemas.analytics import AnalyticsSummaryRead
-from app.schemas.coach_chat import CoachChatMessageCreate, CoachChatMessageRead, CoachChatReplyRead
+from app.schemas.coach_chat import (
+    CoachChatMessageCreate,
+    CoachChatMessageRead,
+    CoachChatReplyRead,
+    ProposedActionRead,
+)
 from app.schemas.exercise import EquipmentItemsReplace
 from app.schemas.progress import (
     ActivityCalendarDayRead,
@@ -220,6 +225,31 @@ async def get_coach_chat_history(
     limit: int = Query(default=50, ge=1, le=200),
 ):
     return await CoachChatService(session).list_history(current_user.id, limit)
+
+
+@router.post(
+    "/me/coach-chat/actions/{action_id}/confirm", response_model=ProposedActionRead
+)
+async def confirm_coach_chat_action(
+    action_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_premium)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Applies a coach-proposed action -- dispatches to the exact same
+    service method the corresponding Settings screen would call (see
+    CoachChatService.confirm_action), never a bespoke write path."""
+    return await CoachChatService(session).confirm_action(current_user, action_id)
+
+
+@router.post(
+    "/me/coach-chat/actions/{action_id}/dismiss", response_model=ProposedActionRead
+)
+async def dismiss_coach_chat_action(
+    action_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_premium)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await CoachChatService(session).dismiss_action(current_user, action_id)
 
 
 @router.get("/me/streak", response_model=TrainingStreakRead)

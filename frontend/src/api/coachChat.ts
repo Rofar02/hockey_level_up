@@ -1,5 +1,5 @@
 import { apiGet, apiPostAuth } from './client'
-import type { CoachChatMessageRead, CoachChatReplyRead } from '../types/coachChat'
+import type { CoachChatMessageRead, CoachChatReplyRead, ProposedActionRead } from '../types/coachChat'
 
 export function sendCoachChatMessage(
   message: string,
@@ -13,4 +13,26 @@ export function getCoachChatHistory(
   limit = 50,
 ): Promise<CoachChatMessageRead[]> {
   return apiGet<CoachChatMessageRead[]>(`/users/me/coach-chat/history?limit=${limit}`, accessToken)
+}
+
+export function confirmProposedAction(
+  actionId: string,
+  accessToken: string,
+): Promise<ProposedActionRead> {
+  return apiPostAuth<ProposedActionRead>(
+    `/users/me/coach-chat/actions/${actionId}/confirm`,
+    {},
+    accessToken,
+  )
+}
+
+export function dismissProposedAction(
+  actionId: string,
+  accessToken: string,
+): Promise<ProposedActionRead> {
+  return apiPostAuth<ProposedActionRead>(
+    `/users/me/coach-chat/actions/${actionId}/dismiss`,
+    {},
+    accessToken,
+  )
 }

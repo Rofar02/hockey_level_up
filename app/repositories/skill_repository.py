@@ -25,6 +25,14 @@ class SkillRepository:
     async def get_skill(self, skill_id: uuid.UUID) -> Skill | None:
         return await self._session.get(Skill, skill_id)
 
+    async def get_skill_by_name(self, name: str) -> Skill | None:
+        """Exact match, case-insensitive -- used to resolve a coach-chat
+        proposed action's model-supplied skill_name (see
+        CoachChatService._resolve_action_payload) into a real Skill.id
+        without trusting a model-supplied UUID."""
+        result = await self._session.execute(select(Skill).where(Skill.name.ilike(name)))
+        return result.scalars().first()
+
     async def create_skill(self, data: SkillCreate) -> Skill:
         skill = Skill(**data.model_dump())
         self._session.add(skill)
