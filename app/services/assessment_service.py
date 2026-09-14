@@ -58,7 +58,7 @@ class AssessmentService:
         if user.age is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="age is required to run the fitness test",
+                detail="Чтобы пройти тест, укажите возраст в настройках профиля",
             )
 
         agility = min(TEST_RESULT_CAP, float(score_from_value("long_jump_cm", user.age, body.long_jump_cm)))
@@ -167,7 +167,7 @@ class AssessmentService:
         if user.age is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="age is required to run the on-ice test",
+                detail="Чтобы пройти тест, укажите возраст в настройках профиля",
             )
 
         on_ice_skating = float(

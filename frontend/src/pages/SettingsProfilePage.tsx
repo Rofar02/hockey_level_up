@@ -4,6 +4,7 @@ import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { SelectField } from '../components/ui/SelectField'
 import { TextField } from '../components/ui/TextField'
 import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
@@ -13,8 +14,10 @@ import {
   AVATAR_RING_ACCENT_LABELS,
   JERSEY_COLORS,
   JERSEY_COLOR_LABELS,
+  POSITIONS,
+  POSITION_LABELS,
 } from '../types/user'
-import type { AvatarRingAccent, JerseyColor } from '../types/user'
+import type { AvatarRingAccent, JerseyColor, Position } from '../types/user'
 import { LEVEL_AVATAR_RING_CHOICE, LEVEL_JERSEY_COLOR_CHOICE, hasAvatarRingChoice, hasJerseyColorChoice } from '../utils/levelUnlocks'
 
 // Flat swatch previews, not a re-derivation of avatarTier.ts's own
@@ -33,6 +36,17 @@ const JERSEY_COLOR_SWATCH_STYLE: Record<JerseyColor, CSSProperties> = {
   gold: { background: '#FFC94A' },
 }
 
+// Same convention RegisterPage's own PhysicalStep uses for these same
+// fields -- empty/unparseable clears the field rather than erroring
+// client-side, the backend's own gt=0 validation is the real gate.
+function toOptionalNumber(value: string): number | null {
+  if (value.trim() === '') {
+    return null
+  }
+  const parsed = Number(value)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
 export function SettingsProfilePage() {
   const { user, accessToken, updateUser } = useAuth()
 
@@ -41,6 +55,16 @@ export function SettingsProfilePage() {
   const [patronymic, setPatronymic] = useState(user?.patronymic ?? '')
   const [jerseyNumber, setJerseyNumber] = useState(
     user?.jersey_number != null ? String(user.jersey_number) : '',
+  )
+  // Registration's PhysicalStep explicitly tells the athlete these four are
+  // skippable there and fillable "later in настройках" -- this is that
+  // later (previously the profile form had no way to touch them at all).
+  const [height, setHeight] = useState(user?.height != null ? String(user.height) : '')
+  const [weight, setWeight] = useState(user?.weight != null ? String(user.weight) : '')
+  const [age, setAge] = useState(user?.age != null ? String(user.age) : '')
+  const [position, setPosition] = useState<Position | ''>(user?.position ?? '')
+  const [yearsOfExperience, setYearsOfExperience] = useState(
+    user?.years_of_experience != null ? String(user.years_of_experience) : '',
   )
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -72,6 +96,11 @@ export function SettingsProfilePage() {
       jerseyValue = parsed
     }
     const patronymicValue = patronymic.trim() === '' ? null : patronymic
+    const heightValue = toOptionalNumber(height)
+    const weightValue = toOptionalNumber(weight)
+    const ageValue = toOptionalNumber(age)
+    const yearsOfExperienceValue = toOptionalNumber(yearsOfExperience)
+    const positionValue = position === '' ? null : position
 
     // Only PATCH fields that actually changed from the last-known user.
     const updates: usersApi.UserProfileUpdate = {}
@@ -86,6 +115,21 @@ export function SettingsProfilePage() {
     }
     if (jerseyValue !== user.jersey_number) {
       updates.jersey_number = jerseyValue
+    }
+    if (heightValue !== user.height) {
+      updates.height = heightValue
+    }
+    if (weightValue !== user.weight) {
+      updates.weight = weightValue
+    }
+    if (ageValue !== user.age) {
+      updates.age = ageValue
+    }
+    if (positionValue !== user.position) {
+      updates.position = positionValue
+    }
+    if (yearsOfExperienceValue !== user.years_of_experience) {
+      updates.years_of_experience = yearsOfExperienceValue
     }
 
     if (Object.keys(updates).length === 0) {
@@ -193,6 +237,53 @@ export function SettingsProfilePage() {
             max={99}
             value={jerseyNumber}
             onChange={(event) => setJerseyNumber(event.target.value)}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <TextField
+              label="Рост, см (необязательно)"
+              name="height"
+              type="number"
+              numeric
+              min={0}
+              value={height}
+              onChange={(event) => setHeight(event.target.value)}
+            />
+            <TextField
+              label="Вес, кг (необязательно)"
+              name="weight"
+              type="number"
+              numeric
+              min={0}
+              value={weight}
+              onChange={(event) => setWeight(event.target.value)}
+            />
+            <TextField
+              label="Возраст (необязательно)"
+              name="age"
+              type="number"
+              numeric
+              min={0}
+              value={age}
+              onChange={(event) => setAge(event.target.value)}
+            />
+            <TextField
+              label="Стаж в хоккее, лет (необязательно)"
+              name="years_of_experience"
+              type="number"
+              numeric
+              min={0}
+              step="0.5"
+              value={yearsOfExperience}
+              onChange={(event) => setYearsOfExperience(event.target.value)}
+            />
+          </div>
+          <SelectField
+            label="Позиция (необязательно)"
+            name="position"
+            placeholder="Не выбрано"
+            value={position}
+            onChange={(event) => setPosition(event.target.value as Position | '')}
+            options={POSITIONS.map((value) => ({ value, label: POSITION_LABELS[value] }))}
           />
           <FormError message={profileError} />
           {profileSaved && <p className="text-sm text-accent-ice">Сохранено.</p>}

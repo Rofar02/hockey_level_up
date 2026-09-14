@@ -51,7 +51,7 @@ class LeaderboardService:
         if user.age is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="age is required to appear on the leaderboard",
+                detail="Чтобы попасть в рейтинг, укажите возраст в настройках профиля",
             )
         ranked = await self._ranked_users()
         for rank, (candidate, rating_excess) in enumerate(ranked, start=1):

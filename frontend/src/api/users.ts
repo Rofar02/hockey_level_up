@@ -11,6 +11,7 @@ import type {
   AvatarRingAccent,
   CoachPersonality,
   JerseyColor,
+  Position,
   ReminderPreference,
   SeasonPeriod,
   UserPublicRead,
@@ -23,6 +24,16 @@ export interface UserProfileUpdate {
   first_name?: string
   patronymic?: string | null
   jersey_number?: number | null
+  // Registration's own PhysicalStep explicitly promises these four are
+  // skippable there and fillable "later in settings" -- this is that
+  // later. Also the only self-service fix for age specifically, which
+  // gates the fitness test, leaderboard, and analytics rating (all 400s
+  // without it).
+  height?: number | null
+  weight?: number | null
+  age?: number | null
+  position?: Position | null
+  years_of_experience?: number | null
   reminder_preference?: ReminderPreference
   season_period?: SeasonPeriod
   coach_personality?: CoachPersonality

@@ -121,6 +121,17 @@ class UserUpdate(BaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     patronymic: str | None = Field(default=None, max_length=100)
     jersey_number: int | None = Field(default=None, ge=0, le=99)
+    # PhysicalStep's own registration copy promises "можно... заполнить
+    # позже в настройках" for exactly these four fields (they're skippable
+    # there) -- until this, Settings had no way to actually do that, so
+    # anyone who registered without an age was permanently locked out of
+    # the fitness test/leaderboard/analytics rating (all hard-require it,
+    # see assessment_service.py/leaderboard_service.py/progress_service.py).
+    height: float | None = Field(default=None, gt=0)
+    weight: float | None = Field(default=None, gt=0)
+    age: int | None = Field(default=None, gt=0)
+    position: Position | None = None
+    years_of_experience: float | None = Field(default=None, ge=0)
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     reminder_preference: ReminderPreference | None = None
     season_period: SeasonPeriod | None = None
