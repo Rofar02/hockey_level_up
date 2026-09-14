@@ -1,8 +1,9 @@
-"""require_premium (app/routers/deps.py): gates GET /users/me/analytics/* on
-User.has_premium, same shape as require_admin gates /admin/* routes. Tested
-by calling the dependency function directly with a plain User object --
-same convention require_admin-gated behavior would use if it had a direct
-test (it currently doesn't; this is the first).
+"""require_premium (app/routers/deps.py): gates GET /users/me/analytics/*
+and the coach-chat endpoints on User.has_premium, same shape as
+require_admin gates /admin/* routes. Tested by calling the dependency
+function directly with a plain User object -- same convention
+require_admin-gated behavior would use if it had a direct test (it
+currently doesn't; this is the first).
 """
 import uuid
 
@@ -32,7 +33,7 @@ async def test_require_premium_blocks_without_premium() -> None:
         await require_premium(user)
 
     assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == "Аналитика доступна с премиум-подпиской"
+    assert exc_info.value.detail == "Эта функция доступна с премиум-подпиской"
 
 
 @pytest.mark.asyncio
