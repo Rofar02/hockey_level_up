@@ -254,8 +254,18 @@ export function ExerciseDetailBody({
           </TabButton>
         </div>
 
-        {activeTab === 'sets' &&
-          (mode === 'sets_reps' ? (
+        {/* Always mounted, hidden via CSS rather than conditionally
+            rendered -- unlike the technique/transfer tabs below, this one
+            holds live, hard-to-reconstruct state (TimerPlayer's running
+            countdown/deadlineRef, SetLogger's in-progress stepper edits).
+            Unmounting on every tab switch used to tear all of that down --
+            found live-testing 2026-09-14: switching to "Техника" mid-round
+            silently stopped and reset the timer (and, as a direct
+            consequence, its own alertTimerDone() sound never got the
+            chance to fire, since the effect watching for remaining<=0 was
+            torn down along with the component). */}
+        <div className={activeTab === 'sets' ? undefined : 'hidden'}>
+          {mode === 'sets_reps' ? (
             <SetLogger
               exercise={exercise}
               trainingSessionId={trainingSessionId}
@@ -314,7 +324,8 @@ export function ExerciseDetailBody({
                 </Button>
               )}
             </div>
-          ))}
+          )}
+        </div>
 
         {activeTab === 'technique' &&
           (hasTechnique ? (
