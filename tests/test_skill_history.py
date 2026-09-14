@@ -219,3 +219,30 @@ async def test_all_skills_history_groups_by_skill_id_without_mixing(db_session) 
     assert set(result.keys()) >= {skill_a.id, skill_b.id}
     assert [point.value for point in result[skill_a.id]] == [42.0]
     assert [point.value for point in result[skill_b.id]] == [7.0]
+
+
+@pytest.mark.asyncio
+async def test_skill_value_at_baseline_for_a_stat_younger_than_the_window(db_session) -> None:
+    """Regression test for get_skill_value_at's fix: it's AnalyticsService's
+    baseline lookup ("what was this skill worth `days` ago"), not a real
+    event reconstruction like _skill_value_at/_compute_skill_history. A stat
+    with no history before the requested instant used to diff against a
+    fictitious 0.0 there, reporting the skill's whole starting value as a
+    fake recent gain. Clamping the lookup instant forward to the stat's
+    earliest known row (same fix as get_stat_baseline_value) means the
+    baseline should be the value at that first row, not 0.
+    """
+    user = _make_user()
+    skill = _make_skill()
+    db_session.add_all([user, skill, _make_weight(skill.id, TargetStat.STRENGTH, 1.0)])
+    await db_session.flush()
+
+    at = datetime.now(timezone.utc) - timedelta(days=90)
+    first_seen = at + timedelta(days=10)  # STRENGTH's only history row is *after* `at`
+    db_session.add(_make_history(user.id, TargetStat.STRENGTH, 50.0, first_seen))
+    await db_session.flush()
+
+    service = SkillService(db_session)
+    baseline = await service.get_skill_value_at(skill.id, user.id, at)
+
+    assert baseline == pytest.approx(50.0)

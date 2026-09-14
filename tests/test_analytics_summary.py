@@ -100,6 +100,51 @@ async def test_top_gainer_and_decliner_across_stats(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_top_gainer_baseline_for_a_stat_younger_than_the_window(db_session) -> None:
+    """Regression test: get_stat_value_at_from_history correctly answers 0.0
+    for an instant before any history exists (needed for real chart-point
+    reconstruction), but using that directly as a baseline meant a stat
+    younger than the window -- every history row falls *after* `since` --
+    diffed against a fictitious 0 and reported its whole starting value as
+    a huge "recent" gain. get_stat_baseline_value clamps the lookup instant
+    forward to the stat's own earliest row instead, so a modest real change
+    since then should come out as a modest delta, not the raw value.
+    """
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=DAYS)
+
+    # STRENGTH's very first history row lands *inside* the window (10 days
+    # after `since`), then grows a little -- a real +5 gain, not the ~55
+    # a from-0.0 baseline would report.
+    first_seen = since + timedelta(days=10)
+    db_session.add_all(
+        [
+            StatHistory(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                stat_type=TargetStat.STRENGTH,
+                value=50.0,
+                recorded_at=first_seen,
+                reason="first_seen",
+            ),
+            _live_stat(user.id, TargetStat.STRENGTH, 55.0, now),
+        ]
+    )
+    await db_session.flush()
+
+    service = AnalyticsService(db_session)
+    result = await service.get_summary(user, DAYS)
+
+    assert result.top_gainer.type == "stat"
+    assert result.top_gainer.name == TargetStat.STRENGTH.value
+    assert result.top_gainer.delta == pytest.approx(5.0)
+
+
+@pytest.mark.asyncio
 async def test_decline_reason_is_none_when_decay_not_active(db_session) -> None:
     user = _make_user()
     db_session.add(user)
