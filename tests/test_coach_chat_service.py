@@ -37,7 +37,11 @@ from app.models.user import CoachPersonality, User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
 from app.routers.deps import require_premium
 from app.services import coach_chat_service
-from app.services.coach_chat_service import MONTHLY_MESSAGE_LIMIT, CoachChatService
+from app.services.coach_chat_service import (
+    ANALYTICS_SUMMARY_WINDOW_DAYS,
+    MONTHLY_MESSAGE_LIMIT,
+    CoachChatService,
+)
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 
 
@@ -582,3 +586,52 @@ async def test_system_prompt_falls_back_to_next_real_session_when_today_has_none
     prompt = captured["system_prompt"]
     assert upcoming_date.isoformat() in prompt
     assert "Катание на скорость" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_includes_analytics_summary(db_session, monkeypatch) -> None:
+    """AnalyticsService.get_summary is the exact same data
+    AnalyticsPage.tsx itself shows -- this only checks it actually reaches
+    the prompt with the real computed delta, not AnalyticsService's own
+    selection logic (already covered by test_analytics_summary.py)."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=ANALYTICS_SUMMARY_WINDOW_DAYS)
+
+    # STRENGTH: 50 -> 80 (+30, well outside the baseline window so it
+    # doesn't get clamped) -- the only stat with any data, so it's
+    # guaranteed to be top_gainer.
+    db_session.add_all(
+        [
+            StatHistory(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                stat_type=TargetStat.STRENGTH,
+                value=50.0,
+                recorded_at=since - timedelta(days=1),
+                reason="baseline",
+            ),
+            UserStat(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                stat_type=TargetStat.STRENGTH,
+                current_value=80.0,
+                last_updated_at=now,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как мои успехи?")
+
+    prompt = captured["system_prompt"]
+    assert f"Аналитика за {ANALYTICS_SUMMARY_WINDOW_DAYS} дн." in prompt
+    assert "Сила" in prompt
+    assert "+30.0" in prompt

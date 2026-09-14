@@ -53,9 +53,11 @@ from app.repositories.coach_chat_proposed_action_repository import CoachChatProp
 from app.repositories.coach_chat_repository import CoachChatRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.schedule_repository import ScheduleRepository
+from app.schemas.analytics import AnalyticsMoverRead, AnalyticsSummaryRead
 from app.schemas.coach_chat import CoachChatMessageRead, ProposedActionRead
 from app.schemas.training_diary import TrainingDiaryEntryListItem
 from app.schemas.user import UserUpdate
+from app.services.analytics_service import AnalyticsService
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
@@ -118,6 +120,11 @@ DAY_SESSION_TYPE_LABELS: dict[DaySessionType, str] = {
 # only needs recent context, not the whole notebook (the full history is
 # what /diary itself is for).
 DIARY_ENTRIES_IN_PROMPT = 3
+# Same default window AnalyticsPage.tsx itself opens with -- the coach's
+# "what's trending" summary should describe the same period the player
+# would see if they opened Analytics themselves, not a second, differently
+# numbered window that could disagree with it.
+ANALYTICS_SUMMARY_WINDOW_DAYS = 90
 # How many calendar days ahead of `today` to look for the next real
 # training day if today itself is REST or has no plan yet -- one week is
 # generous (a declared week is at most 7 days) without risking an
@@ -288,6 +295,49 @@ def _format_action_reference_section(skill_names: list[str]) -> str:
     )
 
 
+def _analytics_mover_label(mover: AnalyticsMoverRead) -> str:
+    # "stat" movers carry the bare TargetStat value (e.g. "strength") --
+    # "skill" movers already carry the real skill name, no mapping needed.
+    if mover.type == "stat":
+        return STAT_LABELS.get(TargetStat(mover.name), mover.name)
+    return mover.name
+
+
+def _format_analytics_summary_section(summary: AnalyticsSummaryRead, days: int) -> str:
+    """Same top_gainer/top_decliner/closest_to_milestone/decline_reason
+    AnalyticsPage.tsx itself shows -- lets the coach proactively reference
+    a real trend ("вижу, у тебя выросла ловкость") instead of only
+    answering when asked, without duplicating AnalyticsService's own
+    selection logic here."""
+    parts = [f"Аналитика за {days} дн."]
+    # top_gainer is never null in the response, but its delta can be <=0
+    # if nothing actually grew this window (AnalyticsService's own
+    # comment) -- don't claim a "biggest gain" that wasn't one.
+    if summary.top_gainer.delta > 0:
+        parts.append(
+            f"больше всего выросло — {_analytics_mover_label(summary.top_gainer)} "
+            f"(+{summary.top_gainer.delta:.1f})"
+        )
+    else:
+        parts.append("заметного роста не было")
+
+    if summary.top_decliner is not None:
+        reason = f", вероятная причина: {summary.decline_reason}" if summary.decline_reason else ""
+        parts.append(
+            f"больше всего просело — {_analytics_mover_label(summary.top_decliner)} "
+            f"({summary.top_decliner.delta:.1f}){reason}"
+        )
+
+    if summary.closest_to_milestone is not None:
+        milestone = summary.closest_to_milestone
+        parts.append(
+            f"ближе всего к следующему порогу — {milestone.skill_name} "
+            f"(осталось {milestone.points_remaining:.1f} до {milestone.threshold})"
+        )
+
+    return "; ".join(parts) + "."
+
+
 def _format_history_section(entries: list[StatHistory]) -> str:
     if not entries:
         return "Последние изменения характеристик: нет записей."
@@ -369,6 +419,7 @@ class CoachChatService:
         self._restrictions = UserTemporaryRestrictionService(session)
         self._diary = TrainingDiaryService(session)
         self._schedule = ScheduleRepository(session)
+        self._analytics = AnalyticsService(session)
 
     async def send_message(self, user: User, message: str) -> CoachChatMessageRead:
         settings = get_settings()
@@ -642,6 +693,11 @@ class CoachChatService:
         upcoming_day_plan = await self._find_upcoming_day_plan(user.id, now.date())
         upcoming_session_section = _format_upcoming_session_section(upcoming_day_plan)
 
+        analytics_summary = await self._analytics.get_summary(user, ANALYTICS_SUMMARY_WINDOW_DAYS)
+        analytics_section = _format_analytics_summary_section(
+            analytics_summary, ANALYTICS_SUMMARY_WINDOW_DAYS
+        )
+
         action_reference_section = _format_action_reference_section(
             [skill.name for skill in skills]
         )
@@ -650,7 +706,10 @@ class CoachChatService:
             f"{PERSONALITY_SYSTEM_PROMPTS[coach_personality]}\n\n"
             "Отвечай по-русски, по делу и кратко. Используй приведённую "
             "ниже сводку данных пользователя, чтобы давать конкретные, персональные "
-            "советы по тренировкам, а не общие фразы.\n\n"
+            "советы по тренировкам, а не общие фразы. Если в сводке аналитики "
+            "есть заметный рост или спад, можешь упомянуть это сам, не "
+            "дожидаясь вопроса -- это то, что реально знает хороший тренер "
+            "про своего игрока.\n\n"
             f"Сводка данных пользователя (на {now.date().isoformat()}):\n"
             f"{stats_section}\n"
             f"{milestones_section}\n"
@@ -659,7 +718,8 @@ class CoachChatService:
             f"{history_section}\n"
             f"{restrictions_section}\n"
             f"{diary_section}\n"
-            f"{upcoming_session_section}\n\n"
+            f"{upcoming_session_section}\n"
+            f"{analytics_section}\n\n"
             f"{SYSTEM_PROMPT_GUARDRAILS}\n\n"
             f"{action_reference_section}"
         )
