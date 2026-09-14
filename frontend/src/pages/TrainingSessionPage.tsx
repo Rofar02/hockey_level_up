@@ -646,9 +646,15 @@ export function TrainingSessionPage() {
   // elsewhere in this file (an exercise appearing twice in one session
   // would be ambiguous here too, pre-existing either way). Needed to build
   // onLastSetCompleted's closure over the right block for handleComplete.
+  // Scoped to currentPhaseBlocks, not the global `blocks` array -- if
+  // selectedExercise ever ends up stale from a phase that's no longer
+  // current (found 2026-09-14: the last warmup exercise stayed open after
+  // the phase had actually advanced), this resolves to null and the
+  // render below falls back to the current phase's own list instead of
+  // showing a mismatched, already-left-behind exercise.
   const selectedBlock =
     selectedExercise !== null
-      ? (blocks.find((block) => block.exercise.id === selectedExercise.id) ?? null)
+      ? (currentPhaseBlocks.find((block) => block.exercise.id === selectedExercise.id) ?? null)
       : null
 
   const weekdayLabel = day !== null ? WEEKDAY_LABELS[(parseIsoDate(day.date).getDay() + 6) % 7] : null
@@ -704,16 +710,39 @@ export function TrainingSessionPage() {
     // every phase boundary). Manual list-driven completion (ExerciseRow's
     // own checkbox, handleComplete) is untouched -- this only fires from
     // the focus player's own settle callback.
-    if (canFinishPhase && !isLastPhase) {
+    //
+    // Deliberately NOT using canFinishPhase/currentPhaseDoneCount here --
+    // both are derived from `blocks`/setCompletionCounts, which may not
+    // have caught up yet: handleComplete's own API call (fired from
+    // TimerPlayer/SetLogger right before the feedback prompt this settle
+    // callback fires from) is async and not awaited by either caller, so
+    // an athlete answering feedback quickly could settle here before
+    // `blocks` reflects THIS exercise as done (found 2026-09-14: the last
+    // warmup exercise never advanced to the next phase, even after
+    // manually going back and tapping "Завершить" -- see selectedBlock's
+    // own phase-scoping fix above for the second half of that symptom).
+    // We already know for certain this exercise is done (we're literally
+    // handling its settle), so check every OTHER block in the phase
+    // instead of trusting a possibly-stale read of this one.
+    const restOfPhaseDone = currentPhaseBlocks
+      .filter((block) => block.exercise.id !== selectedExercise.id)
+      .every((block) => isExerciseDone(block, setCompletionCounts))
+
+    if (restOfPhaseDone && !isLastPhase) {
       const nextPhase = activePhases[safePhaseIndex + 1]
       const nextPhaseBlocks = blocksByPhase[nextPhase]
       const firstBlock =
         nextPhaseBlocks.find((block) => !isExerciseDone(block, setCompletionCounts)) ?? nextPhaseBlocks[0]
       setCurrentPhaseIndex((index) => index + 1)
-      if (firstBlock !== undefined) {
-        setSelectedExercise(firstBlock.exercise)
-      }
+      setSelectedExercise(firstBlock?.exercise ?? null)
       trackerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } else if (restOfPhaseDone) {
+      // Last phase, last exercise -- nothing left to auto-advance into.
+      // handleComplete's own mergedBlocks.every check opens
+      // SessionCompleteModal once `blocks` itself catches up; here just
+      // stop showing this finished exercise's player screen instead of
+      // leaving it open indefinitely.
+      setSelectedExercise(null)
     }
   }
 
