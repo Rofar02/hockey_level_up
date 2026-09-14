@@ -176,6 +176,17 @@ function formatTargetVolume(exercise: ExerciseRead): string | null {
 // -- shown immediately on a 200 rather than waiting on a separate request,
 // since the formula is already public knowledge and the real numbers land
 // via the event pipeline moments later regardless.
+// Rounds to 1 decimal for display -- these gains are small shares
+// (difficulty_level * 0.5 split across 1-4 target stats), and summing
+// plain floats (see computeSessionTotals below) can otherwise surface raw
+// binary-float noise like "1.4000000000000001" (found live-testing
+// 2026-09-14: "прирост характеристик... пишет дробными большими
+// числами"). Purely a display concern -- nothing here is persisted, the
+// real numbers land via the backend's own event pipeline regardless.
+function formatStatGain(value: number): string {
+  return value.toFixed(1)
+}
+
 function formatCompletionFeedback(exercise: ExerciseRead): string {
   const xpGain = exercise.difficulty_level * 10
   if (exercise.target_stats.length === 0) {
@@ -183,7 +194,7 @@ function formatCompletionFeedback(exercise: ExerciseRead): string {
   }
   const statGain = (exercise.difficulty_level * 0.5) / exercise.target_stats.length
   const statsText = exercise.target_stats
-    .map((stat) => `+${statGain} ${TARGET_STAT_LABELS[stat]}`)
+    .map((stat) => `+${formatStatGain(statGain)} ${TARGET_STAT_LABELS[stat]}`)
     .join(' ')
   return `${statsText} +${xpGain} XP`
 }
@@ -1478,7 +1489,7 @@ function SessionCompleteModal({
           {Object.entries(statTotals).map(([stat, value]) => (
             <div key={stat} className="flex items-center justify-between text-sm">
               <span className="text-text-primary">{TARGET_STAT_LABELS[stat as TargetStat]}</span>
-              <span className="font-mono text-accent-ice">+{value}</span>
+              <span className="font-mono text-accent-ice">+{formatStatGain(value)}</span>
             </div>
           ))}
           <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-2 text-sm">
