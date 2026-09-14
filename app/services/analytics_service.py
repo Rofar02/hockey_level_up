@@ -14,7 +14,7 @@ from app.services.skill_service import SkillService
 from app.services.stat_service import (
     get_effective_value,
     get_idle_days,
-    get_stat_value_at_from_history,
+    get_stat_baseline_value,
     is_decay_active,
 )
 
@@ -80,7 +80,7 @@ class AnalyticsService:
             stat = await self._progress.get_user_stat(user_id, stat_type)
             current_value = get_effective_value(stat, now) if stat is not None else 0.0
             history = await self._progress.list_stat_history(user_id, stat_type)
-            baseline_value = get_stat_value_at_from_history(stat_type, history, since)
+            baseline_value = get_stat_baseline_value(stat_type, history, since)
             candidates.append(
                 _Candidate(
                     mover=AnalyticsMoverRead(

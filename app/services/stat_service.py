@@ -71,3 +71,25 @@ def get_stat_value_at_from_history(
         stat_type=stat_type, current_value=latest.value, last_updated_at=latest.recorded_at
     )
     return get_effective_value(pseudo_stat, at)
+
+
+def get_stat_baseline_value(
+    stat_type: TargetStat, history: list[StatHistory], since: datetime
+) -> float:
+    """Baseline for a "change over the last N days" comparison (analytics'
+    top-gainer/top-decliner) -- distinct from get_stat_value_at_from_history
+    above, which this calls but whose 0.0-if-nothing-existed-yet answer is
+    wrong to use directly here.
+
+    A user (or a stat they've never trained) younger than the requested
+    window has every history row *after* `since`, so
+    get_stat_value_at_from_history(..., since) always answers 0.0 -- and a
+    delta against a fictitious "stat was 0 before it existed" baseline
+    isn't the user's real recent change, it's their entire starting value
+    (e.g. their fitness-assessment score) misreported as a huge gain. Clamp
+    the lookup instant forward to the stat's own earliest known row in that
+    case, so the baseline is "as of when we first had data", not 0.
+    """
+    if history and history[0].recorded_at > since:
+        since = history[0].recorded_at
+    return get_stat_value_at_from_history(stat_type, history, since)

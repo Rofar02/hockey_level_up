@@ -31,7 +31,11 @@ from app.schemas.skill import (
     StatContributionRead,
     UserSkillPreferenceRead,
 )
-from app.services.stat_service import get_effective_value, get_stat_value_at_from_history
+from app.services.stat_service import (
+    get_effective_value,
+    get_stat_baseline_value,
+    get_stat_value_at_from_history,
+)
 
 WEIGHT_SUM_EPSILON = 1e-6
 
@@ -91,11 +95,17 @@ class SkillService:
     async def get_skill_value_at(
         self, skill_id: uuid.UUID, user_id: uuid.UUID, at: datetime
     ) -> float:
-        """Same on-the-fly reconstruction as _compute_skill_history, just for
-        a single arbitrary instant instead of a whole event-timestamp series
-        -- used by AnalyticsService to diff a skill's value against a
-        baseline `days` ago without needing get_skill_history's full point
-        list.
+        """Baseline for AnalyticsService's "diff a skill against `days` ago"
+        -- NOT the same as _skill_value_at's plain reconstruction (used by
+        _compute_skill_history for real chart points, which must keep
+        answering a true 0.0 for a stat that didn't exist yet at an early
+        event timestamp). Here `at` is a requested window boundary rather
+        than a real event time, so each weighted stat's own lookup instant
+        is clamped forward to that stat's earliest known history row --
+        same reasoning as get_stat_baseline_value -- otherwise a skill
+        resting on a stat younger than the window diffs against a
+        fictitious 0 and reports the stat's whole starting value as a
+        "recent" gain.
         """
         weights = await self._skills.list_stat_weights(skill_id)
         if not weights:
@@ -104,7 +114,11 @@ class SkillService:
             weight.stat_type: await self._progress.list_stat_history(user_id, weight.stat_type)
             for weight in weights
         }
-        return self._skill_value_at(weights, histories, at)
+        return sum(
+            get_stat_baseline_value(weight.stat_type, histories.get(weight.stat_type, []), at)
+            * weight.weight
+            for weight in weights
+        )
 
     async def _compute_skill_history(
         self, skill_id: uuid.UUID, user_id: uuid.UUID, days: int
