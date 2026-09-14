@@ -1,5 +1,4 @@
 import uuid
-from datetime import date
 
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,17 +35,23 @@ class TrainingBlockRepository:
     async def get_by_id(self, block_id: uuid.UUID) -> TrainingBlock | None:
         return await self._session.get(TrainingBlock, block_id)
 
-    async def count_completed_real_sessions(self, block_id: uuid.UUID, since: date) -> int:
+    async def count_completed_real_sessions(self, block_id: uuid.UUID) -> int:
         """How many on/off-ice TrainingSessions -- every one of their
         SessionBlocks completed, and at least one block exists at all (an
-        empty session, e.g. from a catalog gap, isn't "done") -- were
-        scheduled under `block_id` on or after `since`.
+        empty session, e.g. from a catalog gap, isn't "done") -- were ever
+        scheduled under `block_id`, for this block's whole lifetime.
 
-        Scoped by DayPlan.date, not by which BlockPhase a session happened
-        to be assembled under: `since` is always the current phase's
-        phase_started_at, so sessions from a since-elapsed earlier phase
-        (before the date cutoff) are correctly excluded from this count
-        without needing to record "which phase" on every session.
+        block_id alone is the exact, complete scope: WeeklyPlan.
+        training_block_id is fixed at plan-creation time to whichever
+        block was active then, so it already isolates this block's own
+        sessions with no ambiguity. This used to also filter by
+        DayPlan.date >= phase_started_at to further narrow "since the
+        current phase started", but phase_started_at is a bare Date and
+        that filter couldn't tell apart two transitions landing on the
+        same real day -- see TrainingBlock.phase_session_baseline for the
+        counter that replaced it; this method now always answers the
+        block's running total, and phase-scoping happens by subtracting
+        that baseline in TrainingBlockService.count_sessions_completed_in_phase.
         """
         has_any_block = exists().where(SessionBlock.session_id == TrainingSession.id)
         has_incomplete_block = exists().where(
@@ -61,7 +66,6 @@ class TrainingBlockRepository:
             .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
             .where(
                 WeeklyPlan.training_block_id == block_id,
-                DayPlan.date >= since,
                 DayPlan.session_type.in_(_TRAINING_SESSION_TYPES),
                 has_any_block,
                 ~has_incomplete_block,

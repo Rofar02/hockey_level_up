@@ -107,12 +107,29 @@ class TrainingBlock(Base):
     phase: Mapped[BlockPhase] = mapped_column(
         enum_column(BlockPhase, "block_phase"), nullable=False, default=BlockPhase.ACCUMULATION
     )
-    # When the CURRENT phase started -- both the lower bound for counting
-    # "sessions completed in this phase" (TrainingBlockRepository.
-    # count_completed_real_sessions) and the anchor for the calendar-ceiling
-    # fallback. Reset to today() every time phase advances (including the
-    # deload->new-block rollover, on the new row).
+    # When the CURRENT phase started -- purely the anchor for the
+    # calendar-ceiling fallback now (weeks_since_phase_started in
+    # phase_transition_due). Reset to today() every time phase advances
+    # (including the deload->new-block rollover, on the new row).
     phase_started_at: Mapped[date_] = mapped_column(Date, nullable=False, default=date_.today)
+    # How many of this block's total completed real sessions had already
+    # been consumed by an earlier phase transition, as of the moment the
+    # CURRENT phase started -- the lower bound for "sessions completed in
+    # this phase" is (total real sessions for this block) minus this,
+    # NOT a phase_started_at date filter (found 2026-09-01 simulating
+    # months of play: phase_started_at is a bare Date, so a second
+    # same-day transition -- e.g. a catch-up burst of several real
+    # sessions, or several SessionBlock.complete calls landing inside one
+    # TrainingBlockService._catch_up loop -- re-stamped the same today()
+    # value, and DayPlan.date >= that date matched the very sessions that
+    # had just fired the PREVIOUS transition, so they got re-counted
+    # toward the next one too, cascading a mesocycle through in far fewer
+    # than SESSIONS_TO_ADVANCE_PHASE*3 real sessions). Reset to the
+    # block's own total-so-far every time phase advances within the same
+    # block (see TrainingBlockService._advance); 0 on a brand-new block.
+    phase_session_baseline: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     is_macrocycle_deload: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )

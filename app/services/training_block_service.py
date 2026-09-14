@@ -46,7 +46,8 @@ class TrainingBlockService:
         return await self._blocks.get_by_id(block_id)
 
     async def count_sessions_completed_in_phase(self, block: TrainingBlock) -> int:
-        return await self._blocks.count_completed_real_sessions(block.id, since=block.phase_started_at)
+        total = await self._blocks.count_completed_real_sessions(block.id)
+        return max(0, total - block.phase_session_baseline)
 
     async def resolve_active_block(
         self, user_id: uuid.UUID, *, today: date | None = None
@@ -94,7 +95,8 @@ class TrainingBlockService:
         self, block: TrainingBlock, today: date, season_period: SeasonPeriod
     ) -> TrainingBlock:
         while True:
-            sessions_completed = await self.count_sessions_completed_in_phase(block)
+            total_sessions = await self._blocks.count_completed_real_sessions(block.id)
+            sessions_completed = max(0, total_sessions - block.phase_session_baseline)
             weeks_elapsed = (today - block.phase_started_at).days // 7
             if not phase_transition_due(
                 sessions_completed_in_phase=sessions_completed,
@@ -102,13 +104,18 @@ class TrainingBlockService:
                 season_period=season_period,
             ):
                 return block
-            block = await self._advance(block, today)
+            block = await self._advance(block, today, total_sessions)
 
-    async def _advance(self, block: TrainingBlock, today: date) -> TrainingBlock:
+    async def _advance(self, block: TrainingBlock, today: date, total_sessions: int) -> TrainingBlock:
         upcoming = next_phase(block.phase)
         if upcoming is not None:
             block.phase = upcoming
             block.phase_started_at = today
+            # Everything completed so far under this block is now "spent"
+            # on the transition that just fired -- the new phase's own
+            # count starts fresh from this exact running total, not from
+            # a date cutoff (see TrainingBlock.phase_session_baseline).
+            block.phase_session_baseline = total_sessions
             return block
 
         # Deload just completed -> roll over to a brand-new mesocycle. Same
