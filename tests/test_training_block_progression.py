@@ -142,6 +142,61 @@ async def _complete_a_phase_worth_of_sessions(db_session, user: User, block: Tra
     clock.tick_days(1)  # strictly after the last session's date
 
 
+_same_day_week_counter = 0
+
+
+async def _complete_real_session_same_day(db_session, user: User, block: TrainingBlock, on_date: date) -> None:
+    """Same as _complete_real_session, but every call is dated exactly
+    `on_date` (unlike the tick_weeks-per-session helper above) -- needed to
+    reproduce the phase_session_baseline bug, which only manifests when
+    multiple real sessions share the same calendar day as a phase
+    transition's `today`. Uses a distinct, unrelated week_start_date per
+    call (rather than one derived from on_date) purely to dodge
+    uq_weekly_plans_user_week -- WeeklyPlan/DayPlan have no constraint
+    tying a DayPlan's date to its own week's real calendar days, so this is
+    safe for a test that bypasses ScheduleService entirely, same as
+    _complete_real_session already does.
+    """
+    global _same_day_week_counter
+    _same_day_week_counter += 1
+    week_start_date = date(2000, 1, 3) + timedelta(weeks=_same_day_week_counter)
+
+    exercise = Exercise(
+        id=uuid.uuid4(),
+        name=f"exercise-{uuid.uuid4().hex[:8]}",
+        category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN,
+        difficulty_level=1,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+
+    weekly_plan = WeeklyPlan(
+        id=uuid.uuid4(), user_id=user.id, week_start_date=week_start_date, training_block_id=block.id
+    )
+    weekly_plan.day_plans.append(
+        DayPlan(
+            id=uuid.uuid4(),
+            date=on_date,
+            session_type=DaySessionType.OFF_ICE,
+            training_session=TrainingSession(
+                id=uuid.uuid4(),
+                blocks=[
+                    SessionBlock(
+                        id=uuid.uuid4(),
+                        phase=TrainingPhase.MAIN,
+                        exercise_id=exercise.id,
+                        order=0,
+                        completed_at=datetime.now(timezone.utc),
+                    )
+                ],
+            ),
+        )
+    )
+    db_session.add(weekly_plan)
+    await db_session.flush()
+
+
 @pytest.mark.asyncio
 async def test_declaring_weeks_alone_does_not_advance_the_phase(db_session) -> None:
     user = _make_user()
@@ -375,6 +430,50 @@ async def test_get_current_exposes_is_macrocycle_deload(db_session) -> None:
     current = await blocks.get_current(user.id)
 
     assert current.is_macrocycle_deload is True
+
+
+@pytest.mark.asyncio
+async def test_same_day_sessions_do_not_double_count_across_phase_transitions(db_session) -> None:
+    """Regression test for the phase_session_baseline bug (see
+    TrainingBlock.phase_session_baseline's docstring): phase_started_at is
+    a bare Date, so before this fix, every real session completed on the
+    exact same calendar day as a phase transition's `today` kept matching
+    the old DayPlan.date >= phase_started_at filter *forever* -- including
+    sessions that had already earned the previous transition -- letting a
+    handful of same-day sessions cascade through multiple phases. Reproduces
+    the realistic trigger: sessions completed and resolved one at a time
+    (matching real per-session-completion flow), all on one calendar day.
+    """
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    blocks = TrainingBlockService(db_session)
+    same_day = date(2026, 6, 1)
+    block = await blocks.get_or_create_and_resolve(user.id, today=same_day)
+    assert (block.block_number, block.phase) == (1, BlockPhase.ACCUMULATION)
+
+    # First threshold's worth, all same-day -- advances exactly once.
+    for _ in range(SESSIONS_TO_ADVANCE_PHASE):
+        await _complete_real_session_same_day(db_session, user, block, same_day)
+        block = await blocks.resolve_active_block(user.id, today=same_day)
+    assert block.phase == BlockPhase.INTENSIFICATION
+
+    # One more same-day session must NOT immediately fire a second
+    # transition just because every earlier same-day session also matches
+    # the new phase's own start date -- that's exactly the double-count bug.
+    await _complete_real_session_same_day(db_session, user, block, same_day)
+    block = await blocks.resolve_active_block(user.id, today=same_day)
+    assert block.phase == BlockPhase.INTENSIFICATION
+    current = await blocks.get_current(user.id, today=same_day)
+    assert current.sessions_completed_in_phase == 1
+
+    # A genuine second threshold's worth (still all same-day) correctly
+    # advances again, to DELOAD.
+    for _ in range(SESSIONS_TO_ADVANCE_PHASE - 1):
+        await _complete_real_session_same_day(db_session, user, block, same_day)
+        block = await blocks.resolve_active_block(user.id, today=same_day)
+    assert block.phase == BlockPhase.DELOAD
 
 
 @pytest.mark.asyncio
