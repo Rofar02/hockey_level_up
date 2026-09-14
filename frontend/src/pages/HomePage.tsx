@@ -60,14 +60,14 @@ const MONTH_LABELS = [
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
 ]
 
-// DRAFT copy for product review -- no player-facing phase explanation exists
-// in the backend/content layer (checked docs, reference-article content,
-// TrainingBlock schemas), so this was written here, not sourced. Grounded in
-// the real mechanics from app/core/training_block.py (intensification biases
-// toward difficulty>=4, deload biases toward difficulty<=2 and shrinks the
-// main block to 1-2 exercises) but the wording itself needs a copy pass
-// before shipping. Phrased around "фаза" rather than "неделя" since Phase 4
-// made phase length session-count-driven, not a fixed calendar week.
+// Reviewed copy (2026-09-15) -- also mirrored, at greater length, in the
+// "Зачем нужны фазы тренировочного блока" reference article (seeded via
+// scripts/seed_reference_articles.py), which PeriodizationCard's info panel
+// links out to. Grounded in the real mechanics from app/core/training_block.py
+// (intensification biases toward difficulty>=4, deload biases toward
+// difficulty<=2 and shrinks the main block to 1-2 exercises). Phrased around
+// "фаза" rather than "неделя" since Phase 4 made phase length
+// session-count-driven, not a fixed calendar week.
 const BLOCK_PHASE_DESCRIPTIONS: Record<BlockPhase, string> = {
   accumulation:
     'Базовый этап блока: набираем общий объём тренировок без резких скачков сложности.',
@@ -795,6 +795,7 @@ function TournamentTaperBanner({ tournamentDate }: { tournamentDate: string | nu
 }
 
 function PeriodizationCard({ block }: { block: TrainingBlockRead }) {
+  const navigate = useNavigate()
   const [infoOpen, setInfoOpen] = useState(false)
   const description = BLOCK_PHASE_DESCRIPTIONS[block.phase]
 
@@ -818,7 +819,18 @@ function PeriodizationCard({ block }: { block: TrainingBlockRead }) {
           {block.sessions_completed_in_phase}/{block.sessions_to_advance}
         </span>
       </div>
-      {infoOpen && <p className="text-xs text-[#8A94A6]">{description}</p>}
+      {infoOpen && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs text-[#8A94A6]">{description}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/reference')}
+            className="w-fit text-xs text-accent-ice hover:underline"
+          >
+            Подробнее о фазах блока — в Справочнике ›
+          </button>
+        </div>
+      )}
       {block.is_macrocycle_deload && (
         <p className="text-xs text-accent-persimmon">
           Восстановительный макроцикл — вес и повторы временно ниже обычного, чтобы вы отдохнули
