@@ -49,10 +49,13 @@ from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
 
 MONTHLY_MESSAGE_LIMIT = 150
-# How many prior turns get replayed back to the model as dialogue context --
-# a rolling window, not the full history (which the /history endpoint
-# exposes separately, unbounded by this).
-HISTORY_REPLAY_TURNS = 10
+# How many prior messages get replayed back to the model as dialogue
+# context -- a rolling window, not the full history (which the /history
+# endpoint exposes separately, unbounded by this). Raised from 10 to 30
+# (2026-09-14, deliberate) -- cost impact is negligible on the current
+# free-tier model and stays small even on a future paid model (~15
+# messages of real back-and-forth is a much more honest "memory" than 5).
+HISTORY_REPLAY_TURNS = 30
 
 # Generous on purpose: cheap insurance against a truncated reply, and
 # glm-4.7-flash (the current default model) is free-tier, so there's no
