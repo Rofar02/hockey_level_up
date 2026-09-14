@@ -31,7 +31,7 @@ from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.exercise import Exercise, ExerciseCategory, MovementPattern, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.schedule import BlockPhase, DayPlan, DaySessionType, TrainingBlock, TrainingSession, WeeklyPlan
-from app.models.skill import Skill, SkillMilestone, SkillStatWeight
+from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag, UserSkillPreference
 from app.models.training_diary import TrainingDiaryEntry
 from app.models.user import CoachPersonality, User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
@@ -296,8 +296,10 @@ async def test_system_prompt_carries_real_user_context(db_session, monkeypatch) 
     prompt = captured["system_prompt"]
     assert "55.5" in prompt  # current stat value
     assert skill_name in prompt and "0.5" in prompt  # skill name + points_remaining to threshold
-    assert "7 дн. подряд" in prompt  # streak
+    assert "7 дн. подряд" in prompt  # current streak
+    assert "лучший за всё время: 10 дн." in prompt  # longest streak (season memory)
     assert "интенсификация" in prompt  # periodization phase label
+    assert "блок 1" in prompt  # block number (season memory)
     assert "quest_completed" in prompt  # StatHistory reason
     # Guardrails must always be present.
     assert "врачу" in prompt
@@ -348,7 +350,7 @@ async def test_system_prompt_persona_follows_the_users_coach_personality(
     for prompt in (strict_prompt, vibe_prompt):
         assert "Сводка данных пользователя" in prompt
         assert "Текущие характеристики: данных пока нет." in prompt
-        assert "Текущий стрик тренировок: 0 дн. подряд." in prompt
+        assert "Текущий стрик тренировок: 0 дн. подряд (лучший за всё время: 0 дн.)." in prompt
         assert "Фаза периодизации: блок ещё не начат." in prompt
         assert "Последние изменения характеристик: нет записей." in prompt
         assert "врачу" in prompt
@@ -635,3 +637,105 @@ async def test_system_prompt_includes_analytics_summary(db_session, monkeypatch)
     assert f"Аналитика за {ANALYTICS_SUMMARY_WINDOW_DAYS} дн." in prompt
     assert "Сила" in prompt
     assert "+30.0" in prompt
+
+
+# -- season memory + "why this workout" (2026-09-14) --
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_notes_macrocycle_deload(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    db_session.add(
+        TrainingBlock(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            block_number=4,
+            phase=BlockPhase.DELOAD,
+            is_macrocycle_deload=True,
+        )
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Что сегодня?")
+
+    prompt = captured["system_prompt"]
+    assert "блок 4" in prompt
+    assert "восстановительный макроцикл" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_includes_resolved_restriction_history(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    db_session.add(
+        UserTemporaryRestriction(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            movement_pattern=MovementPattern.SHOULDER_MOBILITY,
+            expires_at=date.today() - timedelta(days=5),  # already expired -- resolved, not active
+        )
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как дела с плечом?")
+
+    prompt = captured["system_prompt"]
+    assert "История прошлых ограничений" in prompt
+    assert "Мобильность плечевого пояса" in prompt
+    assert "истекло по сроку" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_includes_priority_skill_focus_for_upcoming_session(
+    db_session, monkeypatch
+) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    skill_name = f"Навык {uuid.uuid4().hex[:8]}"
+    skill = Skill(id=uuid.uuid4(), name=skill_name, required_level=1)
+    db_session.add(skill)
+    await db_session.flush()
+    db_session.add(UserSkillPreference(user_id=user.id, skill_id=skill.id))
+
+    today = date.today()
+    session = await _add_on_ice_day(
+        db_session,
+        user,
+        on_date=today,
+        week_start=today - timedelta(days=today.weekday()),
+        main_exercise_names=["Тестовое упражнение"],
+    )
+    db_session.add(
+        SkillTag(
+            id=uuid.uuid4(),
+            exercise_id=session.blocks[0].exercise_id,
+            skill_id=skill.id,
+            transfer_note="test",
+        )
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Почему сегодня такая тренировка?")
+
+    prompt = captured["system_prompt"]
+    assert "приоритетные навыки игрока" in prompt
+    assert skill_name in prompt

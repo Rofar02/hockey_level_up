@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import MovementPattern, MuscleGroup
@@ -23,6 +23,28 @@ class UserTemporaryRestrictionRepository:
                 UserTemporaryRestriction.lifted_at.is_(None),
             )
             .order_by(UserTemporaryRestriction.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def list_resolved_for_user(
+        self, user_id: uuid.UUID, today: date, limit: int
+    ) -> list[UserTemporaryRestriction]:
+        """Restrictions that are no longer active (lifted early, or their
+        expires_at has passed) -- distinct from list_active_for_user above.
+        Used by CoachChatService's season-memory summary: "what's come up
+        over time," not just what's active right now, which
+        list_active_for_user already covers separately."""
+        result = await self._session.execute(
+            select(UserTemporaryRestriction)
+            .where(
+                UserTemporaryRestriction.user_id == user_id,
+                or_(
+                    UserTemporaryRestriction.lifted_at.is_not(None),
+                    UserTemporaryRestriction.expires_at < today,
+                ),
+            )
+            .order_by(UserTemporaryRestriction.created_at.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())
 

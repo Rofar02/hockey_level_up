@@ -47,6 +47,7 @@ from app.models.coach_chat_proposed_action import (
 from app.models.exercise import MovementPattern, MuscleGroup, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, UserStat
 from app.models.schedule import BlockPhase, DayPlan, DaySessionType
+from app.models.skill import SkillTag
 from app.models.user import CoachPersonality, User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
 from app.repositories.coach_chat_proposed_action_repository import CoachChatProposedActionRepository
@@ -125,6 +126,9 @@ DIARY_ENTRIES_IN_PROMPT = 3
 # would see if they opened Analytics themselves, not a second, differently
 # numbered window that could disagree with it.
 ANALYTICS_SUMMARY_WINDOW_DAYS = 90
+# How many past (lifted/expired) restrictions get replayed -- same
+# cost-driven cap as DIARY_ENTRIES_IN_PROMPT above.
+RESOLVED_RESTRICTIONS_IN_PROMPT = 3
 # How many calendar days ahead of `today` to look for the next real
 # training day if today itself is REST or has no plan yet -- one week is
 # generous (a declared week is at most 7 days) without risking an
@@ -241,18 +245,30 @@ def _format_milestones_section(entries: list[tuple[str, float, int]]) -> str:
     return "Ближайшие пороги навыков (топ-3): " + "; ".join(parts) + "."
 
 
-def _format_streak_section(current_streak: int) -> str:
-    return f"Текущий стрик тренировок: {current_streak} дн. подряд."
+def _format_streak_section(current_streak: int, longest_streak: int) -> str:
+    # longest_streak gives the coach real season-level framing ("твой
+    # лучший стрик за сезон был X") instead of only ever seeing the
+    # current-moment number, same reasoning as block_number below.
+    return f"Текущий стрик тренировок: {current_streak} дн. подряд (лучший за всё время: {longest_streak} дн.)."
 
 
 def _format_phase_section(
-    phase: BlockPhase | None, sessions_completed: int, sessions_to_advance: int
+    phase: BlockPhase | None,
+    sessions_completed: int,
+    sessions_to_advance: int,
+    block_number: int | None,
+    is_macrocycle_deload: bool,
 ) -> str:
     if phase is None:
         return "Фаза периодизации: блок ещё не начат."
     label = PHASE_LABELS.get(phase, phase.value)
+    # block_number gives the coach a sense of "how far into the season"
+    # the player is, not just the current phase in isolation -- one of the
+    # few cheap, already-computed signals that spans the whole season
+    # rather than just the last HISTORY_REPLAY_TURNS messages.
+    macrocycle_note = " (восстановительный макроцикл)" if is_macrocycle_deload else ""
     return (
-        f"Фаза периодизации: {label} "
+        f"Фаза периодизации: блок {block_number}{macrocycle_note}, {label} "
         f"({sessions_completed} из {sessions_to_advance} тренировок до смены фазы)."
     )
 
@@ -366,6 +382,28 @@ def _format_restrictions_section(restrictions: list[UserTemporaryRestriction]) -
     return "Активные временные ограничения: " + "; ".join(parts) + "."
 
 
+def _format_restriction_history_section(restrictions: list[UserTemporaryRestriction]) -> str:
+    """Season-memory complement to _format_restrictions_section above --
+    that one is "what's bothering the player right now", this is "what's
+    come up and resolved over time", so the coach can reference a pattern
+    across the whole season ("плечо уже второй раз за блок") instead of
+    only ever seeing the current moment, which is all the rolling chat-
+    history window (HISTORY_REPLAY_TURNS) can otherwise offer."""
+    if not restrictions:
+        return "История прошлых ограничений: нет записей."
+    parts = []
+    for restriction in restrictions:
+        if restriction.movement_pattern is not None:
+            target = MOVEMENT_PATTERN_LABELS.get(
+                restriction.movement_pattern, restriction.movement_pattern.value
+            )
+        else:
+            target = MUSCLE_GROUP_LABELS.get(restriction.muscle_group, restriction.muscle_group.value)
+        resolution = "снято досрочно" if restriction.lifted_at is not None else "истекло по сроку"
+        parts.append(f"{target} ({resolution} {restriction.expires_at.isoformat()})")
+    return "История прошлых ограничений (недавние): " + "; ".join(parts) + "."
+
+
 def _format_diary_section(entries: list[TrainingDiaryEntryListItem]) -> str:
     """`entries` is already filtered to only-with-notes and capped at the
     DB level (see CoachChatService._build_system_prompt's
@@ -393,6 +431,35 @@ def _format_upcoming_session_section(day_plan: DayPlan | None) -> str:
     ] or [block.exercise.name for block in day_plan.training_session.blocks]
     names_part = ", ".join(exercise_names) if exercise_names else "упражнения ещё не назначены"
     return f"Ближайшая тренировка: {day_plan.date.isoformat()} ({label}) -- {names_part}."
+
+
+def _format_priority_skill_focus_section(
+    day_plan: DayPlan | None,
+    priority_skill_names_by_id: dict[uuid.UUID, str],
+    tags: list[SkillTag],
+) -> str:
+    """Grounds "why this workout" answers in something real: which of the
+    upcoming session's own exercises are tagged to a skill the player
+    picked as a priority, per the real SkillTag rows (not guessed) -- so
+    the coach can say "сегодня в фокусе Обводка, потому что ты выбрал её
+    приоритетной" instead of a generic, unverifiable claim."""
+    if day_plan is None or day_plan.training_session is None or not priority_skill_names_by_id:
+        return ""
+    exercise_ids_today = {block.exercise_id for block in day_plan.training_session.blocks}
+    matched_names = sorted(
+        {
+            priority_skill_names_by_id[tag.skill_id]
+            for tag in tags
+            if tag.exercise_id in exercise_ids_today and tag.skill_id in priority_skill_names_by_id
+        }
+    )
+    if not matched_names:
+        return ""
+    return (
+        "Сегодняшняя/ближайшая тренировка развивает приоритетные навыки игрока: "
+        + ", ".join(matched_names)
+        + "."
+    )
 
 
 async def _call_zai(
@@ -670,20 +737,34 @@ class CoachChatService:
         milestones_section = _format_milestones_section(milestone_entries)
 
         streak = await self._progress.get_streak(user.id)
-        streak_section = _format_streak_section(streak.current_streak if streak is not None else 0)
+        streak_section = _format_streak_section(
+            streak.current_streak if streak is not None else 0,
+            streak.longest_streak if streak is not None else 0,
+        )
 
         block = await self._training_blocks.resolve_active_block(user.id)
         if block is not None:
             sessions_completed = await self._training_blocks.count_sessions_completed_in_phase(block)
-            phase_section = _format_phase_section(block.phase, sessions_completed, SESSIONS_TO_ADVANCE_PHASE)
+            phase_section = _format_phase_section(
+                block.phase,
+                sessions_completed,
+                SESSIONS_TO_ADVANCE_PHASE,
+                block.block_number,
+                block.is_macrocycle_deload,
+            )
         else:
-            phase_section = _format_phase_section(None, 0, SESSIONS_TO_ADVANCE_PHASE)
+            phase_section = _format_phase_section(None, 0, SESSIONS_TO_ADVANCE_PHASE, None, False)
 
         recent_history = await self._progress.list_recent_history(user.id, RECENT_HISTORY_COUNT)
         history_section = _format_history_section(recent_history)
 
         active_restrictions = await self._restrictions.list_active(user)
         restrictions_section = _format_restrictions_section(active_restrictions)
+
+        resolved_restrictions = await self._restrictions.list_resolved(
+            user, RESOLVED_RESTRICTIONS_IN_PROMPT
+        )
+        restriction_history_section = _format_restriction_history_section(resolved_restrictions)
 
         diary_entries = await self._diary.list_entries(
             user, limit=DIARY_ENTRIES_IN_PROMPT, only_with_notes=True
@@ -692,6 +773,13 @@ class CoachChatService:
 
         upcoming_day_plan = await self._find_upcoming_day_plan(user.id, now.date())
         upcoming_session_section = _format_upcoming_session_section(upcoming_day_plan)
+
+        priority_preferences = await self._skills.list_user_preferences(user.id)
+        priority_skill_names_by_id = {pref.skill_id: pref.name for pref in priority_preferences}
+        all_tags = await self._skills.list_all_tags()
+        priority_focus_section = _format_priority_skill_focus_section(
+            upcoming_day_plan, priority_skill_names_by_id, all_tags
+        )
 
         analytics_summary = await self._analytics.get_summary(user, ANALYTICS_SUMMARY_WINDOW_DAYS)
         analytics_section = _format_analytics_summary_section(
@@ -702,6 +790,14 @@ class CoachChatService:
             [skill.name for skill in skills]
         )
 
+        # Not a separate section -- folded straight into the closing
+        # instruction paragraph, appended only when there's actually
+        # something to say (an empty string would just read as a stray
+        # trailing space).
+        why_this_workout_hint = (
+            f" {priority_focus_section}" if priority_focus_section else ""
+        )
+
         return (
             f"{PERSONALITY_SYSTEM_PROMPTS[coach_personality]}\n\n"
             "Отвечай по-русски, по делу и кратко. Используй приведённую "
@@ -709,7 +805,11 @@ class CoachChatService:
             "советы по тренировкам, а не общие фразы. Если в сводке аналитики "
             "есть заметный рост или спад, можешь упомянуть это сам, не "
             "дожидаясь вопроса -- это то, что реально знает хороший тренер "
-            "про своего игрока.\n\n"
+            "про своего игрока. Если игрок спрашивает, почему сегодняшняя "
+            "тренировка именно такая -- объясняй, опираясь на фазу "
+            "периодизации из сводки (например, в интенсификации сложность "
+            "выше, в разгрузке — ниже) и, если есть, на связь упражнений с "
+            "приоритетными навыками игрока." + why_this_workout_hint + "\n\n"
             f"Сводка данных пользователя (на {now.date().isoformat()}):\n"
             f"{stats_section}\n"
             f"{milestones_section}\n"
@@ -717,6 +817,7 @@ class CoachChatService:
             f"{phase_section}\n"
             f"{history_section}\n"
             f"{restrictions_section}\n"
+            f"{restriction_history_section}\n"
             f"{diary_section}\n"
             f"{upcoming_session_section}\n"
             f"{analytics_section}\n\n"

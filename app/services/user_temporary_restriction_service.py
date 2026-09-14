@@ -23,6 +23,9 @@ class UserTemporaryRestrictionService:
     async def list_active(self, user: User) -> list[UserTemporaryRestriction]:
         return await self._restrictions.list_active_for_user(user.id, date.today())
 
+    async def list_resolved(self, user: User, limit: int) -> list[UserTemporaryRestriction]:
+        return await self._restrictions.list_resolved_for_user(user.id, date.today(), limit)
+
     async def report(
         self,
         user: User,
