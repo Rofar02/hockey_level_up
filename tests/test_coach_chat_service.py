@@ -556,9 +556,11 @@ async def test_system_prompt_includes_todays_session_when_it_exists(db_session, 
     await service.send_message(user, "Что у меня сегодня?")
 
     prompt = captured["system_prompt"]
-    assert today.isoformat() in prompt
+    assert "Сегодня: Лёд, тренировка ещё не начата" in prompt
     assert "Слалом с шайбой" in prompt
-    assert "Лёд" in prompt
+    # Today itself still has unstarted work -- no "next session" line
+    # should be fetched/shown, that question isn't relevant yet.
+    assert "Ближайшая предстоящая тренировка" not in prompt
 
 
 @pytest.mark.asyncio
@@ -588,6 +590,103 @@ async def test_system_prompt_falls_back_to_next_real_session_when_today_has_none
     prompt = captured["system_prompt"]
     assert upcoming_date.isoformat() in prompt
     assert "Катание на скорость" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_shows_todays_session_as_completed_and_finds_next(
+    db_session, monkeypatch
+) -> None:
+    """The coach previously couldn't tell "already trained today" from
+    "still to come" at all (found 2026-09-14, live use) -- this is the
+    concrete regression case: every block today is done, so the coach
+    should say so AND look ahead for what's next, instead of repeating
+    today's already-finished exercise list as if it were still pending."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    today_session = await _add_on_ice_day(
+        db_session, user, on_date=today, week_start=week_start,
+        main_exercise_names=["Слалом с шайбой"],
+    )
+    for block in today_session.blocks:
+        block.completed_at = datetime.now(timezone.utc)
+    await db_session.flush()
+
+    next_date = today + timedelta(days=2)
+    await _add_on_ice_day(
+        db_session, user, on_date=next_date, week_start=week_start + timedelta(weeks=1),
+        main_exercise_names=["Катание на скорость"],
+    )
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как прошла сегодняшняя тренировка?")
+
+    prompt = captured["system_prompt"]
+    assert "Сегодня: Лёд, тренировка завершена" in prompt
+    assert f"Ближайшая предстоящая тренировка: {next_date.isoformat()}" in prompt
+    assert "Катание на скорость" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_shows_todays_session_in_progress(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    today = date.today()
+    today_session = await _add_on_ice_day(
+        db_session, user, on_date=today, week_start=today - timedelta(days=today.weekday()),
+        main_exercise_names=["Слалом с шайбой", "Броски по воротам"],
+    )
+    today_session.blocks[0].completed_at = datetime.now(timezone.utc)
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как у меня дела сегодня?")
+
+    prompt = captured["system_prompt"]
+    assert "Сегодня: Лёд, тренировка в процессе (1 из 2 упражнений)" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_shows_rest_day_and_finds_next_session(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=week_start)
+    weekly_plan.day_plans.append(
+        DayPlan(id=uuid.uuid4(), date=today, session_type=DaySessionType.REST)
+    )
+    db_session.add(weekly_plan)
+    await db_session.flush()
+
+    next_date = today + timedelta(days=1)
+    await _add_on_ice_day(
+        db_session, user, on_date=next_date, week_start=week_start + timedelta(weeks=1),
+        main_exercise_names=["Катание на скорость"],
+    )
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Что сегодня?")
+
+    prompt = captured["system_prompt"]
+    assert "Сегодня: день отдыха." in prompt
+    assert f"Ближайшая предстоящая тренировка: {next_date.isoformat()}" in prompt
 
 
 @pytest.mark.asyncio

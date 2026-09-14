@@ -46,7 +46,7 @@ from app.models.coach_chat_proposed_action import (
 )
 from app.models.exercise import MovementPattern, MuscleGroup, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, UserStat
-from app.models.schedule import BlockPhase, DayPlan, DaySessionType
+from app.models.schedule import BlockPhase, DayPlan, DaySessionType, TrainingSession
 from app.models.skill import SkillTag
 from app.models.user import CoachPersonality, User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
@@ -418,19 +418,62 @@ def _format_diary_section(entries: list[TrainingDiaryEntryListItem]) -> str:
     return "Последние записи дневника игрока: " + "; ".join(parts) + "."
 
 
-def _format_upcoming_session_section(day_plan: DayPlan | None) -> str:
-    if day_plan is None:
-        return "Ближайшая тренировка: нет запланированной недели."
-    label = DAY_SESSION_TYPE_LABELS.get(day_plan.session_type, day_plan.session_type.value)
-    if day_plan.training_session is None:
-        return f"Ближайшая тренировка: {day_plan.date.isoformat()} ({label})."
+def _session_exercise_names(training_session: TrainingSession) -> str:
     exercise_names = [
-        block.exercise.name
-        for block in day_plan.training_session.blocks
-        if block.phase == TrainingPhase.MAIN
-    ] or [block.exercise.name for block in day_plan.training_session.blocks]
-    names_part = ", ".join(exercise_names) if exercise_names else "упражнения ещё не назначены"
-    return f"Ближайшая тренировка: {day_plan.date.isoformat()} ({label}) -- {names_part}."
+        block.exercise.name for block in training_session.blocks if block.phase == TrainingPhase.MAIN
+    ] or [block.exercise.name for block in training_session.blocks]
+    return ", ".join(exercise_names) if exercise_names else "упражнения ещё не назначены"
+
+
+def _format_today_section(today_plan: DayPlan | None) -> str:
+    """Whether the player has already trained today or not -- previously
+    the coach couldn't tell at all (found 2026-09-14: it only ever said
+    "ближайшая тренировка" with an exercise list, identical wording
+    whether that session was still ahead, half-done, or already fully
+    completed). Distinct from _format_next_session_section below, which
+    only ever describes a day still to come."""
+    if today_plan is None:
+        return "Сегодня: план на сегодня не составлен (неделя не объявлена)."
+    label = DAY_SESSION_TYPE_LABELS.get(today_plan.session_type, today_plan.session_type.value)
+    if today_plan.session_type == DaySessionType.REST:
+        return "Сегодня: день отдыха."
+    if today_plan.training_session is None or not today_plan.training_session.blocks:
+        return f"Сегодня: {label}, упражнения ещё не назначены."
+
+    blocks = today_plan.training_session.blocks
+    done_count = sum(
+        1 for block in blocks if block.completed_at is not None or block.skipped_at is not None
+    )
+    total = len(blocks)
+    if done_count == 0:
+        status = "ещё не начата"
+    elif done_count == total:
+        status = "завершена"
+    else:
+        status = f"в процессе ({done_count} из {total} упражнений)"
+
+    return f"Сегодня: {label}, тренировка {status}. Упражнения: {_session_exercise_names(today_plan.training_session)}."
+
+
+def _format_next_session_section(next_plan: DayPlan | None, searched: bool) -> str:
+    """Only fetched/shown once today itself is no longer "the thing to
+    do" -- see CoachChatService._today_is_fully_handled -- so this never
+    duplicates or contradicts _format_today_section above. `searched`
+    disambiguates "didn't look, today is still the relevant answer"
+    (empty, omitted entirely) from "looked and genuinely found nothing" --
+    collapsing those into one None would make the coach wrongly claim no
+    training exists ahead just because today itself hadn't finished yet."""
+    if not searched:
+        return ""
+    if next_plan is None:
+        return "Ближайшая предстоящая тренировка: не найдена в ближайшую неделю."
+    label = DAY_SESSION_TYPE_LABELS.get(next_plan.session_type, next_plan.session_type.value)
+    if next_plan.training_session is None or not next_plan.training_session.blocks:
+        return f"Ближайшая предстоящая тренировка: {next_plan.date.isoformat()} ({label})."
+    return (
+        f"Ближайшая предстоящая тренировка: {next_plan.date.isoformat()} ({label}) -- "
+        f"{_session_exercise_names(next_plan.training_session)}."
+    )
 
 
 def _format_priority_skill_focus_section(
@@ -771,14 +814,26 @@ class CoachChatService:
         )
         diary_section = _format_diary_section(diary_entries)
 
-        upcoming_day_plan = await self._find_upcoming_day_plan(user.id, now.date())
-        upcoming_session_section = _format_upcoming_session_section(upcoming_day_plan)
+        today_plan = await self._schedule.get_day_plan_for_date(user.id, now.date())
+        today_section = _format_today_section(today_plan)
 
+        today_fully_handled = self._today_is_fully_handled(today_plan)
+        next_plan = (
+            await self._find_next_actionable_day_plan(user.id, now.date())
+            if today_fully_handled
+            else None
+        )
+        next_session_section = _format_next_session_section(next_plan, today_fully_handled)
+
+        # Whichever plan the coach should treat as "what's coming up to
+        # focus on" -- today's own session while it's still actionable,
+        # otherwise the next real training day.
+        focus_plan = next_plan if today_fully_handled else today_plan
         priority_preferences = await self._skills.list_user_preferences(user.id)
         priority_skill_names_by_id = {pref.skill_id: pref.name for pref in priority_preferences}
         all_tags = await self._skills.list_all_tags()
         priority_focus_section = _format_priority_skill_focus_section(
-            upcoming_day_plan, priority_skill_names_by_id, all_tags
+            focus_plan, priority_skill_names_by_id, all_tags
         )
 
         analytics_summary = await self._analytics.get_summary(user, ANALYTICS_SUMMARY_WINDOW_DAYS)
@@ -819,26 +874,22 @@ class CoachChatService:
             f"{restrictions_section}\n"
             f"{restriction_history_section}\n"
             f"{diary_section}\n"
-            f"{upcoming_session_section}\n"
+            f"{today_section}\n"
+            f"{next_session_section}\n"
             f"{analytics_section}\n\n"
             f"{SYSTEM_PROMPT_GUARDRAILS}\n\n"
             f"{action_reference_section}"
         )
 
-    async def _find_upcoming_day_plan(self, user_id: uuid.UUID, today: date) -> DayPlan | None:
-        """Today's DayPlan if it exists (REST included -- "today's a rest
-        day" is itself useful for the coach to know), otherwise the
-        nearest upcoming day within UPCOMING_SESSION_SEARCH_DAYS that
-        actually has one, skipping REST days along the way (a rest day
-        isn't "the upcoming training"). One query per candidate date --
-        acceptable here since coach-chat is a low-volume, user-triggered
-        path (rate-limited to MONTHLY_MESSAGE_LIMIT/month), not a hot
-        loop.
+    async def _find_next_actionable_day_plan(self, user_id: uuid.UUID, today: date) -> DayPlan | None:
+        """Nearest day strictly AFTER `today` (never today itself -- see
+        _format_today_section for that) within UPCOMING_SESSION_SEARCH_DAYS
+        that actually has a real session, skipping REST days along the way
+        (a rest day isn't "the next training"). One query per candidate
+        date -- acceptable here since coach-chat is a low-volume,
+        user-triggered path (rate-limited to MONTHLY_MESSAGE_LIMIT/month),
+        not a hot loop.
         """
-        today_plan = await self._schedule.get_day_plan_for_date(user_id, today)
-        if today_plan is not None:
-            return today_plan
-
         for offset in range(1, UPCOMING_SESSION_SEARCH_DAYS + 1):
             candidate = await self._schedule.get_day_plan_for_date(
                 user_id, today + timedelta(days=offset)
@@ -846,3 +897,18 @@ class CoachChatService:
             if candidate is not None and candidate.session_type != DaySessionType.REST:
                 return candidate
         return None
+
+    @staticmethod
+    def _today_is_fully_handled(today_plan: DayPlan | None) -> bool:
+        """True when there's nothing left to do today -- no plan at all,
+        a rest day, or every block in today's real session is already
+        completed/skipped -- meaning "what's next" is the relevant
+        question instead of "what's today"."""
+        if today_plan is None or today_plan.session_type == DaySessionType.REST:
+            return True
+        if today_plan.training_session is None or not today_plan.training_session.blocks:
+            return True
+        return all(
+            block.completed_at is not None or block.skipped_at is not None
+            for block in today_plan.training_session.blocks
+        )
