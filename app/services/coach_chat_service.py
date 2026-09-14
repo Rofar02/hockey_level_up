@@ -44,18 +44,22 @@ from app.models.coach_chat_proposed_action import (
     CoachActionType,
     CoachChatProposedAction,
 )
-from app.models.exercise import MovementPattern, MuscleGroup, TargetStat
+from app.models.exercise import MovementPattern, MuscleGroup, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, UserStat
-from app.models.schedule import BlockPhase
+from app.models.schedule import BlockPhase, DayPlan, DaySessionType
 from app.models.user import CoachPersonality, User
+from app.models.user_temporary_restriction import UserTemporaryRestriction
 from app.repositories.coach_chat_proposed_action_repository import CoachChatProposedActionRepository
 from app.repositories.coach_chat_repository import CoachChatRepository
 from app.repositories.progress_repository import ProgressRepository
+from app.repositories.schedule_repository import ScheduleRepository
 from app.schemas.coach_chat import CoachChatMessageRead, ProposedActionRead
+from app.schemas.training_diary import TrainingDiaryEntryListItem
 from app.schemas.user import UserUpdate
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
+from app.services.training_diary_service import TrainingDiaryService
 from app.services.user_service import UserService
 from app.services.user_temporary_restriction_service import UserTemporaryRestrictionService
 
@@ -99,6 +103,26 @@ PHASE_LABELS: dict[BlockPhase, str] = {
     BlockPhase.INTENSIFICATION: "интенсификация",
     BlockPhase.DELOAD: "разгрузка",
 }
+
+# Same wording as frontend/src/types/schedule.ts's DAY_SESSION_TYPE_LABELS.
+DAY_SESSION_TYPE_LABELS: dict[DaySessionType, str] = {
+    DaySessionType.ON_ICE: "Лёд",
+    DaySessionType.OFF_ICE: "Сухая",
+    DaySessionType.REST: "Отдых",
+    DaySessionType.GAME: "Игра",
+}
+
+# How many of the player's own most recent diary notes get replayed into
+# the prompt -- capped for the same reason HISTORY_REPLAY_TURNS is capped
+# (cost), and because a coach explaining "how did the last session feel"
+# only needs recent context, not the whole notebook (the full history is
+# what /diary itself is for).
+DIARY_ENTRIES_IN_PROMPT = 3
+# How many calendar days ahead of `today` to look for the next real
+# training day if today itself is REST or has no plan yet -- one week is
+# generous (a declared week is at most 7 days) without risking an
+# unbounded scan.
+UPCOMING_SESSION_SEARCH_DAYS = 7
 
 # Same Russian wording as frontend/src/types/exercise.ts's
 # MOVEMENT_PATTERN_LABELS/MUSCLE_GROUP_LABELS (RestrictionsPage's own
@@ -276,6 +300,51 @@ def _format_history_section(entries: list[StatHistory]) -> str:
     return "Последние изменения характеристик: " + "; ".join(parts) + "."
 
 
+def _format_restrictions_section(restrictions: list[UserTemporaryRestriction]) -> str:
+    if not restrictions:
+        return "Активные временные ограничения: нет."
+    parts = []
+    for restriction in restrictions:
+        if restriction.movement_pattern is not None:
+            target = MOVEMENT_PATTERN_LABELS.get(
+                restriction.movement_pattern, restriction.movement_pattern.value
+            )
+        else:
+            target = MUSCLE_GROUP_LABELS.get(restriction.muscle_group, restriction.muscle_group.value)
+        reason_part = f" ({restriction.reason})" if restriction.reason else ""
+        parts.append(f"{target}{reason_part}, до {restriction.expires_at.isoformat()}")
+    return "Активные временные ограничения: " + "; ".join(parts) + "."
+
+
+def _format_diary_section(entries: list[TrainingDiaryEntryListItem]) -> str:
+    """`entries` is already filtered to only-with-notes and capped at the
+    DB level (see CoachChatService._build_system_prompt's
+    only_with_notes=True call) -- nothing left to filter here."""
+    if not entries:
+        return "Последние записи дневника: нет записей с заметками."
+    parts = [
+        f"{entry.date.isoformat()} ({DAY_SESSION_TYPE_LABELS.get(entry.session_type, entry.session_type.value)}): "
+        f"«{entry.note}»"
+        for entry in entries
+    ]
+    return "Последние записи дневника игрока: " + "; ".join(parts) + "."
+
+
+def _format_upcoming_session_section(day_plan: DayPlan | None) -> str:
+    if day_plan is None:
+        return "Ближайшая тренировка: нет запланированной недели."
+    label = DAY_SESSION_TYPE_LABELS.get(day_plan.session_type, day_plan.session_type.value)
+    if day_plan.training_session is None:
+        return f"Ближайшая тренировка: {day_plan.date.isoformat()} ({label})."
+    exercise_names = [
+        block.exercise.name
+        for block in day_plan.training_session.blocks
+        if block.phase == TrainingPhase.MAIN
+    ] or [block.exercise.name for block in day_plan.training_session.blocks]
+    names_part = ", ".join(exercise_names) if exercise_names else "упражнения ещё не назначены"
+    return f"Ближайшая тренировка: {day_plan.date.isoformat()} ({label}) -- {names_part}."
+
+
 async def _call_zai(
     api_key: str, base_url: str, model: str, system_prompt: str, messages: list[dict[str, str]]
 ) -> str:
@@ -298,6 +367,8 @@ class CoachChatService:
         self._actions = CoachChatProposedActionRepository(session)
         self._users = UserService(session)
         self._restrictions = UserTemporaryRestrictionService(session)
+        self._diary = TrainingDiaryService(session)
+        self._schedule = ScheduleRepository(session)
 
     async def send_message(self, user: User, message: str) -> CoachChatMessageRead:
         settings = get_settings()
@@ -560,6 +631,17 @@ class CoachChatService:
         recent_history = await self._progress.list_recent_history(user.id, RECENT_HISTORY_COUNT)
         history_section = _format_history_section(recent_history)
 
+        active_restrictions = await self._restrictions.list_active(user)
+        restrictions_section = _format_restrictions_section(active_restrictions)
+
+        diary_entries = await self._diary.list_entries(
+            user, limit=DIARY_ENTRIES_IN_PROMPT, only_with_notes=True
+        )
+        diary_section = _format_diary_section(diary_entries)
+
+        upcoming_day_plan = await self._find_upcoming_day_plan(user.id, now.date())
+        upcoming_session_section = _format_upcoming_session_section(upcoming_day_plan)
+
         action_reference_section = _format_action_reference_section(
             [skill.name for skill in skills]
         )
@@ -574,7 +656,32 @@ class CoachChatService:
             f"{milestones_section}\n"
             f"{streak_section}\n"
             f"{phase_section}\n"
-            f"{history_section}\n\n"
+            f"{history_section}\n"
+            f"{restrictions_section}\n"
+            f"{diary_section}\n"
+            f"{upcoming_session_section}\n\n"
             f"{SYSTEM_PROMPT_GUARDRAILS}\n\n"
             f"{action_reference_section}"
         )
+
+    async def _find_upcoming_day_plan(self, user_id: uuid.UUID, today: date) -> DayPlan | None:
+        """Today's DayPlan if it exists (REST included -- "today's a rest
+        day" is itself useful for the coach to know), otherwise the
+        nearest upcoming day within UPCOMING_SESSION_SEARCH_DAYS that
+        actually has one, skipping REST days along the way (a rest day
+        isn't "the upcoming training"). One query per candidate date --
+        acceptable here since coach-chat is a low-volume, user-triggered
+        path (rate-limited to MONTHLY_MESSAGE_LIMIT/month), not a hot
+        loop.
+        """
+        today_plan = await self._schedule.get_day_plan_for_date(user_id, today)
+        if today_plan is not None:
+            return today_plan
+
+        for offset in range(1, UPCOMING_SESSION_SEARCH_DAYS + 1):
+            candidate = await self._schedule.get_day_plan_for_date(
+                user_id, today + timedelta(days=offset)
+            )
+            if candidate is not None and candidate.session_type != DaySessionType.REST:
+                return candidate
+        return None

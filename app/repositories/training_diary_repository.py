@@ -23,20 +23,31 @@ class TrainingDiaryRepository:
         return result.scalar_one_or_none()
 
     async def list_for_user(
-        self, user_id: uuid.UUID
+        self, user_id: uuid.UUID, *, limit: int | None = None, only_with_notes: bool = False
     ) -> list[tuple[TrainingDiaryEntry, date, DaySessionType]]:
-        """Every diary entry this user has ever written, newest first --
-        the "open my diary and read back" view. Joined through
-        TrainingSession->DayPlan for the date/session_type the list needs
-        to render (see TrainingDiaryEntryListItem), rather than a second
-        per-entry lookup."""
-        result = await self._session.execute(
+        """Diary entries this user has written, newest first -- the "open my
+        diary and read back" view (no `limit`/`only_with_notes`, the real
+        /diary page's own use, which wants every entry so the player can
+        see what they left blank too). Both params exist for
+        CoachChatService's system-prompt summary, which only wants the
+        last few entries that actually say something -- `only_with_notes`
+        filters at the DB level rather than in Python so a run of recent
+        blank entries can't push real notes out of a small `limit`. Joined
+        through TrainingSession->DayPlan for the date/session_type the
+        list needs to render (see TrainingDiaryEntryListItem), rather than
+        a second per-entry lookup."""
+        query = (
             select(TrainingDiaryEntry, DayPlan.date, DayPlan.session_type)
             .join(TrainingSession, TrainingDiaryEntry.training_session_id == TrainingSession.id)
             .join(DayPlan, TrainingSession.day_plan_id == DayPlan.id)
             .where(TrainingDiaryEntry.user_id == user_id)
             .order_by(DayPlan.date.desc())
         )
+        if only_with_notes:
+            query = query.where(TrainingDiaryEntry.note.isnot(None))
+        if limit is not None:
+            query = query.limit(limit)
+        result = await self._session.execute(query)
         return [(row[0], row[1], row[2]) for row in result.all()]
 
     async def save(self, entry: TrainingDiaryEntry) -> TrainingDiaryEntry:

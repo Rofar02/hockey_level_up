@@ -61,8 +61,10 @@ class TrainingDiaryService:
         await self._session.commit()
         return entry
 
-    async def list_entries(self, user: User) -> list[TrainingDiaryEntryListItem]:
-        rows = await self._diary.list_for_user(user.id)
+    async def list_entries(
+        self, user: User, *, limit: int | None = None, only_with_notes: bool = False
+    ) -> list[TrainingDiaryEntryListItem]:
+        rows = await self._diary.list_for_user(user.id, limit=limit, only_with_notes=only_with_notes)
         return [
             TrainingDiaryEntryListItem(
                 id=entry.id,

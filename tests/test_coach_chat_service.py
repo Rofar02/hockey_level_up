@@ -21,18 +21,20 @@ monkeypatched at the module level in every test that reaches it, same
 convention test_push_subscription.py uses for webpush_async.
 """
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
 
 from app.core.config import Settings
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
-from app.models.exercise import TargetStat
+from app.models.exercise import Exercise, ExerciseCategory, MovementPattern, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, TrainingStreak, UserStat
-from app.models.schedule import BlockPhase, TrainingBlock
+from app.models.schedule import BlockPhase, DayPlan, DaySessionType, TrainingBlock, TrainingSession, WeeklyPlan
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight
+from app.models.training_diary import TrainingDiaryEntry
 from app.models.user import CoachPersonality, User
+from app.models.user_temporary_restriction import UserTemporaryRestriction
 from app.routers.deps import require_premium
 from app.services import coach_chat_service
 from app.services.coach_chat_service import MONTHLY_MESSAGE_LIMIT, CoachChatService
@@ -426,3 +428,157 @@ async def test_send_message_persists_both_turns_and_history_returns_them_in_orde
     ]
     # Ascending order -- the first message really is the older one.
     assert history[0].created_at <= history[1].created_at
+
+
+# -- extended context: restrictions, diary, upcoming session --
+
+
+async def _add_on_ice_day(
+    db_session, user: User, *, on_date: date, week_start: date, main_exercise_names: list[str] | None = None
+) -> TrainingSession:
+    """Same bypass-ScheduleService shape as other test files' helpers
+    (e.g. test_training_block_progression.py's _complete_real_session) --
+    only the real DayPlan/TrainingSession/SessionBlock graph matters here,
+    not how ScheduleService would have assembled it."""
+    from app.models.schedule import SessionBlock
+
+    blocks = []
+    for name in main_exercise_names or []:
+        exercise = Exercise(
+            id=uuid.uuid4(), name=name, category=ExerciseCategory.ON_ICE,
+            phase=TrainingPhase.MAIN, difficulty_level=1,
+        )
+        db_session.add(exercise)
+        await db_session.flush()
+        blocks.append(SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=len(blocks)))
+
+    training_session = TrainingSession(id=uuid.uuid4(), blocks=blocks)
+    weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=week_start)
+    weekly_plan.day_plans.append(
+        DayPlan(id=uuid.uuid4(), date=on_date, session_type=DaySessionType.ON_ICE, training_session=training_session)
+    )
+    db_session.add(weekly_plan)
+    await db_session.flush()
+    return training_session
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_includes_active_restriction(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    db_session.add(
+        UserTemporaryRestriction(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            movement_pattern=MovementPattern.SHOULDER_MOBILITY,
+            reason="побаливает плечо",
+            expires_at=date.today() + timedelta(days=10),
+        )
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как тренироваться сегодня?")
+
+    prompt = captured["system_prompt"]
+    assert "Мобильность плечевого пояса" in prompt
+    assert "побаливает плечо" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_includes_recent_diary_entries_capped_and_notes_only(
+    db_session, monkeypatch
+) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    # 4 entries with notes (only the 3 most recent -- DIARY_ENTRIES_IN_PROMPT
+    # -- should appear) + 1 with no note at all (must never appear).
+    week_base = date(2020, 1, 6)
+    for i in range(4):
+        session = await _add_on_ice_day(
+            db_session, user, on_date=date(2020, 1, 1) + timedelta(days=i), week_start=week_base + timedelta(weeks=i)
+        )
+        db_session.add(
+            TrainingDiaryEntry(id=uuid.uuid4(), user_id=user.id, training_session_id=session.id, note=f"заметка{i}")
+        )
+    no_note_session = await _add_on_ice_day(
+        db_session, user, on_date=date(2020, 2, 1), week_start=week_base + timedelta(weeks=10)
+    )
+    db_session.add(
+        TrainingDiaryEntry(id=uuid.uuid4(), user_id=user.id, training_session_id=no_note_session.id, note=None)
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как прошла последняя тренировка?")
+
+    prompt = captured["system_prompt"]
+    # Most recent 3 (i=1,2,3 -- newest first per list_for_user's own
+    # ordering) present, oldest (i=0) dropped by the DIARY_ENTRIES_IN_PROMPT cap.
+    assert "заметка1" in prompt
+    assert "заметка2" in prompt
+    assert "заметка3" in prompt
+    assert "заметка0" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_includes_todays_session_when_it_exists(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    today = date.today()
+    await _add_on_ice_day(
+        db_session, user, on_date=today, week_start=today - timedelta(days=today.weekday()),
+        main_exercise_names=["Слалом с шайбой"],
+    )
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Что у меня сегодня?")
+
+    prompt = captured["system_prompt"]
+    assert today.isoformat() in prompt
+    assert "Слалом с шайбой" in prompt
+    assert "Лёд" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_falls_back_to_next_real_session_when_today_has_none(
+    db_session, monkeypatch
+) -> None:
+    """No DayPlan at all for today (e.g. an undeclared week) -- must look
+    ahead rather than reporting nothing, same as a user opening the app
+    today would see on the Week screen."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    today = date.today()
+    upcoming_date = today + timedelta(days=3)
+    await _add_on_ice_day(
+        db_session, user, on_date=upcoming_date, week_start=today - timedelta(days=today.weekday()),
+        main_exercise_names=["Катание на скорость"],
+    )
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Что у меня дальше по плану?")
+
+    prompt = captured["system_prompt"]
+    assert upcoming_date.isoformat() in prompt
+    assert "Катание на скорость" in prompt
