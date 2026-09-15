@@ -1123,7 +1123,24 @@ class ScheduleService:
 
                 choice = random.choice(skill_pool)
 
-                if training_block is not None:
+                # A fallback pick (archetype-eligible pattern, no genuine
+                # stimulus_type match in the pool) must NOT be pinned the
+                # same way a genuine one is -- pinning it would freeze this
+                # exact fallback for the rest of the training block (weeks),
+                # even once the catalog gains a real match, since a pinned
+                # row is only ever reconsidered at a block boundary. Leaving
+                # it unpinned means every future session retries the real
+                # archetype search fresh, and a still-missing archetype
+                # degrades to "a new random fallback each time" rather than
+                # "the same one forever". Non-archetype patterns (archetype
+                # is None, role 4) have no such concept -- every fresh pick
+                # there is pinned as before.
+                is_genuine = (
+                    archetype is None
+                    or choice.stimulus_type is None
+                    or choice.stimulus_type == archetype
+                )
+                if training_block is not None and is_genuine:
                     if row is not None:
                         row.exercise_id = choice.id
                         row.block_number = training_block.block_number
@@ -1138,6 +1155,13 @@ class ScheduleService:
                         )
                         self._session.add(row)
                         existing_pins[(pattern, archetype)] = row
+                elif not is_genuine:
+                    # Don't let a stale pin from an earlier block masquerade
+                    # as "current" either -- row is None here unless this
+                    # pattern had an old pin that fell out of same_block
+                    # scope, in which case it just stays exactly as stale
+                    # as it already was.
+                    row = None
 
             if training_block is not None and archetype is not None and row is not None:
                 # Only a genuine match claims the archetype as "done" --
