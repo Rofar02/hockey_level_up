@@ -84,13 +84,6 @@ function formatPhaseCounts(trainingSession: TrainingSessionRead): string {
     .join(' · ')
 }
 
-// duration_seconds is the honest estimate derived from the
-// actually-assembled blocks (app.core.session_duration on the backend), not
-// a promise, so this reads "~NN мин" rather than an exact figure.
-function formatEstimatedDuration(durationSeconds: number): string {
-  return `~${Math.round(durationSeconds / 60)} мин`
-}
-
 // Same volume formatting as TrainingSessionPage's own (unexported, page-
 // local there too) formatTargetVolume -- duplicated rather than imported
 // for the same reason PHASE_LABELS is.
@@ -942,7 +935,7 @@ function DaySummary({ row }: { row: DayRow }) {
   }
   return (
     <p className="text-xs text-[#8A94A6] opacity-55">
-      {formatPhaseCounts(row.trainingSession)} · {formatEstimatedDuration(row.trainingSession.duration_seconds)}
+      {formatPhaseCounts(row.trainingSession)}
     </p>
   )
 }

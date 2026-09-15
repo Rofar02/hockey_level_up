@@ -109,27 +109,6 @@ function computeInitialPhaseIndex(sessionBlocks: SessionBlockRead[]): number {
   return firstNotDone === -1 ? Math.max(0, active.length - 1) : firstNotDone
 }
 
-// Rough estimate only -- nothing in the schema tracks actual elapsed time
-// (no started_at/duration fields anywhere), so "time remaining" can't be
-// measured. Duration-based exercises use their own target directly;
-// set/rep exercises assume a flat per-rep tempo; anything with neither
-// falls back to a flat guess rather than counting as zero.
-const SECONDS_PER_REP_ESTIMATE = 4
-const DEFAULT_EXERCISE_SECONDS_ESTIMATE = 60
-
-function estimateExerciseSeconds(exercise: ExerciseRead): number {
-  if (exercise.target_duration_seconds !== null) {
-    return exercise.target_duration_seconds
-  }
-  if (exercise.target_sets !== null && exercise.rep_range_min !== null && exercise.rep_range_max !== null) {
-    // Midpoint of the rep range (Phase: П.1 double progression) -- same
-    // approach as the backend's app.core.session_duration.
-    const avgReps = (exercise.rep_range_min + exercise.rep_range_max) / 2
-    return exercise.target_sets * avgReps * SECONDS_PER_REP_ESTIMATE
-  }
-  return DEFAULT_EXERCISE_SECONDS_ESTIMATE
-}
-
 // A target_sets exercise counts as done once every set is logged (matches
 // what SetLogger itself considers "all sets done") -- independent of
 // SessionBlock.completed_at, which still separately drives block_completed
@@ -611,11 +590,6 @@ export function TrainingSessionPage() {
   const doneCount = blocks.filter((block) => isExerciseDone(block, setCompletionCounts)).length
   const totalCount = blocks.length
   const progressPercent = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
-  const remainingSeconds = orderedBlocks
-    .filter((block) => !isExerciseDone(block, setCompletionCounts))
-    .reduce((sum, block) => sum + estimateExerciseSeconds(block.exercise), 0)
-  const remainingMinutes = Math.max(1, Math.round(remainingSeconds / 60))
-
   const currentExerciseId =
     orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))?.id ?? null
 
@@ -783,7 +757,9 @@ export function TrainingSessionPage() {
           <div className="text-right">
             {doneCount < totalCount && <p className="mb-1 text-[11px] text-text-secondary">осталось</p>}
             <p className="font-mono text-sm font-semibold text-text-primary">
-              {doneCount < totalCount ? `~${remainingMinutes} мин` : 'Готово'}
+              {doneCount < totalCount
+                ? `${totalCount - doneCount} ${pluralizeExercises(totalCount - doneCount)}`
+                : 'Готово'}
             </p>
           </div>
         </div>
@@ -1208,11 +1184,6 @@ function PhasePreviewSheet({
     setDragOffset(0)
   }
 
-  const totalMinutes = Math.max(
-    1,
-    Math.round(blocks.reduce((sum, block) => sum + estimateExerciseSeconds(block.exercise), 0) / 60),
-  )
-
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
@@ -1251,7 +1222,7 @@ function PhasePreviewSheet({
             <h3 className="text-base font-semibold text-text-primary">{PHASE_LABELS[phase]}</h3>
           </div>
           <p className="mb-3 text-xs text-text-secondary">
-            {blocks.length} {pluralizeExercises(blocks.length)} · ~{totalMinutes} мин
+            {blocks.length} {pluralizeExercises(blocks.length)}
           </p>
           <div className="flex flex-col divide-y divide-white/5">
             {blocks.map((block) => {

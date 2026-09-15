@@ -1005,7 +1005,6 @@ function DayDetailSession({
     (block) => block.completed_at !== null || block.skipped_at !== null,
   ).length
   const totalCount = session.blocks.length
-  const durationMinutes = Math.max(1, Math.round(session.duration_seconds / 60))
 
   const blocksByPhase: Record<TrainingPhase, SessionBlockRead[]> = {
     warmup: [],
@@ -1029,7 +1028,7 @@ function DayDetailSession({
           {DAY_SESSION_TYPE_LABELS[sessionType]}
         </span>
         <span className="font-mono text-xs text-[#8A94A6]">
-          {doneCount} из {totalCount} · ~{durationMinutes} мин
+          {doneCount} из {totalCount}
         </span>
       </div>
 
