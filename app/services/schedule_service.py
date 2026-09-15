@@ -1,8 +1,10 @@
+import itertools
 import logging
 import random
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from typing import Iterator
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +15,7 @@ from app.core.day_archetype import (
     DAY_ARCHETYPES,
     choose_archetype,
     forces_technical_archetype,
+    initial_rotation_order,
 )
 from app.core.session_duration import compute_phase_split, estimate_session_duration_seconds
 from app.core.stat_difficulty import UNCLASSIFIED_EXERCISE_CAP, max_difficulty_for_stat
@@ -170,6 +173,7 @@ class ScheduleService:
         target_week_start_date = min(dates)
         training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
         block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
+        archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
 
         weekly_plan = WeeklyPlan(
             user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
@@ -181,7 +185,12 @@ class ScheduleService:
             )
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
-                    day_in.session_type, user, block_phase, training_block, today=day_in.date
+                    day_in.session_type,
+                    user,
+                    block_phase,
+                    training_block,
+                    today=day_in.date,
+                    archetype_rotation=archetype_rotation,
                 )
             weekly_plan.day_plans.append(day_plan)
 
@@ -274,6 +283,7 @@ class ScheduleService:
         block_phase = await self._overload_service.apply_brakes(
             user, training_block.phase if training_block is not None else BlockPhase.ACCUMULATION
         )
+        archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
 
         conflicts: list[ScheduleConflictRead] = []
         for day_in in payload.days:
@@ -309,7 +319,12 @@ class ScheduleService:
 
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
-                    day_in.session_type, user, block_phase, training_block, today=day_in.date
+                    day_in.session_type,
+                    user,
+                    block_phase,
+                    training_block,
+                    today=day_in.date,
+                    archetype_rotation=archetype_rotation,
                 )
 
         await self._session.commit()
@@ -350,6 +365,7 @@ class ScheduleService:
         training_block: TrainingBlock | None = None,
         *,
         today: date | None = None,
+        archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
     ) -> TrainingSession:
         """Dispatch to the GAME-day builder (light activation only), the
         ON_ICE-day builder (on-ice warmup+cooldown only, no MAIN -- see
@@ -357,17 +373,19 @@ class ScheduleService:
         single place both create_weekly_plan and _patch_weekly_plan go
         through, so neither has to know GAME/ON_ICE are special cases.
 
-        training_block (Phase: П.3) and today (Phase: П.5, tournament
-        taper) are only ever consumed by the regular builder's _pick_main
-        -- GAME/ON_ICE days have no MAIN block at all, so neither of their
-        builders needs either.
+        training_block (Phase: П.3), today (Phase: П.5, tournament taper)
+        and archetype_rotation (batch-wide round-robin, see
+        _build_archetype_rotation) are only ever consumed by the regular
+        builder's _pick_main -- GAME/ON_ICE days have no MAIN block at
+        all, so neither of their builders needs any of them.
         """
         if session_type == DaySessionType.GAME:
             return await self._build_game_day_session(user, block_phase)
         if session_type == DaySessionType.ON_ICE:
             return await self._build_on_ice_day_session(user, block_phase)
         return await self._build_training_session(
-            session_type, user, block_phase, training_block, today=today
+            session_type, user, block_phase, training_block, today=today,
+            archetype_rotation=archetype_rotation,
         )
 
     async def _build_game_day_session(self, user: User, block_phase: BlockPhase) -> TrainingSession:
@@ -455,6 +473,7 @@ class ScheduleService:
         training_block: TrainingBlock | None = None,
         *,
         today: date | None = None,
+        archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
     ) -> TrainingSession:
         """MAIN is picked first and warmup/cooldown are chosen retrospectively
         to match it (Phase 3) -- storage order of `blocks` is still
@@ -465,7 +484,12 @@ class ScheduleService:
         category = _SESSION_TYPE_TO_CATEGORY[session_type]
 
         main_exercises = await self._pick_main(
-            category, user, block_phase, training_block=training_block, today=today
+            category,
+            user,
+            block_phase,
+            training_block=training_block,
+            today=today,
+            archetype_rotation=archetype_rotation,
         )
         main_exercise_ids = [exercise.id for exercise in main_exercises]
         main_patterns = await self._movement_patterns_union(main_exercise_ids)
@@ -818,6 +842,34 @@ class ScheduleService:
 
         return picked
 
+    async def _build_archetype_rotation(
+        self, user: User, category: ExerciseCategory
+    ) -> dict[MovementPattern, Iterator[StimulusType]]:
+        """Computed ONCE per batch (a whole week, always built in one
+        create_weekly_plan/_patch_weekly_plan call), before that batch's
+        day-by-day loop starts -- one round-robin cycle per
+        ARCHETYPE_ELIGIBLE_PATTERNS pattern, ordered by real staleness as
+        of right now (see initial_rotation_order), then just cycled for
+        every day _pick_main is asked to build in this same batch.
+
+        Deliberately NOT recomputed per day: re-deriving choose_archetype
+        fresh against live last_chosen_at after each day lets whichever
+        archetype wins day 1 keep winning several days in a row, since it
+        only advances one calendar day at a time while the untouched
+        runners-up sit still (see initial_rotation_order's docstring) --
+        a real, user-visible monopoly within a single generated week.
+        """
+        existing_pins = await self._variants.list_for_user_category(user.id, category)
+        rotation: dict[MovementPattern, Iterator[StimulusType]] = {}
+        for pattern in ARCHETYPE_ELIGIBLE_PATTERNS:
+            last_chosen_at = {
+                candidate: existing_pins[(pattern, candidate)].last_chosen_at
+                for candidate in DAY_ARCHETYPES
+                if (pattern, candidate) in existing_pins
+            }
+            rotation[pattern] = itertools.cycle(initial_rotation_order(last_chosen_at))
+        return rotation
+
     async def _pick_main(
         self,
         category: ExerciseCategory,
@@ -826,6 +878,7 @@ class ScheduleService:
         *,
         training_block: TrainingBlock | None = None,
         today: date | None = None,
+        archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
     ) -> list[Exercise]:
         """Stage 2.4 (2026-08-20 planning session): role-based assembly,
         replacing the old flat "shuffle every movement_pattern, fill up to
@@ -1198,6 +1251,16 @@ class ScheduleService:
             for pattern in role_patterns:
                 if forces_technical:
                     archetype = StimulusType.SKILL
+                elif archetype_rotation is not None and pattern in archetype_rotation:
+                    # Batch-wide round-robin (see _build_archetype_rotation):
+                    # decided ONCE per pattern before this whole week's days
+                    # started building, so a pattern can't monopolize
+                    # several consecutive days the way re-deriving
+                    # choose_archetype against progressively-updated
+                    # last_chosen_at would (see initial_rotation_order's
+                    # docstring). Never advanced during a forces_technical
+                    # override, same as last_chosen_at itself.
+                    archetype = next(archetype_rotation[pattern])
                 else:
                     last_chosen_at = {
                         candidate: existing_pins[(pattern, candidate)].last_chosen_at

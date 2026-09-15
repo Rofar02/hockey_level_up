@@ -66,6 +66,37 @@ def choose_archetype(last_chosen_at: dict[StimulusType, date | None]) -> Stimulu
     )
 
 
+def initial_rotation_order(last_chosen_at: dict[StimulusType, date | None]) -> list[StimulusType]:
+    """Same "hasn't happened in the longest time wins" comparison as
+    choose_archetype, but returns the full stale-to-fresh order instead of
+    just the winner. Meant to be computed ONCE per pattern before building
+    a whole batch of days (a real week, always built in one request -- see
+    ScheduleService.create_weekly_plan/_patch_weekly_plan), then consumed
+    round-robin across that batch's days -- rather than calling
+    choose_archetype fresh against live state after each day.
+
+    Re-deriving live within the same batch creates a real monopoly: the
+    archetype that wins day 1 gets its own last_chosen_at bumped to day
+    1's date, while the untouched runners-up still sit at whatever older
+    date they already had. Day 2 compares day-1's winner (now dated day 1)
+    against the runners-up (still older) -- day-1's winner is *still* the
+    "most stale" and wins again, advancing one calendar day at a time
+    while the runners-up stand still, so it can take several days to
+    finally close the gap. A fixed order decided once, then cycled,
+    can't run away like that.
+    """
+    if all(last_chosen_at.get(archetype) is None for archetype in DAY_ARCHETYPES):
+        rest = [a for a in DAY_ARCHETYPES if a != DEFAULT_FIRST_ARCHETYPE]
+        return [DEFAULT_FIRST_ARCHETYPE, *rest]
+    return sorted(
+        DAY_ARCHETYPES,
+        key=lambda archetype: (
+            last_chosen_at.get(archetype) is not None,
+            last_chosen_at.get(archetype) or date.min,
+        ),
+    )
+
+
 def forces_technical_archetype(
     block_phase: BlockPhase,
     *,
