@@ -181,7 +181,7 @@ class ScheduleService:
             )
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
-                    day_in.session_type, user, block_phase, training_block
+                    day_in.session_type, user, block_phase, training_block, today=day_in.date
                 )
             weekly_plan.day_plans.append(day_plan)
 
@@ -309,7 +309,7 @@ class ScheduleService:
 
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
-                    day_in.session_type, user, block_phase, training_block
+                    day_in.session_type, user, block_phase, training_block, today=day_in.date
                 )
 
         await self._session.commit()
