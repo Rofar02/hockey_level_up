@@ -15,6 +15,7 @@ export interface TrainingDiaryEntryRead {
 export interface TrainingDiaryEntryListItem {
   id: string
   training_session_id: string
+  day_plan_id: string
   date: string
   session_type: DaySessionType
   note: string | null

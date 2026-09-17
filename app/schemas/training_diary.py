@@ -28,6 +28,10 @@ class TrainingDiaryEntryListItem(BaseModel):
 
     id: uuid.UUID
     training_session_id: uuid.UUID
+    # 2026-09-18: lets the frontend list link each entry straight to
+    # /training/<day_plan_id> (TrainingSessionPage) instead of being a dead
+    # end -- see TrainingDiaryRepository.list_for_user's docstring.
+    day_plan_id: uuid.UUID
     date: date
     session_type: DaySessionType
     note: str | None

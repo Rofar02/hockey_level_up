@@ -60,6 +60,10 @@ export interface TrainingSessionRead {
   phase_split: Partial<Record<TrainingPhase, number>>
   duration_seconds: number
   blocks: SessionBlockRead[]
+  // null for off_ice/rest (the diary step doesn't apply there at all);
+  // for on_ice/game, true as soon as any TrainingDiaryEntry row exists
+  // for this session, including a quietly-skipped one with no note.
+  has_diary_entry: boolean | null
 }
 
 export interface DayPlanRead {

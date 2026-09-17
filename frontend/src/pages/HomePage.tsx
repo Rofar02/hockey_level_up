@@ -514,6 +514,7 @@ export function HomePage() {
               phaseLabel={trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null}
               phase={trainingBlock !== null ? trainingBlock.phase : null}
               onStart={() => today !== null && navigate(`/training/${today.id}`)}
+              onFillDiary={() => today !== null && navigate(`/training/${today.id}?focus=diary`)}
             />
 
             {stats !== null && <StatsRow stats={stats} onSelect={setSelectedStatType} />}
@@ -564,16 +565,33 @@ export function HomePage() {
   )
 }
 
+// 2026-09-17 (audit item #3): game/on_ice go through a 4-state button
+// (not-started -> in-progress -> awaiting diary -> done) since both get a
+// TrainingDiaryCard (see TrainingSessionPage.tsx); off_ice has no diary
+// step at all (has_diary_entry stays null there), so it keeps the
+// original 2-state start/continue behavior unchanged. Team on-ice days
+// use a different, time-based "awaiting" transition instead of this
+// blocks checklist -- see the team-ice system's own doc, out of scope
+// here.
+function todayCardStartLabels(sessionType: DaySessionType): { start: string; resume: string } {
+  if (sessionType === 'game') {
+    return { start: 'Начать подготовку', resume: 'Продолжить подготовку' }
+  }
+  return { start: 'Начать тренировку', resume: 'Продолжить тренировку' }
+}
+
 function TodayCard({
   day,
   phaseLabel,
   phase,
   onStart,
+  onFillDiary,
 }: {
   day: DayPlanRead | null
   phaseLabel: string | null
   phase: BlockPhase | null
   onStart: () => void
+  onFillDiary: () => void
 }) {
   const weekday = day !== null ? WEEKDAY_LABELS[(parseIsoDate(day.date).getDay() + 6) % 7] : null
   const eyebrow = [weekday, phaseLabel].filter(Boolean).join(' · ')
@@ -606,8 +624,14 @@ function TodayCard({
     )
   }
 
-  const completed = isSessionDayCompleted(day)
-  const started = !completed && isSessionDayStarted(day)
+  const blocksDone = isSessionDayCompleted(day)
+  const started = !blocksDone && isSessionDayStarted(day)
+  // has_diary_entry is null for off_ice/rest (no diary step at all) --
+  // only game/on_ice ever reach "blocksDone but still awaiting the
+  // diary" (see TodayCard's own docstring above).
+  const diaryPending = blocksDone && day.training_session.has_diary_entry === false
+  const fullyDone = blocksDone && !diaryPending
+  const { start: startLabel, resume: resumeLabel } = todayCardStartLabels(day.session_type)
 
   return (
     <div className={`relative overflow-hidden p-5 ${CARD_CLASS}`}>
@@ -615,7 +639,7 @@ function TodayCard({
       <div className="relative flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           {eyebrow !== '' && <p className="text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
-          {completed && (
+          {fullyDone && (
             <span className="flex items-center gap-1 rounded-full bg-accent-ice/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-ice">
               <i className="ti ti-check" aria-hidden="true" />
               Выполнено
@@ -626,9 +650,14 @@ function TodayCard({
           <i className={`ti ${SESSION_TYPE_ICONS[day.session_type]} ${SESSION_TYPE_COLORS[day.session_type]}`} aria-hidden="true" />
           {DAY_SESSION_TYPE_LABELS[day.session_type]}
         </p>
-        {!completed && (
+        {diaryPending && (
+          <Button onClick={onFillDiary} className="w-full">
+            Заполнить дневник
+          </Button>
+        )}
+        {!blocksDone && (
           <Button onClick={onStart} className="w-full">
-            {started ? 'Продолжить тренировку' : 'Начать тренировку'}
+            {started ? resumeLabel : startLabel}
           </Button>
         )}
       </div>

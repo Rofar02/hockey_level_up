@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { TouchEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
@@ -202,7 +202,13 @@ function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
 
 export function TrainingSessionPage() {
   const { dayPlanId } = useParams<{ dayPlanId: string }>()
+  const [searchParams] = useSearchParams()
+  // 2026-09-17 (audit item #3): set by TodayCard's "Заполнить дневник"
+  // navigation (?focus=diary) -- see TrainingDiaryCard's own autoFocus
+  // prop for what this does once the card is on screen.
+  const focusDiary = searchParams.get('focus') === 'diary'
   const { accessToken } = useAuth()
+  const navigate = useNavigate()
 
   const [day, setDay] = useState<DayPlanRead | null>(null)
   const [blocks, setBlocks] = useState<SessionBlockRead[] | null>(null)
@@ -612,17 +618,36 @@ export function TrainingSessionPage() {
   const canFinishPhase = currentPhaseTotal > 0 && currentPhaseDoneCount === currentPhaseTotal
 
   function handleFinishPhase() {
-    if (!canFinishPhase || isLastPhase) {
-      // Finishing the last phase needs no extra step: ticking its final
-      // exercise already flips every block in the session to completed_at
-      // !== null, which is exactly the condition handleComplete's own
-      // mergedBlocks.every check uses to open SessionCompleteModal -- that
-      // already happened by the time this button became enabled.
+    if (!canFinishPhase) {
+      return
+    }
+    if (isLastPhase) {
+      // 2026-09-18 fix: this branch used to be a silent no-op -- the
+      // reasoning was that ticking the final exercise already flips every
+      // block to completed_at !== null, which is exactly the condition
+      // handleComplete's own mergedBlocks.every check uses to open
+      // SessionCompleteModal (a full-screen overlay), so this button
+      // should never actually be reachable at that instant. True for a
+      // *live* completion -- but revisiting an ALREADY fully completed
+      // session (e.g. via TodayCard's "Заполнить дневник" step, which
+      // lands here with sessionComplete still null because no completion
+      // event fires on that visit) leaves this exact button sitting
+      // enabled with nothing behind it -- reported 2026-09-18 as "кнопка
+      // не нажимается". Nothing left to finish either way -- go home, same
+      // destination as the modal's own "На главную".
+      navigate('/', { replace: true })
       return
     }
     setCurrentPhaseIndex((index) => index + 1)
     trackerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+
+  // Distinguishes the revisit-after-already-done state above from a live
+  // completion (where sessionComplete gets set in the same tick blocks
+  // does, and the modal covers this button before it's ever tapped) --
+  // drives the footer button's label below so it reads as "leave", not as
+  // a still-pending "finish" action, once there's genuinely nothing left.
+  const isRevisitingCompletedSession = isLastPhase && canFinishPhase && sessionComplete === null
 
   // The SessionBlock behind the exercise currently open in
   // ExerciseDetailModal -- selectedExercise only stores the ExerciseRead
@@ -742,6 +767,15 @@ export function TrainingSessionPage() {
           <h1 className="text-xl font-semibold">
             {day !== null ? DAY_SESSION_TYPE_LABELS[day.session_type] : 'Тренировка дня'}
           </h1>
+          {day?.session_type === 'game' && (
+            // 2026-09-17 (audit item #4): purely textual -- the backend
+            // already builds a game day as light activation only, no MAIN/
+            // cooldown (see ScheduleService._build_game_day_session), and
+            // skip is already universal (skipped_at/handleSkip below). This
+            // just tells the player the whole thing is optional so it
+            // doesn't read as a full mandatory workout before a game.
+            <p className="text-sm text-text-secondary">Необязательная активация — выбери, что подходит</p>
+          )}
         </div>
       </div>
 
@@ -902,7 +936,11 @@ export function TrainingSessionPage() {
           >
             <div className="mx-auto max-w-2xl">
               <Button onClick={handleFinishPhase} disabled={!canFinishPhase} className="w-full">
-                {isLastPhase ? 'Завершить тренировку' : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
+                {isRevisitingCompletedSession
+                  ? 'На главную'
+                  : isLastPhase
+                    ? 'Завершить тренировку'
+                    : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
               </Button>
               {!canFinishPhase && (
                 <p className="mt-2 text-center text-xs text-text-secondary">
@@ -931,7 +969,11 @@ export function TrainingSessionPage() {
         && (day.session_type === 'on_ice' || day.session_type === 'game')
         && trainingSessionId !== null
         && accessToken !== null && (
-          <TrainingDiaryCard trainingSessionId={trainingSessionId} accessToken={accessToken} />
+          <TrainingDiaryCard
+            trainingSessionId={trainingSessionId}
+            accessToken={accessToken}
+            autoFocus={focusDiary}
+          />
         )}
 
       {sessionComplete !== null && accessToken !== null && (
@@ -962,15 +1004,24 @@ const BONUS_CARD_CLASS = 'rounded-md border border-dashed border-white/20 bg-dar
 function TrainingDiaryCard({
   trainingSessionId,
   accessToken,
+  autoFocus = false,
 }: {
   trainingSessionId: string
   accessToken: string
+  // 2026-09-17 (audit item #3): set when TodayCard's "Заполнить дневник"
+  // step sent the player here via ?focus=diary (see TrainingSessionPage's
+  // own read of that param below) -- scrolls this card into view and
+  // focuses the textarea once it's loaded, so the player lands directly
+  // on the one thing left to do instead of having to find it on the page.
+  autoFocus?: boolean
 }) {
   const [isLoaded, setIsLoaded] = useState(false)
   const [note, setNote] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [justSaved, setJustSaved] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -996,16 +1047,20 @@ function TrainingDiaryCard({
     }
   }, [trainingSessionId, accessToken])
 
-  async function handleSave() {
+  useEffect(() => {
+    if (autoFocus && isLoaded) {
+      containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      textareaRef.current?.focus()
+    }
+  }, [autoFocus, isLoaded])
+
+  async function persistNote(noteValue: string | null) {
     setSaveError(null)
     setJustSaved(false)
     setIsSaving(true)
     try {
-      await trainingDiaryApi.saveDiaryEntry(
-        trainingSessionId,
-        { note: note.trim() === '' ? null : note },
-        accessToken,
-      )
+      await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue }, accessToken)
+      setNote(noteValue ?? '')
       setJustSaved(true)
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить запись.')
@@ -1014,31 +1069,74 @@ function TrainingDiaryCard({
     }
   }
 
+  async function handleSave() {
+    await persistNote(note.trim() === '' ? null : note)
+  }
+
+  // 2026-09-17 (audit item #3): a diary entry row existing at all -- even
+  // with note=null -- is what marks TodayCard's diary step done (see
+  // has_diary_entry's docstring in app/schemas/schedule.py). Without this,
+  // a player who doesn't want to write anything this time has no way to
+  // clear "Заполнить дневник" off TodayCard short of typing something,
+  // which turns the card into a standing reproach.
+  async function handleSkip() {
+    await persistNote(null)
+  }
+
   if (!isLoaded) {
     return null
   }
 
+  // 2026-09-18: visual pass -- this card used to be a bare label + plain
+  // textarea, styled nothing like the rest of the page (ShieldIcon/StatIcon
+  // header rows, CardGlow corner accent). Same content and behavior, just
+  // dressed like the app's other cards instead of a leftover form.
   return (
-    <div className={CARD_CLASS}>
-      <div className="flex flex-col gap-3 p-4">
-        <span className="text-sm font-medium text-text-primary">Дневник</span>
+    <div ref={containerRef} className={`relative overflow-hidden p-4 ${CARD_CLASS}`}>
+      <CardGlow corner="top-left" color="persimmon" />
+      <div className="relative flex flex-col gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-persimmon/15 text-accent-persimmon">
+            <i className="ti ti-notebook text-base" aria-hidden="true" />
+          </span>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-text-primary">Дневник</span>
+            <span className="text-xs text-text-secondary">Что получилось, что нет</span>
+          </div>
+        </div>
         <textarea
+          ref={textareaRef}
           value={note}
           onChange={(event) => {
             setJustSaved(false)
             setNote(event.target.value)
           }}
-          placeholder="Что получилось, что нет..."
+          placeholder="Заметка о тренировке..."
           rows={3}
           maxLength={2000}
-          className="resize-none rounded border border-white/10 bg-dark-bg px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none"
+          className="resize-none rounded-lg border border-white/10 bg-dark-bg/80 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-secondary/60 transition-colors focus:border-accent-ice focus:outline-none focus:ring-1 focus:ring-accent-ice/40"
         />
         <FormError message={saveError} />
-        <div className="flex items-center justify-end gap-3">
-          {justSaved && <span className="text-xs text-text-secondary">Сохранено</span>}
-          <Button variant="neutral" onClick={handleSave} isLoading={isSaving} className="self-end">
-            Сохранить
-          </Button>
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleSkip}
+            disabled={isSaving}
+            className="text-xs text-text-secondary underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Пропустить
+          </button>
+          <div className="flex items-center gap-3">
+            {justSaved && (
+              <span className="flex items-center gap-1 text-xs text-accent-ice">
+                <i className="ti ti-check" aria-hidden="true" />
+                Сохранено
+              </span>
+            )}
+            <Button variant="neutral" onClick={handleSave} isLoading={isSaving} className="self-end">
+              Сохранить
+            </Button>
+          </div>
         </div>
       </div>
     </div>

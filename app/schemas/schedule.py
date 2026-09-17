@@ -42,6 +42,15 @@ class TrainingSessionRead(BaseModel):
     # for every session_type.
     duration_seconds: int
     blocks: list[SessionBlockRead]
+    # 2026-09-17 (audit item #3): whether a TrainingDiaryEntry row exists
+    # for this session -- an EXISTS check (app.repositories.
+    # training_diary_repository.list_session_ids_with_entries), not
+    # note.isnot(None) -- a "quietly skipped" entry (note=None, saved on
+    # purpose) still counts as done. Drives TodayCard's "Заполнить
+    # дневник" step on the frontend. None for off_ice/rest, the session
+    # types TrainingDiaryCard never renders for (see
+    # TrainingSessionPage.tsx) -- the diary step just doesn't apply there.
+    has_diary_entry: bool | None
 
 
 class DayPlanRead(BaseModel):
