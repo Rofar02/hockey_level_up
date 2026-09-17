@@ -159,7 +159,19 @@ export function ExerciseDetailBody({
   const [transferTags, setTransferTags] = useState<SkillTagRead[] | null>(null)
   const [skillNameById, setSkillNameById] = useState<Record<string, string>>({})
 
+  // 2026-09-17 (audit item #6): "Перенос на лёд" only makes sense for
+  // MAIN (real hockey-relevant strength/power transfer) and PUCK (real
+  // stick-skill transfer) -- WARMUP/COOLDOWN exercises were showing the
+  // tab too, originally "both tabs always show, on every exercise", which
+  // the audit found misleading for those two phases. Gated here (not just
+  // hidden in the tab strip below) so the fetch itself never fires for a
+  // phase the tab can't show for.
+  const showTransferTab = exercise.phase === 'main' || exercise.phase === 'puck'
+
   useEffect(() => {
+    if (!showTransferTab) {
+      return
+    }
     let cancelled = false
     Promise.all([exercisesApi.listExerciseSkills(exercise.id, accessToken), skillsApi.listSkills(accessToken)])
       .then(([tags, skills]) => {
@@ -177,7 +189,18 @@ export function ExerciseDetailBody({
     return () => {
       cancelled = true
     }
-  }, [exercise.id, accessToken])
+  }, [exercise.id, accessToken, showTransferTab])
+
+  // A warmup/cooldown exercise never had this tab open on it (see
+  // below), but the same modal instance can be reused across a skip/
+  // advance to the next exercise -- reset off a tab that just stopped
+  // being available rather than leave the panel showing stale content
+  // under a tab strip that no longer has a button for it.
+  useEffect(() => {
+    if (!showTransferTab && activeTab === 'transfer') {
+      setActiveTab('sets')
+    }
+  }, [showTransferTab, activeTab])
 
   const targetVolume = formatTargetVolume(exercise)
   const mode = exercisePlayerMode(exercise)
@@ -223,12 +246,11 @@ export function ExerciseDetailBody({
     onSkip()
   }
 
-  // Both tabs always show, on every exercise -- this is the app's standard
-  // exercise-modal shape now, not conditional on which exercises happen to
-  // have content filled in yet. Each tab falls back to an honest "not set
-  // up yet" line instead of hiding itself when its exercise is missing
-  // data (e.g. target_sets or description) -- catalog content gets filled
-  // in separately (exercise admin edit), not invented here.
+  // "Техника" always shows, on every exercise, regardless of whether it
+  // has content filled in yet -- falls back to an honest "not set up yet"
+  // line instead of hiding itself (catalog content gets filled in
+  // separately, not invented here). "Перенос на лёд" is the one exception
+  // (see showTransferTab above, audit item #6): MAIN/PUCK only.
   return (
       <div className="flex flex-col gap-3">
         <div
@@ -249,9 +271,11 @@ export function ExerciseDetailBody({
           <TabButton active={activeTab === 'technique'} onClick={() => setActiveTab('technique')}>
             Техника
           </TabButton>
-          <TabButton active={activeTab === 'transfer'} onClick={() => setActiveTab('transfer')}>
-            Перенос на лёд
-          </TabButton>
+          {showTransferTab && (
+            <TabButton active={activeTab === 'transfer'} onClick={() => setActiveTab('transfer')}>
+              Перенос на лёд
+            </TabButton>
+          )}
         </div>
 
         {/* Always mounted, hidden via CSS rather than conditionally
