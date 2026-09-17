@@ -41,3 +41,59 @@ export function unlockBodyScroll(): void {
     window.scrollTo(0, scrollYBeforeLock)
   }
 }
+
+// 2026-09-17 fix (audit item #8): "нижняя шапка уехала" after the app sat
+// backgrounded a while on iOS. bodyLockCount only ever lived in JS memory
+// -- if a modal was open the instant iOS suspended/evicted the PWA's tab
+// (any backgrounding can do this, not just a crash) and later restored it
+// from bfcache, the DOM/CSS snapshot comes back exactly as it was
+// (body.style.position:'fixed'; top:-Npx still applied), but this module
+// reloads fresh with bodyLockCount = 0 -- as far as the new JS instance is
+// concerned, no lock was ever taken, so nothing ever calls
+// unlockBodyScroll to clear it. BottomNav itself was never mis-positioned
+// -- the whole page's content just sits shifted by the stuck negative
+// `top`, which reads as "the bottom bar moved".
+//
+// Call once at app startup, before anything has a chance to call
+// lockBodyScroll for real: a fresh load/restore should never inherit a
+// lock from a previous session, since bodyLockCount can't have a
+// legitimate non-zero value yet at that point.
+export function resetStaleBodyScrollLock(): void {
+  bodyLockCount = 0
+  document.body.style.position = ''
+  document.body.style.top = ''
+  document.body.style.left = ''
+  document.body.style.right = ''
+  document.body.style.overflow = ''
+}
+
+// Companion fix, same root cause class: WebKit is known to leave other
+// small visual artifacts stuck after a long background freeze on iOS
+// standalone (home-screen PWA), beyond just this stuck body offset --
+// forcing a reflow on return to foreground is a cheap, broad hedge against
+// that whole family, not just this one bug. pageshow (persisted=true is
+// the actual bfcache-restore signal) covers the bfcache-restore case
+// directly; visibilitychange covers plain background/foreground without a
+// full bfcache cycle.
+export function installForegroundReflowFix(): () => void {
+  function reflow() {
+    window.dispatchEvent(new Event('resize'))
+  }
+  function onVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      reflow()
+    }
+  }
+  function onPageShow(event: PageTransitionEvent) {
+    if (event.persisted) {
+      resetStaleBodyScrollLock()
+      reflow()
+    }
+  }
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('pageshow', onPageShow)
+  return () => {
+    document.removeEventListener('visibilitychange', onVisibilityChange)
+    window.removeEventListener('pageshow', onPageShow)
+  }
+}

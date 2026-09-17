@@ -302,6 +302,12 @@ async def test_stale_stat_uses_decayed_effective_value_not_raw(db_session) -> No
 async def test_fallback_when_nothing_survives_the_cap(
     db_session, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """2026-09-17 fix (audit item #2): a pool that's empty at the exact cap
+    (band 1 -> cap=1 here, only a difficulty-5 candidate exists) now
+    relaxes one step at a time and logs that relaxation, instead of
+    jumping straight to "no restriction at all" -- see
+    ScheduleService._apply_difficulty_gate's docstring. The slot still
+    gets filled either way (never left empty over a catalog gap)."""
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -321,9 +327,45 @@ async def test_fallback_when_nothing_survives_the_cap(
         picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == ["Only-hard"]
-    assert any(
-        "falling back to the full difficulty range" in record.message for record in caplog.records
+    assert any("Readiness cap relaxed by" in record.message for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_content_gap_at_the_exact_cap_does_not_hand_intensification_the_ceiling(
+    db_session,
+) -> None:
+    """The real reported bug (2026-09-16 audit item #2): a 20-40 stat
+    (cap=2) with no difficulty<=2 candidate for this pattern, during
+    INTENSIFICATION (which actively prefers difficulty>=4). Before the
+    fix, the readiness gate's own empty-pool fallback wiped the cap
+    entirely, handing INTENSIFICATION's "prefer heaviest" search the
+    *unfiltered* pool -- the user got the difficulty-5 exercise despite a
+    genuinely lighter, still-capped-appropriate option (difficulty 1)
+    existing in the catalog. The fix must land on the difficulty-1
+    exercise: the gate relaxes from cap=2 down to the closest available
+    rung (1, since nothing is tagged 2 or 3 here) *before* the phase
+    preference ever sees the pool, and a phase preference is never
+    applied on top of an exhausted gate."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(_user_stat(user, TargetStat.ENDURANCE, 30.0))  # band 20-40 -> cap=2
+    await db_session.flush()
+
+    light = _make_exercise("Light", 1)
+    heavy = _make_exercise("Heavy", 5)
+    db_session.add_all([light, heavy])
+    db_session.add_all([_stat_row(light, TargetStat.ENDURANCE), _stat_row(heavy, TargetStat.ENDURANCE)])
+    db_session.add_all(
+        [_pattern_row(light, TargetStat.ENDURANCE), _pattern_row(heavy, TargetStat.ENDURANCE)]
     )
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, {"light": light, "heavy": heavy})
+    picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.INTENSIFICATION)
+
+    assert [e.name for e in picked] == ["Light"]
 
 
 @pytest.mark.asyncio

@@ -67,6 +67,14 @@ from app.services.user_service import UserService
 from app.services.user_temporary_restriction_service import UserTemporaryRestrictionService
 
 MONTHLY_MESSAGE_LIMIT = 150
+# 2026-09-17 (audit item #7): send_message no longer hard-walls non-premium
+# users behind require_premium/403 -- a small free trial instead, same
+# monthly-window infrastructure (count_user_messages_since) as the premium
+# limit above, just a much smaller number for has_premium=False. Doesn't
+# change anything about the feature itself (same model, same proposed-
+# action flow) -- purely how many messages a non-premium user gets before
+# hitting 429 this month.
+FREE_TRIAL_MESSAGE_LIMIT = 5
 # How many prior messages get replayed back to the model as dialogue
 # context -- a rolling window, not the full history (which the /history
 # endpoint exposes separately, unbounded by this). Raised from 10 to 30
@@ -543,14 +551,18 @@ class CoachChatService:
             day=1, hour=0, minute=0, second=0, microsecond=0
         )
         sent_this_month = await self._chat.count_user_messages_since(user.id, month_start)
-        if sent_this_month >= MONTHLY_MESSAGE_LIMIT:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=(
-                    f"Достигнут лимит сообщений ИИ-тренеру на этот месяц "
-                    f"({MONTHLY_MESSAGE_LIMIT}). Попробуйте в следующем месяце."
-                ),
+        message_limit = MONTHLY_MESSAGE_LIMIT if user.has_premium else FREE_TRIAL_MESSAGE_LIMIT
+        if sent_this_month >= message_limit:
+            detail = (
+                f"Достигнут лимит сообщений ИИ-тренеру на этот месяц "
+                f"({message_limit}). Попробуйте в следующем месяце."
+                if user.has_premium
+                else (
+                    f"Бесплатный лимит сообщений ИИ-тренеру на этот месяц исчерпан "
+                    f"({message_limit}). Оформите премиум-подписку, чтобы продолжить общение."
+                )
             )
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
 
         system_prompt = await self._build_system_prompt(user, user.coach_personality)
         history = await self._chat.list_recent(user.id, HISTORY_REPLAY_TURNS)

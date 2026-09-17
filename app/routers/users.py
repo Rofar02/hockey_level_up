@@ -207,20 +207,24 @@ async def get_my_analytics_summary(
 @router.post("/me/coach-chat", response_model=CoachChatReplyRead)
 async def send_coach_chat_message(
     body: CoachChatMessageCreate,
-    current_user: Annotated[User, Depends(require_premium)],
+    current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Premium gates *access*; a 503 here means access is fine but the
-    feature isn't technically switched on yet (no z.ai API key
-    configured -- see Settings.zai_api_key), which is a different
-    state from the 403 require_premium raises."""
+    """2026-09-17 (audit item #7): open to every logged-in user, not just
+    premium -- CoachChatService.send_message applies a much smaller
+    monthly cap for has_premium=False (FREE_TRIAL_MESSAGE_LIMIT) instead
+    of the old flat 403, so non-premium is a real free taste of the
+    feature rather than a locked door. A 503 here means access is fine
+    but the feature isn't technically switched on yet (no z.ai API key
+    configured -- see Settings.zai_api_key), a different state from the
+    429 the monthly cap raises."""
     reply = await CoachChatService(session).send_message(current_user, body.message)
     return CoachChatReplyRead(reply=reply)
 
 
 @router.get("/me/coach-chat/history", response_model=list[CoachChatMessageRead])
 async def get_coach_chat_history(
-    current_user: Annotated[User, Depends(require_premium)],
+    current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
     limit: int = Query(default=50, ge=1, le=200),
 ):
@@ -232,7 +236,7 @@ async def get_coach_chat_history(
 )
 async def confirm_coach_chat_action(
     action_id: uuid.UUID,
-    current_user: Annotated[User, Depends(require_premium)],
+    current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Applies a coach-proposed action -- dispatches to the exact same
@@ -246,7 +250,7 @@ async def confirm_coach_chat_action(
 )
 async def dismiss_coach_chat_action(
     action_id: uuid.UUID,
-    current_user: Annotated[User, Depends(require_premium)],
+    current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await CoachChatService(session).dismiss_action(current_user, action_id)
@@ -257,7 +261,7 @@ async def get_my_streak(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await ProgressService(session).get_streak(current_user.id)
+    return await ProgressService(session).get_streak(current_user)
 
 
 @router.get("/me/rest-done-phrase", response_model=RestDonePhraseRead)

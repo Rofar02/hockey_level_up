@@ -69,11 +69,12 @@ class TrainingDiaryService:
             TrainingDiaryEntryListItem(
                 id=entry.id,
                 training_session_id=entry.training_session_id,
+                day_plan_id=day_plan_id,
                 date=entry_date,
                 session_type=session_type,
                 note=entry.note,
                 created_at=entry.created_at,
                 updated_at=entry.updated_at,
             )
-            for entry, entry_date, session_type in rows
+            for entry, entry_date, session_type, day_plan_id in rows
         ]

@@ -1,13 +1,18 @@
 """AI coach chat (CoachChatService / POST /users/me/coach-chat):
 
-- require_premium gates access regardless of the z.ai key state
-  (403, key irrelevant -- mirrors test_premium_gate.py's convention,
-  scoped to this feature).
-- with premium access granted but no z.ai key configured, the
-  service itself refuses with 503 ("feature not technically on yet")
-  rather than 403 -- a different state than "no access at all".
-- exceeding the monthly quota is a 429, and the z.ai client is
-  never called to get there.
+- 2026-09-17 (audit item #7): the router no longer gates this endpoint on
+  require_premium at all -- every logged-in user reaches send_message,
+  which applies its own monthly cap: FREE_TRIAL_MESSAGE_LIMIT for
+  has_premium=False, the much larger MONTHLY_MESSAGE_LIMIT for True. The
+  require_premium test below now just exercises that dependency function
+  directly (mirrors test_premium_gate.py's convention) -- it's kept
+  because the function itself still exists and still gates analytics, not
+  because this endpoint still calls it.
+- with access granted but no z.ai key configured, the service itself
+  refuses with 503 ("feature not technically on yet") rather than a hard
+  block -- a different state than "no messages left this month".
+- exceeding the monthly quota (either tier) is a 429, and the z.ai client
+  is never called to get there.
 - the system prompt actually carries the user's real stats/milestones/
   streak/phase/history, not a generic template.
 - the system prompt's persona block changes with the user's
@@ -39,6 +44,7 @@ from app.routers.deps import require_premium
 from app.services import coach_chat_service
 from app.services.coach_chat_service import (
     ANALYTICS_SUMMARY_WINDOW_DAYS,
+    FREE_TRIAL_MESSAGE_LIMIT,
     MONTHLY_MESSAGE_LIMIT,
     CoachChatService,
 )
@@ -222,6 +228,108 @@ async def test_messages_from_a_prior_month_do_not_count_toward_the_limit(
     # Should not raise -- last month's 150 messages are outside this
     # calendar month's window.
     await service.send_message(user, "Новый месяц, новый лимит")
+
+
+@pytest.mark.asyncio
+async def test_non_premium_user_hits_the_free_trial_limit_not_the_premium_one(
+    db_session, monkeypatch
+) -> None:
+    """2026-09-17 (audit item #7): a non-premium user is capped at
+    FREE_TRIAL_MESSAGE_LIMIT, far below MONTHLY_MESSAGE_LIMIT -- and the
+    request never even reaches z.ai once the cap is hit, same as the
+    premium 429 case above."""
+    user = _make_user(has_premium=False)
+    db_session.add(user)
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            CoachChatMessage(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                role=CoachChatRole.USER,
+                content=f"message {i}",
+                created_at=now,
+            )
+            for i in range(FREE_TRIAL_MESSAGE_LIMIT)
+        ]
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    _fail_if_called(monkeypatch)
+
+    service = CoachChatService(db_session)
+    with pytest.raises(HTTPException) as exc_info:
+        await service.send_message(user, "Ещё один вопрос")
+
+    assert exc_info.value.status_code == 429
+    assert "премиум" in exc_info.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_non_premium_user_under_the_free_trial_limit_succeeds(db_session, monkeypatch) -> None:
+    user = _make_user(has_premium=False)
+    db_session.add(user)
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            CoachChatMessage(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                role=CoachChatRole.USER,
+                content=f"message {i}",
+                created_at=now,
+            )
+            for i in range(FREE_TRIAL_MESSAGE_LIMIT - 1)
+        ]
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    reply = await service.send_message(user, "Последний бесплатный вопрос")
+
+    assert reply.role == CoachChatRole.ASSISTANT
+    assert captured["messages"][-1] == {"role": "user", "content": "Последний бесплатный вопрос"}
+
+
+@pytest.mark.asyncio
+async def test_premium_user_is_not_capped_by_the_free_trial_limit(db_session, monkeypatch) -> None:
+    """A premium user who has already sent more than FREE_TRIAL_MESSAGE_
+    LIMIT messages this month must still succeed -- has_premium picks the
+    much larger MONTHLY_MESSAGE_LIMIT, not the free-trial one."""
+    user = _make_user(has_premium=True)
+    db_session.add(user)
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            CoachChatMessage(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                role=CoachChatRole.USER,
+                content=f"message {i}",
+                created_at=now,
+            )
+            for i in range(FREE_TRIAL_MESSAGE_LIMIT + 5)
+        ]
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    # Should not raise -- well past the free-trial cap, nowhere near the
+    # premium one.
+    await service.send_message(user, "Премиум продолжает работать")
 
 
 # -- system prompt context assembly --
