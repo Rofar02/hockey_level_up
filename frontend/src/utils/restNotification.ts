@@ -14,27 +14,110 @@ export interface ScheduledRestNotification {
   cancel: () => void
 }
 
+function resolveAudioContextClass(): typeof AudioContext | undefined {
+  return (
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  )
+}
+
+// 2026-09-17 fix (audit item #9): alertTimerDone used to call
+// `new AudioContext()` fresh every time it fired -- but it's invoked from
+// a setTimeout/interval callback (the countdown reaching 0:00), never
+// directly inside a user tap's own event handler. Browsers (iOS Safari in
+// particular) only let an AudioContext actually produce sound if it was
+// created or resumed synchronously inside a real user gesture; a context
+// built inside a timer callback starts (and stays) 'suspended', so
+// oscillator.start() ran with no audible output and no error either --
+// looked like a bug in the beep itself, but the beep code was always
+// correct.
+//
+// Fix: one shared AudioContext, created/unlocked once from inside the
+// very first real tap/click/keydown this session (installAudioUnlock
+// below, wired up app-wide in main.tsx) -- alertTimerDone only ever calls
+// ctx.resume() on that already-unlocked context afterward, never
+// `new AudioContext()` again.
+let sharedAudioContext: AudioContext | null = null
+
+// iOS Safari specifically: resume() on an already-unlocked context isn't
+// always enough on its own to guarantee future *programmatic* (non-gesture)
+// playback stays unlocked -- playing one real (if silent) buffer directly
+// inside the unlocking gesture is the documented workaround that reliably
+// keeps the context usable for every later timer-fired beep on that page
+// load.
+function playSilentUnlockBuffer(ctx: AudioContext) {
+  const buffer = ctx.createBuffer(1, 1, 22050)
+  const source = ctx.createBufferSource()
+  source.buffer = buffer
+  source.connect(ctx.destination)
+  source.start(0)
+}
+
+// Call synchronously from inside a real user gesture handler (never from a
+// timer callback) -- see the module doc above for why that distinction
+// matters. Safe to call more than once; only does real work the first time.
+function unlockSharedAudioContext() {
+  const AudioContextClass = resolveAudioContextClass()
+  if (AudioContextClass === undefined) {
+    return
+  }
+  if (sharedAudioContext === null) {
+    try {
+      sharedAudioContext = new AudioContextClass()
+      playSilentUnlockBuffer(sharedAudioContext)
+    } catch {
+      // Best-effort -- alertTimerDone below falls back to a fresh (likely
+      // still-locked) context if this never succeeded.
+      return
+    }
+  }
+  if (sharedAudioContext.state === 'suspended') {
+    void sharedAudioContext.resume()
+  }
+}
+
+// Installs a one-time listener for the session's first real tap/click/
+// keydown and unlocks the shared AudioContext from directly inside it --
+// call once, app-wide, from main.tsx. Each event type removes itself after
+// firing once; 'once: true' handles that without extra bookkeeping.
+export function installAudioUnlockOnFirstGesture(): void {
+  const options: AddEventListenerOptions = { once: true, capture: true }
+  for (const type of ['pointerdown', 'touchstart', 'keydown'] as const) {
+    window.addEventListener(type, unlockSharedAudioContext, options)
+  }
+}
+
 // Vibration + a short synthesized beep (Web Audio oscillator, no external
 // audio asset needed) -- the immediate, always-on-screen alert for "a
 // countdown just reached zero". Shared by both timer surfaces: RestTimer
 // (sets/reps flow, between-set rest) and TimerPlayer (duration-mode media
 // player, both the work ring and its own rest ring). Both effects are
-// best-effort -- navigator.vibrate isn't available on desktop browsers, and
-// AudioContext can be blocked without a prior user gesture on some mobile
-// browsers -- the visual countdown hitting 0:00 is the signal that always
-// works regardless of whether either of these actually fires.
+// best-effort -- navigator.vibrate isn't available on desktop browsers
+// (and never on iOS Safari at all -- Apple hasn't implemented the
+// Vibration API in WebKit, not a bug here), and sound can still be
+// unavailable if this fires before the user has interacted with the page
+// at all this session -- the visual countdown hitting 0:00 is the signal
+// that always works regardless of whether either of these actually fires.
 export function alertTimerDone() {
   if (typeof navigator.vibrate === 'function') {
     navigator.vibrate(200)
   }
   try {
-    const AudioContextClass =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    const AudioContextClass = resolveAudioContextClass()
     if (AudioContextClass === undefined) {
       return
     }
-    const ctx = new AudioContextClass()
+    // Reuse + resume the already-unlocked shared context (see above)
+    // instead of constructing a new one here -- a context built for the
+    // first time inside this timer-fired callback would start suspended
+    // and never actually produce sound on iOS Safari.
+    if (sharedAudioContext === null) {
+      sharedAudioContext = new AudioContextClass()
+    }
+    const ctx = sharedAudioContext
+    if (ctx.state === 'suspended') {
+      void ctx.resume()
+    }
     const oscillator = ctx.createOscillator()
     const gain = ctx.createGain()
     oscillator.frequency.value = 880
@@ -43,7 +126,9 @@ export function alertTimerDone() {
     gain.connect(ctx.destination)
     oscillator.start()
     oscillator.stop(ctx.currentTime + 0.3)
-    oscillator.onended = () => ctx.close()
+    // Not ctx.close() -- this is the shared, reused context now, not a
+    // one-shot one; closing it here would break every later beep this
+    // session.
   } catch {
     // Best-effort -- see comment above, the visual countdown already
     // reached zero regardless of whether this succeeds.
