@@ -7,17 +7,12 @@ import { CARD_BORDER, CARD_CLASS } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
-import { PremiumGate } from '../components/ui/PremiumGate'
 import { ShieldIcon } from '../components/ui/ShieldIcon'
 import * as authApi from '../api/auth'
 import * as coachChatApi from '../api/coachChat'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { CoachChatMessageRead, ProposedActionRead } from '../types/coachChat'
-
-const COACH_PREMIUM_GATE_DESCRIPTION =
-  'С премиум-подпиской откроется персональный AI-тренер: задавайте вопросы о своих тренировках и ' +
-  'получайте советы с учётом ваших реальных характеристик и прогресса.'
 
 export function CoachPage() {
   const { user, accessToken } = useAuth()
@@ -48,14 +43,15 @@ export function CoachPage() {
           </h1>
         </div>
 
-        {hasPremium && accessToken !== null ? (
-          <CoachChatContent accessToken={accessToken} />
-        ) : (
-          <PremiumGate
-            title="Персональный AI-тренер — часть премиум-подписки"
-            description={COACH_PREMIUM_GATE_DESCRIPTION}
-          />
-        )}
+        {/* 2026-09-17 (audit item #7): the backend no longer walls chat
+            access behind premium at all -- CoachChatService.send_message
+            applies a small free-trial monthly cap for has_premium=False
+            instead of a flat 403 (see FREE_TRIAL_MESSAGE_LIMIT). The one
+            non-premium-only bit left here is the upsell banner below the
+            history -- reaching the cap surfaces the backend's own 429
+            detail message through the existing send-error banner, no
+            special handling needed for that. */}
+        {accessToken !== null && <CoachChatContent accessToken={accessToken} hasPremium={hasPremium} />}
       </div>
 
       {showPersonalityIntro && (
@@ -80,7 +76,7 @@ function ComingSoonCard() {
   )
 }
 
-function CoachChatContent({ accessToken }: { accessToken: string }) {
+function CoachChatContent({ accessToken, hasPremium }: { accessToken: string; hasPremium: boolean }) {
   const { updateUser } = useAuth()
   const [messages, setMessages] = useState<CoachChatMessageRead[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -236,6 +232,12 @@ function CoachChatContent({ accessToken }: { accessToken: string }) {
 
       <FormError message={actionError} />
       <FormError message={sendError} />
+
+      {!hasPremium && (
+        <p className="text-xs text-[#8A94A6]">
+          Бесплатная проба AI-тренера. С премиум-подпиской — без ограничения по числу сообщений.
+        </p>
+      )}
 
       <form
         onSubmit={(event) => {

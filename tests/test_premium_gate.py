@@ -1,9 +1,14 @@
 """require_premium (app/routers/deps.py): gates GET /users/me/analytics/*
-and the coach-chat endpoints on User.has_premium, same shape as
-require_admin gates /admin/* routes. Tested by calling the dependency
-function directly with a plain User object -- same convention
-require_admin-gated behavior would use if it had a direct test (it
-currently doesn't; this is the first).
+on User.has_premium, same shape as require_admin gates /admin/* routes.
+Tested by calling the dependency function directly with a plain User
+object -- same convention require_admin-gated behavior would use if it had
+a direct test (it currently doesn't; this is the first).
+
+2026-09-17 (audit item #7): the coach-chat endpoints no longer use this --
+CoachChatService.send_message applies its own smaller free-trial monthly
+cap for has_premium=False instead of a flat 403 (see
+FREE_TRIAL_MESSAGE_LIMIT in that module, exercised by
+test_coach_chat_service.py), so every logged-in user reaches them now.
 """
 import uuid
 
