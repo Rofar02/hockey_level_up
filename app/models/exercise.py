@@ -518,6 +518,14 @@ class UserMovementPatternVariant(Base):
     # an unsatisfied archetype honestly keeps looking rather than being
     # marked done by a pick that wasn't really it).
     last_chosen_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # 2026-09-17 fix (audit item #1): how many sessions in a row this exact
+    # pin has been genuinely reused -- only meaningful for
+    # app.core.day_archetype.ROTATING_PATTERNS (archetype IS NULL there),
+    # which don't hold a pin for a whole TrainingBlock the way every other
+    # pattern does; ScheduleService._pick_main forces a fresh candidate
+    # once this reaches ROTATION_SESSION_LIMIT. Reset to 1 whenever the pin
+    # rotates to a new exercise. Unused (stays 0) for every other pattern.
+    times_chosen: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
 
 # Stage 2.2: replaces User.equipment_access's old gym/home/bodyweight tier.

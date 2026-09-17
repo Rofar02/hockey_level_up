@@ -10,8 +10,12 @@ from app.core.day_archetype import (
     ARCHETYPE_ELIGIBLE_PATTERNS,
     DAY_ARCHETYPES,
     DEFAULT_FIRST_ARCHETYPE,
+    PATTERN_ARCHETYPES,
+    ROTATING_PATTERNS,
+    ROTATION_SESSION_LIMIT,
     choose_archetype,
     forces_technical_archetype,
+    initial_rotation_order,
 )
 from app.models.exercise import ExerciseCategory, MovementPattern, StimulusType
 from app.models.schedule import BlockPhase
@@ -110,6 +114,65 @@ def test_forces_technical_archetype_matches_the_resolved_count_range(
         )
         == expected
     )
+
+
+def test_pattern_archetypes_excludes_skill_for_push_and_pull() -> None:
+    """2026-09-17 fix (audit item #1): the catalog has zero push/skill and
+    pull/skill candidates -- a gym push/pull has no real hockey-skill
+    equivalent the way a pistol squat does -- so push/pull only ever
+    rotate strength/power, never fall into an empty skill pool."""
+    assert PATTERN_ARCHETYPES[MovementPattern.SQUAT] == DAY_ARCHETYPES
+    assert PATTERN_ARCHETYPES[MovementPattern.HIP_HINGE] == DAY_ARCHETYPES
+    assert PATTERN_ARCHETYPES[MovementPattern.PUSH] == (StimulusType.STRENGTH, StimulusType.POWER)
+    assert PATTERN_ARCHETYPES[MovementPattern.PULL] == (StimulusType.STRENGTH, StimulusType.POWER)
+    for pattern in ARCHETYPE_ELIGIBLE_PATTERNS:
+        assert StimulusType.SKILL not in PATTERN_ARCHETYPES[pattern] or pattern in (
+            MovementPattern.SQUAT,
+            MovementPattern.HIP_HINGE,
+        )
+
+
+def test_choose_archetype_never_picks_outside_narrowed_candidates() -> None:
+    push_candidates = PATTERN_ARCHETYPES[MovementPattern.PUSH]
+    # Nothing has ever been chosen -- default-first still respects the
+    # narrowed set instead of falling back to the global STRENGTH constant
+    # blindly (it happens to coincide here, but the fallback-to-candidates[0]
+    # path is what's under test).
+    assert choose_archetype({}, push_candidates) in push_candidates
+    # Skill has "history" in the dict (shouldn't happen in practice for
+    # push/pull, but choose_archetype must never surface it as a result
+    # since it's not part of the passed-in candidates).
+    last_chosen_at = {
+        StimulusType.STRENGTH: TODAY - timedelta(days=1),
+        StimulusType.POWER: TODAY - timedelta(days=100),
+        StimulusType.SKILL: None,
+    }
+    assert choose_archetype(last_chosen_at, push_candidates) == StimulusType.POWER
+
+
+def test_initial_rotation_order_respects_narrowed_candidates() -> None:
+    push_candidates = PATTERN_ARCHETYPES[MovementPattern.PUSH]
+    order = initial_rotation_order({}, push_candidates)
+    assert set(order) == set(push_candidates)
+    assert StimulusType.SKILL not in order
+
+
+def test_rotating_patterns_are_the_four_non_archetype_patterns_with_enough_content() -> None:
+    assert ROTATING_PATTERNS == {
+        MovementPattern.LOCOMOTION,
+        MovementPattern.CORE,
+        MovementPattern.COORDINATION,
+        MovementPattern.ROTATION,
+    }
+    # *_mobility and stick_handling are WARMUP content -- deliberately left
+    # out of MAIN-block rotation scope.
+    assert MovementPattern.STICK_HANDLING not in ROTATING_PATTERNS
+    assert not any(p.value.endswith("_mobility") for p in ROTATING_PATTERNS)
+    assert ROTATING_PATTERNS.isdisjoint(ARCHETYPE_ELIGIBLE_PATTERNS)
+
+
+def test_rotation_session_limit_is_a_small_positive_number() -> None:
+    assert 1 <= ROTATION_SESSION_LIMIT <= 6
 
 
 def test_forces_technical_archetype_never_applies_to_on_ice() -> None:

@@ -13,6 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.day_archetype import (
     ARCHETYPE_ELIGIBLE_PATTERNS,
     DAY_ARCHETYPES,
+    PATTERN_ARCHETYPES,
+    ROTATING_PATTERNS,
+    ROTATION_SESSION_LIMIT,
     choose_archetype,
     forces_technical_archetype,
     initial_rotation_order,
@@ -21,6 +24,7 @@ from app.core.session_duration import compute_phase_split, estimate_session_dura
 from app.core.stat_difficulty import UNCLASSIFIED_EXERCISE_CAP, max_difficulty_for_stat
 from app.core.training_block import (
     DIFFICULTY_PRIORITY_PREDICATES,
+    MAX_DIFFICULTY_LEVEL,
     effective_difficulty_cap,
     is_final_taper_week,
     is_tapering,
@@ -55,6 +59,7 @@ from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.skill_repository import SkillRepository
+from app.repositories.training_diary_repository import TrainingDiaryRepository
 from app.repositories.user_movement_pattern_variant_repository import (
     UserMovementPatternVariantRepository,
 )
@@ -162,6 +167,7 @@ class ScheduleService:
         self._training_block_service = TrainingBlockService(session)
         self._overload_service = OverloadService(session)
         self._reps_suggestions = RepsSuggestionService(session)
+        self._diary = TrainingDiaryRepository(session)
 
     async def create_weekly_plan(self, user: User, payload: WeeklyPlanCreate) -> WeeklyPlanRead:
         dates = [day.date for day in payload.days]
@@ -436,7 +442,7 @@ class ScheduleService:
         if not candidates:
             return None
 
-        candidates = await self._apply_difficulty_gate(candidates, user, context="game/mental_prep")
+        candidates, _ = await self._apply_difficulty_gate(candidates, user, context="game/mental_prep")
         return random.choice(candidates)
 
     async def _build_on_ice_day_session(
@@ -580,7 +586,7 @@ class ScheduleService:
         if not pool:
             return []
 
-        pool = await self._apply_difficulty_gate(pool, user, context="off_ice/puck_module")
+        pool, _ = await self._apply_difficulty_gate(pool, user, context="off_ice/puck_module")
         random.shuffle(pool)
         return pool[:_PUCK_MODULE_MAX_EXERCISES]
 
@@ -652,10 +658,16 @@ class ScheduleService:
         if not candidates:
             return None
 
-        candidates = await self._apply_difficulty_gate(candidates, user, context=f"{phase}/{category}")
+        candidates, gate_exhausted = await self._apply_difficulty_gate(
+            candidates, user, context=f"{phase}/{category}"
+        )
 
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
-        if difficulty_predicate is not None:
+        # 2026-09-17 fix (audit item #2): never apply a phase's "prefer the
+        # heaviest"/"prefer the lightest" bias on top of an already-
+        # exhausted readiness gate -- see _apply_difficulty_gate's
+        # docstring.
+        if difficulty_predicate is not None and not gate_exhausted:
             candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
 
         if preferred_patterns:
@@ -714,10 +726,12 @@ class ScheduleService:
         if not candidates:
             return []
 
-        candidates = await self._apply_difficulty_gate(candidates, user, context=f"{phase}/{category}/sequence")
+        candidates, gate_exhausted = await self._apply_difficulty_gate(
+            candidates, user, context=f"{phase}/{category}/sequence"
+        )
 
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
-        if difficulty_predicate is not None:
+        if difficulty_predicate is not None and not gate_exhausted:
             candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
 
         matched: list[Exercise] = []
@@ -795,10 +809,12 @@ class ScheduleService:
         if not candidates:
             return []
 
-        candidates = await self._apply_difficulty_gate(candidates, user, context=f"warmup/{category}/complex")
+        candidates, gate_exhausted = await self._apply_difficulty_gate(
+            candidates, user, context=f"warmup/{category}/complex"
+        )
 
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
-        if difficulty_predicate is not None:
+        if difficulty_predicate is not None and not gate_exhausted:
             candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
 
         muscle_groups_by_id: dict[uuid.UUID, set[MuscleGroup]] = {}
@@ -862,12 +878,15 @@ class ScheduleService:
         existing_pins = await self._variants.list_for_user_category(user.id, category)
         rotation: dict[MovementPattern, Iterator[StimulusType]] = {}
         for pattern in ARCHETYPE_ELIGIBLE_PATTERNS:
+            pattern_candidates = PATTERN_ARCHETYPES[pattern]
             last_chosen_at = {
                 candidate: existing_pins[(pattern, candidate)].last_chosen_at
-                for candidate in DAY_ARCHETYPES
+                for candidate in pattern_candidates
                 if (pattern, candidate) in existing_pins
             }
-            rotation[pattern] = itertools.cycle(initial_rotation_order(last_chosen_at))
+            rotation[pattern] = itertools.cycle(
+                initial_rotation_order(last_chosen_at, pattern_candidates)
+            )
         return rotation
 
     async def _pick_main(
@@ -1093,7 +1112,7 @@ class ScheduleService:
             if not pool:
                 return None
 
-            pool = await self._apply_difficulty_gate(
+            pool, gate_exhausted = await self._apply_difficulty_gate(
                 pool,
                 user,
                 context=f"main/{category}/{pattern}/{archetype}",
@@ -1101,7 +1120,7 @@ class ScheduleService:
                 primary_stats=primary_stats,
             )
 
-            if difficulty_predicate is not None:
+            if difficulty_predicate is not None and not gate_exhausted:
                 pool = [e for e in pool if difficulty_predicate(e)] or pool
 
             existing_pin = existing_pins.get((pattern, archetype))
@@ -1115,6 +1134,19 @@ class ScheduleService:
                 same_block = existing_pin.block_number == training_block.block_number
                 hold_through_deload = training_block.is_macrocycle_deload
                 use_pin = same_block or hold_through_deload
+                # 2026-09-17 fix (audit item #1): locomotion/core/
+                # coordination/rotation don't get the 3-archetype split
+                # (see ROTATING_PATTERNS's docstring), but a same-block pin
+                # otherwise holds for the whole block same as any other
+                # pattern -- up to PHASE_CALENDAR_CEILING_WEEKS, the direct
+                # cause of the "same exercise for weeks" complaint. Force a
+                # rotation to a fresh candidate once the pin has been
+                # genuinely reused ROTATION_SESSION_LIMIT times in a row,
+                # same as the bodyweight-escalation break below, never
+                # during a deload-hold.
+                if use_pin and not hold_through_deload and pattern in ROTATING_PATTERNS:
+                    if (existing_pin.times_chosen or 0) >= ROTATION_SESSION_LIMIT:
+                        use_pin = False
                 # Stage 2.6 (2026-08-20 planning session): double
                 # progression has nowhere to go for a tracks_weight=false
                 # exercise once reps hit the top of the range with good
@@ -1223,6 +1255,15 @@ class ScheduleService:
                 if choice.stimulus_type == archetype:
                     row.last_chosen_at = resolved_today
 
+            if training_block is not None and pattern in ROTATING_PATTERNS and row is not None:
+                # 2026-09-17 fix (audit item #1): times_chosen is the
+                # same-variant-in-a-row counter the rotation-limit check
+                # above reads. use_pin=True means this session is another
+                # consecutive rerun of the same pin -- bump it; any fresh
+                # pick (rotation-forced, first-ever, or a genuine block
+                # boundary) restarts the count at this session's own use.
+                row.times_chosen = (existing_pin.times_chosen or 0) + 1 if use_pin else 1
+
             picked.append(choice)
             picked_ids.add(choice.id)
             return choice
@@ -1262,12 +1303,13 @@ class ScheduleService:
                     # override, same as last_chosen_at itself.
                     archetype = next(archetype_rotation[pattern])
                 else:
+                    pattern_candidates = PATTERN_ARCHETYPES[pattern]
                     last_chosen_at = {
                         candidate: existing_pins[(pattern, candidate)].last_chosen_at
-                        for candidate in DAY_ARCHETYPES
+                        for candidate in pattern_candidates
                         if (pattern, candidate) in existing_pins
                     }
-                    archetype = choose_archetype(last_chosen_at)
+                    archetype = choose_archetype(last_chosen_at, pattern_candidates)
                 await pick_for_pattern(
                     pattern,
                     archetype=archetype,
@@ -1407,11 +1449,11 @@ class ScheduleService:
         if not candidates:
             return None
 
-        candidates = await self._apply_difficulty_gate(
+        candidates, gate_exhausted = await self._apply_difficulty_gate(
             candidates, user, context=f"replace/main/{category}"
         )
         difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
-        if difficulty_predicate is not None:
+        if difficulty_predicate is not None and not gate_exhausted:
             candidates = [e for e in candidates if difficulty_predicate(e)] or candidates
 
         patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
@@ -1469,7 +1511,7 @@ class ScheduleService:
         context: str,
         user_stats: dict[TargetStat, UserStat] | None = None,
         primary_stats: dict[uuid.UUID, TargetStat] | None = None,
-    ) -> list[Exercise]:
+    ) -> tuple[list[Exercise], bool]:
         """Difficulty ceiling, split by category (2026-08-18 planning
         session -- see app.core.stat_difficulty's module docstring for the
         full "why"):
@@ -1487,10 +1529,32 @@ class ScheduleService:
             UNCLASSIFIED_EXERCISE_CAP rather than a free pass.
 
         Both branches still apply the Phase 5 structural overload brake
-        (effective_difficulty_cap) on top, and both still relax back to the
-        full, uncapped `candidates` (logged) if literally nothing survives
-        -- an empty pool under the cap is a catalog gap worth knowing
-        about, never a reason to leave a plan slot unfillable.
+        (effective_difficulty_cap) on top.
+
+        2026-09-17 fix (audit item #2): a pool that comes up empty at each
+        exercise's own exact cap used to fall straight through to the
+        ENTIRE unfiltered `candidates` range -- e.g. a 20-40 stat (real
+        cap=2) with zero difficulty<=2 candidates for this specific
+        pattern/stat combination (a catalog gap, not a readiness fact)
+        degraded all the way to "any difficulty including 5", not the next
+        rung up. Now relaxes one difficulty step at a time (cap+1, cap+2,
+        ...) instead, so a real cap=2 user who hits a content gap lands on
+        the closest actually-available difficulty rather than the ceiling.
+        Since every Exercise.difficulty_level is already <= MAX_DIFFICULTY_
+        LEVEL, this climb is guaranteed to find something as long as
+        `candidates` itself is non-empty -- the true last-resort fallback
+        (returned exhausted=True) is only reachable if it isn't, which
+        every real caller already guards against before calling this.
+
+        Returns (gated_pool, exhausted). exhausted is True only for that
+        true last-resort case. A caller that also applies a phase
+        preference on top (DIFFICULTY_PRIORITY_PREDICATES -- "prefer the
+        heaviest" in INTENSIFICATION, "prefer the lightest" in DELOAD)
+        MUST skip that preference when exhausted=True: applying an active
+        search for the heaviest/lightest remaining option on top of an
+        already-degraded emergency pick is exactly the compounding bug
+        the audit reported (a 20-40 user ending up with a difficulty-5
+        squat). Every call site in this file already does this.
 
         user_stats/primary_stats let a caller that loops per-candidate-pool
         multiple times in one assembly (only _pick_main does, once per
@@ -1502,15 +1566,19 @@ class ScheduleService:
         only ever queries for whichever of the two categories is actually
         present in `candidates`.
         """
+        if not candidates:
+            return [], False
+
         throttle = user.difficulty_throttle_steps
         on_ice = [e for e in candidates if e.category == ExerciseCategory.ON_ICE]
         off_ice = [e for e in candidates if e.category == ExerciseCategory.OFF_ICE]
 
-        capped: list[Exercise] = []
+        base_caps: dict[uuid.UUID, int] = {}
 
         if on_ice:
             level_cap = effective_difficulty_cap(max_difficulty_for_level(user.level), throttle)
-            capped.extend(e for e in on_ice if e.difficulty_level <= level_cap)
+            for exercise in on_ice:
+                base_caps[exercise.id] = level_cap
 
         if off_ice:
             if primary_stats is None:
@@ -1530,22 +1598,35 @@ class ScheduleService:
                     user_stat = user_stats.get(stat_type)
                     value = get_effective_value(user_stat, now) if user_stat is not None else 0.0
                     stat_cap = max_difficulty_for_stat(value)
-                stat_cap = effective_difficulty_cap(stat_cap, throttle)
-                if exercise.difficulty_level <= stat_cap:
-                    capped.append(exercise)
+                base_caps[exercise.id] = effective_difficulty_cap(stat_cap, throttle)
 
-        if capped:
-            return capped
+        for extra in range(MAX_DIFFICULTY_LEVEL):
+            capped = [
+                e
+                for e in candidates
+                if e.difficulty_level <= min(MAX_DIFFICULTY_LEVEL, base_caps[e.id] + extra)
+            ]
+            if capped:
+                if extra:
+                    logger.warning(
+                        "Readiness cap relaxed by %d for %s (user_id=%s, level=%s) -- "
+                        "no exercise at the exact cap, closest available difficulty used instead",
+                        extra,
+                        context,
+                        user.id,
+                        user.level,
+                    )
+                return capped, False
 
         logger.warning(
-            "No exercises with difficulty under the readiness cap available for %s "
+            "No exercises at any difficulty available for %s "
             "(user_id=%s, level=%s -- irrelevant off-ice, see UserStat instead) -- "
-            "falling back to the full difficulty range so the plan isn't left empty",
+            "falling back to the full unfiltered candidate list so the plan isn't left empty",
             context,
             user.id,
             user.level,
         )
-        return candidates
+        return candidates, True
 
     # -- training-party support --
     #
@@ -1848,8 +1929,17 @@ class ScheduleService:
             exercise=exercise_to_read(new_exercise, target_stats),
         )
 
+    # 2026-09-17 (audit item #3): the only session_types TrainingDiaryCard
+    # ever renders for (see TrainingSessionPage.tsx) -- has_diary_entry is
+    # None for every other session_type, not just False, so the frontend
+    # can tell "no diary step here" apart from "diary step not done yet".
+    _DIARY_ELIGIBLE_SESSION_TYPES = frozenset({DaySessionType.ON_ICE, DaySessionType.GAME})
+
     def _day_plan_to_read_schema(
-        self, day: DayPlan, stats_by_id: dict[uuid.UUID, list[TargetStat]]
+        self,
+        day: DayPlan,
+        stats_by_id: dict[uuid.UUID, list[TargetStat]],
+        diary_session_ids: set[uuid.UUID],
     ) -> DayPlanRead:
         session_read = None
         if day.training_session is not None:
@@ -1876,11 +1966,17 @@ class ScheduleService:
                 )
                 for block in day.training_session.blocks
             ]
+            has_diary_entry = (
+                day.training_session.id in diary_session_ids
+                if day.session_type in self._DIARY_ELIGIBLE_SESSION_TYPES
+                else None
+            )
             session_read = TrainingSessionRead(
                 id=day.training_session.id,
                 phase_split=phase_split,
                 duration_seconds=duration_seconds,
                 blocks=blocks_read,
+                has_diary_entry=has_diary_entry,
             )
         return DayPlanRead(
             id=day.id,
@@ -1897,8 +1993,18 @@ class ScheduleService:
             for block in day.training_session.blocks
         ]
         stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
+        diary_candidate_ids = [
+            day.training_session.id
+            for day in weekly_plan.day_plans
+            if day.training_session is not None
+            and day.session_type in self._DIARY_ELIGIBLE_SESSION_TYPES
+        ]
+        diary_session_ids = await self._diary.list_session_ids_with_entries(diary_candidate_ids)
 
-        day_reads = [self._day_plan_to_read_schema(day, stats_by_id) for day in weekly_plan.day_plans]
+        day_reads = [
+            self._day_plan_to_read_schema(day, stats_by_id, diary_session_ids)
+            for day in weekly_plan.day_plans
+        ]
         return WeeklyPlanRead(
             id=weekly_plan.id, week_start_date=weekly_plan.week_start_date, day_plans=day_reads
         )
@@ -1928,4 +2034,11 @@ class ScheduleService:
             else []
         )
         stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
-        return self._day_plan_to_read_schema(day, stats_by_id)
+        diary_candidate_ids = (
+            [day.training_session.id]
+            if day.training_session is not None
+            and day.session_type in self._DIARY_ELIGIBLE_SESSION_TYPES
+            else []
+        )
+        diary_session_ids = await self._diary.list_session_ids_with_entries(diary_candidate_ids)
+        return self._day_plan_to_read_schema(day, stats_by_id, diary_session_ids)
