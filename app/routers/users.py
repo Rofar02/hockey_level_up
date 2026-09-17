@@ -261,7 +261,7 @@ async def get_my_streak(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await ProgressService(session).get_streak(current_user.id)
+    return await ProgressService(session).get_streak(current_user)
 
 
 @router.get("/me/rest-done-phrase", response_model=RestDonePhraseRead)

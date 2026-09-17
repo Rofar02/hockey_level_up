@@ -243,7 +243,7 @@ async def _seed_streak(
 
 @pytest.mark.asyncio
 async def test_get_streak_returns_zero_after_missed_training_day(db_session, monkeypatch) -> None:
-    monkeypatch.setattr("app.services.progress_service.date", _FixedDate)
+    monkeypatch.setattr("app.services.progress_service.datetime", _FixedDateTime)
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -252,7 +252,7 @@ async def test_get_streak_returns_zero_after_missed_training_day(db_session, mon
     )
     await _add_day_plan(db_session, user.id, day_date=YESTERDAY, session_type=DaySessionType.ON_ICE)
 
-    result = await ProgressService(db_session).get_streak(user.id)
+    result = await ProgressService(db_session).get_streak(user)
 
     assert result.current_streak == 0
     assert result.longest_streak == 5  # untouched
@@ -265,7 +265,7 @@ async def test_get_streak_returns_zero_after_missed_training_day(db_session, mon
 
 @pytest.mark.asyncio
 async def test_get_streak_keeps_value_when_gap_is_only_rest_days(db_session, monkeypatch) -> None:
-    monkeypatch.setattr("app.services.progress_service.date", _FixedDate)
+    monkeypatch.setattr("app.services.progress_service.datetime", _FixedDateTime)
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -274,14 +274,14 @@ async def test_get_streak_keeps_value_when_gap_is_only_rest_days(db_session, mon
     )
     await _add_day_plan(db_session, user.id, day_date=YESTERDAY, session_type=DaySessionType.REST)
 
-    result = await ProgressService(db_session).get_streak(user.id)
+    result = await ProgressService(db_session).get_streak(user)
 
     assert result.current_streak == 5
 
 
 @pytest.mark.asyncio
 async def test_get_streak_keeps_value_when_last_activity_is_today(db_session, monkeypatch) -> None:
-    monkeypatch.setattr("app.services.progress_service.date", _FixedDate)
+    monkeypatch.setattr("app.services.progress_service.datetime", _FixedDateTime)
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -289,17 +289,25 @@ async def test_get_streak_keeps_value_when_last_activity_is_today(db_session, mo
         db_session, user.id, current_streak=3, longest_streak=3, last_activity_date=TODAY
     )
 
-    result = await ProgressService(db_session).get_streak(user.id)
+    result = await ProgressService(db_session).get_streak(user)
 
     assert result.current_streak == 3
 
 
-class _FixedDate(date):
-    """Patches app.services.progress_service's `date.today()` so tests don't
-    depend on the wall-clock date lining up with the fixed TODAY constant
-    above -- has_missed_training_day itself takes real date objects and
-    doesn't need patching, only the `date.today()` call inside get_streak."""
+class _FixedDateTime(datetime):
+    """Patches app.services.progress_service's `datetime.now(tz)` so tests
+    don't depend on the wall-clock date lining up with the fixed TODAY
+    constant above -- has_missed_training_day itself takes real date
+    objects and doesn't need patching, only the `datetime.now(...).date()`
+    call inside get_streak (2026-09-17 fix, audit item #10: was
+    `date.today()`, the server's timezone rather than the user's -- see
+    that fix's comment in progress_service.py). `user` in every test above
+    never sets User.timezone, so get_streak resolves ZoneInfo("UTC")
+    (the model's server_default) -- the tz argument is accepted here only
+    to match datetime.now's real signature, its value doesn't change what
+    this returns, same as the old _FixedDate.today() taking no argument at
+    all."""
 
     @classmethod
-    def today(cls) -> date:
-        return TODAY
+    def now(cls, tz=None) -> datetime:
+        return datetime(TODAY.year, TODAY.month, TODAY.day, 12, 0, tzinfo=tz)

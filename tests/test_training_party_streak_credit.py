@@ -12,7 +12,7 @@ test_streak_consumer_day_plan.py, since streak_consumer opens its own
 AsyncSessionLocal and needs to see committed data).
 """
 import uuid
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import delete, select
@@ -31,7 +31,12 @@ from app.services.friend_service import FriendService
 from app.services.session_block_service import BLOCK_COMPLETED_EVENT, SessionBlockService
 from app.services.training_party_service import TrainingPartyService
 
-TODAY = date.today()
+# UTC, not the local/server date() -- streak_consumer now computes "today"
+# from the user's own timezone (2026-09-17 fix, audit item #10), and
+# neither alice nor bob below ever sets User.timezone, so they keep the
+# model's "UTC" server_default. See test_streak_consumer_day_plan.py's
+# module docstring for the full reasoning.
+TODAY = datetime.now(timezone.utc).date()
 YESTERDAY = TODAY - timedelta(days=1)
 
 

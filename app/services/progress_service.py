@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -128,14 +129,19 @@ class ProgressService:
             for load in loads
         ]
 
-    async def get_streak(self, user_id: uuid.UUID) -> TrainingStreak:
-        streak = await self._progress.get_streak(user_id)
+    async def get_streak(self, user: User) -> TrainingStreak:
+        streak = await self._progress.get_streak(user.id)
         if streak is None:
             return TrainingStreak(
-                user_id=user_id, current_streak=0, longest_streak=0, last_activity_date=None
+                user_id=user.id, current_streak=0, longest_streak=0, last_activity_date=None
             )
 
-        today = date.today()
+        # 2026-09-17 fix (audit item #10): date.today() read the server's
+        # timezone, not the user's -- see block_completed.streak_consumer's
+        # matching fix for the full reasoning. This lazy read-time check
+        # must agree with streak_consumer on what "today" means, or the two
+        # can disagree about whether a gap day has actually passed yet.
+        today = datetime.now(ZoneInfo(user.timezone)).date()
         if streak.last_activity_date is not None and streak.last_activity_date != today:
             # Lazy, read-only check: the row itself is only ever written by
             # streak_consumer (on the next block_completed), so a break that
@@ -145,7 +151,7 @@ class ProgressService:
             # writing here would mean taking a row lock and mutating state on
             # every GET, for a value the next real activity overwrites anyway.
             missed = await has_missed_training_day(
-                self._session, user_id, streak.last_activity_date, today
+                self._session, user.id, streak.last_activity_date, today
             )
             if missed:
                 return TrainingStreak(

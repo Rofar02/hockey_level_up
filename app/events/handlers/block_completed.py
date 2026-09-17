@@ -1,5 +1,6 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -253,9 +254,28 @@ async def muscle_load_consumer(payload: dict, event_id: uuid.UUID) -> None:
 @register_handler(EVENT_TYPE)
 async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
     user_id = uuid.UUID(payload["user_id"])
-    today = date.today()
 
     async with AsyncSessionLocal() as session:
+        # 2026-09-17 fix (audit item #10): date.today() used to read the
+        # *server's* timezone -- a session finished late at night in the
+        # user's own timezone could still land on the server's "yesterday"
+        # (or vice versa near midnight either side), stamping
+        # last_activity_date with the wrong calendar day and throwing off
+        # has_missed_training_day's "strictly between" gap check on every
+        # later comparison against it. User.timezone is the same per-user
+        # IANA zone reminder_scheduler/checkin_scheduler already rely on
+        # for this exact reason -- reused here rather than adding a second
+        # notion of "the user's today". Falls back to UTC (ZoneInfo's own
+        # behavior is to raise on an unset/invalid zone, which shouldn't
+        # happen given User.timezone's schema validator, but a deleted
+        # user mid-flight -- see the IntegrityError handling below --
+        # leaves user_timezone as None here) rather than crash the whole
+        # handler over a display-only concern.
+        user_timezone = (
+            await session.execute(select(User.timezone).where(User.id == user_id))
+        ).scalar_one_or_none()
+        today = datetime.now(ZoneInfo(user_timezone or "UTC")).date()
+
         result = await session.execute(
             select(TrainingStreak).where(TrainingStreak.user_id == user_id).with_for_update()
         )

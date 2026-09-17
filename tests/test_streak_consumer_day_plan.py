@@ -5,15 +5,22 @@ streak, while a planned on/off-ice day with no completed SessionBlock must.
 Same real-DB-with-real-commits setup as test_block_completed_idempotency.py
 (streak_consumer opens its own AsyncSessionLocal, so data has to be visible
 on that separate connection, not just the test's own uncommitted one).
-streak_consumer always compares against date.today(), so these tests seed
-last_activity_date/DayPlan.date relative to today() rather than fixed dates.
+streak_consumer compares against the *user's own* local date (2026-09-17
+fix, audit item #10: was date.today(), the server's timezone -- see that
+fix's comment in block_completed.py) -- real_user below never sets
+User.timezone, so it keeps the model's "UTC" server_default, and these
+tests seed last_activity_date/DayPlan.date relative to today's UTC date to
+match rather than the local/server date().today() would give (which can
+disagree with UTC for several hours a day depending on the machine
+running the suite).
 """
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.db.session import AsyncSessionLocal
 from app.db.session import engine as app_engine
@@ -24,7 +31,7 @@ from app.models.progress import TrainingStreak
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.user import User
 
-TODAY = date.today()
+TODAY = datetime.now(timezone.utc).date()
 YESTERDAY = TODAY - timedelta(days=1)
 TWO_DAYS_AGO = TODAY - timedelta(days=2)
 
@@ -319,6 +326,56 @@ async def test_completing_only_some_blocks_does_not_credit_the_day(real_user) ->
         await streak_consumer(_payload(real_user.id, session_block_id=completed_block_id), event_id)
         # Unchanged -- the session isn't fully done, so today isn't credited.
         assert await _current_streak(real_user.id) == 3
+    finally:
+        await _cleanup_processed_events(event_id)
+        await _cleanup_exercise(exercise_id)
+
+
+@pytest.mark.asyncio
+async def test_streak_stamped_with_the_users_local_date_not_the_servers(real_user) -> None:
+    """2026-09-17 fix (audit item #10): the real reported bug -- a session
+    finished late enough in the user's own timezone that the UTC/server
+    calendar day hasn't rolled over yet must still stamp
+    last_activity_date with the user's own local date. Before the fix,
+    streak_consumer used date.today() (the server's timezone), so a
+    session genuinely completed on the user's "11th" could get stamped as
+    the server's "10th" -- silently shifting last_activity_date a day
+    earlier than what the user's own calendar says, which throws off
+    has_missed_training_day's "strictly between" gap check on every later
+    comparison against it. Pacific/Kiritimati (UTC+14) makes the gap
+    deterministic and large (a whole calendar day) rather than relying on
+    the test happening to run near a real midnight boundary."""
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(User).where(User.id == real_user.id).values(timezone="Pacific/Kiritimati")
+        )
+        await session.commit()
+
+    fixed_utc_instant = datetime(2026, 3, 10, 23, 30, tzinfo=timezone.utc)
+    local_today = fixed_utc_instant.astimezone(ZoneInfo("Pacific/Kiritimati")).date()
+    utc_today = fixed_utc_instant.date()
+    assert local_today != utc_today  # sanity: this instant genuinely straddles the two dates
+
+    class _FixedInstant(datetime):
+        @classmethod
+        def now(cls, tz=None) -> datetime:
+            return fixed_utc_instant if tz is None else fixed_utc_instant.astimezone(tz)
+
+    event_id = uuid.uuid4()
+    block_id, exercise_id = await _seed_fully_completed_session(real_user.id)
+    try:
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr("app.events.handlers.block_completed.datetime", _FixedInstant)
+            await streak_consumer(_payload(real_user.id, session_block_id=block_id), event_id)
+
+        async with AsyncSessionLocal() as session:
+            streak = (
+                await session.execute(
+                    select(TrainingStreak).where(TrainingStreak.user_id == real_user.id)
+                )
+            ).scalar_one()
+            assert streak.last_activity_date == local_today
+            assert streak.last_activity_date != utc_today
     finally:
         await _cleanup_processed_events(event_id)
         await _cleanup_exercise(exercise_id)
