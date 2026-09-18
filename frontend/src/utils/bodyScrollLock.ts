@@ -77,6 +77,17 @@ export function resetStaleBodyScrollLock(): void {
 // full bfcache cycle.
 export function installForegroundReflowFix(): () => void {
   function reflow() {
+    // 2026-09-18 fix (round 2 audit item #1): dispatching a synthetic
+    // 'resize' event alone only notifies JS listeners (e.g.
+    // CoachmarkProvider's own measure-on-resize, still worth keeping
+    // below for whenever a coachmark happens to be open at this moment)
+    // -- it does not make WebKit itself redo layout/repaint its
+    // `position: fixed` compositor layers, which is the actual mechanism
+    // behind the stuck-visual-artifact family this function hedges
+    // against. Reading a layout-dependent property forces a real,
+    // synchronous reflow right here; `void` discards the value, since
+    // only the side effect of reading it is wanted.
+    void document.body.offsetHeight
     window.dispatchEvent(new Event('resize'))
   }
   function onVisibilityChange() {
