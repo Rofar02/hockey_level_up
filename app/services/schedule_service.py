@@ -68,6 +68,7 @@ from app.repositories.user_skill_preference_repository import UserSkillPreferenc
 from app.schemas.exercise import exercise_to_read
 from app.schemas.schedule import (
     CeilingEscalationRead,
+    DayPlanIn,
     DayPlanRead,
     ScheduleConflictRead,
     SessionBlockRead,
@@ -155,6 +156,10 @@ _COOLDOWN_SEQUENCE_MAX = 4
 # catalog only has 3 STICK_HANDLING-pattern exercises total.
 _PUCK_MODULE_MAX_EXERCISES = 4
 
+# 2026-09-18 audit round 2 item #4: _choose_guaranteed_slot_dates' own RNG,
+# deliberately separate from the module-level random.choice/shuffle every
+# other picker in this file uses -- see that method's own docstring for why.
+_GUARANTEED_SLOT_RNG = random.Random()
 
 
 class ScheduleService:
@@ -171,6 +176,45 @@ class ScheduleService:
         self._reps_suggestions = RepsSuggestionService(session)
         self._diary = TrainingDiaryRepository(session)
 
+    @staticmethod
+    def _choose_guaranteed_slot_dates(days: list[DayPlanIn]) -> tuple[date | None, date | None]:
+        """2026-09-18 audit round 2 item #4 ("выносливость и катание почти не
+        попадают в основной блок"): which OFF_ICE day, if any, gets this
+        batch's guaranteed endurance-stimulus accessory pick, and which gets
+        its guaranteed locomotion ("катание") pick -- see _pick_main's
+        guarantee_endurance/guarantee_locomotion params. Chosen ONCE per
+        batch (a single create_weekly_plan/_patch_weekly_plan call), the
+        same scoping _build_archetype_rotation already uses and for the
+        same reason: there's no separate persisted "this week's guarantee
+        is already satisfied" record, so a later, separate patch call to
+        different days of the same week can independently choose its own
+        guarantee day again. Accepted, same as archetype_rotation's own
+        scoping.
+
+        Endurance and locomotion dates are chosen independently (may land
+        on the same day or different days) -- _pick_main's own role-4 logic
+        folds them onto a single accessory slot when they do and the
+        catalog allows it. None for an axis (or both) when `days` has no
+        OFF_ICE entry at all -- no day to guarantee anything into, same
+        "never force a slot that can't exist" convention as every other
+        best-effort layer in this file.
+
+        Uses its own random.Random() instance rather than the module-level
+        random.choice every other picker in this file goes through --
+        several test files (test_puck_module.py, test_schedule_service_
+        game_day.py, ...) monkeypatch random.choice/shuffle process-wide
+        assuming every call is choosing between Exercise-like objects
+        (`sorted(pool, key=lambda e: e.name)`), which breaks on a plain
+        `date`. A dedicated instance sidesteps that without touching those
+        tests' own conventions -- this is the only picker in the class
+        choosing between dates, not exercises, so it doesn't need the
+        same test-wide determinism hook the others share.
+        """
+        off_ice_dates = [d.date for d in days if d.session_type == DaySessionType.OFF_ICE]
+        if not off_ice_dates:
+            return None, None
+        return _GUARANTEED_SLOT_RNG.choice(off_ice_dates), _GUARANTEED_SLOT_RNG.choice(off_ice_dates)
+
     async def create_weekly_plan(self, user: User, payload: WeeklyPlanCreate) -> WeeklyPlanRead:
         dates = [day.date for day in payload.days]
         if len(set(dates)) != len(dates):
@@ -182,6 +226,7 @@ class ScheduleService:
         training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
         block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
         archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
+        endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(payload.days)
 
         weekly_plan = WeeklyPlan(
             user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
@@ -199,6 +244,8 @@ class ScheduleService:
                     training_block,
                     today=day_in.date,
                     archetype_rotation=archetype_rotation,
+                    guarantee_endurance=day_in.date == endurance_date,
+                    guarantee_locomotion=day_in.date == locomotion_date,
                 )
             weekly_plan.day_plans.append(day_plan)
 
@@ -292,6 +339,7 @@ class ScheduleService:
             user, training_block.phase if training_block is not None else BlockPhase.ACCUMULATION
         )
         archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
+        endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(payload.days)
 
         conflicts: list[ScheduleConflictRead] = []
         for day_in in payload.days:
@@ -333,6 +381,8 @@ class ScheduleService:
                     training_block,
                     today=day_in.date,
                     archetype_rotation=archetype_rotation,
+                    guarantee_endurance=day_in.date == endurance_date,
+                    guarantee_locomotion=day_in.date == locomotion_date,
                 )
 
         await self._session.commit()
@@ -374,6 +424,8 @@ class ScheduleService:
         *,
         today: date | None = None,
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
+        guarantee_endurance: bool = False,
+        guarantee_locomotion: bool = False,
     ) -> TrainingSession:
         """Dispatch to the GAME-day builder (light activation only), the
         ON_ICE-day builder (on-ice warmup+cooldown only, no MAIN -- see
@@ -381,11 +433,13 @@ class ScheduleService:
         single place both create_weekly_plan and _patch_weekly_plan go
         through, so neither has to know GAME/ON_ICE are special cases.
 
-        training_block (Phase: П.3), today (Phase: П.5, tournament taper)
-        and archetype_rotation (batch-wide round-robin, see
-        _build_archetype_rotation) are only ever consumed by the regular
-        builder's _pick_main -- GAME/ON_ICE days have no MAIN block at
-        all, so neither of their builders needs any of them.
+        training_block (Phase: П.3), today (Phase: П.5, tournament taper),
+        archetype_rotation (batch-wide round-robin, see
+        _build_archetype_rotation) and guarantee_endurance/
+        guarantee_locomotion (round 2 audit item #4, see
+        _choose_guaranteed_slot_dates) are only ever consumed by the
+        regular builder's _pick_main -- GAME/ON_ICE days have no MAIN
+        block at all, so neither of their builders needs any of them.
         """
         if session_type == DaySessionType.GAME:
             return await self._build_game_day_session(user, block_phase)
@@ -394,6 +448,8 @@ class ScheduleService:
         return await self._build_training_session(
             session_type, user, block_phase, training_block, today=today,
             archetype_rotation=archetype_rotation,
+            guarantee_endurance=guarantee_endurance,
+            guarantee_locomotion=guarantee_locomotion,
         )
 
     async def _build_game_day_session(self, user: User, block_phase: BlockPhase) -> TrainingSession:
@@ -482,6 +538,8 @@ class ScheduleService:
         *,
         today: date | None = None,
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
+        guarantee_endurance: bool = False,
+        guarantee_locomotion: bool = False,
     ) -> TrainingSession:
         """MAIN is picked first and warmup/cooldown are chosen retrospectively
         to match it (Phase 3) -- storage order of `blocks` is still
@@ -498,6 +556,8 @@ class ScheduleService:
             training_block=training_block,
             today=today,
             archetype_rotation=archetype_rotation,
+            guarantee_endurance=guarantee_endurance,
+            guarantee_locomotion=guarantee_locomotion,
         )
         main_exercise_ids = [exercise.id for exercise in main_exercises]
         main_patterns = await self._movement_patterns_union(main_exercise_ids)
@@ -900,6 +960,8 @@ class ScheduleService:
         training_block: TrainingBlock | None = None,
         today: date | None = None,
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
+        guarantee_endurance: bool = False,
+        guarantee_locomotion: bool = False,
     ) -> list[Exercise]:
         """Stage 2.4 (2026-08-20 planning session): role-based assembly,
         replacing the old flat "shuffle every movement_pattern, fill up to
@@ -990,11 +1052,34 @@ class ScheduleService:
         -- once RepsSuggestionService.is_stuck_at_ceiling says the user has
         hit the top of its rep range with good feedback, since ordinary
         double progression has no weight lever to reach for there. The
-        fresh pick that follows softly prefers a same-pattern candidate
-        with a strictly higher difficulty_level than the outgoing one
-        (falling back to the unfiltered pool if none exists), so the
-        escalation is a genuine step up rather than a same-difficulty
-        lateral swap. Never fires through a macrocycle-deload hold.
+        fresh pick that follows prefers a same-pattern candidate with a
+        strictly higher difficulty_level than the outgoing one; at a real
+        difficulty ceiling for that pattern (2026-09-18 audit round 2 item
+        #1), a different same-difficulty variant instead of a downgrade --
+        see _tier_by_escalated_difficulty. Never fires through a
+        macrocycle-deload hold.
+
+        Guaranteed endurance/locomotion slot (role 4 only, 2026-09-18 audit
+        round 2 item #4): "выносливость и катание почти не попадают в
+        основной блок" -- role 4's own random accessory pick almost never
+        happened to land on a StimulusType.ENDURANCE exercise or the
+        LOCOMOTION pattern, since neither role 1 (prefers POWER/SKILL) nor
+        role 4 (no stimulus preference at all before this) favored them.
+        guarantee_endurance/guarantee_locomotion, resolved once per batch
+        by _choose_guaranteed_slot_dates, move whichever accessory
+        pattern(s) can satisfy each into role 4's iteration order first --
+        substituting a slot that would have gone to some other accessory
+        pick, not adding a new one. Same softness as every other
+        preference layer here: if the catalog has no ENDURANCE-stimulus
+        candidate among this session's remaining accessory patterns, or
+        LOCOMOTION was already claimed by role 1, the guarantee just
+        doesn't fire rather than forcing an empty/wrong pick. When
+        LOCOMOTION is itself the (or an) ENDURANCE-stimulus carrier, both
+        guarantees fold onto its single slot instead of spending two.
+        Exercises actually placed by either guarantee are protected from
+        _enforce_muscle_group_cap's substitution below, so a muscle-group
+        pile-up can't silently undo the one thing this feature exists to
+        guarantee.
 
         Unilateral preference (role 2 only, hip_hinge/squat): skating is
         an inherently one-legged push, so a squat/hip_hinge exercise
@@ -1320,8 +1405,52 @@ class ScheduleService:
             used_patterns.add(used_role1_pattern)
         accessory_patterns = [pattern for pattern in MovementPattern if pattern not in used_patterns]
         random.shuffle(accessory_patterns)
+
+        # Guaranteed endurance/locomotion slot (2026-09-18 audit round 2
+        # item #4) -- see this method's own docstring for the full
+        # reasoning. Both guarantees are resolved against the full
+        # (already-shuffled) accessory_patterns list, LOCOMOTION included
+        # even when the skating guarantee already moved it to the front,
+        # so the two can fold onto a single slot when it's also the (or
+        # an) ENDURANCE-stimulus carrier -- never two separately-reserved
+        # slots for what the catalog can satisfy in one.
+        priority_patterns: list[MovementPattern] = []
+        if guarantee_locomotion and MovementPattern.LOCOMOTION in accessory_patterns:
+            priority_patterns.append(MovementPattern.LOCOMOTION)
+
+        stimulus_pref_by_pattern: dict[MovementPattern, frozenset[StimulusType]] = {}
+        if guarantee_endurance:
+            endurance_capable_patterns = [
+                pattern for pattern in accessory_patterns
+                if any(
+                    exercise.stimulus_type == StimulusType.ENDURANCE
+                    for exercise in by_pattern.get(pattern, ())
+                )
+            ]
+            if endurance_capable_patterns:
+                endurance_pattern = random.choice(endurance_capable_patterns)
+                stimulus_pref_by_pattern[endurance_pattern] = frozenset({StimulusType.ENDURANCE})
+                if endurance_pattern not in priority_patterns:
+                    priority_patterns.append(endurance_pattern)
+
+        for pattern in priority_patterns:
+            accessory_patterns.remove(pattern)
+        accessory_patterns = priority_patterns + accessory_patterns
+
+        guaranteed_exercise_ids: set[uuid.UUID] = set()
         for pattern in accessory_patterns:
-            await pick_for_pattern(pattern, archetype=None, use_muscle_context=True)
+            choice = await pick_for_pattern(
+                pattern,
+                archetype=None,
+                stimulus_preference=stimulus_pref_by_pattern.get(pattern),
+                use_muscle_context=True,
+            )
+            if choice is None:
+                continue
+            if guarantee_locomotion and pattern == MovementPattern.LOCOMOTION:
+                guaranteed_exercise_ids.add(choice.id)
+            if pattern in stimulus_pref_by_pattern and choice.stimulus_type == StimulusType.ENDURANCE:
+                guaranteed_exercise_ids.add(choice.id)
 
         # Final coherence pass (Stage 2.4, 2026-08-20 planning session):
         # role 4's own muscle-balance check only sees the pool *at the
@@ -1332,8 +1461,13 @@ class ScheduleService:
         # docstring). This is the whole-session hindsight check the plan
         # asked for: "не более N упражнений на одну мышцу", with a
         # point-fix in the offending pattern's own pool rather than a
-        # full reassembly.
-        picked = self._enforce_muscle_group_cap(picked, patterns_by_exercise, by_pattern, muscle_groups_by_exercise)
+        # full reassembly. guaranteed_exercise_ids (2026-09-18 audit round
+        # 2 item #4) are exempted from being swapped out here -- counted
+        # toward the overload same as anything else, just never the fix.
+        picked = self._enforce_muscle_group_cap(
+            picked, patterns_by_exercise, by_pattern, muscle_groups_by_exercise,
+            protected_exercise_ids=guaranteed_exercise_ids,
+        )
 
         return picked
 
@@ -1343,6 +1477,8 @@ class ScheduleService:
         patterns_by_exercise: dict[uuid.UUID, list[MovementPattern]],
         by_pattern: dict[MovementPattern, list[Exercise]],
         muscle_groups_by_exercise: dict[uuid.UUID, set[MuscleGroup]],
+        *,
+        protected_exercise_ids: frozenset[uuid.UUID] | set[uuid.UUID] = frozenset(),
     ) -> list[Exercise]:
         """_pick_main's whole-session hindsight pass, run once after every
         role is filled -- see that call site's own comment for why this
@@ -1370,6 +1506,17 @@ class ScheduleService:
         over a soft/best-effort concern" convention as every layer above
         this one; a residual pile-up from genuine catalog scarcity is
         honest, not silently hidden by dropping a slot.
+
+        protected_exercise_ids (2026-09-18 audit round 2 item #4): exercises
+        _pick_main's guarantee_endurance/guarantee_locomotion actually
+        placed -- skipped as a *substitution candidate* (never picked to be
+        swapped OUT), but still fully counted in `counts` above, same as
+        any other exercise. A muscle group that's only over cap because of
+        a protected exercise stays honestly over cap rather than silently
+        losing the guarantee to fix it -- this function was already willing
+        to leave a residual pile-up when no substitute existed at all; this
+        is the same acceptance, just for a case where a substitute exists
+        but isn't allowed to be used.
         """
         picked_ids = {e.id for e in picked}
         for _ in range(len(picked)):
@@ -1387,6 +1534,8 @@ class ScheduleService:
 
             fixed = False
             for offender in offenders:
+                if offender.id in protected_exercise_ids:
+                    continue
                 pool: list[Exercise] = []
                 for pattern in patterns_by_exercise.get(offender.id, ()):
                     pool.extend(by_pattern.get(pattern, ()))

@@ -159,3 +159,78 @@ async def test_leaves_the_pileup_when_genuinely_no_substitute_exists(db_session)
     assert [e.name for e in picked] == [
         "A-rotation-core", "B-ankle-core", "C-hip-core", "D-shoulder-core",
     ]
+
+
+def _build_cap_args(rows):
+    """Hand-builds the three lookup dicts _pick_main would otherwise pass
+    to _enforce_muscle_group_cap, so protected_exercise_ids (2026-09-18
+    audit round 2 item #4) can be unit-tested directly against the static
+    method -- no DB, no _pick_main assembly, since the function itself is
+    pure. `rows` is _make_exercise's own 4-tuple shape; every exercise in
+    `rows` is added to `by_pattern` (the full substitute pool), whether or
+    not it ends up in the `picked` list the caller constructs separately.
+    """
+    patterns_by_exercise: dict = {}
+    by_pattern: dict = {}
+    muscle_groups_by_exercise: dict = {}
+    for exercise, _, pattern_row, muscle_row in rows:
+        patterns_by_exercise[exercise.id] = [pattern_row.movement_pattern]
+        by_pattern.setdefault(pattern_row.movement_pattern, []).append(exercise)
+        muscle_groups_by_exercise[exercise.id] = {muscle_row.muscle_group}
+    return patterns_by_exercise, by_pattern, muscle_groups_by_exercise
+
+
+def test_protected_exercise_ids_leaves_an_honest_pileup_when_every_offender_is_protected() -> None:
+    """Round 2 audit item #4's original complaint: a guaranteed exercise
+    must never be silently swapped out by this pass. When EVERY exercise
+    contributing to the over-cap muscle group is protected, the pass must
+    do nothing at all -- same as the genuine-no-substitute case, except
+    this time a substitute (B-rotation-calves) genuinely exists and is
+    simply not allowed to be used."""
+    rows = [
+        _make_exercise("A-rotation-core", MovementPattern.ROTATION, MuscleGroup.CORE),
+        _make_exercise("B-rotation-calves", MovementPattern.ROTATION, MuscleGroup.CALVES),
+        _make_exercise("C-ankle-core", MovementPattern.ANKLE_MOBILITY, MuscleGroup.CORE),
+        _make_exercise("D-hip-core", MovementPattern.HIP_MOBILITY, MuscleGroup.CORE),
+        _make_exercise("E-shoulder-core", MovementPattern.SHOULDER_MOBILITY, MuscleGroup.CORE),
+    ]
+    patterns_by_exercise, by_pattern, muscle_groups_by_exercise = _build_cap_args(rows)
+    picked = [rows[0][0], rows[2][0], rows[3][0], rows[4][0]]  # A, C, D, E -- 4x CORE, over cap
+
+    result = ScheduleService._enforce_muscle_group_cap(
+        list(picked),
+        patterns_by_exercise,
+        by_pattern,
+        muscle_groups_by_exercise,
+        protected_exercise_ids={e.id for e in picked},
+    )
+
+    assert result == picked
+
+
+def test_protected_exercise_ids_only_shields_the_protected_offenders() -> None:
+    """Same over-cap CORE pile-up, but only C/D/E are protected -- A (not
+    protected) must still be swapped for its own pattern's real substitute,
+    same outcome as the unprotected "retroactively fixes" test above,
+    proving protection is per-exercise, not an all-or-nothing switch on
+    the whole pass."""
+    rows = [
+        _make_exercise("A-rotation-core", MovementPattern.ROTATION, MuscleGroup.CORE),
+        _make_exercise("B-rotation-calves", MovementPattern.ROTATION, MuscleGroup.CALVES),
+        _make_exercise("C-ankle-core", MovementPattern.ANKLE_MOBILITY, MuscleGroup.CORE),
+        _make_exercise("D-hip-core", MovementPattern.HIP_MOBILITY, MuscleGroup.CORE),
+        _make_exercise("E-shoulder-core", MovementPattern.SHOULDER_MOBILITY, MuscleGroup.CORE),
+    ]
+    patterns_by_exercise, by_pattern, muscle_groups_by_exercise = _build_cap_args(rows)
+    a, b, c, d, e = (row[0] for row in rows)
+    picked = [a, c, d, e]
+
+    result = ScheduleService._enforce_muscle_group_cap(
+        list(picked),
+        patterns_by_exercise,
+        by_pattern,
+        muscle_groups_by_exercise,
+        protected_exercise_ids={c.id, d.id, e.id},
+    )
+
+    assert [ex.name for ex in result] == ["B-rotation-calves", "C-ankle-core", "D-hip-core", "E-shoulder-core"]
