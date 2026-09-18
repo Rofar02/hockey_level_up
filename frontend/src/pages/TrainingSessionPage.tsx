@@ -26,7 +26,7 @@ import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { TrainingStreakRead } from '../types/progress'
 import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
-import type { DayPlanRead, SessionBlockRead, TrainingPhase } from '../types/schedule'
+import type { CeilingEscalationRead, DayPlanRead, SessionBlockRead, TrainingPhase } from '../types/schedule'
 import type { SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
@@ -184,6 +184,7 @@ function formatCompletionFeedback(exercise: ExerciseRead): string {
 function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
   statTotals: Partial<Record<TargetStat, number>>
   xpTotal: number
+  escalations: CeilingEscalationRead[]
 } {
   const statTotals: Partial<Record<TargetStat, number>> = {}
   let xpTotal = 0
@@ -197,7 +198,13 @@ function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
     }
     xpTotal += block.exercise.difficulty_level * 10
   }
-  return { statTotals, xpTotal }
+  // Each block's own complete_block response already carries whatever
+  // escalation it triggered (see SessionBlockService.complete_block) --
+  // `blocks` state accumulates those as the session progresses, so by the
+  // time the last block completes this flat-map already has every
+  // escalation from anywhere in the session, not just the final block.
+  const escalations = sessionBlocks.flatMap((block) => block.ceiling_escalations)
+  return { statTotals, xpTotal, escalations }
 }
 
 export function TrainingSessionPage() {
@@ -292,6 +299,7 @@ export function TrainingSessionPage() {
   const [sessionComplete, setSessionComplete] = useState<{
     statTotals: Partial<Record<TargetStat, number>>
     xpTotal: number
+    escalations: CeilingEscalationRead[]
   } | null>(null)
   // Captured once, at page load -- SessionCompleteModal compares this against
   // a fresh /auth/me fetch taken after the session finishes to detect a
@@ -980,6 +988,7 @@ export function TrainingSessionPage() {
         <SessionCompleteModal
           statTotals={sessionComplete.statTotals}
           xpTotal={sessionComplete.xpTotal}
+          escalations={sessionComplete.escalations}
           levelBeforeSession={levelBeforeSession}
           accessToken={accessToken}
         />
@@ -1477,11 +1486,13 @@ const SERVER_STATE_POLL_DELAYS_MS = [1600, 1200, 1200]
 function SessionCompleteModal({
   statTotals,
   xpTotal,
+  escalations,
   levelBeforeSession,
   accessToken,
 }: {
   statTotals: Partial<Record<TargetStat, number>>
   xpTotal: number
+  escalations: CeilingEscalationRead[]
   levelBeforeSession: number | null
   accessToken: string
 }) {
@@ -1589,6 +1600,41 @@ function SessionCompleteModal({
               <ShieldIcon size={28} className="text-accent-persimmon" />
               <p className="text-sm font-medium text-accent-persimmon">Новый уровень!</p>
               <p className="font-display text-3xl font-bold text-accent-persimmon">{freshLevel}</p>
+            </div>
+          </div>
+        )}
+
+        {escalations.length > 0 && (
+          <div className="relative w-full overflow-hidden rounded-md border border-accent-ice/40 bg-accent-ice/10 p-5">
+            <CardGlow color="ice" />
+            <div className="relative flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <i className="ti ti-trending-up text-xl text-accent-ice" aria-hidden="true" />
+                <p className="text-sm font-medium text-accent-ice">
+                  {escalations.length === 1
+                    ? '🎉 Потолок сложности взят!'
+                    : `🎉 ${escalations.length} упражнения доведены до потолка сложности!`}
+                </p>
+              </div>
+              {escalations.length === 1 ? (
+                <p className="text-sm text-text-secondary">
+                  Вы довели «{escalations[0].old_exercise_name}» до потолка сложности!
+                  Отличный прогресс — заменяем его на «{escalations[0].new_exercise_name}» до
+                  конца текущей недели.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-1 text-sm text-text-secondary">
+                  {escalations.map((escalation, index) => (
+                    <li key={index}>
+                      «{escalation.old_exercise_name}» → «{escalation.new_exercise_name}»
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-xs text-text-secondary">
+                Сегодняшняя тренировка и уже пройденные дни не меняются — только дни, которые вы
+                ещё не начали.
+              </p>
             </div>
           </div>
         )}

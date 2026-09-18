@@ -161,6 +161,90 @@ async def test_stuck_at_ceiling_breaks_a_same_block_pin_for_a_harder_variant(db_
 
 
 @pytest.mark.asyncio
+async def test_stuck_at_a_true_ceiling_swaps_to_a_same_difficulty_variant(db_session) -> None:
+    """2026-09-18 audit round 2 item #1: no candidate above the pinned
+    exercise's own difficulty exists for this pattern -- a genuine
+    difficulty ceiling, the common case for push/pull bodyweight work --
+    so the fix must swap sideways to a *different* same-difficulty variant
+    rather than falling through to something easier."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    stuck_ex, stuck_pattern, stuck_stat = _make_core_exercise("Stuck plank", difficulty_level=2)
+    same_ex, same_pattern, same_stat = _make_core_exercise("Side plank", difficulty_level=2)
+    easier_ex, easier_pattern, easier_stat = _make_core_exercise("Knee plank", difficulty_level=1)
+    db_session.add_all(
+        [
+            stuck_ex, same_ex, easier_ex,
+            stuck_pattern, same_pattern, easier_pattern,
+            stuck_stat, same_stat, easier_stat,
+        ]
+    )
+    db_session.add(UserStat(user_id=user.id, stat_type=TargetStat.STRENGTH, current_value=60.0))
+    block = _make_block(user, block_number=1)
+    db_session.add(block)
+    await db_session.flush()
+
+    db_session.add(
+        UserMovementPatternVariant(
+            user_id=user.id, category=ExerciseCategory.OFF_ICE, movement_pattern=MovementPattern.CORE,
+            archetype=None, exercise_id=stuck_ex.id, block_number=1,
+        )
+    )
+    await db_session.flush()
+    await _make_stuck_history(db_session, user, stuck_ex)
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, [stuck_ex, same_ex, easier_ex])
+    picked = await service._pick_main(
+        ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION, training_block=block, today=TODAY
+    )
+
+    assert [e.name for e in picked] == ["Side plank"]
+    pin = await _get_pin(db_session, user)
+    assert pin.exercise_id == same_ex.id
+
+
+@pytest.mark.asyncio
+async def test_stuck_at_ceiling_with_no_alternative_keeps_the_same_pick(db_session) -> None:
+    """Boundary case: no higher-difficulty candidate AND no other
+    same-difficulty candidate either (the pinned exercise is the only one
+    of its pattern in the catalog) -- the last-resort tier hands back the
+    same exercise, a no-op escalation rather than a crash or an empty
+    slot."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    only_ex, only_pattern, only_stat = _make_core_exercise("Only plank", difficulty_level=2)
+    db_session.add_all([only_ex, only_pattern, only_stat])
+    db_session.add(UserStat(user_id=user.id, stat_type=TargetStat.STRENGTH, current_value=60.0))
+    block = _make_block(user, block_number=1)
+    db_session.add(block)
+    await db_session.flush()
+
+    db_session.add(
+        UserMovementPatternVariant(
+            user_id=user.id, category=ExerciseCategory.OFF_ICE, movement_pattern=MovementPattern.CORE,
+            archetype=None, exercise_id=only_ex.id, block_number=1,
+        )
+    )
+    await db_session.flush()
+    await _make_stuck_history(db_session, user, only_ex)
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, [only_ex])
+    picked = await service._pick_main(
+        ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION, training_block=block, today=TODAY
+    )
+
+    assert [e.name for e in picked] == ["Only plank"]
+    pin = await _get_pin(db_session, user)
+    assert pin.exercise_id == only_ex.id
+
+
+@pytest.mark.asyncio
 async def test_no_history_does_not_escalate_and_keeps_the_pin(db_session) -> None:
     user = _make_user()
     db_session.add(user)

@@ -5,6 +5,7 @@ import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Iterator
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -66,6 +67,7 @@ from app.repositories.user_movement_pattern_variant_repository import (
 from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
 from app.schemas.exercise import exercise_to_read
 from app.schemas.schedule import (
+    CeilingEscalationRead,
     DayPlanRead,
     ScheduleConflictRead,
     SessionBlockRead,
@@ -1179,14 +1181,7 @@ class ScheduleService:
                     stat_pool = [e for e in pool if e.id != existing_pin.exercise_id] or pool
 
                 if escalate_difficulty:
-                    # Same 3-tier "narrow, fall back to the broader pool if
-                    # empty" shape as every other preference layer here --
-                    # a harder variant is a soft preference, not a hard
-                    # requirement, since most patterns only have a couple
-                    # of same-pattern candidates in the catalog today.
-                    stat_pool = [
-                        e for e in stat_pool if e.difficulty_level > pinned_exercise.difficulty_level
-                    ] or stat_pool
+                    stat_pool = self._tier_by_escalated_difficulty(stat_pool, pinned_exercise)
 
                 if stimulus_preference is not None:
                     stat_pool = [
@@ -1502,6 +1497,37 @@ class ScheduleService:
             e for e in pool if not (muscle_groups_by_exercise.get(e.id, set()) & loaded_muscle_groups)
         ]
         return varied or pool
+
+    @staticmethod
+    def _tier_by_escalated_difficulty(pool: list[Exercise], outgoing: Exercise) -> list[Exercise]:
+        """Bodyweight-escalation tiering (Stage 2.6, extended 2026-09-18
+        audit round 2 item #1): shared by pick_for_pattern's own
+        escalate_difficulty branch and escalate_ceiling_variant_for_week's
+        week-patch. Three tiers, same "narrow, fall back if empty" shape as
+        every other preference layer in this file:
+
+          1. Strictly higher difficulty_level than `outgoing` -- a genuine
+             step up, the normal case.
+          2. No such candidate (a real difficulty ceiling for this pattern/
+             stimulus -- common for push/pull bodyweight work, which the
+             catalog only has a couple of difficulty tiers for) -> a
+             *different* same-difficulty variant instead, so the swap is
+             still lateral variety, never a downgrade. `outgoing` itself is
+             always excluded here regardless of whether `pool` already did
+             -- the point of this tier existing at all is to never silently
+             hand back the exercise that's already stuck.
+          3. Nothing else in `pool` either (a genuine catalog gap, or
+             `pool` had nothing but `outgoing` to begin with) -> the
+             unfiltered `pool`, or `outgoing` itself as the absolute last
+             resort so a caller never has to handle an empty result.
+        """
+        higher = [e for e in pool if e.difficulty_level > outgoing.difficulty_level]
+        if higher:
+            return higher
+        same = [e for e in pool if e.difficulty_level == outgoing.difficulty_level and e.id != outgoing.id]
+        if same:
+            return same
+        return pool or [outgoing]
 
     async def _apply_difficulty_gate(
         self,
@@ -1928,6 +1954,141 @@ class ScheduleService:
             skipped_at=block.skipped_at,
             exercise=exercise_to_read(new_exercise, target_stats),
         )
+
+    async def escalate_ceiling_variant_for_week(
+        self, user: User, exercise: Exercise
+    ) -> list[CeilingEscalationRead]:
+        """2026-09-18 audit round 2 item #1: SessionBlockService.complete_block's
+        synchronous follow-up to a just-completed MAIN block. A
+        tracks_weight=false exercise that's genuinely stuck (see
+        RepsSuggestionService.is_stuck_at_ceiling) doesn't just wait for the
+        next fresh day-generation to swap itself out -- create_weekly_plan
+        already built every day of the current week up front, so an
+        already-generated-but-not-yet-started day would otherwise keep
+        showing the stuck exercise for the rest of the week. This patches
+        those specific SessionBlock rows directly (exercise_id only,
+        nothing else about the day) rather than regenerating the day, and
+        moves the UserMovementPatternVariant pin itself so any later fresh
+        assembly (next block boundary, a new week) picks up the same
+        change. Returns one CeilingEscalationRead per pin actually moved --
+        empty whenever escalation doesn't apply, or the catalog has no real
+        substitute for a pin (see _tier_by_escalated_difficulty's
+        last-resort tier landing back on `exercise` itself).
+
+        "Not yet started" = day.date strictly after the user's today (never
+        today's own day -- that's the one currently being completed) AND
+        every block in that day's session is still unresolved. A day
+        that's only partially touched (e.g. warmup already logged ahead of
+        time) is left alone entirely, same caution as _patch_weekly_plan's
+        own "already begun" guard, even though this method only ever
+        touches one exercise_id at a time rather than rebuilding the day.
+
+        Committing is the caller's job, not this method's -- every write
+        here is an in-place mutation plus a single flush, so it composes
+        into SessionBlockService.complete_block's own transaction instead
+        of risking a patched week whose triggering block completion then
+        fails to commit.
+        """
+        if exercise.tracks_weight:
+            return []
+        if not await self._reps_suggestions.is_stuck_at_ceiling(user, exercise):
+            return []
+
+        pins = await self._variants.list_for_user_exercise(user.id, exercise.id)
+        if not pins:
+            return []
+
+        today = datetime.now(ZoneInfo(user.timezone or "UTC")).date()
+        weekly_plan = await self._schedule.get_current(user.id, today)
+        if weekly_plan is None:
+            return []
+
+        untouched_future_sessions = [
+            day_plan.training_session
+            for day_plan in weekly_plan.day_plans
+            if day_plan.date > today
+            and day_plan.training_session is not None
+            and all(
+                block.completed_at is None and block.skipped_at is None
+                for block in day_plan.training_session.blocks
+            )
+        ]
+        if not untouched_future_sessions:
+            return []
+
+        training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
+        block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
+
+        escalations: list[CeilingEscalationRead] = []
+        for pin in pins:
+            new_exercise = await self._pick_ceiling_escalation_candidate(
+                user, block_phase, pin, exercise
+            )
+            if new_exercise is None or new_exercise.id == exercise.id:
+                # No genuine substitute for this pin (catalog gap) -- leave
+                # the pin and every SessionBlock exactly as they are rather
+                # than "escalate" to the same stuck exercise.
+                continue
+
+            pin.exercise_id = new_exercise.id
+            if pin.archetype is None or new_exercise.stimulus_type == pin.archetype:
+                pin.last_chosen_at = today
+
+            for training_session in untouched_future_sessions:
+                for block in training_session.blocks:
+                    if block.exercise_id == exercise.id:
+                        block.exercise_id = new_exercise.id
+
+            escalations.append(
+                CeilingEscalationRead(
+                    old_exercise_name=exercise.name, new_exercise_name=new_exercise.name
+                )
+            )
+
+        if escalations:
+            await self._session.flush()
+        return escalations
+
+    async def _pick_ceiling_escalation_candidate(
+        self,
+        user: User,
+        block_phase: BlockPhase,
+        pin: UserMovementPatternVariant,
+        outgoing: Exercise,
+    ) -> Exercise | None:
+        """One pin's half of escalate_ceiling_variant_for_week -- deliberately
+        simpler than pick_for_pattern's own closure (no rotation/deload-hold
+        bookkeeping, the caller already resolved that this pin needs to
+        move), same shape as _pick_main_replacement otherwise: readiness
+        gate -> narrow to the pin's exact movement_pattern -> narrow to its
+        stimulus archetype if it has one -> _tier_by_escalated_difficulty.
+        """
+        candidates = await self._exercises.list_for_assembly(
+            phase=TrainingPhase.MAIN, user=user, category=pin.category
+        )
+        candidates = [e for e in candidates if e.id != outgoing.id]
+        if not candidates:
+            return None
+
+        patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
+            [e.id for e in candidates]
+        )
+        pool = [e for e in candidates if pin.movement_pattern in patterns_by_id.get(e.id, ())]
+        if not pool:
+            return None
+
+        pool, gate_exhausted = await self._apply_difficulty_gate(
+            pool, user, context=f"ceiling_escalation/{pin.category}/{pin.movement_pattern}"
+        )
+        difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
+        if difficulty_predicate is not None and not gate_exhausted:
+            pool = [e for e in pool if difficulty_predicate(e)] or pool
+
+        if pin.archetype is not None:
+            pool = [e for e in pool if e.stimulus_type == pin.archetype] or pool
+
+        tiered = self._tier_by_escalated_difficulty(pool, outgoing)
+        return random.choice(tiered)
 
     # 2026-09-17 (audit item #3): the only session_types TrainingDiaryCard
     # ever renders for (see TrainingSessionPage.tsx) -- has_diary_entry is

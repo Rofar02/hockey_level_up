@@ -46,6 +46,15 @@ export interface WeeklyPlanCreate {
   days: DayPlanIn[]
 }
 
+// Populated only by SessionBlockService.complete_block, only when
+// completing that block triggered a bodyweight-escalation swap -- names
+// only, display data for SessionCompleteModal's card, not IDs to reload
+// anything by.
+export interface CeilingEscalationRead {
+  old_exercise_name: string
+  new_exercise_name: string
+}
+
 export interface SessionBlockRead {
   id: string
   phase: TrainingPhase
@@ -53,6 +62,7 @@ export interface SessionBlockRead {
   completed_at: string | null
   skipped_at: string | null
   exercise: ExerciseRead
+  ceiling_escalations: CeilingEscalationRead[]
 }
 
 export interface TrainingSessionRead {
