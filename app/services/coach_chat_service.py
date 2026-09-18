@@ -77,6 +77,17 @@ logger = logging.getLogger(__name__)
 # here used to reach the client as Starlette's default plain-text 500,
 # which the frontend (expecting JSON) rendered as an opaque "Request
 # failed".
+#
+# 2026-09-18 follow-up fix (same day, found live): this used to raise 503,
+# same as send_message's own "feature not configured at all" guard above --
+# but CoachPage.tsx already treats ANY 503 from this endpoint as that
+# specific case (sets `unavailable`, permanently swaps to ComingSoonCard,
+# never renders the error text at all). A z.ai call that fails mid-flight
+# is a materially different situation -- the feature IS configured, this
+# one attempt failed -- so it needs its own code the frontend doesn't
+# already have a conflicting meaning for. 502 (this server successfully
+# reached the upstream but got back a failure) is the correct REST
+# semantics for that and doesn't collide with the "not configured" 503.
 COACH_UNAVAILABLE_DETAIL = "Не получилось связаться с тренером, попробуй чуть позже"
 
 MONTHLY_MESSAGE_LIMIT = 150
@@ -548,7 +559,7 @@ async def _call_zai(
         # propagate unhandled.
         logger.error("z.ai chat completion call failed: %s", exc, exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=COACH_UNAVAILABLE_DETAIL
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=COACH_UNAVAILABLE_DETAIL
         ) from exc
     return response.choices[0].message.content or ""
 

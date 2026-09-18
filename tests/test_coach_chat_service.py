@@ -993,7 +993,11 @@ async def _assert_call_zai_maps_to_unavailable(
         with pytest.raises(HTTPException) as exc_info:
             await _call_zai("test-key", "https://api.z.ai/v1", "glm-4.7-flash", "system", [])
 
-    assert exc_info.value.status_code == 503
+    # 502, not 503 -- CoachPage.tsx already treats a 503 from this endpoint
+    # as "feature not configured at all" (permanently swaps to a
+    # ComingSoonCard, never shows the error text). A mid-flight z.ai
+    # failure is a different situation and must not collide with that.
+    assert exc_info.value.status_code == 502
     assert exc_info.value.detail == COACH_UNAVAILABLE_DETAIL
 
     assert len(caplog.records) == 1
@@ -1006,7 +1010,7 @@ async def _assert_call_zai_maps_to_unavailable(
 
 
 @pytest.mark.asyncio
-async def test_call_zai_maps_rate_limit_error_to_503(monkeypatch, caplog) -> None:
+async def test_call_zai_maps_rate_limit_error_to_502(monkeypatch, caplog) -> None:
     response = httpx2.Response(
         429, request=_FAKE_REQUEST, json={"error": {"message": "quota exceeded"}}
     )
@@ -1017,7 +1021,7 @@ async def test_call_zai_maps_rate_limit_error_to_503(monkeypatch, caplog) -> Non
 
 
 @pytest.mark.asyncio
-async def test_call_zai_maps_authentication_error_to_503(monkeypatch, caplog) -> None:
+async def test_call_zai_maps_authentication_error_to_502(monkeypatch, caplog) -> None:
     response = httpx2.Response(
         401, request=_FAKE_REQUEST, json={"error": {"message": "invalid api key"}}
     )
@@ -1028,7 +1032,7 @@ async def test_call_zai_maps_authentication_error_to_503(monkeypatch, caplog) ->
 
 
 @pytest.mark.asyncio
-async def test_call_zai_maps_timeout_error_to_503(monkeypatch, caplog) -> None:
+async def test_call_zai_maps_timeout_error_to_502(monkeypatch, caplog) -> None:
     error = APITimeoutError(request=_FAKE_REQUEST)
     _install_broken_client(monkeypatch, error)
 
@@ -1036,7 +1040,7 @@ async def test_call_zai_maps_timeout_error_to_503(monkeypatch, caplog) -> None:
 
 
 @pytest.mark.asyncio
-async def test_call_zai_maps_connection_error_to_503(monkeypatch, caplog) -> None:
+async def test_call_zai_maps_connection_error_to_502(monkeypatch, caplog) -> None:
     error = APIConnectionError(message="connection failed", request=_FAKE_REQUEST)
     _install_broken_client(monkeypatch, error)
 
@@ -1044,7 +1048,7 @@ async def test_call_zai_maps_connection_error_to_503(monkeypatch, caplog) -> Non
 
 
 @pytest.mark.asyncio
-async def test_call_zai_maps_generic_api_error_to_503(monkeypatch, caplog) -> None:
+async def test_call_zai_maps_generic_api_error_to_502(monkeypatch, caplog) -> None:
     """Covers cases with no dedicated exception subclass, e.g. an invalid
     configured model name (settings.coach_chat_model pointing at something
     z.ai doesn't recognize) -- still just an APIError under the hood."""
