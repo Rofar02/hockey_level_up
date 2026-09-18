@@ -28,12 +28,13 @@ mirroring push_service.send_push / webpush_async) so tests can monkeypatch
 it and assert on exactly what was sent, with no real network call.
 """
 import json
+import logging
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from openai import AsyncOpenAI
+from openai import APIError, AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -65,6 +66,18 @@ from app.services.training_block_service import TrainingBlockService
 from app.services.training_diary_service import TrainingDiaryService
 from app.services.user_service import UserService
 from app.services.user_temporary_restriction_service import UserTemporaryRestrictionService
+
+logger = logging.getLogger(__name__)
+
+# 2026-09-18 fix (round 2 audit item #4): _call_zai's own catch-all for the
+# openai client (expired key, exhausted quota, an invalid configured model
+# name, a timeout, ...) -- one detail/status for every case rather than
+# leaking whichever raw exception text the client happened to raise. There
+# is no global exception handler in app/main.py, so an unhandled exception
+# here used to reach the client as Starlette's default plain-text 500,
+# which the frontend (expecting JSON) rendered as an opaque "Request
+# failed".
+COACH_UNAVAILABLE_DETAIL = "Не получилось связаться с тренером, попробуй чуть позже"
 
 MONTHLY_MESSAGE_LIMIT = 150
 # 2026-09-17 (audit item #7): send_message no longer hard-walls non-premium
@@ -517,11 +530,26 @@ async def _call_zai(
     api_key: str, base_url: str, model: str, system_prompt: str, messages: list[dict[str, str]]
 ) -> str:
     client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-    response = await client.chat.completions.create(
-        model=model,
-        max_tokens=MAX_RESPONSE_TOKENS,
-        messages=[{"role": "system", "content": system_prompt}, *messages],
-    )
+    try:
+        response = await client.chat.completions.create(
+            model=model,
+            max_tokens=MAX_RESPONSE_TOKENS,
+            messages=[{"role": "system", "content": system_prompt}, *messages],
+        )
+    except APIError as exc:
+        # Catches every openai-client failure mode (RateLimitError,
+        # AuthenticationError, APITimeoutError, APIConnectionError, an
+        # invalid configured model name, ...) -- all subclasses of this one
+        # base, so a single handler covers the lot rather than enumerating
+        # each and missing whichever one isn't on the list yet. The real
+        # exception is logged here, server-side, before it's replaced with
+        # a single stable, Russian-language message -- see
+        # COACH_UNAVAILABLE_DETAIL's own comment for why this can't just
+        # propagate unhandled.
+        logger.error("z.ai chat completion call failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=COACH_UNAVAILABLE_DETAIL
+        ) from exc
     return response.choices[0].message.content or ""
 
 
