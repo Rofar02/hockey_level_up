@@ -1,5 +1,6 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +50,18 @@ class TrainingBlockService:
         total = await self._blocks.count_completed_real_sessions(block.id)
         return max(0, total - block.phase_session_baseline)
 
+    @staticmethod
+    def _today_for_user(user: User | None) -> date:
+        """2026-09-18 fix (audit round 2 item #3, continuation of round 1
+        item #10): date.today() read the *server's* timezone, not the
+        user's -- see ProgressService.get_streak's matching fix for the
+        full reasoning. Falls back to UTC only for the (nominally
+        impossible outside a delete-mid-flight race) case where the user
+        row itself is gone, same fallback shape as
+        block_completed.streak_consumer's own read.
+        """
+        return datetime.now(ZoneInfo(user.timezone if user is not None else "UTC")).date()
+
     async def resolve_active_block(
         self, user_id: uuid.UUID, *, today: date | None = None
     ) -> TrainingBlock | None:
@@ -64,17 +77,17 @@ class TrainingBlockService:
         calendar time), not by a counter that could double-advance on a
         repeat call.
 
-        `today` defaults to date.today() for every real caller -- injectable
-        purely so tests can simulate the passage of time between phase
-        transitions without waiting on the wall clock (see
-        test_training_block_progression.py).
+        `today` defaults to the user's own today (_today_for_user) for
+        every real caller -- injectable purely so tests can simulate the
+        passage of time between phase transitions without waiting on the
+        wall clock (see test_training_block_progression.py).
         """
         block = await self._blocks.get_active_for_user(user_id)
         if block is None:
             return None
         user = await self._session.get(User, user_id)
         season_period = user.season_period if user is not None else SeasonPeriod.OFFSEASON
-        return await self._catch_up(block, today or date.today(), season_period)
+        return await self._catch_up(block, today or self._today_for_user(user), season_period)
 
     async def get_or_create_and_resolve(
         self, user_id: uuid.UUID, *, today: date | None = None
@@ -87,8 +100,12 @@ class TrainingBlockService:
         block = await self.resolve_active_block(user_id, today=today)
         if block is not None:
             return block
+        resolved_today = today
+        if resolved_today is None:
+            user = await self._session.get(User, user_id)
+            resolved_today = self._today_for_user(user)
         return await self._blocks.create(
-            TrainingBlock(user_id=user_id, block_number=1, phase_started_at=today or date.today())
+            TrainingBlock(user_id=user_id, block_number=1, phase_started_at=resolved_today)
         )
 
     async def _catch_up(

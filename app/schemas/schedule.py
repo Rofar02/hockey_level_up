@@ -22,6 +22,18 @@ class WeeklyPlanPatch(BaseModel):
     days: list[DayPlanIn] = Field(min_length=1, max_length=7)
 
 
+class CeilingEscalationRead(BaseModel):
+    """One bodyweight exercise swapped out after hitting its difficulty
+    ceiling (app.services.schedule_service.ScheduleService.
+    escalate_ceiling_variant_for_week) -- names only, this is display data
+    for SessionCompleteModal's congratulatory card, not a reference to
+    reload anything by.
+    """
+
+    old_exercise_name: str
+    new_exercise_name: str
+
+
 class SessionBlockRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,6 +43,10 @@ class SessionBlockRead(BaseModel):
     completed_at: datetime | None
     skipped_at: datetime | None
     exercise: ExerciseRead
+    # Populated only by SessionBlockService.complete_block, only when
+    # completing *this* block triggered a ceiling escalation -- empty for
+    # every other read of a SessionBlockRead (GET plan, replace, skip).
+    ceiling_escalations: list[CeilingEscalationRead] = Field(default_factory=list)
 
 
 class TrainingSessionRead(BaseModel):

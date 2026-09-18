@@ -1,6 +1,7 @@
 import uuid
 from collections import defaultdict
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -243,7 +244,7 @@ class ExerciseRepository:
         )
         return set(result.scalars().all())
 
-    async def list_active_restricted_patterns(self, user_id: uuid.UUID) -> set[MovementPattern]:
+    async def list_active_restricted_patterns(self, user: User) -> set[MovementPattern]:
         """Same self-contained, keyed-off-user shape as list_owned_equipment
         above -- called internally by list_for_assembly, not threaded in as
         a parameter from every caller. "Active" mirrors
@@ -251,12 +252,17 @@ class ExerciseRepository:
         today, not lifted) -- duplicated here rather than importing that
         repository, same deliberate duplication convention already used
         elsewhere in this codebase (see streak_service.TRAINING_SESSION_TYPES
-        vs. training_block_repository._TRAINING_SESSION_TYPES)."""
+        vs. training_block_repository._TRAINING_SESSION_TYPES). Takes the
+        full User (not just its id), 2026-09-18 fix (audit round 2 item #3):
+        date.today() read the *server's* timezone, not the user's -- see
+        ProgressService.get_streak's matching fix for the full reasoning.
+        """
+        today = datetime.now(ZoneInfo(user.timezone)).date()
         result = await self._session.execute(
             select(UserTemporaryRestriction.movement_pattern).where(
-                UserTemporaryRestriction.user_id == user_id,
+                UserTemporaryRestriction.user_id == user.id,
                 UserTemporaryRestriction.movement_pattern.is_not(None),
-                UserTemporaryRestriction.expires_at >= date.today(),
+                UserTemporaryRestriction.expires_at >= today,
                 UserTemporaryRestriction.lifted_at.is_(None),
             )
         )
@@ -266,12 +272,13 @@ class ExerciseRepository:
     # of movement_pattern -- the body-avatar picker's report path (see
     # UserTemporaryRestriction's own docstring for why a restriction is one
     # or the other, never both).
-    async def list_active_restricted_muscle_groups(self, user_id: uuid.UUID) -> set[MuscleGroup]:
+    async def list_active_restricted_muscle_groups(self, user: User) -> set[MuscleGroup]:
+        today = datetime.now(ZoneInfo(user.timezone)).date()
         result = await self._session.execute(
             select(UserTemporaryRestriction.muscle_group).where(
-                UserTemporaryRestriction.user_id == user_id,
+                UserTemporaryRestriction.user_id == user.id,
                 UserTemporaryRestriction.muscle_group.is_not(None),
-                UserTemporaryRestriction.expires_at >= date.today(),
+                UserTemporaryRestriction.expires_at >= today,
                 UserTemporaryRestriction.lifted_at.is_(None),
             )
         )
@@ -390,7 +397,7 @@ class ExerciseRepository:
             )
         )
 
-        restricted_patterns = await self.list_active_restricted_patterns(user.id)
+        restricted_patterns = await self.list_active_restricted_patterns(user)
         if restricted_patterns:
             has_restricted_pattern = (
                 select(ExerciseMovementPattern.id)
@@ -402,7 +409,7 @@ class ExerciseRepository:
             )
             query = query.where(~has_restricted_pattern)
 
-        restricted_muscle_groups = await self.list_active_restricted_muscle_groups(user.id)
+        restricted_muscle_groups = await self.list_active_restricted_muscle_groups(user)
         if restricted_muscle_groups:
             has_restricted_muscle_group = (
                 select(ExerciseMuscleGroup.id)

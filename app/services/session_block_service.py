@@ -12,7 +12,8 @@ from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.schemas.exercise import exercise_to_read
-from app.schemas.schedule import SessionBlockRead
+from app.schemas.schedule import CeilingEscalationRead, SessionBlockRead
+from app.services.schedule_service import ScheduleService
 from app.services.training_party_service import TrainingPartyService
 
 BLOCK_COMPLETED_EVENT = "block_completed"
@@ -61,6 +62,18 @@ class SessionBlockService:
             },
         )
         await self._maybe_publish_training_completed(block, user)
+        # 2026-09-18 audit round 2 item #1: checked synchronously, in this
+        # same transaction, rather than via block_completed's async
+        # consumers -- SetCompletion/SetFeedback rows (what is_stuck_at_
+        # ceiling reads) are already committed by the time a block is
+        # completed, submitted through a separate earlier request, so there
+        # is no eventual-consistency reason to defer this. MAIN-only: WARMUP/
+        # COOLDOWN exercises never hold a bodyweight-escalation pin.
+        ceiling_escalations: list[CeilingEscalationRead] = []
+        if block.phase == TrainingPhase.MAIN:
+            ceiling_escalations = await ScheduleService(
+                self._session
+            ).escalate_ceiling_variant_for_week(user, block.exercise)
         await self._session.commit()
         # response_model=SessionBlockRead needs exercise.target_stats, which
         # isn't a plain ORM attribute (see exercise_to_read's docstring) --
@@ -73,6 +86,7 @@ class SessionBlockService:
             completed_at=block.completed_at,
             skipped_at=block.skipped_at,
             exercise=exercise_to_read(block.exercise, target_stats),
+            ceiling_escalations=ceiling_escalations,
         )
 
     async def skip_block(self, block_id: uuid.UUID, user: User) -> SessionBlockRead:

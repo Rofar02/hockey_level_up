@@ -25,11 +25,14 @@ No real z.ai call is ever made -- `_call_zai` is
 monkeypatched at the module level in every test that reaches it, same
 convention test_push_subscription.py uses for webpush_async.
 """
+import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
+import httpx2
 import pytest
 from fastapi import HTTPException
+from openai import APIConnectionError, APIError, APITimeoutError, AuthenticationError, RateLimitError
 
 from app.core.config import Settings
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
@@ -44,9 +47,11 @@ from app.routers.deps import require_premium
 from app.services import coach_chat_service
 from app.services.coach_chat_service import (
     ANALYTICS_SUMMARY_WINDOW_DAYS,
+    COACH_UNAVAILABLE_DETAIL,
     FREE_TRIAL_MESSAGE_LIMIT,
     MONTHLY_MESSAGE_LIMIT,
     CoachChatService,
+    _call_zai,
 )
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 
@@ -946,3 +951,138 @@ async def test_system_prompt_includes_priority_skill_focus_for_upcoming_session(
     prompt = captured["system_prompt"]
     assert "приоритетные навыки игрока" in prompt
     assert skill_name in prompt
+
+
+# -- _call_zai's own error handling (2026-09-18, round 2 audit item #4) --
+#
+# client.chat.completions.create used to go completely unwrapped: any
+# openai-client exception (expired key, exhausted quota, an invalid
+# configured model name, a timeout, ...) reached the caller raw, and with
+# no global exception handler in app/main.py, Starlette's default plain-
+# text 500 response reached the frontend (which expects JSON) as an
+# opaque "Request failed". These tests exercise _call_zai directly (not
+# through send_message -- it's the function under test) with a fake
+# AsyncOpenAI client whose chat.completions.create raises each real
+# openai-client exception type, and check both halves of the fix: the
+# HTTPException the caller actually sees, and that the real exception
+# was logged, not silently swallowed.
+
+_FAKE_REQUEST = httpx2.Request("POST", "https://api.z.ai/v1/chat/completions")
+
+
+def _install_broken_client(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
+    class _FakeCompletions:
+        async def create(self, **_kwargs):
+            raise error
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    class _FakeClient:
+        chat = _FakeChat()
+
+    monkeypatch.setattr(
+        coach_chat_service, "AsyncOpenAI", lambda *, api_key, base_url: _FakeClient()
+    )
+
+
+async def _assert_call_zai_maps_to_unavailable(
+    caplog: pytest.LogCaptureFixture, error: Exception
+) -> None:
+    with caplog.at_level(logging.ERROR, logger="app.services.coach_chat_service"):
+        with pytest.raises(HTTPException) as exc_info:
+            await _call_zai("test-key", "https://api.z.ai/v1", "glm-4.7-flash", "system", [])
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail == COACH_UNAVAILABLE_DETAIL
+
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelno == logging.ERROR
+    # exc_info attached (not just the message) -- the real exception,
+    # including its type and traceback, is what actually got logged.
+    assert record.exc_info is not None
+    assert record.exc_info[0] is type(error)
+
+
+@pytest.mark.asyncio
+async def test_call_zai_maps_rate_limit_error_to_503(monkeypatch, caplog) -> None:
+    response = httpx2.Response(
+        429, request=_FAKE_REQUEST, json={"error": {"message": "quota exceeded"}}
+    )
+    error = RateLimitError("quota exceeded", response=response, body=None)
+    _install_broken_client(monkeypatch, error)
+
+    await _assert_call_zai_maps_to_unavailable(caplog, error)
+
+
+@pytest.mark.asyncio
+async def test_call_zai_maps_authentication_error_to_503(monkeypatch, caplog) -> None:
+    response = httpx2.Response(
+        401, request=_FAKE_REQUEST, json={"error": {"message": "invalid api key"}}
+    )
+    error = AuthenticationError("invalid api key", response=response, body=None)
+    _install_broken_client(monkeypatch, error)
+
+    await _assert_call_zai_maps_to_unavailable(caplog, error)
+
+
+@pytest.mark.asyncio
+async def test_call_zai_maps_timeout_error_to_503(monkeypatch, caplog) -> None:
+    error = APITimeoutError(request=_FAKE_REQUEST)
+    _install_broken_client(monkeypatch, error)
+
+    await _assert_call_zai_maps_to_unavailable(caplog, error)
+
+
+@pytest.mark.asyncio
+async def test_call_zai_maps_connection_error_to_503(monkeypatch, caplog) -> None:
+    error = APIConnectionError(message="connection failed", request=_FAKE_REQUEST)
+    _install_broken_client(monkeypatch, error)
+
+    await _assert_call_zai_maps_to_unavailable(caplog, error)
+
+
+@pytest.mark.asyncio
+async def test_call_zai_maps_generic_api_error_to_503(monkeypatch, caplog) -> None:
+    """Covers cases with no dedicated exception subclass, e.g. an invalid
+    configured model name (settings.coach_chat_model pointing at something
+    z.ai doesn't recognize) -- still just an APIError under the hood."""
+    error = APIError("model not found", _FAKE_REQUEST, body=None)
+    _install_broken_client(monkeypatch, error)
+
+    await _assert_call_zai_maps_to_unavailable(caplog, error)
+
+
+@pytest.mark.asyncio
+async def test_call_zai_success_path_is_unaffected(monkeypatch, caplog) -> None:
+    """Sanity check: the try/except wrapper doesn't swallow or alter a
+    normal successful response."""
+    class _FakeMessage:
+        content = "Тестовый ответ"
+
+    class _FakeChoice:
+        message = _FakeMessage()
+
+    class _FakeResponse:
+        choices = [_FakeChoice()]
+
+    class _FakeCompletions:
+        async def create(self, **_kwargs):
+            return _FakeResponse()
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    class _FakeClient:
+        chat = _FakeChat()
+
+    monkeypatch.setattr(
+        coach_chat_service, "AsyncOpenAI", lambda *, api_key, base_url: _FakeClient()
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.services.coach_chat_service"):
+        result = await _call_zai("test-key", "https://api.z.ai/v1", "glm-4.7-flash", "system", [])
+
+    assert result == "Тестовый ответ"
+    assert caplog.records == []

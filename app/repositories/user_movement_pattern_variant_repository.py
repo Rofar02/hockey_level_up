@@ -36,3 +36,23 @@ class UserMovementPatternVariantRepository:
             )
         )
         return {(row.movement_pattern, row.archetype): row for row in result.scalars().all()}
+
+    async def list_for_user_exercise(
+        self, user_id: uuid.UUID, exercise_id: uuid.UUID
+    ) -> list[UserMovementPatternVariant]:
+        """Every pin currently pointing at `exercise_id` for this user, across
+        every category/pattern/archetype -- backs the ceiling-escalation
+        patch (ScheduleService.escalate_ceiling_variant_for_week), which
+        needs to find "which pin(s) does the just-completed exercise hold"
+        rather than "what's pinned for a known pattern" (list_for_user_category's
+        own direction). Almost always 0 or 1 rows; more than 1 only if the
+        same exercise is tagged under more than one movement_pattern, each
+        independently pinned.
+        """
+        result = await self._session.execute(
+            select(UserMovementPatternVariant).where(
+                UserMovementPatternVariant.user_id == user_id,
+                UserMovementPatternVariant.exercise_id == exercise_id,
+            )
+        )
+        return list(result.scalars().all())

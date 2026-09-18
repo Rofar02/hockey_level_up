@@ -5,6 +5,7 @@ import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Iterator
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -66,6 +67,8 @@ from app.repositories.user_movement_pattern_variant_repository import (
 from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
 from app.schemas.exercise import exercise_to_read
 from app.schemas.schedule import (
+    CeilingEscalationRead,
+    DayPlanIn,
     DayPlanRead,
     ScheduleConflictRead,
     SessionBlockRead,
@@ -153,6 +156,10 @@ _COOLDOWN_SEQUENCE_MAX = 4
 # catalog only has 3 STICK_HANDLING-pattern exercises total.
 _PUCK_MODULE_MAX_EXERCISES = 4
 
+# 2026-09-18 audit round 2 item #4: _choose_guaranteed_slot_dates' own RNG,
+# deliberately separate from the module-level random.choice/shuffle every
+# other picker in this file uses -- see that method's own docstring for why.
+_GUARANTEED_SLOT_RNG = random.Random()
 
 
 class ScheduleService:
@@ -169,6 +176,45 @@ class ScheduleService:
         self._reps_suggestions = RepsSuggestionService(session)
         self._diary = TrainingDiaryRepository(session)
 
+    @staticmethod
+    def _choose_guaranteed_slot_dates(days: list[DayPlanIn]) -> tuple[date | None, date | None]:
+        """2026-09-18 audit round 2 item #4 ("выносливость и катание почти не
+        попадают в основной блок"): which OFF_ICE day, if any, gets this
+        batch's guaranteed endurance-stimulus accessory pick, and which gets
+        its guaranteed locomotion ("катание") pick -- see _pick_main's
+        guarantee_endurance/guarantee_locomotion params. Chosen ONCE per
+        batch (a single create_weekly_plan/_patch_weekly_plan call), the
+        same scoping _build_archetype_rotation already uses and for the
+        same reason: there's no separate persisted "this week's guarantee
+        is already satisfied" record, so a later, separate patch call to
+        different days of the same week can independently choose its own
+        guarantee day again. Accepted, same as archetype_rotation's own
+        scoping.
+
+        Endurance and locomotion dates are chosen independently (may land
+        on the same day or different days) -- _pick_main's own role-4 logic
+        folds them onto a single accessory slot when they do and the
+        catalog allows it. None for an axis (or both) when `days` has no
+        OFF_ICE entry at all -- no day to guarantee anything into, same
+        "never force a slot that can't exist" convention as every other
+        best-effort layer in this file.
+
+        Uses its own random.Random() instance rather than the module-level
+        random.choice every other picker in this file goes through --
+        several test files (test_puck_module.py, test_schedule_service_
+        game_day.py, ...) monkeypatch random.choice/shuffle process-wide
+        assuming every call is choosing between Exercise-like objects
+        (`sorted(pool, key=lambda e: e.name)`), which breaks on a plain
+        `date`. A dedicated instance sidesteps that without touching those
+        tests' own conventions -- this is the only picker in the class
+        choosing between dates, not exercises, so it doesn't need the
+        same test-wide determinism hook the others share.
+        """
+        off_ice_dates = [d.date for d in days if d.session_type == DaySessionType.OFF_ICE]
+        if not off_ice_dates:
+            return None, None
+        return _GUARANTEED_SLOT_RNG.choice(off_ice_dates), _GUARANTEED_SLOT_RNG.choice(off_ice_dates)
+
     async def create_weekly_plan(self, user: User, payload: WeeklyPlanCreate) -> WeeklyPlanRead:
         dates = [day.date for day in payload.days]
         if len(set(dates)) != len(dates):
@@ -180,6 +226,7 @@ class ScheduleService:
         training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
         block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
         archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
+        endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(payload.days)
 
         weekly_plan = WeeklyPlan(
             user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
@@ -197,6 +244,8 @@ class ScheduleService:
                     training_block,
                     today=day_in.date,
                     archetype_rotation=archetype_rotation,
+                    guarantee_endurance=day_in.date == endurance_date,
+                    guarantee_locomotion=day_in.date == locomotion_date,
                 )
             weekly_plan.day_plans.append(day_plan)
 
@@ -214,7 +263,11 @@ class ScheduleService:
         return await self._to_read_schema(saved)
 
     async def get_current_weekly_plan(self, user: User) -> WeeklyPlanRead:
-        weekly_plan = await self._schedule.get_current(user.id, date.today())
+        # 2026-09-18 fix (audit round 2 item #3, continuation of round 1
+        # item #10): date.today() read the *server's* timezone -- see
+        # ProgressService.get_streak's matching fix for the full reasoning.
+        today = datetime.now(ZoneInfo(user.timezone)).date()
+        weekly_plan = await self._schedule.get_current(user.id, today)
         if weekly_plan is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="No current weekly plan"
@@ -274,7 +327,10 @@ class ScheduleService:
             )
 
         if week_start_date is None:
-            weekly_plan = await self._schedule.get_current(user.id, date.today())
+            # 2026-09-18 fix (audit round 2 item #3): see
+            # get_current_weekly_plan's matching fix above.
+            today = datetime.now(ZoneInfo(user.timezone)).date()
+            weekly_plan = await self._schedule.get_current(user.id, today)
             not_found_detail = "No current weekly plan"
         else:
             weekly_plan = await self._schedule.get_by_week_start_date(user.id, week_start_date)
@@ -290,6 +346,7 @@ class ScheduleService:
             user, training_block.phase if training_block is not None else BlockPhase.ACCUMULATION
         )
         archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
+        endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(payload.days)
 
         conflicts: list[ScheduleConflictRead] = []
         for day_in in payload.days:
@@ -331,6 +388,8 @@ class ScheduleService:
                     training_block,
                     today=day_in.date,
                     archetype_rotation=archetype_rotation,
+                    guarantee_endurance=day_in.date == endurance_date,
+                    guarantee_locomotion=day_in.date == locomotion_date,
                 )
 
         await self._session.commit()
@@ -372,6 +431,8 @@ class ScheduleService:
         *,
         today: date | None = None,
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
+        guarantee_endurance: bool = False,
+        guarantee_locomotion: bool = False,
     ) -> TrainingSession:
         """Dispatch to the GAME-day builder (light activation only), the
         ON_ICE-day builder (on-ice warmup+cooldown only, no MAIN -- see
@@ -379,11 +440,13 @@ class ScheduleService:
         single place both create_weekly_plan and _patch_weekly_plan go
         through, so neither has to know GAME/ON_ICE are special cases.
 
-        training_block (Phase: П.3), today (Phase: П.5, tournament taper)
-        and archetype_rotation (batch-wide round-robin, see
-        _build_archetype_rotation) are only ever consumed by the regular
-        builder's _pick_main -- GAME/ON_ICE days have no MAIN block at
-        all, so neither of their builders needs any of them.
+        training_block (Phase: П.3), today (Phase: П.5, tournament taper),
+        archetype_rotation (batch-wide round-robin, see
+        _build_archetype_rotation) and guarantee_endurance/
+        guarantee_locomotion (round 2 audit item #4, see
+        _choose_guaranteed_slot_dates) are only ever consumed by the
+        regular builder's _pick_main -- GAME/ON_ICE days have no MAIN
+        block at all, so neither of their builders needs any of them.
         """
         if session_type == DaySessionType.GAME:
             return await self._build_game_day_session(user, block_phase)
@@ -392,6 +455,8 @@ class ScheduleService:
         return await self._build_training_session(
             session_type, user, block_phase, training_block, today=today,
             archetype_rotation=archetype_rotation,
+            guarantee_endurance=guarantee_endurance,
+            guarantee_locomotion=guarantee_locomotion,
         )
 
     async def _build_game_day_session(self, user: User, block_phase: BlockPhase) -> TrainingSession:
@@ -480,6 +545,8 @@ class ScheduleService:
         *,
         today: date | None = None,
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
+        guarantee_endurance: bool = False,
+        guarantee_locomotion: bool = False,
     ) -> TrainingSession:
         """MAIN is picked first and warmup/cooldown are chosen retrospectively
         to match it (Phase 3) -- storage order of `blocks` is still
@@ -496,6 +563,8 @@ class ScheduleService:
             training_block=training_block,
             today=today,
             archetype_rotation=archetype_rotation,
+            guarantee_endurance=guarantee_endurance,
+            guarantee_locomotion=guarantee_locomotion,
         )
         main_exercise_ids = [exercise.id for exercise in main_exercises]
         main_patterns = await self._movement_patterns_union(main_exercise_ids)
@@ -898,6 +967,8 @@ class ScheduleService:
         training_block: TrainingBlock | None = None,
         today: date | None = None,
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
+        guarantee_endurance: bool = False,
+        guarantee_locomotion: bool = False,
     ) -> list[Exercise]:
         """Stage 2.4 (2026-08-20 planning session): role-based assembly,
         replacing the old flat "shuffle every movement_pattern, fill up to
@@ -988,11 +1059,34 @@ class ScheduleService:
         -- once RepsSuggestionService.is_stuck_at_ceiling says the user has
         hit the top of its rep range with good feedback, since ordinary
         double progression has no weight lever to reach for there. The
-        fresh pick that follows softly prefers a same-pattern candidate
-        with a strictly higher difficulty_level than the outgoing one
-        (falling back to the unfiltered pool if none exists), so the
-        escalation is a genuine step up rather than a same-difficulty
-        lateral swap. Never fires through a macrocycle-deload hold.
+        fresh pick that follows prefers a same-pattern candidate with a
+        strictly higher difficulty_level than the outgoing one; at a real
+        difficulty ceiling for that pattern (2026-09-18 audit round 2 item
+        #1), a different same-difficulty variant instead of a downgrade --
+        see _tier_by_escalated_difficulty. Never fires through a
+        macrocycle-deload hold.
+
+        Guaranteed endurance/locomotion slot (role 4 only, 2026-09-18 audit
+        round 2 item #4): "выносливость и катание почти не попадают в
+        основной блок" -- role 4's own random accessory pick almost never
+        happened to land on a StimulusType.ENDURANCE exercise or the
+        LOCOMOTION pattern, since neither role 1 (prefers POWER/SKILL) nor
+        role 4 (no stimulus preference at all before this) favored them.
+        guarantee_endurance/guarantee_locomotion, resolved once per batch
+        by _choose_guaranteed_slot_dates, move whichever accessory
+        pattern(s) can satisfy each into role 4's iteration order first --
+        substituting a slot that would have gone to some other accessory
+        pick, not adding a new one. Same softness as every other
+        preference layer here: if the catalog has no ENDURANCE-stimulus
+        candidate among this session's remaining accessory patterns, or
+        LOCOMOTION was already claimed by role 1, the guarantee just
+        doesn't fire rather than forcing an empty/wrong pick. When
+        LOCOMOTION is itself the (or an) ENDURANCE-stimulus carrier, both
+        guarantees fold onto its single slot instead of spending two.
+        Exercises actually placed by either guarantee are protected from
+        _enforce_muscle_group_cap's substitution below, so a muscle-group
+        pile-up can't silently undo the one thing this feature exists to
+        guarantee.
 
         Unilateral preference (role 2 only, hip_hinge/squat): skating is
         an inherently one-legged push, so a squat/hip_hinge exercise
@@ -1008,9 +1102,10 @@ class ScheduleService:
         which day_archetype.forces_technical_archetype also reads (see
         above). A user-set tournament_date (Phase: П.5 taper) overrides
         season_period outright on that same axis for the final
-        TAPER_WINDOW_WEEKS before it. today defaults to date.today() for
-        every real caller, injectable purely for deterministic tests/
-        simulation, same shape as
+        TAPER_WINDOW_WEEKS before it. today defaults to the user's own
+        today (ZoneInfo(user.timezone) -- 2026-09-18 fix, audit round 2
+        item #3) for every real caller, injectable purely for
+        deterministic tests/simulation, same shape as
         TrainingBlockService.resolve_active_block's own `today` param.
         """
         candidates = await self._exercises.list_for_assembly(
@@ -1019,7 +1114,7 @@ class ScheduleService:
         if not candidates:
             return []
 
-        resolved_today = today or date.today()
+        resolved_today = today or datetime.now(ZoneInfo(user.timezone)).date()
         tapering = is_tapering(resolved_today, user.tournament_date)
         final_taper_week = is_final_taper_week(resolved_today, user.tournament_date)
         count_min, count_max = main_exercise_count_range(
@@ -1179,14 +1274,7 @@ class ScheduleService:
                     stat_pool = [e for e in pool if e.id != existing_pin.exercise_id] or pool
 
                 if escalate_difficulty:
-                    # Same 3-tier "narrow, fall back to the broader pool if
-                    # empty" shape as every other preference layer here --
-                    # a harder variant is a soft preference, not a hard
-                    # requirement, since most patterns only have a couple
-                    # of same-pattern candidates in the catalog today.
-                    stat_pool = [
-                        e for e in stat_pool if e.difficulty_level > pinned_exercise.difficulty_level
-                    ] or stat_pool
+                    stat_pool = self._tier_by_escalated_difficulty(stat_pool, pinned_exercise)
 
                 if stimulus_preference is not None:
                     stat_pool = [
@@ -1325,8 +1413,52 @@ class ScheduleService:
             used_patterns.add(used_role1_pattern)
         accessory_patterns = [pattern for pattern in MovementPattern if pattern not in used_patterns]
         random.shuffle(accessory_patterns)
+
+        # Guaranteed endurance/locomotion slot (2026-09-18 audit round 2
+        # item #4) -- see this method's own docstring for the full
+        # reasoning. Both guarantees are resolved against the full
+        # (already-shuffled) accessory_patterns list, LOCOMOTION included
+        # even when the skating guarantee already moved it to the front,
+        # so the two can fold onto a single slot when it's also the (or
+        # an) ENDURANCE-stimulus carrier -- never two separately-reserved
+        # slots for what the catalog can satisfy in one.
+        priority_patterns: list[MovementPattern] = []
+        if guarantee_locomotion and MovementPattern.LOCOMOTION in accessory_patterns:
+            priority_patterns.append(MovementPattern.LOCOMOTION)
+
+        stimulus_pref_by_pattern: dict[MovementPattern, frozenset[StimulusType]] = {}
+        if guarantee_endurance:
+            endurance_capable_patterns = [
+                pattern for pattern in accessory_patterns
+                if any(
+                    exercise.stimulus_type == StimulusType.ENDURANCE
+                    for exercise in by_pattern.get(pattern, ())
+                )
+            ]
+            if endurance_capable_patterns:
+                endurance_pattern = random.choice(endurance_capable_patterns)
+                stimulus_pref_by_pattern[endurance_pattern] = frozenset({StimulusType.ENDURANCE})
+                if endurance_pattern not in priority_patterns:
+                    priority_patterns.append(endurance_pattern)
+
+        for pattern in priority_patterns:
+            accessory_patterns.remove(pattern)
+        accessory_patterns = priority_patterns + accessory_patterns
+
+        guaranteed_exercise_ids: set[uuid.UUID] = set()
         for pattern in accessory_patterns:
-            await pick_for_pattern(pattern, archetype=None, use_muscle_context=True)
+            choice = await pick_for_pattern(
+                pattern,
+                archetype=None,
+                stimulus_preference=stimulus_pref_by_pattern.get(pattern),
+                use_muscle_context=True,
+            )
+            if choice is None:
+                continue
+            if guarantee_locomotion and pattern == MovementPattern.LOCOMOTION:
+                guaranteed_exercise_ids.add(choice.id)
+            if pattern in stimulus_pref_by_pattern and choice.stimulus_type == StimulusType.ENDURANCE:
+                guaranteed_exercise_ids.add(choice.id)
 
         # Final coherence pass (Stage 2.4, 2026-08-20 planning session):
         # role 4's own muscle-balance check only sees the pool *at the
@@ -1337,8 +1469,13 @@ class ScheduleService:
         # docstring). This is the whole-session hindsight check the plan
         # asked for: "не более N упражнений на одну мышцу", with a
         # point-fix in the offending pattern's own pool rather than a
-        # full reassembly.
-        picked = self._enforce_muscle_group_cap(picked, patterns_by_exercise, by_pattern, muscle_groups_by_exercise)
+        # full reassembly. guaranteed_exercise_ids (2026-09-18 audit round
+        # 2 item #4) are exempted from being swapped out here -- counted
+        # toward the overload same as anything else, just never the fix.
+        picked = self._enforce_muscle_group_cap(
+            picked, patterns_by_exercise, by_pattern, muscle_groups_by_exercise,
+            protected_exercise_ids=guaranteed_exercise_ids,
+        )
 
         return picked
 
@@ -1348,6 +1485,8 @@ class ScheduleService:
         patterns_by_exercise: dict[uuid.UUID, list[MovementPattern]],
         by_pattern: dict[MovementPattern, list[Exercise]],
         muscle_groups_by_exercise: dict[uuid.UUID, set[MuscleGroup]],
+        *,
+        protected_exercise_ids: frozenset[uuid.UUID] | set[uuid.UUID] = frozenset(),
     ) -> list[Exercise]:
         """_pick_main's whole-session hindsight pass, run once after every
         role is filled -- see that call site's own comment for why this
@@ -1375,6 +1514,17 @@ class ScheduleService:
         over a soft/best-effort concern" convention as every layer above
         this one; a residual pile-up from genuine catalog scarcity is
         honest, not silently hidden by dropping a slot.
+
+        protected_exercise_ids (2026-09-18 audit round 2 item #4): exercises
+        _pick_main's guarantee_endurance/guarantee_locomotion actually
+        placed -- skipped as a *substitution candidate* (never picked to be
+        swapped OUT), but still fully counted in `counts` above, same as
+        any other exercise. A muscle group that's only over cap because of
+        a protected exercise stays honestly over cap rather than silently
+        losing the guarantee to fix it -- this function was already willing
+        to leave a residual pile-up when no substitute existed at all; this
+        is the same acceptance, just for a case where a substitute exists
+        but isn't allowed to be used.
         """
         picked_ids = {e.id for e in picked}
         for _ in range(len(picked)):
@@ -1392,6 +1542,8 @@ class ScheduleService:
 
             fixed = False
             for offender in offenders:
+                if offender.id in protected_exercise_ids:
+                    continue
                 pool: list[Exercise] = []
                 for pattern in patterns_by_exercise.get(offender.id, ()):
                     pool.extend(by_pattern.get(pattern, ()))
@@ -1502,6 +1654,37 @@ class ScheduleService:
             e for e in pool if not (muscle_groups_by_exercise.get(e.id, set()) & loaded_muscle_groups)
         ]
         return varied or pool
+
+    @staticmethod
+    def _tier_by_escalated_difficulty(pool: list[Exercise], outgoing: Exercise) -> list[Exercise]:
+        """Bodyweight-escalation tiering (Stage 2.6, extended 2026-09-18
+        audit round 2 item #1): shared by pick_for_pattern's own
+        escalate_difficulty branch and escalate_ceiling_variant_for_week's
+        week-patch. Three tiers, same "narrow, fall back if empty" shape as
+        every other preference layer in this file:
+
+          1. Strictly higher difficulty_level than `outgoing` -- a genuine
+             step up, the normal case.
+          2. No such candidate (a real difficulty ceiling for this pattern/
+             stimulus -- common for push/pull bodyweight work, which the
+             catalog only has a couple of difficulty tiers for) -> a
+             *different* same-difficulty variant instead, so the swap is
+             still lateral variety, never a downgrade. `outgoing` itself is
+             always excluded here regardless of whether `pool` already did
+             -- the point of this tier existing at all is to never silently
+             hand back the exercise that's already stuck.
+          3. Nothing else in `pool` either (a genuine catalog gap, or
+             `pool` had nothing but `outgoing` to begin with) -> the
+             unfiltered `pool`, or `outgoing` itself as the absolute last
+             resort so a caller never has to handle an empty result.
+        """
+        higher = [e for e in pool if e.difficulty_level > outgoing.difficulty_level]
+        if higher:
+            return higher
+        same = [e for e in pool if e.difficulty_level == outgoing.difficulty_level and e.id != outgoing.id]
+        if same:
+            return same
+        return pool or [outgoing]
 
     async def _apply_difficulty_gate(
         self,
@@ -1928,6 +2111,141 @@ class ScheduleService:
             skipped_at=block.skipped_at,
             exercise=exercise_to_read(new_exercise, target_stats),
         )
+
+    async def escalate_ceiling_variant_for_week(
+        self, user: User, exercise: Exercise
+    ) -> list[CeilingEscalationRead]:
+        """2026-09-18 audit round 2 item #1: SessionBlockService.complete_block's
+        synchronous follow-up to a just-completed MAIN block. A
+        tracks_weight=false exercise that's genuinely stuck (see
+        RepsSuggestionService.is_stuck_at_ceiling) doesn't just wait for the
+        next fresh day-generation to swap itself out -- create_weekly_plan
+        already built every day of the current week up front, so an
+        already-generated-but-not-yet-started day would otherwise keep
+        showing the stuck exercise for the rest of the week. This patches
+        those specific SessionBlock rows directly (exercise_id only,
+        nothing else about the day) rather than regenerating the day, and
+        moves the UserMovementPatternVariant pin itself so any later fresh
+        assembly (next block boundary, a new week) picks up the same
+        change. Returns one CeilingEscalationRead per pin actually moved --
+        empty whenever escalation doesn't apply, or the catalog has no real
+        substitute for a pin (see _tier_by_escalated_difficulty's
+        last-resort tier landing back on `exercise` itself).
+
+        "Not yet started" = day.date strictly after the user's today (never
+        today's own day -- that's the one currently being completed) AND
+        every block in that day's session is still unresolved. A day
+        that's only partially touched (e.g. warmup already logged ahead of
+        time) is left alone entirely, same caution as _patch_weekly_plan's
+        own "already begun" guard, even though this method only ever
+        touches one exercise_id at a time rather than rebuilding the day.
+
+        Committing is the caller's job, not this method's -- every write
+        here is an in-place mutation plus a single flush, so it composes
+        into SessionBlockService.complete_block's own transaction instead
+        of risking a patched week whose triggering block completion then
+        fails to commit.
+        """
+        if exercise.tracks_weight:
+            return []
+        if not await self._reps_suggestions.is_stuck_at_ceiling(user, exercise):
+            return []
+
+        pins = await self._variants.list_for_user_exercise(user.id, exercise.id)
+        if not pins:
+            return []
+
+        today = datetime.now(ZoneInfo(user.timezone or "UTC")).date()
+        weekly_plan = await self._schedule.get_current(user.id, today)
+        if weekly_plan is None:
+            return []
+
+        untouched_future_sessions = [
+            day_plan.training_session
+            for day_plan in weekly_plan.day_plans
+            if day_plan.date > today
+            and day_plan.training_session is not None
+            and all(
+                block.completed_at is None and block.skipped_at is None
+                for block in day_plan.training_session.blocks
+            )
+        ]
+        if not untouched_future_sessions:
+            return []
+
+        training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
+        block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
+
+        escalations: list[CeilingEscalationRead] = []
+        for pin in pins:
+            new_exercise = await self._pick_ceiling_escalation_candidate(
+                user, block_phase, pin, exercise
+            )
+            if new_exercise is None or new_exercise.id == exercise.id:
+                # No genuine substitute for this pin (catalog gap) -- leave
+                # the pin and every SessionBlock exactly as they are rather
+                # than "escalate" to the same stuck exercise.
+                continue
+
+            pin.exercise_id = new_exercise.id
+            if pin.archetype is None or new_exercise.stimulus_type == pin.archetype:
+                pin.last_chosen_at = today
+
+            for training_session in untouched_future_sessions:
+                for block in training_session.blocks:
+                    if block.exercise_id == exercise.id:
+                        block.exercise_id = new_exercise.id
+
+            escalations.append(
+                CeilingEscalationRead(
+                    old_exercise_name=exercise.name, new_exercise_name=new_exercise.name
+                )
+            )
+
+        if escalations:
+            await self._session.flush()
+        return escalations
+
+    async def _pick_ceiling_escalation_candidate(
+        self,
+        user: User,
+        block_phase: BlockPhase,
+        pin: UserMovementPatternVariant,
+        outgoing: Exercise,
+    ) -> Exercise | None:
+        """One pin's half of escalate_ceiling_variant_for_week -- deliberately
+        simpler than pick_for_pattern's own closure (no rotation/deload-hold
+        bookkeeping, the caller already resolved that this pin needs to
+        move), same shape as _pick_main_replacement otherwise: readiness
+        gate -> narrow to the pin's exact movement_pattern -> narrow to its
+        stimulus archetype if it has one -> _tier_by_escalated_difficulty.
+        """
+        candidates = await self._exercises.list_for_assembly(
+            phase=TrainingPhase.MAIN, user=user, category=pin.category
+        )
+        candidates = [e for e in candidates if e.id != outgoing.id]
+        if not candidates:
+            return None
+
+        patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(
+            [e.id for e in candidates]
+        )
+        pool = [e for e in candidates if pin.movement_pattern in patterns_by_id.get(e.id, ())]
+        if not pool:
+            return None
+
+        pool, gate_exhausted = await self._apply_difficulty_gate(
+            pool, user, context=f"ceiling_escalation/{pin.category}/{pin.movement_pattern}"
+        )
+        difficulty_predicate = DIFFICULTY_PRIORITY_PREDICATES.get(block_phase)
+        if difficulty_predicate is not None and not gate_exhausted:
+            pool = [e for e in pool if difficulty_predicate(e)] or pool
+
+        if pin.archetype is not None:
+            pool = [e for e in pool if e.stimulus_type == pin.archetype] or pool
+
+        tiered = self._tier_by_escalated_difficulty(pool, outgoing)
+        return random.choice(tiered)
 
     # 2026-09-17 (audit item #3): the only session_types TrainingDiaryCard
     # ever renders for (see TrainingSessionPage.tsx) -- has_diary_entry is
