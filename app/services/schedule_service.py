@@ -263,7 +263,11 @@ class ScheduleService:
         return await self._to_read_schema(saved)
 
     async def get_current_weekly_plan(self, user: User) -> WeeklyPlanRead:
-        weekly_plan = await self._schedule.get_current(user.id, date.today())
+        # 2026-09-18 fix (audit round 2 item #3, continuation of round 1
+        # item #10): date.today() read the *server's* timezone -- see
+        # ProgressService.get_streak's matching fix for the full reasoning.
+        today = datetime.now(ZoneInfo(user.timezone)).date()
+        weekly_plan = await self._schedule.get_current(user.id, today)
         if weekly_plan is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="No current weekly plan"
@@ -323,7 +327,10 @@ class ScheduleService:
             )
 
         if week_start_date is None:
-            weekly_plan = await self._schedule.get_current(user.id, date.today())
+            # 2026-09-18 fix (audit round 2 item #3): see
+            # get_current_weekly_plan's matching fix above.
+            today = datetime.now(ZoneInfo(user.timezone)).date()
+            weekly_plan = await self._schedule.get_current(user.id, today)
             not_found_detail = "No current weekly plan"
         else:
             weekly_plan = await self._schedule.get_by_week_start_date(user.id, week_start_date)
@@ -1095,9 +1102,10 @@ class ScheduleService:
         which day_archetype.forces_technical_archetype also reads (see
         above). A user-set tournament_date (Phase: П.5 taper) overrides
         season_period outright on that same axis for the final
-        TAPER_WINDOW_WEEKS before it. today defaults to date.today() for
-        every real caller, injectable purely for deterministic tests/
-        simulation, same shape as
+        TAPER_WINDOW_WEEKS before it. today defaults to the user's own
+        today (ZoneInfo(user.timezone) -- 2026-09-18 fix, audit round 2
+        item #3) for every real caller, injectable purely for
+        deterministic tests/simulation, same shape as
         TrainingBlockService.resolve_active_block's own `today` param.
         """
         candidates = await self._exercises.list_for_assembly(
@@ -1106,7 +1114,7 @@ class ScheduleService:
         if not candidates:
             return []
 
-        resolved_today = today or date.today()
+        resolved_today = today or datetime.now(ZoneInfo(user.timezone)).date()
         tapering = is_tapering(resolved_today, user.tournament_date)
         final_taper_week = is_final_taper_week(resolved_today, user.tournament_date)
         count_min, count_max = main_exercise_count_range(

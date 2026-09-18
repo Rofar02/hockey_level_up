@@ -1,5 +1,6 @@
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,10 +22,15 @@ class UserTemporaryRestrictionService:
         self._restrictions = UserTemporaryRestrictionRepository(session)
 
     async def list_active(self, user: User) -> list[UserTemporaryRestriction]:
-        return await self._restrictions.list_active_for_user(user.id, date.today())
+        # 2026-09-18 fix (audit round 2 item #3): date.today() read the
+        # *server's* timezone -- see ProgressService.get_streak's matching
+        # fix for the full reasoning.
+        today = datetime.now(ZoneInfo(user.timezone)).date()
+        return await self._restrictions.list_active_for_user(user.id, today)
 
     async def list_resolved(self, user: User, limit: int) -> list[UserTemporaryRestriction]:
-        return await self._restrictions.list_resolved_for_user(user.id, date.today(), limit)
+        today = datetime.now(ZoneInfo(user.timezone)).date()
+        return await self._restrictions.list_resolved_for_user(user.id, today, limit)
 
     async def report(
         self,
@@ -46,7 +52,7 @@ class UserTemporaryRestrictionService:
                 detail="Specify exactly one of movement_pattern or muscle_group",
             )
 
-        today = date.today()
+        today = datetime.now(ZoneInfo(user.timezone)).date()
         new_expires_at = today + timedelta(days=DEFAULT_RESTRICTION_DAYS)
 
         existing = (

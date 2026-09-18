@@ -112,7 +112,18 @@ class TeamRatingService:
         )
 
     async def _completed_trainings_count(self, team_id: uuid.UUID) -> int:
-        since = date.today() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)
+        # 2026-09-18 (audit round 2 item #3, reviewed but deliberately NOT
+        # applying the ZoneInfo(user.timezone) fix the other 5 flagged
+        # files got): this is a whole-team aggregate, not one user's own
+        # data -- unlike get_streak/get_current_weekly_plan/etc., there is
+        # no single owning user whose calendar day this window should
+        # follow, and a member-by-member per-row conversion would turn
+        # `since` from a Python constant into a per-row SQL expression,
+        # a materially bigger change (and _completed_trainings_count_by_team
+        # below groups across *every* team in one query, where it isn't
+        # even well-defined -- whose timezone would the boundary use?).
+        # UTC is an intentional, understood choice here, not the same bug.
+        since = date.today() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)  # noqa: DTZ011
         result = await self._session.execute(
             select(func.count(DayPlan.id))
             .select_from(DayPlan)
@@ -128,7 +139,10 @@ class TeamRatingService:
         return result.scalar_one()
 
     async def _completed_trainings_count_by_team(self) -> dict[uuid.UUID, int]:
-        since = date.today() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)
+        # Same intentional UTC choice as _completed_trainings_count above --
+        # this one groups across *every* team in a single query, where a
+        # per-user timezone isn't even well-defined to begin with.
+        since = date.today() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)  # noqa: DTZ011
         result = await self._session.execute(
             select(TeamMembership.team_id, func.count(DayPlan.id))
             .select_from(DayPlan)

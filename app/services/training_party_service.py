@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 from typing import NamedTuple
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,7 +71,10 @@ class TrainingPartyService:
     # -- party lifecycle --
 
     async def create_party(self, creator: User, payload: TrainingPartyCreate) -> TrainingPartyDetailRead:
-        if payload.target_date < date.today():
+        # 2026-09-18 fix (audit round 2 item #3): date.today() read the
+        # *server's* timezone -- see ProgressService.get_streak's matching
+        # fix for the full reasoning.
+        if payload.target_date < datetime.now(ZoneInfo(creator.timezone)).date():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Нельзя позвать на тренировку в прошедшую дату",
@@ -101,7 +105,7 @@ class TrainingPartyService:
             await self._parties.create_member(party.id, friend_id, TrainingPartyMemberStatus.INVITED)
 
         await self._session.commit()
-        return await self._to_detail_read(party)
+        return await self._to_detail_read(party, creator)
 
     async def list_my_parties(self, user: User) -> list[TrainingPartySummaryRead]:
         memberships = await self._parties.list_joined_party_ids_for_user(user.id)
@@ -115,7 +119,7 @@ class TrainingPartyService:
                 TrainingPartySummaryRead(
                     id=party.id,
                     target_date=party.target_date,
-                    status=self._effective_status(party),
+                    status=self._effective_status(party, user),
                     member_count=member_count,
                     is_creator=party.created_by == user.id,
                 )
@@ -123,7 +127,8 @@ class TrainingPartyService:
         return summaries
 
     async def list_incoming_invites(self, user: User) -> list[TrainingPartyInviteRead]:
-        invites = await self._parties.list_incoming_invites(user.id, date.today())
+        today = datetime.now(ZoneInfo(user.timezone)).date()
+        invites = await self._parties.list_incoming_invites(user.id, today)
         reads = []
         for invite in invites:
             party = await self._parties.get_party_by_id(invite.party_id)
@@ -153,7 +158,7 @@ class TrainingPartyService:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Вы не участник этой тренировки"
             )
-        return await self._to_detail_read(party)
+        return await self._to_detail_read(party, user)
 
     async def respond_to_invite(
         self, user: User, party_id: uuid.UUID, accept: bool
@@ -190,7 +195,7 @@ class TrainingPartyService:
             member.status = TrainingPartyMemberStatus.DECLINED
 
         await self._session.commit()
-        return await self._to_detail_read(party)
+        return await self._to_detail_read(party, user)
 
     async def cancel_party(self, user: User, party_id: uuid.UUID) -> None:
         party = await self._get_party_or_404(party_id)
@@ -288,7 +293,7 @@ class TrainingPartyService:
 
         party.exercises_finalized_at = datetime.now(timezone.utc)
         await self._session.commit()
-        return await self._to_detail_read(party)
+        return await self._to_detail_read(party, user)
 
     # -- auto-completion (called from SessionBlockService, same transaction
     # as the training_completed event -- no commit here, the caller's own
@@ -443,8 +448,16 @@ class TrainingPartyService:
         return exercises_to_read(exercises, stats_by_id)
 
     @staticmethod
-    def _effective_status(party: TrainingParty) -> PartyStatus:
-        if party.status == TrainingPartyStatus.PENDING and party.target_date < date.today():
+    def _effective_status(party: TrainingParty, viewer: User) -> PartyStatus:
+        """2026-09-18 fix (audit round 2 item #3): date.today() read the
+        *server's* timezone -- see ProgressService.get_streak's matching
+        fix for the full reasoning. A party has no single "owning"
+        timezone (members can span several), so "expired" is judged by
+        `viewer` -- the user actually asking, same as every other read in
+        this class -- rather than the creator's or some other member's.
+        """
+        today = datetime.now(ZoneInfo(viewer.timezone)).date()
+        if party.status == TrainingPartyStatus.PENDING and party.target_date < today:
             return "expired"
         return party.status.value  # type: ignore[return-value]
 
@@ -470,7 +483,7 @@ class TrainingPartyService:
             return _MemberStatus("completed", completed, total, day_plan.id)
         return _MemberStatus("in_progress", completed, total, day_plan.id)
 
-    async def _to_detail_read(self, party: TrainingParty) -> TrainingPartyDetailRead:
+    async def _to_detail_read(self, party: TrainingParty, viewer: User) -> TrainingPartyDetailRead:
         members_with_users = await self._parties.list_members_with_users(party.id)
         member_reads = []
         for member, user in members_with_users:
@@ -496,7 +509,7 @@ class TrainingPartyService:
             id=party.id,
             created_by=party.created_by,
             target_date=party.target_date,
-            status=self._effective_status(party),
+            status=self._effective_status(party, viewer),
             members=member_reads,
             created_at=party.created_at,
             completed_at=party.completed_at,
