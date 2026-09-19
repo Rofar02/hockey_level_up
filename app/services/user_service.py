@@ -18,6 +18,7 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserAdminUpdate, UserUpdate
 from app.services import image_processing
 from app.services.friend_service import FriendService
+from app.services.schedule_service import ScheduleService
 
 MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
 AVATAR_TARGET_SIZE = 400
@@ -29,6 +30,7 @@ class UserService:
         self._users = UserRepository(session)
         self._friends = FriendService(session)
         self._exercises = ExerciseRepository(session)
+        self._schedule = ScheduleService(session)
 
     async def update_profile(self, user: User, data: UserUpdate) -> User:
         updates = data.model_dump(exclude_unset=True)
@@ -57,10 +59,18 @@ class UserService:
         return list(await self._exercises.list_owned_equipment(user_id))
 
     async def replace_owned_equipment(
-        self, user_id: uuid.UUID, items: list[EquipmentItem]
+        self, user: User, items: list[EquipmentItem]
     ) -> list[EquipmentItem]:
         unique_items = list(dict.fromkeys(items))
-        await self._exercises.replace_owned_equipment(user_id, unique_items)
+        await self._exercises.replace_owned_equipment(user.id, unique_items)
+        # 2026-09-19 audit round 3 item #2: equipment added/removed
+        # mid-week (a hockey stick, most visibly -- see
+        # ScheduleService.patch_week_for_eligibility_change's own
+        # docstring) never touched the current week's already-generated,
+        # untouched days before this. Same transaction as the equipment
+        # row itself, same reasoning as
+        # UserTemporaryRestrictionService.report's identical call.
+        await self._schedule.patch_week_for_eligibility_change(user)
         await self._session.commit()
         return unique_items
 
