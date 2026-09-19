@@ -13,6 +13,7 @@ import * as coachChatApi from '../api/coachChat'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { CoachChatMessageRead, ProposedActionRead } from '../types/coachChat'
+import type { CoachPersonality } from '../types/user'
 
 export function CoachPage() {
   const { user, accessToken } = useAuth()
@@ -51,7 +52,13 @@ export function CoachPage() {
             history -- reaching the cap surfaces the backend's own 429
             detail message through the existing send-error banner, no
             special handling needed for that. */}
-        {accessToken !== null && <CoachChatContent accessToken={accessToken} hasPremium={hasPremium} />}
+        {accessToken !== null && (
+          <CoachChatContent
+            accessToken={accessToken}
+            hasPremium={hasPremium}
+            coachPersonality={user?.coach_personality ?? 'calm'}
+          />
+        )}
       </div>
 
       {showPersonalityIntro && (
@@ -76,7 +83,15 @@ function ComingSoonCard() {
   )
 }
 
-function CoachChatContent({ accessToken, hasPremium }: { accessToken: string; hasPremium: boolean }) {
+function CoachChatContent({
+  accessToken,
+  hasPremium,
+  coachPersonality,
+}: {
+  accessToken: string
+  hasPremium: boolean
+  coachPersonality: CoachPersonality
+}) {
   const { updateUser } = useAuth()
   const [messages, setMessages] = useState<CoachChatMessageRead[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -226,7 +241,7 @@ function CoachChatContent({ accessToken, hasPremium }: { accessToken: string; ha
             onDismissAction={handleDismissAction}
           />
         ))}
-        {isSending && <TypingIndicator />}
+        {isSending && <TypingIndicator personality={coachPersonality} />}
         <div ref={bottomRef} />
       </div>
 
@@ -383,6 +398,50 @@ function ProposedActionCard({
   )
 }
 
+// Same 4-way split as coach_personality_prompts.py's PERSONALITY_SYSTEM_PROMPTS
+// and app/services/coach_personality_phrases.py's REST_DONE/CHECKIN/REMINDER
+// pools -- purely decorative here (no LLM call, no server round-trip), just
+// keeping the loading state in the same voice as the personality the player
+// picked instead of a generic "Загрузка...".
+const THINKING_PHRASES: Record<CoachPersonality, string[]> = {
+  calm: [
+    'Думаю над ответом...',
+    'Собираю мысли...',
+    'Читаю твою сводку...',
+    'Подбираю слова...',
+    'Минутку, соображаю...',
+    'Взвешиваю варианты...',
+    'Смотрю на твой прогресс...',
+  ],
+  strict: [
+    'Анализирую...',
+    'Формулирую...',
+    'Сверяюсь с твоими данными...',
+    'Собираюсь с мыслями...',
+    'Просчитываю...',
+    'Готовлю ответ по делу...',
+    'Без спешки, но думаю...',
+  ],
+  humor: [
+    'Разгоняюсь на подступах к ответу...',
+    'Ищу шайбу в своих мыслях...',
+    'Делаю вбрасывание идей...',
+    'Форчекинг собственных мыслей...',
+    'Считаю до буллита...',
+    'Затачиваю коньки для ответа...',
+    'Ищу подходящую фразу в раздевалке...',
+  ],
+  vibe: [
+    'Думаю, бро...',
+    'Секунду, чел...',
+    'Го, собираю ответ...',
+    'Кручу мысли...',
+    'Момент, соображаю...',
+    'Погнали, почти готово...',
+    'Секу фишку, отвечаю...',
+  ],
+}
+
 // Shown in the thread itself (not just the send button's own "Загрузка..."
 // text) while waiting on the reply -- found live-testing, 2026-08-31: a
 // player looking at the message log during the several-second wait for a
@@ -390,20 +449,42 @@ function ProposedActionCard({
 // having silently hung rather than actually working. Same coach-side
 // avatar/bubble shape as ChatBubble's own assistant bubble so it reads as
 // "the coach is about to say something" rather than a generic spinner.
-function TypingIndicator() {
+function TypingIndicator({ personality }: { personality: CoachPersonality }) {
+  const phrases = THINKING_PHRASES[personality]
+  const [phraseIndex, setPhraseIndex] = useState(() => Math.floor(Math.random() * phrases.length))
+
+  useEffect(() => {
+    if (phrases.length <= 1) {
+      return
+    }
+    const interval = setInterval(() => {
+      setPhraseIndex((prev) => {
+        let next = Math.floor(Math.random() * phrases.length)
+        while (next === prev) {
+          next = Math.floor(Math.random() * phrases.length)
+        }
+        return next
+      })
+    }, 1700)
+    return () => clearInterval(interval)
+  }, [phrases])
+
   return (
     <div className="flex items-end gap-2 justify-start">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-ice/30 bg-accent-ice/10">
         <ShieldIcon size={18} />
       </span>
-      <div className="flex items-center gap-1 rounded-md border-t border-accent-ice/25 bg-accent-ice/[0.06] px-3 py-2.5">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-ice/70"
-            style={{ animationDelay: `${i * 0.15}s` }}
-          />
-        ))}
+      <div className="flex items-center gap-2 rounded-md border-t border-accent-ice/25 bg-accent-ice/[0.06] px-3 py-2.5">
+        <span className="text-xs text-[#8A94A6]">{phrases[phraseIndex]}</span>
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="h-1.5 w-1.5 animate-bounce rounded-full bg-accent-ice/70"
+              style={{ animationDelay: `${i * 0.15}s` }}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
