@@ -1258,6 +1258,38 @@ class ScheduleService:
                         use_pin = False
                         escalate_difficulty = True
 
+                # 2026-09-19 audit round 3 item #3: a reused pin (same_block
+                # or hold_through_deload above) never consulted
+                # stimulus_preference at all -- that filter only runs in the
+                # fresh-pick branch below. Role 4's accessory patterns get
+                # pinned and then held for a whole training block (Phase
+                # П.3), so once ANY non-preferred exercise wins a pin,
+                # guarantee_endurance's ENDURANCE ask for that same pattern
+                # silently never gets a chance to apply again until the pin
+                # breaks for an unrelated reason -- confirmed live: a
+                # full-year simulation with guarantee_endurance=True landed
+                # an ENDURANCE exercise in MAIN only 2/52, 0/52, 4/52 weeks
+                # across 3 equipment scenarios (vs. 38-45/52 for
+                # guarantee_locomotion, which only works because LOCOMOTION
+                # itself usually already satisfies it directly, no pin-break
+                # needed). Same fix also closes a dormant, unrelated gap for
+                # role 1's POWER/SKILL pool, which shares this same
+                # archetype=None pin key with role 4's accessory picks on
+                # whichever explosive pattern role 1 doesn't win that day.
+                # stimulus_type is None (uncatalogued exercise) is
+                # deliberately NOT treated as a mismatch here, same leniency
+                # is_genuine already gives it below -- only a real,
+                # classified-but-wrong stimulus breaks the pin. Never during
+                # a deload-hold, same reasoning as every check above.
+                if (
+                    use_pin
+                    and not hold_through_deload
+                    and stimulus_preference is not None
+                    and pinned_exercise.stimulus_type is not None
+                    and pinned_exercise.stimulus_type not in stimulus_preference
+                ):
+                    use_pin = False
+
             row = existing_pin
             if use_pin:
                 choice = pinned_exercise

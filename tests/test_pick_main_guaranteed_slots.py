@@ -16,6 +16,7 @@ import uuid
 from datetime import date, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from app.core.training_block import BlockPhase
 from app.models.exercise import (
@@ -29,8 +30,9 @@ from app.models.exercise import (
     StimulusType,
     TargetStat,
     TrainingPhase,
+    UserMovementPatternVariant,
 )
-from app.models.schedule import DaySessionType
+from app.models.schedule import DaySessionType, TrainingBlock
 from app.models.user import User
 from app.schemas.schedule import DayPlanIn
 from app.services.schedule_service import ScheduleService
@@ -338,6 +340,126 @@ def test_choose_guaranteed_slot_dates_is_a_no_op_for_a_week_with_no_off_ice_day(
 
     assert endurance_date is None
     assert locomotion_date is None
+
+
+@pytest.mark.asyncio
+async def test_guarantee_endurance_breaks_a_same_block_pin_holding_the_wrong_stimulus(
+    db_session, monkeypatch
+) -> None:
+    """2026-09-19 audit round 3 item #3: a same-block pin (Phase П.3 --
+    reused as-is for the whole training block) never used to consult
+    stimulus_preference at all, only the fresh-pick branch did. Since a
+    pattern gets pinned once and then held, once any non-ENDURANCE
+    exercise won it the guarantee could never fire again for that pattern
+    until the pin broke for an unrelated reason (rotation limit, stuck at
+    ceiling, a new block) -- confirmed live via a full-year simulation
+    landing ENDURANCE in MAIN only 2/52, 0/52, 4/52 weeks across 3
+    scenarios. This is the exact reused-pin path those earlier guarantee
+    tests never covered (none of them set up a TrainingBlock/pin at all,
+    so every pick there always went through the fresh-pick branch)."""
+    import random
+
+    monkeypatch.setattr(random, "randint", lambda a, b: 1)
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    training_block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1)
+    db_session.add(training_block)
+    exercises = _add_all(
+        db_session,
+        [
+            _make_exercise("A-rotation", MovementPattern.ROTATION, stimulus_type=StimulusType.STRENGTH),
+            _make_exercise("Pinned-strength-core", MovementPattern.CORE, stimulus_type=StimulusType.STRENGTH),
+            _make_exercise("Z-core-endurance", MovementPattern.CORE, stimulus_type=StimulusType.ENDURANCE),
+        ],
+    )
+    pinned_exercise = exercises[1]
+    db_session.add(
+        UserMovementPatternVariant(
+            user_id=user.id,
+            category=ExerciseCategory.OFF_ICE,
+            movement_pattern=MovementPattern.CORE,
+            archetype=None,
+            exercise_id=pinned_exercise.id,
+            block_number=1,
+        )
+    )
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
+
+    picked = await service._pick_main(
+        ExerciseCategory.OFF_ICE,
+        user,
+        BlockPhase.ACCUMULATION,
+        training_block=training_block,
+        guarantee_endurance=True,
+    )
+
+    assert [e.name for e in picked] == ["Z-core-endurance"]
+
+    result = await db_session.execute(
+        select(UserMovementPatternVariant).where(
+            UserMovementPatternVariant.user_id == user.id,
+            UserMovementPatternVariant.movement_pattern == MovementPattern.CORE,
+        )
+    )
+    pin = result.scalar_one()
+    assert pin.exercise_id == exercises[2].id
+
+
+@pytest.mark.asyncio
+async def test_guarantee_endurance_does_not_break_a_pin_with_unclassified_stimulus(
+    db_session, monkeypatch
+) -> None:
+    """A pinned exercise with stimulus_type=None (never classified) is
+    deliberately NOT treated as a mismatch -- same leniency is_genuine
+    already gives an unclassified exercise elsewhere in this same method,
+    a classification-completeness concern kept separate from this fix."""
+    import random
+
+    monkeypatch.setattr(random, "randint", lambda a, b: 1)
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    training_block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1)
+    db_session.add(training_block)
+    exercises = _add_all(
+        db_session,
+        [
+            _make_exercise("A-rotation", MovementPattern.ROTATION, stimulus_type=StimulusType.STRENGTH),
+            _make_exercise("Pinned-unclassified-core", MovementPattern.CORE, stimulus_type=None),
+            _make_exercise("Z-core-endurance", MovementPattern.CORE, stimulus_type=StimulusType.ENDURANCE),
+        ],
+    )
+    pinned_exercise = exercises[1]
+    db_session.add(
+        UserMovementPatternVariant(
+            user_id=user.id,
+            category=ExerciseCategory.OFF_ICE,
+            movement_pattern=MovementPattern.CORE,
+            archetype=None,
+            exercise_id=pinned_exercise.id,
+            block_number=1,
+        )
+    )
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, exercises)
+
+    picked = await service._pick_main(
+        ExerciseCategory.OFF_ICE,
+        user,
+        BlockPhase.ACCUMULATION,
+        training_block=training_block,
+        guarantee_endurance=True,
+    )
+
+    assert [e.name for e in picked] == ["Pinned-unclassified-core"]
 
 
 def test_choose_guaranteed_slot_dates_only_picks_among_off_ice_days() -> None:
