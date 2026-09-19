@@ -23,7 +23,25 @@ export class ApiError extends Error {
   }
 }
 
-function extractErrorMessage(body: unknown): string {
+// 2026-09-19: fallback wording when the backend itself never got a chance
+// to say what went wrong -- an nginx/gateway error page (502/503/504,
+// server crashed or mid-deploy, no FastAPI JSON `detail` at all) or any
+// other non-JSON response. Every call site trusts ApiError.message as
+// something worth showing the player as-is (`err.message` straight into a
+// FormError), so this has to already be the real, Russian, human sentence
+// -- not a placeholder like the old "Request failed" that leaked English
+// straight into the UI the one time it actually fired (a real prod outage).
+function fallbackErrorMessage(status: number): string {
+  if (status === 502 || status === 503 || status === 504) {
+    return 'Сервер временно недоступен. Попробуйте ещё раз через минуту.'
+  }
+  if (status >= 500) {
+    return 'Что-то пошло не так на сервере. Попробуйте ещё раз.'
+  }
+  return 'Не удалось выполнить запрос. Попробуйте ещё раз.'
+}
+
+function extractErrorMessage(body: unknown, status: number): string {
   if (typeof body === 'object' && body !== null && 'detail' in body) {
     const detail = (body as { detail: unknown }).detail
     if (typeof detail === 'string') {
@@ -35,7 +53,7 @@ function extractErrorMessage(body: unknown): string {
         .join('; ')
     }
   }
-  return 'Request failed'
+  return fallbackErrorMessage(status)
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -46,7 +64,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
     } catch {
       // response had no JSON body -- fall through with a generic message
     }
-    throw new ApiError(response.status, extractErrorMessage(body))
+    throw new ApiError(response.status, extractErrorMessage(body, response.status))
   }
   if (response.status === 204) {
     return undefined as T
