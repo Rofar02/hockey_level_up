@@ -38,7 +38,13 @@ from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.services.schedule_service import ScheduleService
 
-TODAY = date(2026, 9, 18)  # a Friday -- irrelevant, just fixed for determinism
+TODAY = date(2026, 9, 18)  # a Friday, otherwise arbitrary -- passed as the
+# injected `today` to every escalate_ceiling_variant_for_week call below
+# (2026-09-20 fix) instead of relying on the real wall clock, which this
+# fixed constant used to silently drift out of sync with the day after
+# this file was written (the method previously always read
+# datetime.now(...), ignoring TODAY entirely -- see the fix's own
+# schedule_service.py docstring for the full story).
 
 
 def _isolate_candidates(monkeypatch, exercises: list[Exercise]) -> None:
@@ -202,7 +208,7 @@ async def test_escalates_pin_and_patches_untouched_future_day_only(db_session, m
 
     _isolate_candidates(monkeypatch, [stuck_ex, harder_ex])
     service = ScheduleService(db_session)
-    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex)
+    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex, today=TODAY)
 
     assert [(r.old_exercise_name, r.new_exercise_name) for r in result] == [
         ("Stuck push-up", "Harder push-up")
@@ -286,7 +292,7 @@ async def test_does_not_patch_a_future_day_that_has_already_started(db_session, 
 
     _isolate_candidates(monkeypatch, [stuck_ex, harder_ex])
     service = ScheduleService(db_session)
-    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex)
+    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex, today=TODAY)
 
     assert result == []
     pin = await _get_pin(db_session, user)
@@ -325,7 +331,7 @@ async def test_no_escalation_when_not_stuck(db_session) -> None:
     await db_session.flush()
 
     service = ScheduleService(db_session)
-    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex)
+    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex, today=TODAY)
 
     assert result == []
     await db_session.refresh(future_block)
@@ -348,7 +354,7 @@ async def test_no_escalation_for_a_tracks_weight_exercise(db_session) -> None:
     await _add_stuck_history(db_session, user, stuck_ex)
 
     service = ScheduleService(db_session)
-    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex)
+    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex, today=TODAY)
 
     assert result == []
 
@@ -368,6 +374,6 @@ async def test_no_pin_means_no_escalation(db_session) -> None:
     await _add_stuck_history(db_session, user, stuck_ex)
 
     service = ScheduleService(db_session)
-    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex)
+    result = await service.escalate_ceiling_variant_for_week(user, stuck_ex, today=TODAY)
 
     assert result == []

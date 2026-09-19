@@ -37,7 +37,17 @@ from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.services.session_block_service import SessionBlockService
 
-TODAY = date(2026, 9, 18)
+# 2026-09-20 fix: this used to be a fixed constant (date(2026, 9, 18)).
+# SessionBlockService.complete_block calls escalate_ceiling_variant_for_week
+# with no injectable `today` (unlike ScheduleService's own direct callers in
+# test_ceiling_escalation_week_patch.py, which now pass today=TODAY) -- the
+# method always reads the real wall clock. A fixed constant here meant
+# `future_plan` (TODAY + 1 day) silently stopped being in the future the
+# day after this file was written, and _untouched_future_day_plans (which
+# compares against the real today) then excluded it, so the escalation
+# this test exists to prove never fired. date.today() keeps `future_plan`
+# genuinely in the future no matter when the suite runs.
+TODAY = date.today()
 
 
 def _isolate_candidates(monkeypatch, exercises: list[Exercise]) -> None:

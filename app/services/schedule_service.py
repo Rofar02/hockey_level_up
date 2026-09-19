@@ -2222,7 +2222,9 @@ class ScheduleService:
             )
         ]
 
-    async def patch_week_for_eligibility_change(self, user: User) -> int:
+    async def patch_week_for_eligibility_change(
+        self, user: User, *, today: date | None = None
+    ) -> int:
         """2026-09-19 audit round 3 item #2: UserTemporaryRestrictionService.report/
         lift and UserService.replace_owned_equipment each only ever write a
         row and commit -- ExerciseRepository.list_for_assembly (equipment +
@@ -2279,13 +2281,20 @@ class ScheduleService:
         UserService.replace_owned_equipment already commit their own row
         right after calling this), same non-committing contract
         escalate_ceiling_variant_for_week already uses.
+
+        today defaults to the user's own today (ZoneInfo(user.timezone),
+        2026-09-20 audit round 3 fix), injectable purely for deterministic
+        tests -- see escalate_ceiling_variant_for_week's own matching fix
+        for the full reasoning (a fixed "TODAY" fixture constant used to
+        silently drift out of validity the day after a test was written,
+        since this method always read the real wall clock regardless).
         """
-        today = datetime.now(ZoneInfo(user.timezone or "UTC")).date()
-        weekly_plan = await self._schedule.get_current(user.id, today)
+        resolved_today = today or datetime.now(ZoneInfo(user.timezone or "UTC")).date()
+        weekly_plan = await self._schedule.get_current(user.id, resolved_today)
         if weekly_plan is None:
             return 0
 
-        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, today)
+        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, resolved_today)
         if not untouched_day_plans:
             return 0
 
@@ -2377,7 +2386,7 @@ class ScheduleService:
         return len(puck_exercises)
 
     async def escalate_ceiling_variant_for_week(
-        self, user: User, exercise: Exercise
+        self, user: User, exercise: Exercise, *, today: date | None = None
     ) -> list[CeilingEscalationRead]:
         """2026-09-18 audit round 2 item #1: SessionBlockService.complete_block's
         synchronous follow-up to a just-completed MAIN block. A
@@ -2409,6 +2418,15 @@ class ScheduleService:
         into SessionBlockService.complete_block's own transaction instead
         of risking a patched week whose triggering block completion then
         fails to commit.
+
+        today defaults to the user's own today (ZoneInfo(user.timezone),
+        2026-09-20 audit round 3 fix), injectable purely for deterministic
+        tests -- same shape as _pick_main's own `today` param. Before this
+        fix, tests that pinned a fake "TODAY" constant into their fixture
+        dates (to build a day that's "tomorrow" relative to that constant)
+        silently started failing the day after they were written, since
+        this method always read the real wall clock regardless of what the
+        test's fixtures assumed "today" was.
         """
         if exercise.tracks_weight:
             return []
@@ -2419,12 +2437,12 @@ class ScheduleService:
         if not pins:
             return []
 
-        today = datetime.now(ZoneInfo(user.timezone or "UTC")).date()
-        weekly_plan = await self._schedule.get_current(user.id, today)
+        resolved_today = today or datetime.now(ZoneInfo(user.timezone or "UTC")).date()
+        weekly_plan = await self._schedule.get_current(user.id, resolved_today)
         if weekly_plan is None:
             return []
 
-        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, today)
+        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, resolved_today)
         untouched_future_sessions = [day_plan.training_session for day_plan in untouched_day_plans]
         if not untouched_future_sessions:
             return []
@@ -2445,7 +2463,7 @@ class ScheduleService:
 
             pin.exercise_id = new_exercise.id
             if pin.archetype is None or new_exercise.stimulus_type == pin.archetype:
-                pin.last_chosen_at = today
+                pin.last_chosen_at = resolved_today
 
             for training_session in untouched_future_sessions:
                 for block in training_session.blocks:
