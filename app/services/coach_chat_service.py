@@ -32,6 +32,7 @@ import logging
 import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from openai import APIError, AsyncOpenAI
@@ -603,7 +604,10 @@ class CoachChatService:
                 detail="Функция скоро будет доступна",
             )
 
-        month_start = datetime.now(timezone.utc).replace(
+        # Same class of bug as _build_system_prompt's own "today" fix below
+        # -- the monthly quota should reset on the player's own calendar
+        # month boundary, not the server's UTC one.
+        month_start = datetime.now(ZoneInfo(user.timezone)).replace(
             day=1, hour=0, minute=0, second=0, microsecond=0
         )
         sent_this_month = await self._chat.count_user_messages_since(user.id, month_start)
@@ -831,7 +835,17 @@ class CoachChatService:
         return None
 
     async def _build_system_prompt(self, user: User, coach_personality: CoachPersonality) -> str:
-        now = datetime.now(timezone.utc)
+        # 2026-09-19: was datetime.now(timezone.utc) -- read the *server's*
+        # calendar day, not the player's. Same class of bug already fixed
+        # elsewhere (get_current_weekly_plan, ProgressService.get_streak,
+        # ...) but missed here: for anyone east of UTC (e.g. a
+        # Novokuznetsk, UTC+7, player), the coach's "today" flips over to
+        # the next day up to 7 hours *before* the player's own midnight --
+        # confirmed live, the coach insisted "today" was still an off-ice
+        # day already patched to game for what was genuinely the player's
+        # current day, because it was reading a UTC date that, for them,
+        # had already ended hours earlier.
+        now = datetime.now(ZoneInfo(user.timezone))
 
         stats = await self._progress.list_user_stats(user.id)
         stats_section = _format_stats_section(stats)
