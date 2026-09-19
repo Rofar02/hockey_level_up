@@ -41,13 +41,16 @@ from app.services.session_block_service import SessionBlockService
 # SessionBlockService.complete_block calls escalate_ceiling_variant_for_week
 # with no injectable `today` (unlike ScheduleService's own direct callers in
 # test_ceiling_escalation_week_patch.py, which now pass today=TODAY) -- the
-# method always reads the real wall clock. A fixed constant here meant
-# `future_plan` (TODAY + 1 day) silently stopped being in the future the
-# day after this file was written, and _untouched_future_day_plans (which
-# compares against the real today) then excluded it, so the escalation
-# this test exists to prove never fired. date.today() keeps `future_plan`
-# genuinely in the future no matter when the suite runs.
-TODAY = date.today()
+# method always reads the real wall clock, specifically
+# datetime.now(ZoneInfo(user.timezone or "UTC")).date() -- UTC here, since
+# _make_user below never sets timezone. A first attempt used date.today()
+# (the *local* machine's date), which is wrong for the same reason every
+# other fix in this file's history exists: local and UTC dates disagree for
+# part of every day, and this test failed exactly like that during a run
+# that crossed local midnight while UTC hadn't yet. Matching the real
+# UTC-based computation keeps `future_plan` genuinely in the future no
+# matter when or where the suite runs.
+TODAY = datetime.now(timezone.utc).date()
 
 
 def _isolate_candidates(monkeypatch, exercises: list[Exercise]) -> None:
