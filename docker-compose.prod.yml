@@ -16,6 +16,36 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
+# 2026-09-19 audit round 3 item #6: shared across glitchtip_migrate/web/
+# worker below rather than repeated three times. Backend-only for now --
+# app/main.py's own sentry_sdk.init reaches glitchtip_web over this
+# compose network by service name, no public exposure needed for that
+# half. Browser-side (frontend) error tracking is a deliberately separate,
+# not-yet-built follow-up: it would need GlitchTip reachable from outside
+# the network entirely (a public subdomain + its own TLS cert), a bigger
+# step than this pass took on.
+x-glitchtip-env: &glitchtip-env
+  DATABASE_URL: postgres://glitchtip:${GLITCHTIP_POSTGRES_PASSWORD}@glitchtip_postgres:5432/glitchtip
+  REDIS_URL: redis://glitchtip_redis:6379/0
+  SECRET_KEY: ${GLITCHTIP_SECRET_KEY}
+  PORT: "8080"
+  # Only ever reachable via SSH tunnel (see glitchtip_web's own port
+  # binding below) -- this value only affects links GlitchTip generates
+  # in its own UI/emails, cosmetic here, not a real public URL.
+  GLITCHTIP_DOMAIN: http://localhost:8080
+  DEFAULT_FROM_EMAIL: glitchtip@icelevel.ru
+  # No real mail sending configured -- a single-admin internal tool isn't
+  # worth a second Resend-style integration. "Sent" emails go to the
+  # container's own stdout instead of anywhere real; the one login is
+  # created directly via `manage.py createsuperuser` (see docs/deploy.md
+  # section 13), never through the email-based signup flow -- which is
+  # why ENABLE_USER_REGISTRATION is also off below, defense in depth on
+  # top of not being publicly reachable at all.
+  EMAIL_URL: consolemail://
+  ENABLE_USER_REGISTRATION: "false"
+  ENABLE_ORGANIZATION_CREATION: "false"
+  CELERY_WORKER_AUTOSCALE: "1,3"
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -67,6 +97,10 @@ services:
       # overrides whatever .env has for a non-Docker local run.
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+      # GLITCHTIP_DSN itself is NOT restated here -- unlike the two
+      # above, it needs no docker-network rewrite, so it flows straight
+      # through from .env via env_file below, same as ZAI_API_KEY/
+      # RESEND_API_KEY already do.
     volumes:
       # Named, not bind-mounted: Dockerfile.prod creates+chowns these paths
       # for the non-root `appuser` before the volume is attached, so a
@@ -138,6 +172,97 @@ services:
       done;'
     logging: *default-logging
 
+  # 2026-09-19 audit round 3 item #6: error/exception tracking -- see
+  # docs/deploy.md section 13 for the one-time setup (create the org/
+  # project, generate a DSN, create the admin login). Backend-only for
+  # now (see x-glitchtip-env's own comment above); nothing here is
+  # reachable from the internet, checked the same way section 12's smoke
+  # test already checks 5432/5672/15672 aren't.
+  glitchtip_postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: glitchtip
+      POSTGRES_PASSWORD: ${GLITCHTIP_POSTGRES_PASSWORD}
+      POSTGRES_DB: glitchtip
+    volumes:
+      - glitchtip_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glitchtip -d glitchtip"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    # Its own Postgres instance, deliberately not a second database on
+    # the app's own `postgres` service above: that server's data
+    # directory is already initialized on a running prod server (the
+    # official image's initdb.d bootstrap scripts only ever run once,
+    # against a genuinely empty volume), so adding a second database
+    # there would need a manual one-off `CREATE DATABASE` anyway. A
+    # fully separate instance needs zero coordination with the app's own
+    # DB/backups/restore and can never collide with or slow down it.
+
+  glitchtip_redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - glitchtip_redis_data:/data
+    logging: *default-logging
+
+  # One-shot: runs `manage.py migrate` and exits, no restart policy --
+  # web/worker below wait on it via service_completed_successfully.
+  # NOT automatically re-run by a later `docker compose up -d` once it
+  # has already exited successfully once (compose only recreates a
+  # service whose config changed) -- if the glitchtip image tag is ever
+  # bumped, re-run `docker compose -f docker-compose.prod.yml run --rm
+  # glitchtip_migrate` by hand first, same as any other schema change.
+  glitchtip_migrate:
+    image: glitchtip/glitchtip:latest
+    environment: *glitchtip-env
+    depends_on:
+      glitchtip_postgres:
+        condition: service_healthy
+    logging: *default-logging
+
+  glitchtip_web:
+    image: glitchtip/glitchtip:latest
+    restart: unless-stopped
+    environment: *glitchtip-env
+    depends_on:
+      glitchtip_postgres:
+        condition: service_healthy
+      glitchtip_redis:
+        condition: service_started
+      glitchtip_migrate:
+        condition: service_completed_successfully
+    volumes:
+      - glitchtip_uploads:/code/uploads
+    ports:
+      # 127.0.0.1 only, NEVER 0.0.0.0 -- an internal ops dashboard (error
+      # list + one admin login), not something the public internet
+      # should even know exists. Reach it with
+      # `ssh -L 8080:localhost:8080 root@<server ip>` then open
+      # http://localhost:8080 -- same tunnel-only pattern the rabbitmq
+      # management UI (15672) already uses.
+      - "127.0.0.1:8080:8080"
+    logging: *default-logging
+
+  glitchtip_worker:
+    image: glitchtip/glitchtip:latest
+    restart: unless-stopped
+    command: ./bin/run-celery-with-beat.sh
+    environment: *glitchtip-env
+    depends_on:
+      glitchtip_postgres:
+        condition: service_healthy
+      glitchtip_redis:
+        condition: service_started
+      glitchtip_migrate:
+        condition: service_completed_successfully
+    volumes:
+      - glitchtip_uploads:/code/uploads
+    logging: *default-logging
+
 volumes:
   postgres_data:
   rabbitmq_data:
@@ -146,3 +271,6 @@ volumes:
   team_logos_data:
   certbot_etc:
   certbot_www:
+  glitchtip_postgres_data:
+  glitchtip_redis_data:
+  glitchtip_uploads:

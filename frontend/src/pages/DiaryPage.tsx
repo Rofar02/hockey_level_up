@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
-import { CARD_CLASS } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
@@ -12,6 +11,13 @@ import { useAuth } from '../hooks/useAuth'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { TrainingDiaryEntryListItem } from '../types/trainingDiary'
 import { formatShortDate, parseIsoDate } from '../utils/date'
+
+// Uppercase 3-letter, same register as WEEKDAY_LABELS elsewhere -- used only
+// for the day-planner-style date tab below, not worth a shared util for one
+// call site.
+const MONTH_ABBREVIATIONS = [
+  'ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК',
+]
 
 // "Open my diary and read it back" -- the player's own notebook across
 // every ON_ICE/GAME session, newest first (entries are written from
@@ -71,10 +77,13 @@ export function DiaryPage() {
           />
         )}
 
+        {/* 2026-09-19 design pass: entries read as pages of one notebook,
+            flipped through one after another -- a single continuous list
+            with a hairline between rows, not a stack of bordered cards. */}
         {entries !== null && entries.length > 0 && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
             {entries.map((entry) => (
-              <DiaryEntryCard key={entry.id} entry={entry} onOpen={() => setOpenEntry(entry)} />
+              <DiaryEntryRow key={entry.id} entry={entry} onOpen={() => setOpenEntry(entry)} />
             ))}
           </div>
         )}
@@ -85,28 +94,39 @@ export function DiaryPage() {
   )
 }
 
-function DiaryEntryCard({ entry, onOpen }: { entry: TrainingDiaryEntryListItem; onOpen: () => void }) {
+function DiaryEntryRow({ entry, onOpen }: { entry: TrainingDiaryEntryListItem; onOpen: () => void }) {
+  const date = parseIsoDate(entry.date)
+  const hasNote = entry.note !== null && entry.note !== ''
   return (
     <button
       type="button"
       onClick={onOpen}
-      className={`flex w-full flex-col gap-2 p-4 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
+      className="flex gap-3.5 border-t border-white/10 py-4 text-left transition-colors first:border-t-0 hover:bg-white/[0.02]"
     >
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(parseIsoDate(entry.date))}</span>
-        <span className="flex items-center gap-3">
-          <span className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[entry.session_type]}`}>
-            <i className={`ti ${SESSION_TYPE_ICONS[entry.session_type]}`} aria-hidden="true" />
-            {DAY_SESSION_TYPE_LABELS[entry.session_type]}
-          </span>
-          <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
-        </span>
+      {/* Day-planner-style date tab -- the day itself is the headline (same
+          "display" face the app already uses for stat/level numbers), the
+          month a quiet caption under it, rather than a monospace "18.09"
+          code string. */}
+      <div className="w-9 shrink-0 pt-0.5 text-center">
+        <div className={`font-display text-2xl leading-none ${hasNote ? 'text-accent-persimmon' : 'text-[#5B6480]'}`}>
+          {date.getDate()}
+        </div>
+        <div className="mt-1 font-display text-[10px] tracking-wide text-[#8A94A6]">
+          {MONTH_ABBREVIATIONS[date.getMonth()]}
+        </div>
       </div>
-      {entry.note !== null && entry.note !== '' ? (
-        <p className="line-clamp-3 whitespace-pre-wrap text-sm text-[#F5F7FA]">{entry.note}</p>
-      ) : (
-        <p className="text-sm italic text-[#8A94A6]">Без заметки</p>
-      )}
+      <div className="w-px shrink-0 self-stretch bg-accent-persimmon/20" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <span className={`flex w-fit items-center gap-1.5 text-xs ${SESSION_TYPE_COLORS[entry.session_type]}`}>
+          <i className={`ti ${SESSION_TYPE_ICONS[entry.session_type]}`} aria-hidden="true" />
+          {DAY_SESSION_TYPE_LABELS[entry.session_type]}
+        </span>
+        {hasNote ? (
+          <p className="line-clamp-2 whitespace-pre-wrap text-sm leading-snug text-[#D7DCE6]">{entry.note}</p>
+        ) : (
+          <p className="text-sm italic text-[#5B6480]">Без заметки</p>
+        )}
+      </div>
     </button>
   )
 }

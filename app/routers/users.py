@@ -375,7 +375,7 @@ async def replace_my_equipment_items(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await UserService(session).replace_owned_equipment(current_user.id, body.equipment_items)
+    return await UserService(session).replace_owned_equipment(current_user, body.equipment_items)
 
 
 @router.post("/me/push-subscription", response_model=PushSubscriptionRead)

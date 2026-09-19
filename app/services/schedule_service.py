@@ -107,6 +107,25 @@ _EXPLOSIVE_PATTERNS: tuple[MovementPattern, ...] = (
 _LOWER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.SQUAT, MovementPattern.HIP_HINGE)
 _UPPER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.PUSH, MovementPattern.PULL)
 
+# 2026-09-19 audit round 3 item #4: ROTATING_PATTERNS' own same-variant
+# session cap (see its docstring) was deliberately scoped to the 7
+# patterns *without* a 3-archetype split -- squat/hip_hinge/push/pull
+# were left out because ARCHETYPE_ELIGIBLE_PATTERNS already splits them
+# by load type (strength/power/skill). But that split is across
+# *different* stimulus lines, not variety *within* one -- a squat/POWER
+# pin still holds the exact same variant for the whole training block
+# (8+ weeks), same "same exercise for weeks" complaint ROTATING_PATTERNS
+# already fixed for everything else. Confirmed against the real catalog:
+# 39 squat/power candidates, zero content shortage, yet a user reported
+# the exact same one-legged jump for two months straight. Combining the
+# two sets here (rather than editing ROTATING_PATTERNS itself, which
+# stays "the non-archetype-eligible ones" per its own docstring) lets
+# both call sites below share one check. Per-archetype-line granularity
+# comes for free: existing_pins/row are already keyed on (pattern,
+# archetype), so squat/STRENGTH, squat/POWER and squat/SKILL each carry
+# their own independent times_chosen counter and rotate independently.
+_SESSION_CAP_ROTATED_PATTERNS: frozenset[MovementPattern] = ROTATING_PATTERNS | ARCHETYPE_ELIGIBLE_PATTERNS
+
 
 # Final coherence validator (Stage 2.4, 2026-08-20 planning session):
 # "не более N упражнений на одну мышцу" -- see _pick_main's own call site
@@ -1229,17 +1248,17 @@ class ScheduleService:
                 same_block = existing_pin.block_number == training_block.block_number
                 hold_through_deload = training_block.is_macrocycle_deload
                 use_pin = same_block or hold_through_deload
-                # 2026-09-17 fix (audit item #1): locomotion/core/
-                # coordination/rotation don't get the 3-archetype split
-                # (see ROTATING_PATTERNS's docstring), but a same-block pin
-                # otherwise holds for the whole block same as any other
-                # pattern -- up to PHASE_CALENDAR_CEILING_WEEKS, the direct
-                # cause of the "same exercise for weeks" complaint. Force a
-                # rotation to a fresh candidate once the pin has been
-                # genuinely reused ROTATION_SESSION_LIMIT times in a row,
-                # same as the bodyweight-escalation break below, never
-                # during a deload-hold.
-                if use_pin and not hold_through_deload and pattern in ROTATING_PATTERNS:
+                # 2026-09-17 fix (audit round 1 item #1), extended
+                # 2026-09-19 (audit round 3 item #4) to squat/hip_hinge/
+                # push/pull too -- see _SESSION_CAP_ROTATED_PATTERNS' own
+                # comment for the "why". A same-block pin otherwise holds
+                # for the whole block -- up to PHASE_CALENDAR_CEILING_WEEKS,
+                # the direct cause of the "same exercise for weeks/months"
+                # complaint. Force a rotation to a fresh candidate once the
+                # pin has been genuinely reused ROTATION_SESSION_LIMIT times
+                # in a row, same as the bodyweight-escalation break below,
+                # never during a deload-hold.
+                if use_pin and not hold_through_deload and pattern in _SESSION_CAP_ROTATED_PATTERNS:
                     if (existing_pin.times_chosen or 0) >= ROTATION_SESSION_LIMIT:
                         use_pin = False
                 # Stage 2.6 (2026-08-20 planning session): double
@@ -1257,6 +1276,38 @@ class ScheduleService:
                     if await self._reps_suggestions.is_stuck_at_ceiling(user, pinned_exercise):
                         use_pin = False
                         escalate_difficulty = True
+
+                # 2026-09-19 audit round 3 item #3: a reused pin (same_block
+                # or hold_through_deload above) never consulted
+                # stimulus_preference at all -- that filter only runs in the
+                # fresh-pick branch below. Role 4's accessory patterns get
+                # pinned and then held for a whole training block (Phase
+                # П.3), so once ANY non-preferred exercise wins a pin,
+                # guarantee_endurance's ENDURANCE ask for that same pattern
+                # silently never gets a chance to apply again until the pin
+                # breaks for an unrelated reason -- confirmed live: a
+                # full-year simulation with guarantee_endurance=True landed
+                # an ENDURANCE exercise in MAIN only 2/52, 0/52, 4/52 weeks
+                # across 3 equipment scenarios (vs. 38-45/52 for
+                # guarantee_locomotion, which only works because LOCOMOTION
+                # itself usually already satisfies it directly, no pin-break
+                # needed). Same fix also closes a dormant, unrelated gap for
+                # role 1's POWER/SKILL pool, which shares this same
+                # archetype=None pin key with role 4's accessory picks on
+                # whichever explosive pattern role 1 doesn't win that day.
+                # stimulus_type is None (uncatalogued exercise) is
+                # deliberately NOT treated as a mismatch here, same leniency
+                # is_genuine already gives it below -- only a real,
+                # classified-but-wrong stimulus breaks the pin. Never during
+                # a deload-hold, same reasoning as every check above.
+                if (
+                    use_pin
+                    and not hold_through_deload
+                    and stimulus_preference is not None
+                    and pinned_exercise.stimulus_type is not None
+                    and pinned_exercise.stimulus_type not in stimulus_preference
+                ):
+                    use_pin = False
 
             row = existing_pin
             if use_pin:
@@ -1343,13 +1394,16 @@ class ScheduleService:
                 if choice.stimulus_type == archetype:
                     row.last_chosen_at = resolved_today
 
-            if training_block is not None and pattern in ROTATING_PATTERNS and row is not None:
-                # 2026-09-17 fix (audit item #1): times_chosen is the
-                # same-variant-in-a-row counter the rotation-limit check
+            if training_block is not None and pattern in _SESSION_CAP_ROTATED_PATTERNS and row is not None:
+                # 2026-09-17 fix (audit round 1 item #1): times_chosen is
+                # the same-variant-in-a-row counter the rotation-limit check
                 # above reads. use_pin=True means this session is another
                 # consecutive rerun of the same pin -- bump it; any fresh
                 # pick (rotation-forced, first-ever, or a genuine block
                 # boundary) restarts the count at this session's own use.
+                # For an archetype-eligible pattern (round 3 item #4), `row`
+                # here is already the specific (pattern, archetype) row --
+                # e.g. squat/POWER's counter never touches squat/STRENGTH's.
                 row.times_chosen = (existing_pin.times_chosen or 0) + 1 if use_pin else 1
 
             picked.append(choice)
@@ -2112,6 +2166,182 @@ class ScheduleService:
             exercise=exercise_to_read(new_exercise, target_stats),
         )
 
+    @staticmethod
+    def _untouched_future_day_plans(weekly_plan: WeeklyPlan, today: date) -> list[DayPlan]:
+        """Shared by every same-week patcher (escalate_ceiling_variant_for_week,
+        patch_week_for_eligibility_change): "not yet started" = day.date
+        strictly after the user's today (never today's own day -- that's
+        whatever's currently in progress) AND every block in that day's
+        session is still unresolved. A day that's only partially touched
+        (e.g. warmup already logged ahead of time) is left alone entirely,
+        same caution as _patch_weekly_plan's own "already begun" guard --
+        these patchers only ever mutate exercise_id/blocks in place, never
+        rebuild a day, but the same all-or-nothing rule still applies."""
+        return [
+            day_plan
+            for day_plan in weekly_plan.day_plans
+            if day_plan.date > today
+            and day_plan.training_session is not None
+            and all(
+                block.completed_at is None and block.skipped_at is None
+                for block in day_plan.training_session.blocks
+            )
+        ]
+
+    async def patch_week_for_eligibility_change(self, user: User) -> int:
+        """2026-09-19 audit round 3 item #2: UserTemporaryRestrictionService.report/
+        lift and UserService.replace_owned_equipment each only ever write a
+        row and commit -- ExerciseRepository.list_for_assembly (equipment +
+        active-restriction filtering) only ever runs at fresh day/week
+        assembly, so a restriction reported (or lifted) or equipment
+        added/removed mid-week never touched the days already generated for
+        the current week. The restriction docstring promises "excludes ...
+        for as long as it's active"; in practice that only held going
+        forward. Confirmed live via a full-year/3-scenario simulation on
+        the real catalog (gym scenario): a chest exercise present the week
+        a restriction on it started, then correctly 0/4 weeks after --
+        i.e. the forward filter genuinely works, only the already-generated
+        week didn't retroactively honor it.
+
+        One shared patcher for both triggers rather than two near-duplicate
+        ones -- same principle as escalate_ceiling_variant_for_week: only
+        touch SessionBlock rows in days of the CURRENT week that are still
+        entirely untouched (see _untouched_future_day_plans), leave
+        anything already begun exactly as it is. Two independent things it
+        does, since exercise-block replacement can't undo the "puck module
+        only appears at fresh assembly" gap (that's whole new blocks, not a
+        swap):
+
+        1. Any exercise now outside list_for_assembly's current pool for
+           its own (phase, category) -- newly restricted, or newly missing
+           required equipment -- gets swapped for a same-movement-pattern
+           eligible substitute (falling back to any eligible exercise in
+           that phase/category if none shares a pattern), same
+           conservative "leave it if genuinely nothing else qualifies"
+           rule _pick_ceiling_escalation_candidate already uses. A MAIN
+           block's UserMovementPatternVariant pin (if any) moves with it,
+           mirroring escalate_ceiling_variant_for_week -- _pick_main's own
+           pin-reuse already silently self-heals this at the next fresh
+           assembly (a restricted pinned exercise simply isn't in `pool`
+           there so the pin gets overwritten), this just makes the *current*
+           week's already-materialized blocks agree with that sooner rather
+           than only from next week.
+        2. A hockey stick added mid-week: an OFF_ICE day untouched this
+           week that has no TrainingPhase.PUCK blocks yet gets them
+           appended now (same _pick_puck_module_exercises call
+           _build_training_session uses at fresh assembly), instead of
+           only from next week's generation. Symmetric removal case (stick
+           taken out of inventory): a PUCK block whose exercise fails the
+           equipment filter with literally no substitute in the whole
+           phase (pool 1's only real case for that phase) is dropped from
+           the session outright rather than left showing an exercise the
+           filter itself has already vetoed -- cascade="all, delete-orphan"
+           on TrainingSession.blocks handles the actual row deletion.
+
+        Returns the number of blocks changed (edited or added/removed) --
+        0 whenever nothing needed patching, including "no current week"
+        and "every remaining day is already underway". Committing is the
+        caller's job (UserTemporaryRestrictionService.report/lift,
+        UserService.replace_owned_equipment already commit their own row
+        right after calling this), same non-committing contract
+        escalate_ceiling_variant_for_week already uses.
+        """
+        today = datetime.now(ZoneInfo(user.timezone or "UTC")).date()
+        weekly_plan = await self._schedule.get_current(user.id, today)
+        if weekly_plan is None:
+            return 0
+
+        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, today)
+        if not untouched_day_plans:
+            return 0
+
+        changed = 0
+        for day_plan in untouched_day_plans:
+            category = _SESSION_TYPE_TO_CATEGORY.get(day_plan.session_type)
+            if category is None:
+                # GAME (no MAIN/regular phase split, see
+                # _day_plan_to_read_schema) -- out of scope for this pass.
+                continue
+            session = day_plan.training_session
+            changed += await self._patch_session_blocks_for_eligibility(user, category, session)
+            if category == ExerciseCategory.OFF_ICE:
+                changed += await self._maybe_add_puck_module_midweek(user, session)
+
+        if changed:
+            await self._session.flush()
+        return changed
+
+    async def _patch_session_blocks_for_eligibility(
+        self, user: User, category: ExerciseCategory, session: TrainingSession
+    ) -> int:
+        blocks_by_phase: dict[TrainingPhase, list[SessionBlock]] = defaultdict(list)
+        for block in session.blocks:
+            blocks_by_phase[block.phase].append(block)
+
+        changed = 0
+        for phase, blocks in blocks_by_phase.items():
+            eligible_pool = await self._exercises.list_for_assembly(
+                phase=phase, user=user, category=category
+            )
+            eligible_ids = {exercise.id for exercise in eligible_pool}
+            stale_blocks = [block for block in blocks if block.exercise_id not in eligible_ids]
+            if not stale_blocks:
+                continue
+
+            patterns_by_exercise = await self._exercises.list_movement_patterns_by_exercise(
+                [block.exercise_id for block in stale_blocks] + list(eligible_ids)
+            )
+
+            for block in stale_blocks:
+                old_exercise_id = block.exercise_id
+                old_patterns = set(patterns_by_exercise.get(old_exercise_id, ()))
+                same_pattern_pool = [
+                    exercise
+                    for exercise in eligible_pool
+                    if old_patterns & set(patterns_by_exercise.get(exercise.id, ()))
+                ]
+                replacement_pool = same_pattern_pool or eligible_pool
+                if not replacement_pool:
+                    if phase == TrainingPhase.PUCK:
+                        # No substitute at all (typically: the stick that
+                        # justified this block is gone) -- nothing legal
+                        # to show here any more, unlike every other phase
+                        # a session can't simply go without.
+                        session.blocks.remove(block)
+                        changed += 1
+                    continue
+
+                new_exercise = random.choice(replacement_pool)
+                block.exercise_id = new_exercise.id
+                changed += 1
+
+                if phase == TrainingPhase.MAIN:
+                    pins = await self._variants.list_for_user_exercise(user.id, old_exercise_id)
+                    new_patterns = set(patterns_by_exercise.get(new_exercise.id, ()))
+                    for pin in pins:
+                        if pin.movement_pattern in new_patterns:
+                            pin.exercise_id = new_exercise.id
+
+        return changed
+
+    async def _maybe_add_puck_module_midweek(self, user: User, session: TrainingSession) -> int:
+        if any(block.phase == TrainingPhase.PUCK for block in session.blocks):
+            return 0
+
+        training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
+        block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
+        puck_exercises = await self._pick_puck_module_exercises(user, block_phase)
+        if not puck_exercises:
+            return 0
+
+        order = len(session.blocks)
+        for exercise in puck_exercises:
+            session.blocks.append(
+                SessionBlock(phase=TrainingPhase.PUCK, exercise_id=exercise.id, order=order)
+            )
+            order += 1
+        return len(puck_exercises)
+
     async def escalate_ceiling_variant_for_week(
         self, user: User, exercise: Exercise
     ) -> list[CeilingEscalationRead]:
@@ -2160,16 +2390,8 @@ class ScheduleService:
         if weekly_plan is None:
             return []
 
-        untouched_future_sessions = [
-            day_plan.training_session
-            for day_plan in weekly_plan.day_plans
-            if day_plan.date > today
-            and day_plan.training_session is not None
-            and all(
-                block.completed_at is None and block.skipped_at is None
-                for block in day_plan.training_session.blocks
-            )
-        ]
+        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, today)
+        untouched_future_sessions = [day_plan.training_session for day_plan in untouched_day_plans]
         if not untouched_future_sessions:
             return []
 

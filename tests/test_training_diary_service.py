@@ -14,6 +14,7 @@ from fastapi import HTTPException
 
 from app.models.schedule import DayPlan, DaySessionType, TrainingSession, WeeklyPlan
 from app.models.user import User
+from app.schemas.training_diary import TrainingDiaryEntryRead
 from app.services.training_diary_service import TrainingDiaryService
 
 
@@ -60,6 +61,34 @@ async def test_save_and_get_round_trip_for_on_ice_session(db_session) -> None:
     assert fetched is not None
     assert fetched.id == saved.id
     assert fetched.note == saved.note
+
+
+@pytest.mark.asyncio
+async def test_saved_entry_survives_pydantic_validation(db_session) -> None:
+    """Regression test: created_at/updated_at are server-computed
+    (func.now()/onupdate), never set in Python -- reading either straight
+    off the object save_entry returns used to trigger an implicit lazy
+    load outside any awaited context (SQLAlchemy's async mode requires
+    that inside a greenlet), which blew up as MissingGreenlet the moment
+    PUT /training-sessions/{id}/diary's router ran
+    TrainingDiaryEntryRead.model_validate(entry) on it -- every real save
+    500'd, live, while every prior test here only ever read Python-set
+    attributes (note, id) and so never touched the broken path at all.
+    The exact router call, not just an attribute poke, so this fails the
+    same way the live bug did if the fix regresses."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    training_session = await _make_session(db_session, user, DaySessionType.ON_ICE)
+
+    service = TrainingDiaryService(db_session)
+    saved = await service.save_entry(
+        user=user, training_session_id=training_session.id, note="проверка сериализации"
+    )
+
+    schema = TrainingDiaryEntryRead.model_validate(saved)
+    assert schema.created_at is not None
+    assert schema.updated_at is not None
 
 
 @pytest.mark.asyncio
