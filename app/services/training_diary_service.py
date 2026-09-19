@@ -59,6 +59,15 @@ class TrainingDiaryService:
             await self._diary.save(entry)
 
         await self._session.commit()
+        # created_at/updated_at are server-computed (func.now()/onupdate) --
+        # never set in Python, so the ORM object doesn't actually have a
+        # value for them post-commit despite expire_on_commit=False.
+        # Reading either through Pydantic's synchronous model_validate (see
+        # the router) tries an implicit lazy-load outside any awaited
+        # context and blows up with MissingGreenlet -- explicit async
+        # refresh avoids that, same pattern UserService.update_profile
+        # already uses for the same reason.
+        await self._session.refresh(entry)
         return entry
 
     async def list_entries(
