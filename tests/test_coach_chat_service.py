@@ -1090,3 +1090,44 @@ async def test_call_zai_success_path_is_unaffected(monkeypatch, caplog) -> None:
 
     assert result == "Тестовый ответ"
     assert caplog.records == []
+
+
+@pytest.mark.asyncio
+async def test_call_zai_passes_reasoning_effort_to_zai(monkeypatch) -> None:
+    """glm-5.3 (see Settings.coach_chat_model) always reasons server-side
+    and, with no reasoning_effort set, reliably burns the entire
+    max_tokens budget on hidden reasoning_content before ever emitting a
+    visible reply -- confirmed live on prod 2026-09-19 (finish_reason
+    "length", 2047-2048/2048 tokens spent on reasoning, empty content).
+    "high" is what keeps it inside budget with finish_reason "stop" --
+    this locks in that the param is actually sent, not just documented."""
+    captured_kwargs: dict = {}
+
+    class _FakeMessage:
+        content = "Тестовый ответ"
+
+    class _FakeChoice:
+        message = _FakeMessage()
+
+    class _FakeResponse:
+        choices = [_FakeChoice()]
+
+    class _FakeCompletions:
+        async def create(self, **kwargs):
+            captured_kwargs.update(kwargs)
+            return _FakeResponse()
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    class _FakeClient:
+        chat = _FakeChat()
+
+    monkeypatch.setattr(
+        coach_chat_service, "AsyncOpenAI", lambda *, api_key, base_url: _FakeClient()
+    )
+
+    await _call_zai("test-key", "https://api.z.ai/v1", "glm-5.3", "system", [])
+
+    assert captured_kwargs["reasoning_effort"] == coach_chat_service.COACH_REASONING_EFFORT
+    assert coach_chat_service.COACH_REASONING_EFFORT == "high"

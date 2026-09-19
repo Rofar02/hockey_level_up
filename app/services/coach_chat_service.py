@@ -109,10 +109,26 @@ HISTORY_REPLAY_TURNS = 30
 
 # Generous on purpose: cheap insurance against a truncated reply, and
 # glm-4.7-flash (the current default model) is free-tier, so there's no
-# cost pressure to shrink it. Revisit if/when Settings.coach_chat_model
-# switches to a paid reasoning model that spends part of this budget on
-# hidden chain-of-thought before the visible reply.
+# cost pressure to shrink it.
 MAX_RESPONSE_TOKENS = 2048
+
+# glm-5.3 (the paid model, see Settings.coach_chat_model) is always a
+# reasoning model server-side -- z.ai rejects "disabled" outright ("This
+# model always engages in thinking and cannot be disabled; please use
+# low, high, or max") and silently defaults to something at least as deep
+# as "max" when this isn't set at all. Confirmed live against prod's real
+# system prompt (2026-09-19): with no reasoning_effort, every single call
+# hit finish_reason="length" with 2047-2048/2048 tokens spent entirely on
+# reasoning_content and an empty visible content -- the actual cause of
+# "AI coach doesn't answer" despite a 200 OK and no logged exception.
+# "high" reliably finishes with finish_reason="stop" well inside
+# MAX_RESPONSE_TOKENS (~650-700 tokens total on the same prompt) and,
+# unlike "low", still reliably emits the <!--ACTION:{...}--> marker when
+# the guardrails call for one. glm-4.7-flash also does hidden reasoning
+# (confirmed the same way -- a too-small max_tokens starves it too) but
+# stays well within MAX_RESPONSE_TOKENS with this same param set, so one
+# constant covers both models rather than branching on which is active.
+COACH_REASONING_EFFORT = "high"
 
 TOP_MILESTONES_COUNT = 3
 RECENT_HISTORY_COUNT = 5
@@ -545,6 +561,7 @@ async def _call_zai(
         response = await client.chat.completions.create(
             model=model,
             max_tokens=MAX_RESPONSE_TOKENS,
+            reasoning_effort=COACH_REASONING_EFFORT,
             messages=[{"role": "system", "content": system_prompt}, *messages],
         )
     except APIError as exc:
