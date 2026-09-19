@@ -84,6 +84,8 @@ nano .env
 openssl rand -base64 64 | tr -d '\n' && echo   # JWT_SECRET_KEY
 openssl rand -hex 32 && echo                    # POSTGRES_PASSWORD
 openssl rand -hex 32 && echo                    # RABBITMQ_PASSWORD
+openssl rand -hex 32 && echo                    # GLITCHTIP_POSTGRES_PASSWORD
+openssl rand -base64 64 | tr -d '\n' && echo    # GLITCHTIP_SECRET_KEY
 ```
 
 `POSTGRES_PASSWORD`/`RABBITMQ_PASSWORD` specifically as `-hex`, not
@@ -254,7 +256,75 @@ cd /opt/icelevel
 - `curl -I https://icelevel.ru/api/docs` → должен быть `404` (закрыто в
   `deploy/nginx/app.conf`).
 - Со своей машины: `nmap <IP сервера>` — снаружи должны быть видны только
-  22/80/443, не 5432/5672/15672.
+  22/80/443, не 5432/5672/15672/8080 (последний — GlitchTip, раздел 13,
+  `127.0.0.1:8080` в docker-compose.prod.yml не публикуется наружу).
+
+## 13. GlitchTip — мониторинг ошибок (бэкенд)
+
+Self-hosted, Sentry-протокол-совместимый (Sentry сам заблокирован для
+пользователей из России с сентября 2024 — не только оплата, сам доступ).
+Живёт полностью во внутренней docker-сети, наружу не торчит ни один
+порт — только бэкенд шлёт туда ошибки, смотреть их можно через
+SSH-туннель. Браузерные ошибки фронтенда сюда пока не подключены
+(отдельная задача — публичный поддомен + свой TLS).
+
+Секреты (`GLITCHTIP_POSTGRES_PASSWORD`, `GLITCHTIP_SECRET_KEY`) уже
+сгенерированы в шаге 4 — убедиться, что они в `.env`. `GLITCHTIP_DSN`
+пока оставить пустым (это финальный шаг ниже).
+
+Поднять сервисы (входят в общий `docker compose up -d --build` из шага 6,
+если `.env` уже заполнен на момент первого деплоя — иначе просто:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d \
+  glitchtip_postgres glitchtip_redis glitchtip_migrate glitchtip_web glitchtip_worker
+```
+
+Создать единственный админ-логин (без email — `EMAIL_URL=consolemail://`
+никуда реально не шлёт, поэтому не через веб-регистрацию):
+
+```bash
+docker compose -f docker-compose.prod.yml exec glitchtip_web ./manage.py createsuperuser
+```
+
+С локальной машины — туннель и вход:
+
+```bash
+ssh -L 8080:localhost:8080 root@<IP сервера>
+```
+
+Открыть `http://localhost:8080`, войти созданным логином, создать
+организацию и проект (`platform: Python` — под FastAPI-бэкенд). GlitchTip
+покажет DSN вида `http://<public_key>@localhost:8080/<project_id>` —
+взять из него только `<public_key>` и `<project_id>`, собрать серверный
+DSN вручную (localhost в показанном DSN — это адрес *с точки зрения
+браузера через туннель*, бэкенду внутри compose-сети нужен адрес по
+имени сервиса):
+
+```
+GLITCHTIP_DSN=http://<public_key>@glitchtip_web:8080/<project_id>
+```
+
+Вписать в `.env` на сервере, перезапустить бэкенд:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d backend
+```
+
+Проверить тестовым событием (не дожидаясь настоящей ошибки):
+
+```bash
+docker compose -f docker-compose.prod.yml exec backend python -c "
+import sentry_sdk
+from app.core.config import get_settings
+sentry_sdk.init(dsn=get_settings().glitchtip_dsn)
+sentry_sdk.capture_message('GlitchTip test event from deploy runbook')
+sentry_sdk.flush()
+"
+```
+
+Событие должно появиться в `http://localhost:8080` (через туннель) в
+том же проекте в течение нескольких секунд.
 
 ## Продление сертификата
 

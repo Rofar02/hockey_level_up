@@ -93,6 +93,19 @@ class Settings(BaseSettings):
     # verified.
     email_from_address: str = "IceLevel <onboarding@resend.dev>"
 
+    # Error tracking (2026-09-19 audit round 3 item #6) -- self-hosted
+    # GlitchTip (docker-compose.prod.yml's glitchtip_* services), a
+    # Sentry-protocol-compatible open-source alternative. Not sentry.io
+    # itself: Sentry has been blocked for Russia-based users since
+    # September 2024 (access, not just billing). Same "empty means off"
+    # convention as zai_api_key/resend_api_key above -- sentry_sdk.init in
+    # main.py is skipped entirely when unset, so local dev never needs a
+    # GlitchTip instance running. DSN format is identical to a real
+    # Sentry DSN, just pointing at GlitchTip's own ingest endpoint
+    # instead -- reachable only over the compose network (see
+    # glitchtip_web's own port-binding comment for why it's never public).
+    glitchtip_dsn: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
