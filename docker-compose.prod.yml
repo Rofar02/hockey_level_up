@@ -218,6 +218,7 @@ services:
   # glitchtip_migrate` by hand first, same as any other schema change.
   glitchtip_migrate:
     image: glitchtip/glitchtip:latest
+    command: ./manage.py migrate
     environment: *glitchtip-env
     depends_on:
       glitchtip_postgres:
