@@ -107,6 +107,25 @@ _EXPLOSIVE_PATTERNS: tuple[MovementPattern, ...] = (
 _LOWER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.SQUAT, MovementPattern.HIP_HINGE)
 _UPPER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.PUSH, MovementPattern.PULL)
 
+# 2026-09-19 audit round 3 item #4: ROTATING_PATTERNS' own same-variant
+# session cap (see its docstring) was deliberately scoped to the 7
+# patterns *without* a 3-archetype split -- squat/hip_hinge/push/pull
+# were left out because ARCHETYPE_ELIGIBLE_PATTERNS already splits them
+# by load type (strength/power/skill). But that split is across
+# *different* stimulus lines, not variety *within* one -- a squat/POWER
+# pin still holds the exact same variant for the whole training block
+# (8+ weeks), same "same exercise for weeks" complaint ROTATING_PATTERNS
+# already fixed for everything else. Confirmed against the real catalog:
+# 39 squat/power candidates, zero content shortage, yet a user reported
+# the exact same one-legged jump for two months straight. Combining the
+# two sets here (rather than editing ROTATING_PATTERNS itself, which
+# stays "the non-archetype-eligible ones" per its own docstring) lets
+# both call sites below share one check. Per-archetype-line granularity
+# comes for free: existing_pins/row are already keyed on (pattern,
+# archetype), so squat/STRENGTH, squat/POWER and squat/SKILL each carry
+# their own independent times_chosen counter and rotate independently.
+_SESSION_CAP_ROTATED_PATTERNS: frozenset[MovementPattern] = ROTATING_PATTERNS | ARCHETYPE_ELIGIBLE_PATTERNS
+
 
 # Final coherence validator (Stage 2.4, 2026-08-20 planning session):
 # "не более N упражнений на одну мышцу" -- see _pick_main's own call site
@@ -1229,17 +1248,17 @@ class ScheduleService:
                 same_block = existing_pin.block_number == training_block.block_number
                 hold_through_deload = training_block.is_macrocycle_deload
                 use_pin = same_block or hold_through_deload
-                # 2026-09-17 fix (audit item #1): locomotion/core/
-                # coordination/rotation don't get the 3-archetype split
-                # (see ROTATING_PATTERNS's docstring), but a same-block pin
-                # otherwise holds for the whole block same as any other
-                # pattern -- up to PHASE_CALENDAR_CEILING_WEEKS, the direct
-                # cause of the "same exercise for weeks" complaint. Force a
-                # rotation to a fresh candidate once the pin has been
-                # genuinely reused ROTATION_SESSION_LIMIT times in a row,
-                # same as the bodyweight-escalation break below, never
-                # during a deload-hold.
-                if use_pin and not hold_through_deload and pattern in ROTATING_PATTERNS:
+                # 2026-09-17 fix (audit round 1 item #1), extended
+                # 2026-09-19 (audit round 3 item #4) to squat/hip_hinge/
+                # push/pull too -- see _SESSION_CAP_ROTATED_PATTERNS' own
+                # comment for the "why". A same-block pin otherwise holds
+                # for the whole block -- up to PHASE_CALENDAR_CEILING_WEEKS,
+                # the direct cause of the "same exercise for weeks/months"
+                # complaint. Force a rotation to a fresh candidate once the
+                # pin has been genuinely reused ROTATION_SESSION_LIMIT times
+                # in a row, same as the bodyweight-escalation break below,
+                # never during a deload-hold.
+                if use_pin and not hold_through_deload and pattern in _SESSION_CAP_ROTATED_PATTERNS:
                     if (existing_pin.times_chosen or 0) >= ROTATION_SESSION_LIMIT:
                         use_pin = False
                 # Stage 2.6 (2026-08-20 planning session): double
@@ -1375,13 +1394,16 @@ class ScheduleService:
                 if choice.stimulus_type == archetype:
                     row.last_chosen_at = resolved_today
 
-            if training_block is not None and pattern in ROTATING_PATTERNS and row is not None:
-                # 2026-09-17 fix (audit item #1): times_chosen is the
-                # same-variant-in-a-row counter the rotation-limit check
+            if training_block is not None and pattern in _SESSION_CAP_ROTATED_PATTERNS and row is not None:
+                # 2026-09-17 fix (audit round 1 item #1): times_chosen is
+                # the same-variant-in-a-row counter the rotation-limit check
                 # above reads. use_pin=True means this session is another
                 # consecutive rerun of the same pin -- bump it; any fresh
                 # pick (rotation-forced, first-ever, or a genuine block
                 # boundary) restarts the count at this session's own use.
+                # For an archetype-eligible pattern (round 3 item #4), `row`
+                # here is already the specific (pattern, archetype) row --
+                # e.g. squat/POWER's counter never touches squat/STRENGTH's.
                 row.times_chosen = (existing_pin.times_chosen or 0) + 1 if use_pin else 1
 
             picked.append(choice)
