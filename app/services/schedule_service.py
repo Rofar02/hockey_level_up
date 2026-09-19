@@ -1206,6 +1206,7 @@ class ScheduleService:
             stimulus_preference: frozenset[StimulusType] | None = None,
             prefer_unilateral: bool = False,
             use_muscle_context: bool = False,
+            bypass_gate_for_stimulus: bool = False,
         ) -> Exercise | None:
             """One role's attempt at filling a single slot from `pattern`.
             Returns the picked Exercise (already appended to `picked`), or
@@ -1215,7 +1216,8 @@ class ScheduleService:
             (identical to pre-2.4 behavior there). stimulus_preference is
             the corresponding *soft* narrowing -- {archetype} for roles
             2-3, {POWER, SKILL} for role 1's explosive pool, unset for
-            role 4.
+            role 4 except the one guaranteed pattern (see
+            bypass_gate_for_stimulus below).
             """
             if len(picked) >= count:
                 return None
@@ -1225,6 +1227,10 @@ class ScheduleService:
             pool = [e for e in by_pattern.get(pattern, ()) if e.id not in picked_ids]
             if not pool:
                 return None
+            # Pre-gate snapshot -- only used by the guarantee's own
+            # bypass_gate_for_stimulus fallback below; every other caller
+            # ignores this.
+            raw_pool = pool
 
             pool, gate_exhausted = await self._apply_difficulty_gate(
                 pool,
@@ -1328,9 +1334,32 @@ class ScheduleService:
                     stat_pool = self._tier_by_escalated_difficulty(stat_pool, pinned_exercise)
 
                 if stimulus_preference is not None:
-                    stat_pool = [
-                        e for e in stat_pool if e.stimulus_type in stimulus_preference
-                    ] or stat_pool
+                    preferred = [e for e in stat_pool if e.stimulus_type in stimulus_preference]
+                    if not preferred and bypass_gate_for_stimulus:
+                        # 2026-09-20 audit round 3 item #3 (continuation):
+                        # confirmed live -- a player with a genuinely weak
+                        # stat (here ENDURANCE at 17.76) had the difficulty
+                        # gate cap every single ENDURANCE-tagged exercise
+                        # in the whole catalog out of reach (the easiest
+                        # one is difficulty_level=2, their cap allowed only
+                        # 1), silently defeating guarantee_endurance's
+                        # entire purpose -- it exists specifically FOR
+                        # players weak in the stimulus it guarantees, so
+                        # "too weak to unlock it" can never be an
+                        # acceptable reason for it not to fire. Bypasses
+                        # the gate for this one guaranteed slot only
+                        # (never for role 1-3's own stimulus_preference,
+                        # which don't pass bypass_gate_for_stimulus) --
+                        # picks the single LEAST difficult genuine match
+                        # from the pre-gate pool, still real content, just
+                        # not respecting the normal cap this once.
+                        ungated_preferred = [
+                            e for e in raw_pool if e.stimulus_type in stimulus_preference
+                        ]
+                        if ungated_preferred:
+                            easiest = min(e.difficulty_level for e in ungated_preferred)
+                            preferred = [e for e in ungated_preferred if e.difficulty_level == easiest]
+                    stat_pool = preferred or stat_pool
 
                 skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
 
@@ -1506,6 +1535,11 @@ class ScheduleService:
                 archetype=None,
                 stimulus_preference=stimulus_pref_by_pattern.get(pattern),
                 use_muscle_context=True,
+                # Only ever has an effect when stimulus_preference above is
+                # actually set, i.e. only for the one pattern the guarantee
+                # itself targeted this call -- see pick_for_pattern's own
+                # comment on why the guarantee specifically needs this.
+                bypass_gate_for_stimulus=True,
             )
             if choice is None:
                 continue

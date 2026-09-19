@@ -32,6 +32,7 @@ from app.models.exercise import (
     TrainingPhase,
     UserMovementPatternVariant,
 )
+from app.models.progress import UserStat
 from app.models.schedule import DaySessionType, TrainingBlock
 from app.models.user import User
 from app.schemas.schedule import DayPlanIn
@@ -323,6 +324,115 @@ async def test_guaranteed_exercise_survives_cap_enforcement_as_the_sole_overload
     assert "ALT-locomotion-plain" not in names
     core_count = sum(1 for e in picked if e.name in {"Z-locomotion-endurance", "B-rotation-core", "C-ankle-core", "D-hip-core"})
     assert core_count == 4  # honestly over MAX_EXERCISES_PER_MUSCLE_GROUP -- not silently fixed
+
+
+@pytest.mark.asyncio
+async def test_guarantee_endurance_bypasses_the_difficulty_gate_when_the_stat_is_too_weak_to_unlock_it(
+    db_session, monkeypatch
+) -> None:
+    """2026-09-20 audit round 3 item #3 (continuation) -- confirmed live: a
+    player with ENDURANCE at 17.76 (stat_difficulty's own <20 -> cap=1
+    band) had every ENDURANCE-tagged exercise in the whole catalog capped
+    out of reach (the easiest one on prod is difficulty_level=2), so
+    _apply_difficulty_gate silently removed the guarantee's only real
+    candidates before stimulus_preference ever got a chance to filter
+    for them -- guarantee_endurance never fired, not because of a broken
+    pin this time, but because the exact stat it exists to help was
+    itself the thing locking the content out. The gate must not apply to
+    this one guaranteed slot -- role 1's own stimulus_preference (POWER/
+    SKILL, the next test) must still respect it normally.
+    """
+    import random
+
+    monkeypatch.setattr(random, "randint", lambda a, b: 1)
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(UserStat(user_id=user.id, stat_type=TargetStat.ENDURANCE, current_value=10.0))
+    await db_session.flush()
+
+    # Both CORE-pattern (role 4 only, never claimed by roles 1-3) -- two
+    # candidates, not one, so the difficulty gate's own "exhausted, climb
+    # one step at a time" fallback (audit round 2 item #2) never kicks in:
+    # easy_strength alone already keeps CORE's post-gate pool non-empty,
+    # exactly like the live pool (58 LOCOMOTION candidates, 18 survive on
+    # other stats) that led the gate to leave the ENDURANCE subset
+    # excluded rather than relaxing for it specifically.
+    easy_strength = Exercise(
+        id=uuid.uuid4(), name="A-core-easy-strength", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=1, stimulus_type=StimulusType.STRENGTH,
+    )
+    hard_endurance = Exercise(
+        id=uuid.uuid4(), name="Z-core-endurance-hard", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=2, stimulus_type=StimulusType.ENDURANCE,
+    )
+    db_session.add_all([
+        easy_strength, hard_endurance,
+        ExerciseTargetStat(exercise_id=easy_strength.id, target_stat=TargetStat.STRENGTH, order=0),
+        ExerciseTargetStat(exercise_id=hard_endurance.id, target_stat=TargetStat.ENDURANCE, order=0),
+        ExerciseMovementPattern(exercise_id=easy_strength.id, movement_pattern=MovementPattern.CORE),
+        ExerciseMovementPattern(exercise_id=hard_endurance.id, movement_pattern=MovementPattern.CORE),
+    ])
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, [easy_strength, hard_endurance])
+
+    # Sanity check first: without the guarantee, the difficulty-appropriate
+    # pick wins -- hard_endurance is genuinely out of reach at this stat.
+    without_guarantee = await service._pick_main(
+        ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION, guarantee_endurance=False
+    )
+    assert [e.name for e in without_guarantee] == ["A-core-easy-strength"]
+
+    with_guarantee = await service._pick_main(
+        ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION, guarantee_endurance=True
+    )
+    assert [e.name for e in with_guarantee] == ["Z-core-endurance-hard"]
+
+
+@pytest.mark.asyncio
+async def test_role1_stimulus_preference_still_respects_the_difficulty_gate(db_session, monkeypatch) -> None:
+    """The gate bypass above is scoped to the guarantee's own call
+    (bypass_gate_for_stimulus=True) -- role 1's explosive-pool preference
+    (POWER/SKILL) must keep respecting the normal cap, same as before."""
+    import random
+
+    monkeypatch.setattr(random, "randint", lambda a, b: 1)
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(UserStat(user_id=user.id, stat_type=TargetStat.STRENGTH, current_value=10.0))
+    await db_session.flush()
+
+    easy_strength = Exercise(
+        id=uuid.uuid4(), name="A-locomotion-easy-strength", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=1, stimulus_type=StimulusType.STRENGTH,
+    )
+    hard_power = Exercise(
+        id=uuid.uuid4(), name="Z-locomotion-hard-power", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=2, stimulus_type=StimulusType.POWER,
+    )
+    db_session.add_all([
+        easy_strength, hard_power,
+        ExerciseTargetStat(exercise_id=easy_strength.id, target_stat=TargetStat.STRENGTH, order=0),
+        ExerciseTargetStat(exercise_id=hard_power.id, target_stat=TargetStat.STRENGTH, order=0),
+        ExerciseMovementPattern(exercise_id=easy_strength.id, movement_pattern=MovementPattern.LOCOMOTION),
+        ExerciseMovementPattern(exercise_id=hard_power.id, movement_pattern=MovementPattern.LOCOMOTION),
+    ])
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, [easy_strength, hard_power])
+
+    picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
+
+    # Role 1 prefers POWER/SKILL (hard_power) but it's gated out at this
+    # stat level -- must fall back to the gate-respecting easy_strength,
+    # never bypass the gate the way the guarantee above does.
+    assert [e.name for e in picked] == ["A-locomotion-easy-strength"]
 
 
 def test_choose_guaranteed_slot_dates_is_a_no_op_for_a_week_with_no_off_ice_day() -> None:
