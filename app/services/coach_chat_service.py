@@ -48,7 +48,7 @@ from app.models.coach_chat_proposed_action import (
 )
 from app.models.exercise import MovementPattern, MuscleGroup, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, UserStat
-from app.models.schedule import BlockPhase, DayPlan, DaySessionType, TrainingSession
+from app.models.schedule import BlockPhase, DayPlan, DaySessionType, TrainingSession, WeeklyPlan
 from app.models.skill import SkillTag
 from app.models.user import CoachPersonality, User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
@@ -525,6 +525,56 @@ def _format_next_session_section(next_plan: DayPlan | None, searched: bool) -> s
     )
 
 
+def _format_tournament_section(tournament_date: date | None, today: date) -> str:
+    """2026-09-20 (player-requested, see the coach's own proposal in a
+    2026-09-19 chat: "турнирная дата -- 20 токенов, вообще ни о чём"):
+    the coach could already PROPOSE setting a tournament_date (the
+    set_tournament_date action) and the periodization system already
+    reacts to one once set (Phase П.5 taper), but the coach itself never
+    got to see the actual value -- it could set the date but never
+    explain "почему нагрузка снижается" in terms of an approaching
+    tournament it didn't know existed."""
+    if tournament_date is None:
+        return "Дата турнира: не указана."
+    days_until = (tournament_date - today).days
+    if days_until < 0:
+        return f"Дата турнира: {tournament_date.isoformat()} (уже прошла)."
+    if days_until == 0:
+        return f"Дата турнира: {tournament_date.isoformat()} -- сегодня."
+    return f"Дата турнира: {tournament_date.isoformat()} (через {days_until} дн.)."
+
+
+def _format_week_overview_section(weekly_plan: WeeklyPlan | None, today: date) -> str:
+    """2026-09-20 (player-requested: "чтобы видел всю неделю, а не два
+    дня"): _format_today_section/_format_next_session_section together
+    only ever cover at most two of the week's seven days (today, plus
+    whichever single day is next) -- a player asking "как у меня выглядит
+    неделя" or "почему в четверг легче, чем во вторник" had nothing to
+    ground that in. One compact line per day, MAIN-only exercise names
+    (via _session_exercise_names, same as the two sections above) rather
+    than a full warmup/cooldown breakdown -- the coach only ever needs
+    "what kind of day is this" for the days it's not actively discussing
+    in detail elsewhere in the prompt. REST days collapse to just the
+    label, no "упражнения ещё не назначены" noise. `today` is marked
+    explicitly so the coach doesn't have to cross-reference the date
+    itself against today_section above.
+    """
+    if weekly_plan is None:
+        return "План на неделю: не составлен."
+    lines = []
+    for day_plan in sorted(weekly_plan.day_plans, key=lambda dp: dp.date):
+        label = DAY_SESSION_TYPE_LABELS.get(day_plan.session_type, day_plan.session_type.value)
+        marker = " (сегодня)" if day_plan.date == today else ""
+        if day_plan.session_type == DaySessionType.REST or day_plan.training_session is None:
+            lines.append(f"{day_plan.date.isoformat()}{marker}: {label}")
+        else:
+            lines.append(
+                f"{day_plan.date.isoformat()}{marker}: {label} -- "
+                f"{_session_exercise_names(day_plan.training_session)}"
+            )
+    return "План на текущую неделю:\n" + "\n".join(lines)
+
+
 def _format_priority_skill_focus_section(
     day_plan: DayPlan | None,
     priority_skill_names_by_id: dict[uuid.UUID, str],
@@ -896,6 +946,11 @@ class CoachChatService:
         )
         diary_section = _format_diary_section(diary_entries)
 
+        tournament_section = _format_tournament_section(user.tournament_date, now.date())
+
+        weekly_plan = await self._schedule.get_current(user.id, now.date())
+        week_overview_section = _format_week_overview_section(weekly_plan, now.date())
+
         today_plan = await self._schedule.get_day_plan_for_date(user.id, now.date())
         today_section = _format_today_section(today_plan)
 
@@ -945,7 +1000,9 @@ class CoachChatService:
             "про своего игрока. Если игрок спрашивает, почему сегодняшняя "
             "тренировка именно такая -- объясняй, опираясь на фазу "
             "периодизации из сводки (например, в интенсификации сложность "
-            "выше, в разгрузке — ниже) и, если есть, на связь упражнений с "
+            "выше, в разгрузке — ниже), на дату турнира, если она указана "
+            "и близко (снижение нагрузки перед игрой -- это тейпер, а не "
+            "ошибка системы), и, если есть, на связь упражнений с "
             "приоритетными навыками игрока." + why_this_workout_hint + "\n\n"
             f"Сводка данных пользователя (на {now.date().isoformat()}):\n"
             f"{stats_section}\n"
@@ -956,6 +1013,8 @@ class CoachChatService:
             f"{restrictions_section}\n"
             f"{restriction_history_section}\n"
             f"{diary_section}\n"
+            f"{tournament_section}\n"
+            f"{week_overview_section}\n"
             f"{today_section}\n"
             f"{next_session_section}\n"
             f"{analytics_section}\n\n"
