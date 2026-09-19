@@ -14,7 +14,13 @@ Verifies:
      empty) must NOT be recorded as having satisfied that archetype --
      last_chosen_at stays untouched, even though a pin row still gets
      created/updated for that archetype slot.
+  4. PUSH/PULL now get the same three-way split as SQUAT/HIP_HINGE
+     (2026-09-20 fix, round-4 audit).
+  5. A thin, single-candidate pool logs a warning when it silently
+     collapses every archetype onto the same fallback exercise
+     (2026-09-20 fix, round-4 audit).
 """
+import logging
 import uuid
 from datetime import date, timedelta
 
@@ -64,6 +70,18 @@ def _make_squat_exercise(name: str, stimulus_type: StimulusType) -> tuple[Exerci
         stimulus_type=stimulus_type,
     )
     return exercise, ExerciseMovementPattern(exercise_id=exercise.id, movement_pattern=MovementPattern.SQUAT)
+
+
+def _make_push_exercise(name: str, stimulus_type: StimulusType) -> tuple[Exercise, ExerciseMovementPattern]:
+    exercise = Exercise(
+        id=uuid.uuid4(),
+        name=name,
+        category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN,
+        difficulty_level=1,
+        stimulus_type=stimulus_type,
+    )
+    return exercise, ExerciseMovementPattern(exercise_id=exercise.id, movement_pattern=MovementPattern.PUSH)
 
 
 def _isolate_candidates(service: ScheduleService, exercises: list[Exercise]) -> None:
@@ -190,3 +208,123 @@ async def test_fallback_pick_does_not_falsely_mark_the_archetype_done(db_session
     # not a genuine POWER instance, so it must not be marked done.
     power_pin = await _get_pin(db_session, user, StimulusType.POWER)
     assert power_pin.last_chosen_at == TODAY - timedelta(days=30)
+
+
+@pytest.mark.asyncio
+async def test_override_forces_skill_during_a_deload_equivalent_session_for_push(
+    db_session,
+) -> None:
+    """2026-09-20 fix (round-4 audit): PUSH/PULL used to be excluded from
+    SKILL entirely (PATTERN_ARCHETYPES), so forces_technical's SKILL
+    override silently fell through to an unfiltered pick for these two
+    patterns -- the "lighter, technical" deload/taper/playoffs intent
+    quietly never applied to them. Mirrors
+    test_override_forces_skill_during_a_deload_equivalent_session above,
+    but for PUSH, now that it has real SKILL content."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    strength_ex, strength_pattern = _make_push_exercise("Strength-push", StimulusType.STRENGTH)
+    skill_ex, skill_pattern = _make_push_exercise("Skill-push", StimulusType.SKILL)
+    db_session.add_all([strength_ex, skill_ex, strength_pattern, skill_pattern])
+    block = _make_block(user)
+    db_session.add(block)
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, [strength_ex, skill_ex])
+    picked = await service._pick_main(
+        ExerciseCategory.OFF_ICE, user, BlockPhase.DELOAD, training_block=block, today=TODAY
+    )
+
+    assert [e.name for e in picked] == ["Skill-push"]
+
+
+@pytest.mark.asyncio
+async def test_forces_technical_does_not_force_an_archetype_the_pattern_lacks(
+    db_session, monkeypatch
+) -> None:
+    """Defensive branch for the fix above: if a pattern's own
+    PATTERN_ARCHETYPES entry ever lacks SKILL again (e.g. a future
+    catalog regression), forces_technical must not force an archetype
+    that pattern doesn't support -- it should fall through to the normal,
+    read-only archetype resolution instead of forcing an empty
+    stimulus_preference search."""
+    from app.services import schedule_service as schedule_service_module
+
+    monkeypatch.setitem(
+        schedule_service_module.PATTERN_ARCHETYPES,
+        MovementPattern.PUSH,
+        (StimulusType.STRENGTH, StimulusType.POWER),
+    )
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    strength_ex, strength_pattern = _make_push_exercise("Strength-push", StimulusType.STRENGTH)
+    db_session.add_all([strength_ex, strength_pattern])
+    block = _make_block(user)
+    db_session.add(block)
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, [strength_ex])
+    picked = await service._pick_main(
+        ExerciseCategory.OFF_ICE, user, BlockPhase.DELOAD, training_block=block, today=TODAY
+    )
+
+    # No SKILL candidate exists and PATTERN_ARCHETYPES[PUSH] no longer
+    # offers it -- falls through to the only real (STRENGTH) content
+    # instead of an empty, forced SKILL search.
+    assert [e.name for e in picked] == ["Strength-push"]
+
+
+@pytest.mark.asyncio
+async def test_thin_pool_collapse_to_a_single_exercise_logs_a_warning(
+    db_session, caplog
+) -> None:
+    """2026-09-20 fix (round-4 audit): when a pattern's post-filter pool
+    has only one real candidate, all three day archetypes silently
+    collapse onto it -- the slot still gets filled (same best-effort
+    softness as every other layer), but it's now logged so a thin catalog
+    spot is visible instead of invisibly masquerading as real variety."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    only_ex, only_pattern = _make_squat_exercise("Only squat available", StimulusType.STRENGTH)
+    db_session.add_all([only_ex, only_pattern])
+    block = _make_block(user)
+    db_session.add(block)
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, [only_ex])
+
+    with caplog.at_level(logging.WARNING, logger="app.services.schedule_service"):
+        picked = await service._pick_main(
+            ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION, training_block=block, today=TODAY
+        )
+
+    assert [e.name for e in picked] == ["Only squat available"]
+    # First-ever pick resolves to STRENGTH (DEFAULT_FIRST_ARCHETYPE) --
+    # genuine, no warning for that one. Nothing else fired this call
+    # (POWER/SKILL are only tried once STRENGTH's own pin is reused/
+    # rotated on a later call), so no fallback warning is expected here
+    # either -- this call alone just establishes the pin.
+    assert not any("Day-archetype fallback" in record.message for record in caplog.records)
+
+    # A second call, forcing rotation past STRENGTH (bump times_chosen to
+    # the rotation limit) -- resolves to POWER or SKILL next, neither of
+    # which this thin pool can genuinely satisfy.
+    pin = await _get_pin(db_session, user, StimulusType.STRENGTH)
+    pin.times_chosen = 999
+    await db_session.flush()
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="app.services.schedule_service"):
+        picked_again = await service._pick_main(
+            ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION, training_block=block, today=TODAY
+        )
+
+    assert [e.name for e in picked_again] == ["Only squat available"]
+    assert any("Day-archetype fallback" in record.message for record in caplog.records)

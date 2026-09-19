@@ -116,44 +116,46 @@ def test_forces_technical_archetype_matches_the_resolved_count_range(
     )
 
 
-def test_pattern_archetypes_excludes_skill_for_push_and_pull() -> None:
-    """2026-09-17 fix (audit item #1): the catalog has zero push/skill and
-    pull/skill candidates -- a gym push/pull has no real hockey-skill
-    equivalent the way a pistol squat does -- so push/pull only ever
-    rotate strength/power, never fall into an empty skill pool."""
-    assert PATTERN_ARCHETYPES[MovementPattern.SQUAT] == DAY_ARCHETYPES
-    assert PATTERN_ARCHETYPES[MovementPattern.HIP_HINGE] == DAY_ARCHETYPES
-    assert PATTERN_ARCHETYPES[MovementPattern.PUSH] == (StimulusType.STRENGTH, StimulusType.POWER)
-    assert PATTERN_ARCHETYPES[MovementPattern.PULL] == (StimulusType.STRENGTH, StimulusType.POWER)
+def test_pattern_archetypes_gives_every_eligible_pattern_the_full_three_way_split() -> None:
+    """2026-09-20 fix (round-4 audit): PUSH/PULL used to be narrowed to
+    (STRENGTH, POWER) on the premise that the catalog had zero push/skill
+    and pull/skill candidates (2026-09-17 fix, audit round 1 item #1).
+    That premise stopped holding once the catalog gained real,
+    correctly-tagged content for both -- with the narrower tuple,
+    choose_archetype/initial_rotation_order could never resolve to SKILL
+    for either pattern, making that real content permanently unreachable
+    through the normal rotation. All four eligible patterns now share the
+    same full three-way split."""
     for pattern in ARCHETYPE_ELIGIBLE_PATTERNS:
-        assert StimulusType.SKILL not in PATTERN_ARCHETYPES[pattern] or pattern in (
-            MovementPattern.SQUAT,
-            MovementPattern.HIP_HINGE,
-        )
+        assert PATTERN_ARCHETYPES[pattern] == DAY_ARCHETYPES
 
 
 def test_choose_archetype_never_picks_outside_narrowed_candidates() -> None:
-    push_candidates = PATTERN_ARCHETYPES[MovementPattern.PUSH]
+    """choose_archetype's own `candidates` narrowing still needs to work in
+    isolation even though no current PATTERN_ARCHETYPES entry actually
+    narrows anymore (see the test above) -- a synthetic two-way split
+    exercises the same code path PUSH/PULL used to rely on."""
+    narrowed_candidates = (StimulusType.STRENGTH, StimulusType.POWER)
     # Nothing has ever been chosen -- default-first still respects the
     # narrowed set instead of falling back to the global STRENGTH constant
     # blindly (it happens to coincide here, but the fallback-to-candidates[0]
     # path is what's under test).
-    assert choose_archetype({}, push_candidates) in push_candidates
-    # Skill has "history" in the dict (shouldn't happen in practice for
-    # push/pull, but choose_archetype must never surface it as a result
-    # since it's not part of the passed-in candidates).
+    assert choose_archetype({}, narrowed_candidates) in narrowed_candidates
+    # Skill has "history" in the dict but isn't part of the narrowed
+    # candidates passed in -- choose_archetype must never surface it as a
+    # result regardless.
     last_chosen_at = {
         StimulusType.STRENGTH: TODAY - timedelta(days=1),
         StimulusType.POWER: TODAY - timedelta(days=100),
         StimulusType.SKILL: None,
     }
-    assert choose_archetype(last_chosen_at, push_candidates) == StimulusType.POWER
+    assert choose_archetype(last_chosen_at, narrowed_candidates) == StimulusType.POWER
 
 
 def test_initial_rotation_order_respects_narrowed_candidates() -> None:
-    push_candidates = PATTERN_ARCHETYPES[MovementPattern.PUSH]
-    order = initial_rotation_order({}, push_candidates)
-    assert set(order) == set(push_candidates)
+    narrowed_candidates = (StimulusType.STRENGTH, StimulusType.POWER)
+    order = initial_rotation_order({}, narrowed_candidates)
+    assert set(order) == set(narrowed_candidates)
     assert StimulusType.SKILL not in order
 
 
