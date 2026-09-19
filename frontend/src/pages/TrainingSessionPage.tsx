@@ -1027,11 +1027,16 @@ function TrainingDiaryCard({
   const navigate = useNavigate()
   const [isLoaded, setIsLoaded] = useState(false)
   const [note, setNote] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
+  const [phase, setPhase] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [justSaved, setJustSaved] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // 2026-09-19 (design pass): debounce timer for autosave-while-typing, plus
+  // the separate timer that fades "Сохранено" back to nothing after a beat
+  // -- two different clocks, not one, since typing again mid-fade must
+  // restart the save debounce without also restarting the fade.
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -1064,23 +1069,43 @@ function TrainingDiaryCard({
     }
   }, [autoFocus, isLoaded])
 
+  // Clears any pending timers on unmount (e.g. the player navigates away
+  // mid-debounce) -- persistNote below still fires (it's not cancelled by
+  // clearTimeout of a *different*, already-elapsed timer), this just stops
+  // a setState from firing on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current)
+      if (fadeTimerRef.current !== null) clearTimeout(fadeTimerRef.current)
+    }
+  }, [])
+
   async function persistNote(noteValue: string | null) {
     setSaveError(null)
-    setJustSaved(false)
-    setIsSaving(true)
     try {
       await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue }, accessToken)
-      setNote(noteValue ?? '')
-      setJustSaved(true)
+      setPhase('saved')
+      if (fadeTimerRef.current !== null) clearTimeout(fadeTimerRef.current)
+      fadeTimerRef.current = setTimeout(() => setPhase('idle'), 2200)
     } catch (err) {
+      setPhase('idle')
       setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить запись.')
-    } finally {
-      setIsSaving(false)
     }
   }
 
-  async function handleSave() {
-    await persistNote(note.trim() === '' ? null : note)
+  // 2026-09-19 (design pass, replaces the old explicit "Сохранить" button):
+  // saves 700ms after the player stops typing, not on every keystroke --
+  // same idea as any note app's autosave. The status dot flips to
+  // "Сохраняем…" the instant they type (honest -- a save really is now
+  // pending), the network call itself just trails behind it a little.
+  function handleNoteChange(value: string) {
+    setNote(value)
+    setPhase('saving')
+    if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current)
+    if (fadeTimerRef.current !== null) clearTimeout(fadeTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      void persistNote(value.trim() === '' ? null : value)
+    }, 700)
   }
 
   // 2026-09-17 (audit item #3): a diary entry row existing at all -- even
@@ -1088,81 +1113,87 @@ function TrainingDiaryCard({
   // has_diary_entry's docstring in app/schemas/schedule.py). Without this,
   // a player who doesn't want to write anything this time has no way to
   // clear "Заполнить дневник" off TodayCard short of typing something,
-  // which turns the card into a standing reproach.
-  async function handleSkip() {
-    await persistNote(null)
+  // which turns the card into a standing reproach. Explicit, so it saves
+  // immediately rather than waiting out the usual debounce.
+  function handleSkip() {
+    if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current)
+    setNote('')
+    setPhase('saving')
+    void persistNote(null)
   }
 
   if (!isLoaded) {
     return null
   }
 
-  // 2026-09-18: visual pass -- this card used to be a bare label + plain
-  // textarea, styled nothing like the rest of the page (ShieldIcon/StatIcon
-  // header rows, CardGlow corner accent). Same content and behavior, just
-  // dressed like the app's other cards instead of a leftover form.
+  // 2026-09-19 design pass: a private notebook, not a form -- no visible
+  // Save button (autosave while typing is the only save path now, see
+  // handleNoteChange), ruled-paper lines tinted to the app's own persimmon
+  // accent instead of a bordered input box, and a quiet status dot in place
+  // of a loud confirmation banner. Keeps the app's existing card language
+  // (CARD_CLASS's ice-blue top line, CardGlow) -- only the *inside* reads
+  // as a page now, not the whole app's card grammar.
   return (
     <div ref={containerRef} className={`relative overflow-hidden p-4 ${CARD_CLASS}`}>
       <CardGlow corner="top-left" color="persimmon" />
-      <div className="relative flex flex-col gap-3">
+      <div className="relative flex flex-col gap-3.5">
         <div className="flex items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-persimmon/15 text-accent-persimmon">
               <i className="ti ti-notebook text-base" aria-hidden="true" />
             </span>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-text-primary">Дневник</span>
-              <span className="text-xs text-text-secondary">Что получилось, что нет</span>
-            </div>
+            <span className="text-sm font-medium text-text-primary">Блокнот</span>
           </div>
-          {/* This card only ever shows/edits *today's* entry -- the full
-              history (every past ON_ICE/GAME note) lives on its own page
-              (DiaryPage.tsx, also reachable from "Ещё"), but nothing here
-              hinted that a history even existed, which read as "only the
-              last entry is ever visible". */}
-          <button
-            type="button"
-            onClick={() => navigate('/diary')}
-            className="flex shrink-0 items-center gap-1 text-xs text-accent-ice underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary"
-          >
-            Все записи
-            <i className="ti ti-arrow-right" aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-3">
+            <span
+              className={`flex items-center gap-1.5 text-xs transition-opacity duration-500 ${
+                phase === 'idle' ? 'opacity-0' : 'opacity-100'
+              }`}
+            >
+              {phase === 'saving' && (
+                <>
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-text-secondary" />
+                  <span className="text-text-secondary">Сохраняем...</span>
+                </>
+              )}
+              {phase === 'saved' && (
+                <>
+                  <i className="ti ti-check text-accent-ice" aria-hidden="true" />
+                  <span className="text-accent-ice">Сохранено</span>
+                </>
+              )}
+            </span>
+            {/* This card only ever shows/edits *today's* entry -- the full
+                history (every past ON_ICE/GAME note) lives on its own page
+                (DiaryPage.tsx, also reachable from "Ещё"), but nothing here
+                hinted that a history even existed, which read as "only the
+                last entry is ever visible". */}
+            <button
+              type="button"
+              onClick={() => navigate('/diary')}
+              className="flex shrink-0 items-center gap-1 text-xs text-accent-ice underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary"
+            >
+              Все записи
+            </button>
+          </div>
         </div>
         <textarea
           ref={textareaRef}
           value={note}
-          onChange={(event) => {
-            setJustSaved(false)
-            setNote(event.target.value)
-          }}
-          placeholder="Заметка о тренировке..."
-          rows={3}
+          onChange={(event) => handleNoteChange(event.target.value)}
+          placeholder="Что получилось сегодня, а что нет?"
+          rows={4}
           maxLength={2000}
-          className="resize-none rounded-lg border border-white/10 bg-dark-bg/80 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-secondary/60 transition-colors focus:border-accent-ice focus:outline-none focus:ring-1 focus:ring-accent-ice/40"
+          className="w-full resize-none border-none bg-transparent bg-[repeating-linear-gradient(to_bottom,transparent,transparent_27px,rgba(255,92,52,0.16)_28px)] bg-local text-sm leading-7 text-text-primary outline-none placeholder:italic placeholder:text-text-secondary/70"
         />
         <FormError message={saveError} />
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleSkip}
-            disabled={isSaving}
-            className="text-xs text-text-secondary underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Пропустить
-          </button>
-          <div className="flex items-center gap-3">
-            {justSaved && (
-              <span className="flex items-center gap-1 text-xs text-accent-ice">
-                <i className="ti ti-check" aria-hidden="true" />
-                Сохранено
-              </span>
-            )}
-            <Button variant="neutral" onClick={handleSave} isLoading={isSaving} className="self-end">
-              Сохранить
-            </Button>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={handleSkip}
+          className="self-start text-xs text-text-secondary underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary"
+        >
+          Не буду писать сегодня
+        </button>
       </div>
     </div>
   )
