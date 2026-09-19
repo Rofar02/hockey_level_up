@@ -803,6 +803,90 @@ async def test_system_prompt_shows_rest_day_and_finds_next_session(db_session, m
 
 
 @pytest.mark.asyncio
+async def test_system_prompt_includes_tournament_date_with_days_remaining(db_session, monkeypatch) -> None:
+    """2026-09-20 (player-requested): the coach could already PROPOSE
+    set_tournament_date but never got to see the value itself once set --
+    it could set the date but never explain a taper in terms of it."""
+    user = _make_user()
+    user.tournament_date = date.today() + timedelta(days=5)
+    db_session.add(user)
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Когда у меня турнир?")
+
+    prompt = captured["system_prompt"]
+    assert f"Дата турнира: {user.tournament_date.isoformat()} (через 5 дн.)." in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_says_no_tournament_date_when_unset(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Когда у меня турнир?")
+
+    assert "Дата турнира: не указана." in captured["system_prompt"]
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_includes_a_full_week_overview(db_session, monkeypatch) -> None:
+    """2026-09-20 (player-requested: "чтобы видел всю неделю, а не два
+    дня") -- today_section/next_session_section together only ever cover
+    at most two of the week's seven days; this is the whole declared
+    week, one compact line per day."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=week_start)
+    weekly_plan.day_plans.append(
+        DayPlan(id=uuid.uuid4(), date=today, session_type=DaySessionType.REST)
+    )
+    tomorrow = today + timedelta(days=1)
+    exercise = Exercise(
+        id=uuid.uuid4(), name="Рывковый жим", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=1,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+    from app.models.schedule import SessionBlock
+
+    weekly_plan.day_plans.append(
+        DayPlan(
+            id=uuid.uuid4(), date=tomorrow, session_type=DaySessionType.OFF_ICE,
+            training_session=TrainingSession(
+                id=uuid.uuid4(),
+                blocks=[SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0)],
+            ),
+        )
+    )
+    db_session.add(weekly_plan)
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как у меня выглядит неделя?")
+
+    prompt = captured["system_prompt"]
+    assert "План на текущую неделю:" in prompt
+    assert f"{today.isoformat()} (сегодня): Отдых" in prompt
+    assert f"{tomorrow.isoformat()}: Сухая -- Рывковый жим" in prompt
+
+
+@pytest.mark.asyncio
 async def test_system_prompt_includes_analytics_summary(db_session, monkeypatch) -> None:
     """AnalyticsService.get_summary is the exact same data
     AnalyticsPage.tsx itself shows -- this only checks it actually reaches
