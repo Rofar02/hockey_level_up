@@ -1024,6 +1024,7 @@ function TrainingDiaryCard({
   // on the one thing left to do instead of having to find it on the page.
   autoFocus?: boolean
 }) {
+  const navigate = useNavigate()
   const [isLoaded, setIsLoaded] = useState(false)
   const [note, setNote] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -1104,14 +1105,29 @@ function TrainingDiaryCard({
     <div ref={containerRef} className={`relative overflow-hidden p-4 ${CARD_CLASS}`}>
       <CardGlow corner="top-left" color="persimmon" />
       <div className="relative flex flex-col gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-persimmon/15 text-accent-persimmon">
-            <i className="ti ti-notebook text-base" aria-hidden="true" />
-          </span>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-text-primary">Дневник</span>
-            <span className="text-xs text-text-secondary">Что получилось, что нет</span>
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-persimmon/15 text-accent-persimmon">
+              <i className="ti ti-notebook text-base" aria-hidden="true" />
+            </span>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-text-primary">Дневник</span>
+              <span className="text-xs text-text-secondary">Что получилось, что нет</span>
+            </div>
           </div>
+          {/* This card only ever shows/edits *today's* entry -- the full
+              history (every past ON_ICE/GAME note) lives on its own page
+              (DiaryPage.tsx, also reachable from "Ещё"), but nothing here
+              hinted that a history even existed, which read as "only the
+              last entry is ever visible". */}
+          <button
+            type="button"
+            onClick={() => navigate('/diary')}
+            className="flex shrink-0 items-center gap-1 text-xs text-accent-ice underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary"
+          >
+            Все записи
+            <i className="ti ti-arrow-right" aria-hidden="true" />
+          </button>
         </div>
         <textarea
           ref={textareaRef}
