@@ -22,6 +22,23 @@ class SetCompletionRepository:
         )
         return result.scalar_one_or_none()
 
+    async def list_recent_for_user_exercise(
+        self, user_id: uuid.UUID, exercise_id: uuid.UUID, limit: int
+    ) -> list[SetCompletion]:
+        """Most recent `limit` sets logged for this user+exercise, newest
+        first, possibly spanning several sessions -- unlike
+        get_last_for_user_exercise (a single row), this lets a caller
+        compare across sessions (e.g. CoachChatService's exercise-dynamics
+        section, which walks these to find the last set of each of the
+        two most recent sessions)."""
+        result = await self._session.execute(
+            select(SetCompletion)
+            .where(SetCompletion.user_id == user_id, SetCompletion.exercise_id == exercise_id)
+            .order_by(SetCompletion.completed_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
     async def get_by_session_exercise_set(
         self, training_session_id: uuid.UUID, exercise_id: uuid.UUID, set_number: int
     ) -> SetCompletion | None:

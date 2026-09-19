@@ -887,6 +887,147 @@ async def test_system_prompt_includes_a_full_week_overview(db_session, monkeypat
 
 
 @pytest.mark.asyncio
+async def test_system_prompt_includes_last_and_next_week_plans(db_session, monkeypatch) -> None:
+    """2026-09-20 (player-requested: "план прошлой недели, план будущей")
+    -- the coach previously only ever saw the current week; this checks
+    both neighbours are fetched and shown by their own real content."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+
+    await _add_on_ice_day(
+        db_session, user, on_date=week_start - timedelta(days=3),
+        week_start=week_start - timedelta(days=7),
+        main_exercise_names=["Прошлое упражнение"],
+    )
+    await _add_on_ice_day(
+        db_session, user, on_date=week_start + timedelta(days=8),
+        week_start=week_start + timedelta(days=7),
+        main_exercise_names=["Будущее упражнение"],
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как выглядят соседние недели?")
+
+    prompt = captured["system_prompt"]
+    assert "План прошлой недели:" in prompt
+    assert "Прошлое упражнение" in prompt
+    assert "План следующей недели:" in prompt
+    assert "Будущее упражнение" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_says_next_week_not_generated_yet_when_missing(
+    db_session, monkeypatch
+) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Что там на следующей неделе?")
+
+    prompt = captured["system_prompt"]
+    assert "План прошлой недели: нет данных" in prompt
+    assert "План следующей недели: ещё не сформирован." in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_shows_weight_progression_for_a_recurring_exercise(
+    db_session, monkeypatch
+) -> None:
+    """2026-09-20 (player-requested: "динамику упражнений") -- an
+    exercise that appears in both this week's and last week's MAIN blocks
+    gets a real before/after weight comparison, sourced from the last
+    logged set of each of the two most recent training sessions (same
+    "last set = working weight" convention WeightSuggestionService relies
+    on)."""
+    from app.models.schedule import SessionBlock
+    from app.models.set_completion import SetCompletion
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    exercise = Exercise(
+        id=uuid.uuid4(), name="Жим лёжа", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=1,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+
+    old_session = await _add_on_ice_day(
+        db_session, user, on_date=week_start - timedelta(days=3),
+        week_start=week_start - timedelta(days=7),
+    )
+    old_session.blocks.append(
+        SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0)
+    )
+    new_session = await _add_on_ice_day(
+        db_session, user, on_date=today, week_start=week_start,
+    )
+    new_session.blocks.append(
+        SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0)
+    )
+    await db_session.flush()
+
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            SetCompletion(
+                id=uuid.uuid4(), user_id=user.id, exercise_id=exercise.id,
+                training_session_id=old_session.id, set_number=1, weight_kg=40.0,
+                completed_at=now - timedelta(days=7),
+            ),
+            SetCompletion(
+                id=uuid.uuid4(), user_id=user.id, exercise_id=exercise.id,
+                training_session_id=new_session.id, set_number=1, weight_kg=42.5,
+                completed_at=now,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как у меня прогресс в жиме?")
+
+    prompt = captured["system_prompt"]
+    assert "Жим лёжа: 40 кг -> 42.5 кг" in prompt
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_progression_section_empty_with_no_recurring_exercise(
+    db_session, monkeypatch
+) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key("test-key"))
+    captured = _install_fake_call(monkeypatch)
+
+    service = CoachChatService(db_session)
+    await service.send_message(user, "Как мой прогресс?")
+
+    assert "Динамика по повторяющимся упражнениям: нет данных для сравнения" in captured["system_prompt"]
+
+
+@pytest.mark.asyncio
 async def test_system_prompt_includes_analytics_summary(db_session, monkeypatch) -> None:
     """AnalyticsService.get_summary is the exact same data
     AnalyticsPage.tsx itself shows -- this only checks it actually reaches
