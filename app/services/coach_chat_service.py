@@ -49,6 +49,7 @@ from app.models.coach_chat_proposed_action import (
 from app.models.exercise import MovementPattern, MuscleGroup, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, UserStat
 from app.models.schedule import BlockPhase, DayPlan, DaySessionType, TrainingSession, WeeklyPlan
+from app.models.set_completion import SetCompletion
 from app.models.skill import SkillTag
 from app.models.user import CoachPersonality, User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
@@ -56,6 +57,7 @@ from app.repositories.coach_chat_proposed_action_repository import CoachChatProp
 from app.repositories.coach_chat_repository import CoachChatRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.schedule_repository import ScheduleRepository
+from app.repositories.set_completion_repository import SetCompletionRepository
 from app.schemas.analytics import AnalyticsMoverRead, AnalyticsSummaryRead
 from app.schemas.coach_chat import CoachChatMessageRead, ProposedActionRead
 from app.schemas.training_diary import TrainingDiaryEntryListItem
@@ -183,6 +185,15 @@ RESOLVED_RESTRICTIONS_IN_PROMPT = 3
 # generous (a declared week is at most 7 days) without risking an
 # unbounded scan.
 UPCOMING_SESSION_SEARCH_DAYS = 7
+
+# 2026-09-20 (player-requested: "план прошлой недели, план будущей...
+# динамику упражнений"): how many recurring MAIN exercises (present in
+# both last week's plan and this week's) get a weight/reps comparison in
+# the prompt -- capped for the same cost reason as the other *_IN_PROMPT
+# constants above, and because a coach only needs the most notable
+# progressions, not a full log (the diary/history views are what fuller
+# review is for).
+PROGRESSION_EXERCISES_IN_PROMPT = 5
 
 # Same Russian wording as frontend/src/types/exercise.ts's
 # MOVEMENT_PATTERN_LABELS/MUSCLE_GROUP_LABELS (RestrictionsPage's own
@@ -544,23 +555,15 @@ def _format_tournament_section(tournament_date: date | None, today: date) -> str
     return f"Дата турнира: {tournament_date.isoformat()} (через {days_until} дн.)."
 
 
-def _format_week_overview_section(weekly_plan: WeeklyPlan | None, today: date) -> str:
-    """2026-09-20 (player-requested: "чтобы видел всю неделю, а не два
-    дня"): _format_today_section/_format_next_session_section together
-    only ever cover at most two of the week's seven days (today, plus
-    whichever single day is next) -- a player asking "как у меня выглядит
-    неделя" or "почему в четверг легче, чем во вторник" had nothing to
-    ground that in. One compact line per day, MAIN-only exercise names
-    (via _session_exercise_names, same as the two sections above) rather
-    than a full warmup/cooldown breakdown -- the coach only ever needs
-    "what kind of day is this" for the days it's not actively discussing
-    in detail elsewhere in the prompt. REST days collapse to just the
-    label, no "упражнения ещё не назначены" noise. `today` is marked
-    explicitly so the coach doesn't have to cross-reference the date
-    itself against today_section above.
-    """
-    if weekly_plan is None:
-        return "План на неделю: не составлен."
+def _format_week_plan_lines(weekly_plan: WeeklyPlan, today: date) -> list[str]:
+    """One compact line per day, MAIN-only exercise names (via
+    _session_exercise_names) rather than a full warmup/cooldown breakdown
+    -- the coach only ever needs "what kind of day is this" for a day
+    it's not actively discussing in detail elsewhere in the prompt. REST
+    days collapse to just the label, no "упражнения ещё не назначены"
+    noise. `today` marks the current day when it happens to fall inside
+    this particular week (harmless no-op for a genuinely past/future
+    week, where it never matches)."""
     lines = []
     for day_plan in sorted(weekly_plan.day_plans, key=lambda dp: dp.date):
         label = DAY_SESSION_TYPE_LABELS.get(day_plan.session_type, day_plan.session_type.value)
@@ -572,7 +575,90 @@ def _format_week_overview_section(weekly_plan: WeeklyPlan | None, today: date) -
                 f"{day_plan.date.isoformat()}{marker}: {label} -- "
                 f"{_session_exercise_names(day_plan.training_session)}"
             )
-    return "План на текущую неделю:\n" + "\n".join(lines)
+    return lines
+
+
+def _format_week_overview_section(weekly_plan: WeeklyPlan | None, today: date) -> str:
+    """2026-09-20 (player-requested: "чтобы видел всю неделю, а не два
+    дня"): _format_today_section/_format_next_session_section together
+    only ever cover at most two of the week's seven days (today, plus
+    whichever single day is next) -- a player asking "как у меня выглядит
+    неделя" or "почему в четверг легче, чем во вторник" had nothing to
+    ground that in."""
+    if weekly_plan is None:
+        return "План на текущую неделю: не составлен."
+    return "План на текущую неделю:\n" + "\n".join(_format_week_plan_lines(weekly_plan, today))
+
+
+def _format_last_week_section(weekly_plan: WeeklyPlan | None, today: date) -> str:
+    """2026-09-20 (player-requested): lets the coach compare "как было" с
+    "как сейчас" itself from the two week summaries side by side (e.g.
+    notice a pattern moved days, or a session got lighter/heavier) without
+    a separate, persisted change-log -- there isn't one
+    (patch_week_for_eligibility_change applies its swaps silently), and
+    diffing two plain-text week overviews is enough for the model to
+    reason about, not something that needs its own dedicated audit
+    table."""
+    if weekly_plan is None:
+        return "План прошлой недели: нет данных (не была сформирована)."
+    return "План прошлой недели:\n" + "\n".join(_format_week_plan_lines(weekly_plan, today))
+
+
+def _format_next_week_section(weekly_plan: WeeklyPlan | None, today: date) -> str:
+    """Companion to _format_last_week_section above -- next week is often
+    simply not generated yet (weeks are declared close to when they
+    start, not far in advance), which is a normal, expected state, not a
+    missing-data problem."""
+    if weekly_plan is None:
+        return "План следующей недели: ещё не сформирован."
+    return "План следующей недели:\n" + "\n".join(_format_week_plan_lines(weekly_plan, today))
+
+
+def _main_exercise_ids_by_name(weekly_plan: WeeklyPlan | None) -> dict[uuid.UUID, str]:
+    """Every MAIN-phase exercise appearing anywhere in the week, keyed by
+    id -- used to find exercises that recur between two weeks (see
+    CoachChatService._format_progression_section)."""
+    if weekly_plan is None:
+        return {}
+    result: dict[uuid.UUID, str] = {}
+    for day_plan in weekly_plan.day_plans:
+        if day_plan.training_session is None:
+            continue
+        for block in day_plan.training_session.blocks:
+            if block.phase == TrainingPhase.MAIN:
+                result[block.exercise_id] = block.exercise.name
+    return result
+
+
+def _format_progression_entry(name: str, older: SetCompletion, newer: SetCompletion) -> str | None:
+    """One exercise's before/after, preferring weight (the primary
+    double-progression signal, see weight_suggestion_service.py) and
+    falling back to reps when weight isn't tracked for it -- None when
+    neither field has data for both sets (nothing comparable to show)."""
+    if older.weight_kg is not None and newer.weight_kg is not None:
+        if older.weight_kg == newer.weight_kg:
+            return f"{name}: без изменений в весе ({newer.weight_kg:g} кг)"
+        return f"{name}: {older.weight_kg:g} кг -> {newer.weight_kg:g} кг"
+    if older.reps_completed is not None and newer.reps_completed is not None:
+        if older.reps_completed == newer.reps_completed:
+            return f"{name}: без изменений в повторах ({newer.reps_completed})"
+        return f"{name}: {older.reps_completed} -> {newer.reps_completed} повт."
+    return None
+
+
+def _format_progression_section(entries: list[str]) -> str:
+    if not entries:
+        return (
+            "Динамика по повторяющимся упражнениям: нет данных для сравнения "
+            "(нужна история минимум по двум разным тренировкам одного и того "
+            "же упражнения)."
+        )
+    return (
+        "Динамика по упражнениям, которые есть и в этой, и в прошлой неделе "
+        "(сравнение последних двух отработанных тренировок): "
+        + "; ".join(entries)
+        + "."
+    )
 
 
 def _format_priority_skill_focus_section(
@@ -645,6 +731,7 @@ class CoachChatService:
         self._diary = TrainingDiaryService(session)
         self._schedule = ScheduleRepository(session)
         self._analytics = AnalyticsService(session)
+        self._sets = SetCompletionRepository(session)
 
     async def send_message(self, user: User, message: str) -> CoachChatMessageRead:
         settings = get_settings()
@@ -951,6 +1038,33 @@ class CoachChatService:
         weekly_plan = await self._schedule.get_current(user.id, now.date())
         week_overview_section = _format_week_overview_section(weekly_plan, now.date())
 
+        # 2026-09-20 (player-requested): the current-week overview above
+        # only ever covers one week -- last week (for comparison, "как
+        # было") and next week (if already generated) give the coach the
+        # same before/after view the player themselves gets by paging
+        # through the Week screen. `current_week_start` prefers the real
+        # WeeklyPlan row's own value (authoritative) and only falls back
+        # to a computed Monday when there's no current week at all (e.g.
+        # a brand-new player, or an undeclared week) -- same Monday-
+        # alignment ScheduleService._advance_week itself uses.
+        current_week_start = (
+            weekly_plan.week_start_date
+            if weekly_plan is not None
+            else now.date() - timedelta(days=now.date().weekday())
+        )
+        last_week_plan = await self._schedule.get_by_week_start_date(
+            user.id, current_week_start - timedelta(days=7)
+        )
+        next_week_plan = await self._schedule.get_by_week_start_date(
+            user.id, current_week_start + timedelta(days=7)
+        )
+        last_week_section = _format_last_week_section(last_week_plan, now.date())
+        next_week_section = _format_next_week_section(next_week_plan, now.date())
+
+        progression_section = _format_progression_section(
+            await self._resolve_progression_entries(user.id, weekly_plan, last_week_plan)
+        )
+
         today_plan = await self._schedule.get_day_plan_for_date(user.id, now.date())
         today_section = _format_today_section(today_plan)
 
@@ -1015,12 +1129,68 @@ class CoachChatService:
             f"{diary_section}\n"
             f"{tournament_section}\n"
             f"{week_overview_section}\n"
+            f"{last_week_section}\n"
+            f"{next_week_section}\n"
+            f"{progression_section}\n"
             f"{today_section}\n"
             f"{next_session_section}\n"
             f"{analytics_section}\n\n"
             f"{SYSTEM_PROMPT_GUARDRAILS}\n\n"
             f"{action_reference_section}"
         )
+
+    async def _resolve_progression_entries(
+        self,
+        user_id: uuid.UUID,
+        weekly_plan: WeeklyPlan | None,
+        last_week_plan: WeeklyPlan | None,
+    ) -> list[str]:
+        """MAIN exercises present in both this week's and last week's plan
+        -- a recurring exercise is exactly the signal that a before/after
+        comparison is meaningful for, unlike a one-off exercise that just
+        happened to be picked once. Capped and name-sorted (deterministic,
+        not delta-ranked -- picking "most improved" first would need the
+        query run for every recurring exercise before any could be
+        dropped, for no real benefit to the coach)."""
+        current_main = _main_exercise_ids_by_name(weekly_plan)
+        last_week_main = _main_exercise_ids_by_name(last_week_plan)
+        recurring_ids = sorted(
+            current_main.keys() & last_week_main.keys(), key=lambda eid: current_main[eid]
+        )[:PROGRESSION_EXERCISES_IN_PROMPT]
+
+        entries: list[str] = []
+        for exercise_id in recurring_ids:
+            pair = await self._resolve_last_two_sessions(user_id, exercise_id)
+            if pair is None:
+                continue
+            newer, older = pair
+            entry = _format_progression_entry(current_main[exercise_id], older, newer)
+            if entry is not None:
+                entries.append(entry)
+        return entries
+
+    async def _resolve_last_two_sessions(
+        self, user_id: uuid.UUID, exercise_id: uuid.UUID
+    ) -> tuple[SetCompletion, SetCompletion] | None:
+        """The last logged set of each of the two most recent distinct
+        training sessions for this exercise (newest, then the one
+        before), or None with fewer than two sessions of history. Same
+        "last set = the working weight that session settled on"
+        convention WeightSuggestionService's own get_last_for_user_exercise
+        already relies on, just walked across two sessions instead of
+        one. The 20-row window is a generous bound on "sets per exercise
+        across two sessions" (typically 3-4 each) without an unbounded
+        scan."""
+        recent = await self._sets.list_recent_for_user_exercise(user_id, exercise_id, limit=20)
+        last_set_by_session: dict[uuid.UUID, SetCompletion] = {}
+        for set_completion in recent:  # already newest-first
+            last_set_by_session.setdefault(set_completion.training_session_id, set_completion)
+            if len(last_set_by_session) == 2:
+                break
+        if len(last_set_by_session) < 2:
+            return None
+        newer, older = last_set_by_session.values()
+        return newer, older
 
     async def _find_next_actionable_day_plan(self, user_id: uuid.UUID, today: date) -> DayPlan | None:
         """Nearest day strictly AFTER `today` (never today itself -- see

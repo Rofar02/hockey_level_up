@@ -120,7 +120,7 @@ async def test_patches_ineligible_blocks_in_untouched_future_days_and_moves_the_
     # test_ceiling_escalation_week_patch.py's own fake.
     _isolate_candidates(service, [eligible_substitute, warmup_substitute])
 
-    changed = await service.patch_week_for_eligibility_change(user)
+    changed = await service.patch_week_for_eligibility_change(user, today=TODAY)
 
     assert changed == 2
     await db_session.refresh(main_block)
@@ -168,7 +168,7 @@ async def test_returns_zero_when_every_remaining_day_has_already_started(db_sess
     service = ScheduleService(db_session)
     _isolate_candidates(service, [])  # nothing eligible at all -- would patch if it looked
 
-    changed = await service.patch_week_for_eligibility_change(user)
+    changed = await service.patch_week_for_eligibility_change(user, today=TODAY)
 
     assert changed == 0
     await db_session.refresh(started_block)
@@ -182,7 +182,7 @@ async def test_no_current_week_returns_zero(db_session) -> None:
     await db_session.flush()
 
     service = ScheduleService(db_session)
-    changed = await service.patch_week_for_eligibility_change(user)
+    changed = await service.patch_week_for_eligibility_change(user, today=TODAY)
 
     assert changed == 0
 
@@ -213,7 +213,7 @@ async def test_adds_puck_module_to_untouched_off_ice_day_when_stick_now_owned(db
     service = ScheduleService(db_session)
     _isolate_candidates(service, [puck_exercise, main_exercise])
 
-    changed = await service.patch_week_for_eligibility_change(user)
+    changed = await service.patch_week_for_eligibility_change(user, today=TODAY)
 
     assert changed == 1
     puck_blocks = [b for b in tomorrow_plan.training_session.blocks if b.phase == TrainingPhase.PUCK]
@@ -244,7 +244,7 @@ async def test_removes_puck_block_when_stick_no_longer_owned(db_session) -> None
     # that phase.
     _isolate_candidates(service, [])
 
-    changed = await service.patch_week_for_eligibility_change(user)
+    changed = await service.patch_week_for_eligibility_change(user, today=TODAY)
 
     assert changed == 1
     assert tomorrow_plan.training_session.blocks == []
@@ -276,7 +276,7 @@ async def test_falls_back_to_any_eligible_exercise_when_no_pattern_matches(db_se
     service = ScheduleService(db_session)
     _isolate_candidates(service, [unrelated_eligible])
 
-    changed = await service.patch_week_for_eligibility_change(user)
+    changed = await service.patch_week_for_eligibility_change(user, today=TODAY)
 
     assert changed == 1
     await db_session.refresh(main_block)
@@ -303,7 +303,7 @@ async def test_leaves_block_alone_when_no_eligible_substitute_exists_at_all(db_s
     service = ScheduleService(db_session)
     _isolate_candidates(service, [])  # nothing legal at all for MAIN/OFF_ICE right now
 
-    changed = await service.patch_week_for_eligibility_change(user)
+    changed = await service.patch_week_for_eligibility_change(user, today=TODAY)
 
     assert changed == 0
     await db_session.refresh(main_block)

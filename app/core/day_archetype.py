@@ -35,19 +35,30 @@ DAY_ARCHETYPES: tuple[StimulusType, ...] = (
     StimulusType.SKILL,
 )
 
-# 2026-09-17 fix (audit item #1): SKILL as a squat/hip_hinge "day
-# archetype" reflects a real different hockey-relevant skill (e.g. pistol
-# squat vs barbell squat). A gym push/pull has no equivalent -- the real
-# technical skill for a shot/contact is on the ice, not in the weight
-# room -- and the catalog has zero push/skill and pull/skill candidates
-# for exactly that reason (checked against the real catalog, see the
-# audit doc). Per-pattern archetype set so push/pull only ever rotate
-# strength/power, never fall back into an empty skill pool.
+# 2026-09-17 fix (audit item #1): reasoned that a gym push/pull has no
+# real hockey-skill equivalent the way a pistol squat does for SQUAT, and
+# the catalog had zero push/skill and pull/skill candidates at the time
+# to back that up -- so PUSH/PULL were narrowed to strength/power only,
+# never falling back into an empty skill pool.
+#
+# 2026-09-20 fix (round-4 audit): that premise no longer holds -- the
+# catalog now has real, correctly-tagged push/skill and pull/skill
+# content ("Y-сгибания с гантелями", "Изометрические удержания в
+# отжимании" for PUSH; "Вис на турнике одной рукой", "Тяга гантели в
+# наклоне на одной ноге" for PULL, confirmed against the live catalog).
+# With the old narrower tuple, choose_archetype/initial_rotation_order
+# could never resolve to SKILL for these two patterns, so that real
+# content was structurally unreachable through the normal rotation --
+# reverted to the full three-way split for all four eligible patterns.
+# If a future catalog pass ever removes all push/pull SKILL content
+# again, _pick_main's own PATTERN_ARCHETYPES membership check (see its
+# forces_technical handling) degrades gracefully rather than assuming
+# every pattern here always has all three.
 PATTERN_ARCHETYPES: dict[MovementPattern, tuple[StimulusType, ...]] = {
     MovementPattern.SQUAT: DAY_ARCHETYPES,
     MovementPattern.HIP_HINGE: DAY_ARCHETYPES,
-    MovementPattern.PUSH: (StimulusType.STRENGTH, StimulusType.POWER),
-    MovementPattern.PULL: (StimulusType.STRENGTH, StimulusType.POWER),
+    MovementPattern.PUSH: DAY_ARCHETYPES,
+    MovementPattern.PULL: DAY_ARCHETYPES,
 }
 
 # First-ever pick for a pattern (no rotation history at all yet) starts

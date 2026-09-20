@@ -107,6 +107,30 @@ _EXPLOSIVE_PATTERNS: tuple[MovementPattern, ...] = (
 _LOWER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.SQUAT, MovementPattern.HIP_HINGE)
 _UPPER_BODY_PATTERNS: tuple[MovementPattern, ...] = (MovementPattern.PUSH, MovementPattern.PULL)
 
+# 2026-09-20 fix (round-4 audit): role 1 (<=1 pick) + role 2 (<=2, squat +
+# hip_hinge) + role 3 (<=2, push + pull) can together want up to 5 slots,
+# but DELOAD's own count range (MAIN_EXERCISE_COUNT_RANGE[BlockPhase.DELOAD]
+# = (3, 4)) can resolve as low as 3 -- confirmed live: at count=3 with role 1
+# winning a slot, role 2 filling both of its own, role 3 (push/pull) was
+# left with zero budget, not even one of the two, contradicting this
+# class's own "role 2/3 picking one SQUAT/HIP_HINGE and one PUSH/PULL each
+# is already a natural push/pull balance" framing. Role 1 is the one
+# optional, nice-to-have pick among the three ("while fresh" -- see its own
+# docstring), so it's the one that yields when the whole session is this
+# tight; role 2/3 (the actual strength patterns the archetype system
+# exists for) are only skipped when the catalog itself has nothing for
+# them, same as always.
+#
+# Deliberately gated on block_phase == DELOAD as well as this threshold,
+# not on `count` alone (see the call site) -- `count` can also come out
+# this small in a non-DELOAD phase purely as a test fixture's own
+# monkeypatched random.randint, which has nothing to do with the real
+# 5-slots-into-3/4 conflict this fix targets and must not lose its role-1
+# pick over it. Every real (non-test) DELOAD count is the only phase this
+# constant is compared against in practice -- every other phase's own
+# resolved range is already >= 4.
+_MIN_COUNT_TO_ATTEMPT_ROLE1 = 4
+
 # 2026-09-19 audit round 3 item #4: ROTATING_PATTERNS' own same-variant
 # session cap (see its docstring) was deliberately scoped to the 7
 # patterns *without* a 3-archetype split -- squat/hip_hinge/push/pull
@@ -1007,7 +1031,12 @@ class ScheduleService:
              has candidates. NOT archetype-dependent -- that system is
              specific to roles 2-3 below. NSCA-standard ordering: fatigue-
              sensitive neuromuscular work goes first, not proven by this
-             conversation, standard S&C practice.
+             conversation, standard S&C practice. Skipped outright when
+             `count` is below _MIN_COUNT_TO_ATTEMPT_ROLE1 (2026-09-20 fix,
+             round-4 audit) -- at DELOAD's own tightest count (3), this
+             optional pick could otherwise use up the one slot that would
+             have gone to role 3, leaving a session with neither PUSH nor
+             PULL at all; see that constant's own comment.
           2. Strength, lower body -- SQUAT and HIP_HINGE, each
              independently resolving its own "day archetype" (see below).
           3. Strength, upper body -- PUSH and PULL, same archetype
@@ -1022,10 +1051,15 @@ class ScheduleService:
         procedural detail; an endurance-stimulus exercise is just another
         accessory-role candidate here. Likewise there's no separate global
         "coherence validator" pass with point-fixes -- role ordering
-        already guarantees explosive-first, role 2/3 picking one SQUAT/
-        HIP_HINGE and one PUSH/PULL each is already a natural push/pull
-        balance, and role 4's muscle-awareness already prevents pile-ups
-        by construction -- a deliberate simplification, not an oversight.
+        already guarantees explosive-first (when attempted at all -- see
+        _MIN_COUNT_TO_ATTEMPT_ROLE1), role 2/3 picking one SQUAT/HIP_HINGE
+        and one PUSH/PULL each is already a natural push/pull balance
+        whenever `count` has room for it, and role 4's muscle-awareness
+        already prevents pile-ups by construction -- a deliberate
+        simplification, not an oversight. Role 2/3 themselves still only
+        ever fill from what the catalog/gates actually offer, same
+        best-effort softness as every other layer here -- a pattern with
+        zero eligible candidates is skipped, not forced.
 
         Day archetypes (roles 2-3 only): squat/hip_hinge/push/pull each
         carry three independent progression lines -- StimulusType.STRENGTH/
@@ -1376,45 +1410,93 @@ class ScheduleService:
 
                 choice = random.choice(skill_pool)
 
-                # A fallback pick (archetype-eligible pattern, no genuine
-                # stimulus_type match in the pool) must NOT be pinned the
-                # same way a genuine one is -- pinning it would freeze this
-                # exact fallback for the rest of the training block (weeks),
-                # even once the catalog gains a real match, since a pinned
-                # row is only ever reconsidered at a block boundary. Leaving
-                # it unpinned means every future session retries the real
-                # archetype search fresh, and a still-missing archetype
-                # degrades to "a new random fallback each time" rather than
-                # "the same one forever". Non-archetype patterns (archetype
-                # is None, role 4) have no such concept -- every fresh pick
-                # there is pinned as before.
-                is_genuine = (
-                    archetype is None
-                    or choice.stimulus_type is None
-                    or choice.stimulus_type == archetype
-                )
-                if training_block is not None and is_genuine:
-                    if row is not None:
-                        row.exercise_id = choice.id
-                        row.block_number = training_block.block_number
-                    else:
-                        row = UserMovementPatternVariant(
-                            user_id=user.id,
-                            category=category,
-                            movement_pattern=pattern,
-                            archetype=archetype,
-                            exercise_id=choice.id,
-                            block_number=training_block.block_number,
-                        )
-                        self._session.add(row)
-                        existing_pins[(pattern, archetype)] = row
-                elif not is_genuine:
-                    # Don't let a stale pin from an earlier block masquerade
-                    # as "current" either -- row is None here unless this
-                    # pattern had an old pin that fell out of same_block
-                    # scope, in which case it just stays exactly as stale
-                    # as it already was.
-                    row = None
+                if (
+                    escalate_difficulty
+                    and pinned_exercise is not None
+                    and choice.id == pinned_exercise.id
+                ):
+                    # 2026-09-20 fix (round-4 audit, finding #7):
+                    # _tier_by_escalated_difficulty's own last-resort tier
+                    # can hand back the outgoing exercise itself when
+                    # nothing else in the pool is a genuine substitute (a
+                    # real catalog gap for this pattern/archetype -- see
+                    # that method's own docstring). Without this check, the
+                    # pin still got torn down and "rebuilt" identically
+                    # every single session this stuck exercise is the only
+                    # real candidate: times_chosen reset to 1, discarding
+                    # real rotation-limit progress, misrepresenting a
+                    # no-op as a fresh escalation event.
+                    # escalate_ceiling_variant_for_week's own separate path
+                    # already guards the identical case ("No genuine
+                    # substitute for this pin (catalog gap) -- leave the
+                    # pin ... exactly as they are"); this mirrors it here
+                    # by simply treating the outcome as an ordinary pin
+                    # reuse (use_pin=True) instead of a fresh pick.
+                    use_pin = True
+                else:
+                    # A fallback pick (archetype-eligible pattern, no
+                    # genuine stimulus_type match in the pool) must NOT be
+                    # pinned the same way a genuine one is -- pinning it
+                    # would freeze this exact fallback for the rest of the
+                    # training block (weeks), even once the catalog gains
+                    # a real match, since a pinned row is only ever
+                    # reconsidered at a block boundary. Leaving it unpinned
+                    # means every future session retries the real
+                    # archetype search fresh, and a still-missing archetype
+                    # degrades to "a new random fallback each time" rather
+                    # than "the same one forever". Non-archetype patterns
+                    # (archetype is None, role 4) have no such concept --
+                    # every fresh pick there is pinned as before.
+                    is_genuine = (
+                        archetype is None
+                        or choice.stimulus_type is None
+                        or choice.stimulus_type == archetype
+                    )
+                    if training_block is not None and is_genuine:
+                        if row is not None:
+                            row.exercise_id = choice.id
+                            row.block_number = training_block.block_number
+                        else:
+                            row = UserMovementPatternVariant(
+                                user_id=user.id,
+                                category=category,
+                                movement_pattern=pattern,
+                                archetype=archetype,
+                                exercise_id=choice.id,
+                                block_number=training_block.block_number,
+                            )
+                            self._session.add(row)
+                            existing_pins[(pattern, archetype)] = row
+                    elif not is_genuine:
+                        # Don't let a stale pin from an earlier block
+                        # masquerade as "current" either -- row is None
+                        # here unless this pattern had an old pin that fell
+                        # out of same_block scope, in which case it just
+                        # stays exactly as stale as it already was.
+                        row = None
+                        if archetype is not None:
+                            # 2026-09-20 fix (round-4 audit): logged rather
+                            # than silent -- confirmed live that when a
+                            # pattern's post-filter pool has only one real
+                            # candidate, all three day archetypes for it
+                            # collapse onto that same exercise every time,
+                            # and the two archetypes that never genuinely
+                            # matched stay "never tried" forever in their
+                            # own rotation bookkeeping despite repeatedly
+                            # landing on this exact fallback. Not
+                            # user-facing (the slot still gets filled, same
+                            # best-effort softness as every other layer
+                            # here) -- purely a signal for spotting thin
+                            # catalog spots.
+                            logger.warning(
+                                "Day-archetype fallback: no genuine %s candidate for "
+                                "%s/%s, used %s instead (user_id=%s)",
+                                archetype,
+                                category,
+                                pattern,
+                                choice.stimulus_type,
+                                user.id,
+                            )
 
             if training_block is not None and archetype is not None and row is not None:
                 # Only a genuine match claims the archetype as "done" --
@@ -1439,19 +1521,22 @@ class ScheduleService:
             picked_ids.add(choice.id)
             return choice
 
-        # Role 1: explosive/skill, while fresh.
+        # Role 1: explosive/skill, while fresh -- skipped outright at the
+        # tightest DELOAD count (see _MIN_COUNT_TO_ATTEMPT_ROLE1's own
+        # comment), so it can never crowd role 3 (push/pull) out entirely.
         explosive_patterns = list(_EXPLOSIVE_PATTERNS)
         random.shuffle(explosive_patterns)
         used_role1_pattern: MovementPattern | None = None
-        for pattern in explosive_patterns:
-            choice = await pick_for_pattern(
-                pattern,
-                archetype=None,
-                stimulus_preference=frozenset({StimulusType.POWER, StimulusType.SKILL}),
-            )
-            if choice is not None:
-                used_role1_pattern = pattern
-                break
+        if block_phase != BlockPhase.DELOAD or count >= _MIN_COUNT_TO_ATTEMPT_ROLE1:
+            for pattern in explosive_patterns:
+                choice = await pick_for_pattern(
+                    pattern,
+                    archetype=None,
+                    stimulus_preference=frozenset({StimulusType.POWER, StimulusType.SKILL}),
+                )
+                if choice is not None:
+                    used_role1_pattern = pattern
+                    break
 
         # Roles 2-3: lower-body then upper-body strength, each pattern
         # resolving its own day archetype independently.
@@ -1461,9 +1546,26 @@ class ScheduleService:
         ):
             random.shuffle(role_patterns)
             for pattern in role_patterns:
-                if forces_technical:
+                # 2026-09-20 fix (round-4 audit): forces_technical used to
+                # set archetype=SKILL unconditionally for every
+                # ARCHETYPE_ELIGIBLE_PATTERNS, including PUSH/PULL for
+                # whichever period the catalog has no SKILL candidates for
+                # them (their SKILL content only exists as of this same
+                # fix -- see PATTERN_ARCHETYPES' own comment). When that
+                # was true, stimulus_preference={SKILL} always came back
+                # empty for PUSH/PULL, silently falling through to an
+                # unfiltered pick -- the deload/taper/playoffs "lighter,
+                # technical" intent quietly never applied to those two
+                # patterns. Checking membership here keeps the override
+                # honest: only force SKILL where this pattern actually
+                # has it.
+                if forces_technical and StimulusType.SKILL in PATTERN_ARCHETYPES[pattern]:
                     archetype = StimulusType.SKILL
-                elif archetype_rotation is not None and pattern in archetype_rotation:
+                elif (
+                    archetype_rotation is not None
+                    and pattern in archetype_rotation
+                    and not forces_technical
+                ):
                     # Batch-wide round-robin (see _build_archetype_rotation):
                     # decided ONCE per pattern before this whole week's days
                     # started building, so a pattern can't monopolize
@@ -1471,7 +1573,12 @@ class ScheduleService:
                     # choose_archetype against progressively-updated
                     # last_chosen_at would (see initial_rotation_order's
                     # docstring). Never advanced during a forces_technical
-                    # override, same as last_chosen_at itself.
+                    # override, same as last_chosen_at itself -- including
+                    # the case just above, where forces_technical is True
+                    # but this specific pattern has no SKILL to force,
+                    # which falls through to the read-only choose_archetype
+                    # branch below instead of consuming a real rotation
+                    # turn from this iterator.
                     archetype = next(archetype_rotation[pattern])
                 else:
                     pattern_candidates = PATTERN_ARCHETYPES[pattern]
@@ -2222,7 +2329,9 @@ class ScheduleService:
             )
         ]
 
-    async def patch_week_for_eligibility_change(self, user: User) -> int:
+    async def patch_week_for_eligibility_change(
+        self, user: User, *, today: date | None = None
+    ) -> int:
         """2026-09-19 audit round 3 item #2: UserTemporaryRestrictionService.report/
         lift and UserService.replace_owned_equipment each only ever write a
         row and commit -- ExerciseRepository.list_for_assembly (equipment +
@@ -2279,13 +2388,20 @@ class ScheduleService:
         UserService.replace_owned_equipment already commit their own row
         right after calling this), same non-committing contract
         escalate_ceiling_variant_for_week already uses.
+
+        today defaults to the user's own today (ZoneInfo(user.timezone),
+        2026-09-20 audit round 3 fix), injectable purely for deterministic
+        tests -- see escalate_ceiling_variant_for_week's own matching fix
+        for the full reasoning (a fixed "TODAY" fixture constant used to
+        silently drift out of validity the day after a test was written,
+        since this method always read the real wall clock regardless).
         """
-        today = datetime.now(ZoneInfo(user.timezone or "UTC")).date()
-        weekly_plan = await self._schedule.get_current(user.id, today)
+        resolved_today = today or datetime.now(ZoneInfo(user.timezone or "UTC")).date()
+        weekly_plan = await self._schedule.get_current(user.id, resolved_today)
         if weekly_plan is None:
             return 0
 
-        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, today)
+        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, resolved_today)
         if not untouched_day_plans:
             return 0
 
@@ -2377,7 +2493,7 @@ class ScheduleService:
         return len(puck_exercises)
 
     async def escalate_ceiling_variant_for_week(
-        self, user: User, exercise: Exercise
+        self, user: User, exercise: Exercise, *, today: date | None = None
     ) -> list[CeilingEscalationRead]:
         """2026-09-18 audit round 2 item #1: SessionBlockService.complete_block's
         synchronous follow-up to a just-completed MAIN block. A
@@ -2409,6 +2525,15 @@ class ScheduleService:
         into SessionBlockService.complete_block's own transaction instead
         of risking a patched week whose triggering block completion then
         fails to commit.
+
+        today defaults to the user's own today (ZoneInfo(user.timezone),
+        2026-09-20 audit round 3 fix), injectable purely for deterministic
+        tests -- same shape as _pick_main's own `today` param. Before this
+        fix, tests that pinned a fake "TODAY" constant into their fixture
+        dates (to build a day that's "tomorrow" relative to that constant)
+        silently started failing the day after they were written, since
+        this method always read the real wall clock regardless of what the
+        test's fixtures assumed "today" was.
         """
         if exercise.tracks_weight:
             return []
@@ -2419,12 +2544,12 @@ class ScheduleService:
         if not pins:
             return []
 
-        today = datetime.now(ZoneInfo(user.timezone or "UTC")).date()
-        weekly_plan = await self._schedule.get_current(user.id, today)
+        resolved_today = today or datetime.now(ZoneInfo(user.timezone or "UTC")).date()
+        weekly_plan = await self._schedule.get_current(user.id, resolved_today)
         if weekly_plan is None:
             return []
 
-        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, today)
+        untouched_day_plans = self._untouched_future_day_plans(weekly_plan, resolved_today)
         untouched_future_sessions = [day_plan.training_session for day_plan in untouched_day_plans]
         if not untouched_future_sessions:
             return []
@@ -2445,7 +2570,7 @@ class ScheduleService:
 
             pin.exercise_id = new_exercise.id
             if pin.archetype is None or new_exercise.stimulus_type == pin.archetype:
-                pin.last_chosen_at = today
+                pin.last_chosen_at = resolved_today
 
             for training_session in untouched_future_sessions:
                 for block in training_session.blocks:
