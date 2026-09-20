@@ -34,14 +34,17 @@ x-glitchtip-env: &glitchtip-env
   # in its own UI/emails, cosmetic here, not a real public URL.
   GLITCHTIP_DOMAIN: http://localhost:8080
   DEFAULT_FROM_EMAIL: glitchtip@icelevel.ru
-  # No real mail sending configured -- a single-admin internal tool isn't
-  # worth a second Resend-style integration. "Sent" emails go to the
-  # container's own stdout instead of anywhere real; the one login is
-  # created directly via `manage.py createsuperuser` (see docs/deploy.md
-  # section 13), never through the email-based signup flow -- which is
-  # why ENABLE_USER_REGISTRATION is also off below, defense in depth on
-  # top of not being publicly reachable at all.
-  EMAIL_URL: consolemail://
+  # 2026-09-20: real delivery via the same Resend account app/main.py's
+  # own transactional emails already use (RESEND_API_KEY, already in
+  # .env) -- Resend's SMTP relay (smtp.resend.com, username literally
+  # "resend", password = the API key) rather than a second provider.
+  # icelevel.ru is a verified sending domain on that account (confirmed
+  # live via a direct Resend API send), so DEFAULT_FROM_EMAIL above
+  # works as-is. This is issue-alert email only (new/regressed error ->
+  # email to project members who opted in, configured per-project in
+  # the GlitchTip UI) -- not a second signup/registration path;
+  # ENABLE_USER_REGISTRATION stays off below regardless.
+  EMAIL_URL: smtp://resend:${RESEND_API_KEY}@smtp.resend.com:587
   ENABLE_USER_REGISTRATION: "false"
   ENABLE_ORGANIZATION_CREATION: "false"
   CELERY_WORKER_AUTOSCALE: "1,3"
