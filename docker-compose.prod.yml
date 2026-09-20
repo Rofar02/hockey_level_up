@@ -44,7 +44,15 @@ x-glitchtip-env: &glitchtip-env
   # email to project members who opted in, configured per-project in
   # the GlitchTip UI) -- not a second signup/registration path;
   # ENABLE_USER_REGISTRATION stays off below regardless.
-  EMAIL_URL: smtp://resend:${RESEND_API_KEY}@smtp.resend.com:587
+  #
+  # smtp+tls://, not plain smtp:// -- django-environ's email_url() only
+  # sets EMAIL_USE_TLS=True for the smtps/smtp+tls schemes (see its own
+  # email_url_config source); plain smtp:// leaves EMAIL_USE_TLS unset,
+  # and Resend's server on :587 requires STARTTLS before AUTH, so a
+  # plain smtp:// scheme here 538'd ("Must issue a STARTTLS command
+  # first") -- confirmed live, then confirmed the smtp+tls:// fix live
+  # too before committing it.
+  EMAIL_URL: smtp+tls://resend:${RESEND_API_KEY}@smtp.resend.com:587
   ENABLE_USER_REGISTRATION: "false"
   ENABLE_ORGANIZATION_CREATION: "false"
   CELERY_WORKER_AUTOSCALE: "1,3"
