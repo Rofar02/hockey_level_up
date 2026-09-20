@@ -280,8 +280,8 @@ docker compose -f docker-compose.prod.yml up -d \
   glitchtip_postgres glitchtip_redis glitchtip_migrate glitchtip_web glitchtip_worker
 ```
 
-Создать единственный админ-логин (без email — `EMAIL_URL=consolemail://`
-никуда реально не шлёт, поэтому не через веб-регистрацию):
+Создать единственный админ-логин (не через веб-регистрацию —
+`ENABLE_USER_REGISTRATION` выключен):
 
 ```bash
 docker compose -f docker-compose.prod.yml exec glitchtip_web ./manage.py createsuperuser
@@ -325,6 +325,27 @@ sentry_sdk.flush()
 
 Событие должно появиться в `http://localhost:8080` (через туннель) в
 том же проекте в течение нескольких секунд.
+
+### 13.1. Письма на почту при новых ошибках
+
+`EMAIL_URL` в `x-glitchtip-env` (docker-compose.prod.yml) уже настроен
+на SMTP-релей Resend — тот же аккаунт, что и `RESEND_API_KEY` для
+писем самого приложения, отдельного провайдера заводить не нужно.
+`icelevel.ru` — подтверждённый домен на этом аккаунте, поэтому
+`DEFAULT_FROM_EMAIL: glitchtip@icelevel.ru` доставляется без проблем.
+
+GlitchTip сам не присылает алерты по умолчанию — нужно один раз
+включить это в UI (через тот же SSH-туннель):
+
+1. Открыть проект → **Settings → Alerts** (или **Notifications** —
+   название зависит от версии).
+2. Добавить правило: *When an issue is first seen* (или *A new issue is
+   created*) → **Send email** → выбрать себя как получателя.
+3. В **Settings → Notifications** личного профиля убедиться, что email
+   вообще не отключён глобально (по умолчанию включён).
+
+Проверить: `sentry_sdk.capture_message(...)` тем же способом, что и
+тестовое событие выше — письмо должно дойти в течение минуты.
 
 ## Продление сертификата
 
