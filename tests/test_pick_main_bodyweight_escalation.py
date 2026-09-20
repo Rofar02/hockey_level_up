@@ -212,7 +212,16 @@ async def test_stuck_at_ceiling_with_no_alternative_keeps_the_same_pick(db_sessi
     same-difficulty candidate either (the pinned exercise is the only one
     of its pattern in the catalog) -- the last-resort tier hands back the
     same exercise, a no-op escalation rather than a crash or an empty
-    slot."""
+    slot.
+
+    2026-09-20 fix (round-4 audit, finding #7): this used to still tear
+    the pin down and "rebuild" it identically -- times_chosen reset to 1
+    even though nothing genuinely escalated, discarding real
+    rotation-limit progress and misrepresenting a no-op as a fresh pick
+    every single session CORE has no real substitute. Seeded with a
+    non-trivial times_chosen below specifically to catch that regression:
+    a no-op escalation must now increment it, not reset it, same as an
+    ordinary same-block pin reuse."""
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -227,7 +236,7 @@ async def test_stuck_at_ceiling_with_no_alternative_keeps_the_same_pick(db_sessi
     db_session.add(
         UserMovementPatternVariant(
             user_id=user.id, category=ExerciseCategory.OFF_ICE, movement_pattern=MovementPattern.CORE,
-            archetype=None, exercise_id=only_ex.id, block_number=1,
+            archetype=None, exercise_id=only_ex.id, block_number=1, times_chosen=2,
         )
     )
     await db_session.flush()
@@ -242,6 +251,10 @@ async def test_stuck_at_ceiling_with_no_alternative_keeps_the_same_pick(db_sessi
     assert [e.name for e in picked] == ["Only plank"]
     pin = await _get_pin(db_session, user)
     assert pin.exercise_id == only_ex.id
+    # A genuine escalation (a real substitute was found) resets this to 1
+    # -- a no-op one (no substitute exists) must instead continue counting
+    # as an ordinary pin reuse.
+    assert pin.times_chosen == 3
 
 
 @pytest.mark.asyncio

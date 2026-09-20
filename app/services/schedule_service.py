@@ -1410,66 +1410,93 @@ class ScheduleService:
 
                 choice = random.choice(skill_pool)
 
-                # A fallback pick (archetype-eligible pattern, no genuine
-                # stimulus_type match in the pool) must NOT be pinned the
-                # same way a genuine one is -- pinning it would freeze this
-                # exact fallback for the rest of the training block (weeks),
-                # even once the catalog gains a real match, since a pinned
-                # row is only ever reconsidered at a block boundary. Leaving
-                # it unpinned means every future session retries the real
-                # archetype search fresh, and a still-missing archetype
-                # degrades to "a new random fallback each time" rather than
-                # "the same one forever". Non-archetype patterns (archetype
-                # is None, role 4) have no such concept -- every fresh pick
-                # there is pinned as before.
-                is_genuine = (
-                    archetype is None
-                    or choice.stimulus_type is None
-                    or choice.stimulus_type == archetype
-                )
-                if training_block is not None and is_genuine:
-                    if row is not None:
-                        row.exercise_id = choice.id
-                        row.block_number = training_block.block_number
-                    else:
-                        row = UserMovementPatternVariant(
-                            user_id=user.id,
-                            category=category,
-                            movement_pattern=pattern,
-                            archetype=archetype,
-                            exercise_id=choice.id,
-                            block_number=training_block.block_number,
-                        )
-                        self._session.add(row)
-                        existing_pins[(pattern, archetype)] = row
-                elif not is_genuine:
-                    # Don't let a stale pin from an earlier block masquerade
-                    # as "current" either -- row is None here unless this
-                    # pattern had an old pin that fell out of same_block
-                    # scope, in which case it just stays exactly as stale
-                    # as it already was.
-                    row = None
-                    if archetype is not None:
-                        # 2026-09-20 fix (round-4 audit): logged rather than
-                        # silent -- confirmed live that when a pattern's
-                        # post-filter pool has only one real candidate, all
-                        # three day archetypes for it collapse onto that
-                        # same exercise every time, and the two archetypes
-                        # that never genuinely matched stay "never tried"
-                        # forever in their own rotation bookkeeping despite
-                        # repeatedly landing on this exact fallback. Not
-                        # user-facing (the slot still gets filled, same
-                        # best-effort softness as every other layer here) --
-                        # purely a signal for spotting thin catalog spots.
-                        logger.warning(
-                            "Day-archetype fallback: no genuine %s candidate for "
-                            "%s/%s, used %s instead (user_id=%s)",
-                            archetype,
-                            category,
-                            pattern,
-                            choice.stimulus_type,
-                            user.id,
-                        )
+                if (
+                    escalate_difficulty
+                    and pinned_exercise is not None
+                    and choice.id == pinned_exercise.id
+                ):
+                    # 2026-09-20 fix (round-4 audit, finding #7):
+                    # _tier_by_escalated_difficulty's own last-resort tier
+                    # can hand back the outgoing exercise itself when
+                    # nothing else in the pool is a genuine substitute (a
+                    # real catalog gap for this pattern/archetype -- see
+                    # that method's own docstring). Without this check, the
+                    # pin still got torn down and "rebuilt" identically
+                    # every single session this stuck exercise is the only
+                    # real candidate: times_chosen reset to 1, discarding
+                    # real rotation-limit progress, misrepresenting a
+                    # no-op as a fresh escalation event.
+                    # escalate_ceiling_variant_for_week's own separate path
+                    # already guards the identical case ("No genuine
+                    # substitute for this pin (catalog gap) -- leave the
+                    # pin ... exactly as they are"); this mirrors it here
+                    # by simply treating the outcome as an ordinary pin
+                    # reuse (use_pin=True) instead of a fresh pick.
+                    use_pin = True
+                else:
+                    # A fallback pick (archetype-eligible pattern, no
+                    # genuine stimulus_type match in the pool) must NOT be
+                    # pinned the same way a genuine one is -- pinning it
+                    # would freeze this exact fallback for the rest of the
+                    # training block (weeks), even once the catalog gains
+                    # a real match, since a pinned row is only ever
+                    # reconsidered at a block boundary. Leaving it unpinned
+                    # means every future session retries the real
+                    # archetype search fresh, and a still-missing archetype
+                    # degrades to "a new random fallback each time" rather
+                    # than "the same one forever". Non-archetype patterns
+                    # (archetype is None, role 4) have no such concept --
+                    # every fresh pick there is pinned as before.
+                    is_genuine = (
+                        archetype is None
+                        or choice.stimulus_type is None
+                        or choice.stimulus_type == archetype
+                    )
+                    if training_block is not None and is_genuine:
+                        if row is not None:
+                            row.exercise_id = choice.id
+                            row.block_number = training_block.block_number
+                        else:
+                            row = UserMovementPatternVariant(
+                                user_id=user.id,
+                                category=category,
+                                movement_pattern=pattern,
+                                archetype=archetype,
+                                exercise_id=choice.id,
+                                block_number=training_block.block_number,
+                            )
+                            self._session.add(row)
+                            existing_pins[(pattern, archetype)] = row
+                    elif not is_genuine:
+                        # Don't let a stale pin from an earlier block
+                        # masquerade as "current" either -- row is None
+                        # here unless this pattern had an old pin that fell
+                        # out of same_block scope, in which case it just
+                        # stays exactly as stale as it already was.
+                        row = None
+                        if archetype is not None:
+                            # 2026-09-20 fix (round-4 audit): logged rather
+                            # than silent -- confirmed live that when a
+                            # pattern's post-filter pool has only one real
+                            # candidate, all three day archetypes for it
+                            # collapse onto that same exercise every time,
+                            # and the two archetypes that never genuinely
+                            # matched stay "never tried" forever in their
+                            # own rotation bookkeeping despite repeatedly
+                            # landing on this exact fallback. Not
+                            # user-facing (the slot still gets filled, same
+                            # best-effort softness as every other layer
+                            # here) -- purely a signal for spotting thin
+                            # catalog spots.
+                            logger.warning(
+                                "Day-archetype fallback: no genuine %s candidate for "
+                                "%s/%s, used %s instead (user_id=%s)",
+                                archetype,
+                                category,
+                                pattern,
+                                choice.stimulus_type,
+                                user.id,
+                            )
 
             if training_block is not None and archetype is not None and row is not None:
                 # Only a genuine match claims the archetype as "done" --
