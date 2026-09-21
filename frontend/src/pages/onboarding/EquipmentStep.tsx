@@ -11,6 +11,7 @@ import {
   TYPICAL_HOME_PRESET,
   applyGymCoveredPreset,
   countAvailableExercises,
+  needsPullEquipmentNudge,
 } from '../../utils/equipmentAvailability'
 
 // Stage 2.3 (2026-08-20 planning session): one screen, not two steps --
@@ -163,6 +164,13 @@ export function EquipmentStep({ onNext }: { onNext: () => void }) {
 
       {available !== null && (
         <p className="text-sm text-accent-ice">Доступно {available} из {requirements?.length ?? 0} упражнений</p>
+      )}
+
+      {needsPullEquipmentNudge(hasGymAccess, selectedItems) && (
+        <p className="text-xs text-text-secondary">
+          Совсем без инвентаря почти не остаётся тяговых упражнений на спину — рекомендуем взять хотя бы
+          резинку-эспандер, она недорогая и помещается в сумку.
+        </p>
       )}
 
       {isSubmitting && <p className="text-sm text-text-secondary">Загрузка...</p>}

@@ -10,7 +10,12 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { EQUIPMENT_ITEM_LABELS, GYM_COVERED_ITEMS, PERSONAL_GEAR_ITEMS } from '../types/exercise'
 import type { EquipmentItem, ExerciseEquipmentRequirement } from '../types/exercise'
-import { TYPICAL_HOME_PRESET, applyGymCoveredPreset, countAvailableExercises } from '../utils/equipmentAvailability'
+import {
+  TYPICAL_HOME_PRESET,
+  applyGymCoveredPreset,
+  countAvailableExercises,
+  needsPullEquipmentNudge,
+} from '../utils/equipmentAvailability'
 
 export function SettingsEquipmentPage() {
   const { user, accessToken, updateUser } = useAuth()
@@ -220,6 +225,13 @@ export function SettingsEquipmentPage() {
             <p className="text-sm text-accent-ice">
               Доступно {countAvailableExercises(equipmentRequirements, hasGymAccess, ownedItems)} из{' '}
               {equipmentRequirements.length} упражнений
+            </p>
+          )}
+
+          {ownedItems !== null && needsPullEquipmentNudge(hasGymAccess, ownedItems) && (
+            <p className="text-xs text-[#8A94A6]">
+              Совсем без инвентаря почти не остаётся тяговых упражнений на спину — рекомендуем взять хотя бы
+              резинку-эспандер, она недорогая и помещается в сумку.
             </p>
           )}
         </div>
