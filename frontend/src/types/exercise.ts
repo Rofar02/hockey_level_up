@@ -72,7 +72,7 @@ export const EQUIPMENT_ITEMS = [
   'step_platform',
   'slide_board',
   'medicine_ball',
-  'weighted_vest',
+  'fitball',
   'gym_machine',
   'hockey_stick',
 ] as const
@@ -89,7 +89,7 @@ export const EQUIPMENT_ITEM_LABELS: Record<EquipmentItem, string> = {
   step_platform: 'Степ-платформа',
   slide_board: 'Слайд-борд',
   medicine_ball: 'Медбол',
-  weighted_vest: 'Утяжелительный жилет',
+  fitball: 'Фитбол',
   gym_machine: 'Тренажёр (блок/платформа/Смит и т.п.)',
   hockey_stick: 'Клюшка',
 }
