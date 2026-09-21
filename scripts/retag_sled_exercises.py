@@ -1,20 +1,21 @@
-"""One-off data fix (2026-09-21): the 3 sled exercises had no equipment
-tag at all (equip=[]) -- found spot-checking untagged "bodyweight"
-exercises for equipment-implying keywords after the yearly
+"""One-off data fix (2026-09-21, updated same day): the 3 sled exercises
+had no equipment tag at all (equip=[]) -- found spot-checking untagged
+"bodyweight" exercises for equipment-implying keywords after the yearly
 equipment-profile simulation. A sled push/pull genuinely needs a sled;
 nothing in this app's product assumes users own one, so these were
 wrongly treated as bodyweight-accessible, available even to the
 no-equipment profile.
 
-No dedicated SLED EquipmentItem exists (and doesn't need to -- see
-GYM_MACHINE's own docstring: "catch-all for fixed gym equipment with no
-item of its own yet ... leg press, lat pulldown, seated row, Smith
-machine, rowing machine, assault bike, GHD" -- a sled fits that same
-bucket). Tagged all 3 with gym_machine.
+First pass tagged them gym_machine (the existing catch-all for fixed gym
+equipment with no item of its own). Superseded same day: a sled isn't
+reliably stocked even by a real commercial gym the way a bench or a rack
+is, so has_gym_access=True auto-covering it was itself wrong -- added a
+dedicated EquipmentItem.SLED to PERSONAL_GEAR_ITEMS instead (same
+never-auto-covered treatment as HOCKEY_STICK, but for "gym sometimes has
+it" rather than "gym never has it"). This script now tags all 3 with sled.
 
-Idempotent: sets each exercise's equipment list to exactly [GYM_MACHINE],
-replacing whatever was there before (nothing, in practice), so re-running
-is a no-op.
+Idempotent: sets each exercise's equipment list to exactly [SLED],
+replacing whatever was there before, so re-running is a no-op.
 
 Run manually (local): poetry run python scripts/retag_sled_exercises.py
 Run in prod: docker compose -f docker-compose.prod.yml exec backend \
@@ -53,8 +54,8 @@ async def retag() -> None:
                 continue
             for exercise in exercises:
                 before = await repo.list_equipment_items(exercise.id)
-                await repo.replace_equipment_items(exercise.id, [EquipmentItem.GYM_MACHINE])
-                print(f"OK: {name} ({exercise.id}) {before} -> ['gym_machine']")
+                await repo.replace_equipment_items(exercise.id, [EquipmentItem.SLED])
+                print(f"OK: {name} ({exercise.id}) {before} -> ['sled']")
         await session.commit()
 
 

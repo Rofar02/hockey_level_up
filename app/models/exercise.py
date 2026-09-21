@@ -97,6 +97,14 @@ class EquipmentItem(enum.StrEnum):
     # never be covered by User.has_gym_access, only by explicitly owning
     # one (UserEquipmentItem row).
     HOCKEY_STICK = "hockey_stick"
+    # 2026-09-21: second PERSONAL_GEAR_ITEMS entry, but for a different
+    # reason than HOCKEY_STICK -- not "a gym categorically never stocks
+    # this", but "even a gym only sometimes has one" (sled push/pull
+    # exercises, previously wrongly tagged gym_machine -- see
+    # PERSONAL_GEAR_ITEMS' own docstring on why the split is about
+    # real-world stocking, not item category). has_gym_access=True must
+    # not auto-cover it; needs its own explicit UserEquipmentItem row.
+    SLED = "sled"
 
 
 # 2026-08-22: split of EquipmentItem into two categories, found via a real
@@ -110,7 +118,9 @@ class EquipmentItem(enum.StrEnum):
 # auto-covered as before. Deliberately a hand-picked set, not inferred
 # from the item name, since the distinction is about real-world gym
 # stocking, not the item's category.
-PERSONAL_GEAR_ITEMS: frozenset[EquipmentItem] = frozenset({EquipmentItem.HOCKEY_STICK})
+PERSONAL_GEAR_ITEMS: frozenset[EquipmentItem] = frozenset(
+    {EquipmentItem.HOCKEY_STICK, EquipmentItem.SLED}
+)
 
 # The bypass-eligible complement of PERSONAL_GEAR_ITEMS -- what
 # has_gym_access=True actually covers.

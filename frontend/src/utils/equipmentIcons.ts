@@ -31,6 +31,10 @@ export const EQUIPMENT_ICONS: Record<Exclude<EquipmentItem, 'hockey_stick'>, str
   // substitutes above). .ti-treadmill does exist and reads as generic gym
   // equipment closely enough for a catch-all category.
   gym_machine: 'ti-treadmill',
+  // No sled/sledge glyph either. .ti-garden-cart (a wheeled cart being
+  // pushed/pulled) is the closest real match to "drag a heavy thing
+  // along the ground" this webfont has.
+  sled: 'ti-garden-cart',
 }
 
 export const EQUIPMENT_ITEM_DESCRIPTIONS: Record<EquipmentItem, string> = {
@@ -48,4 +52,5 @@ export const EQUIPMENT_ITEM_DESCRIPTIONS: Record<EquipmentItem, string> = {
   gym_machine: 'Тренажёр — блок, платформа, Смит-машина и т.п. фиксированное оборудование зала.',
   hockey_stick:
     'Клюшка — своё снаряжение, не покрывается доступом в зал. Нужна для упражнений на владение шайбой.',
+  sled: 'Сани — своё снаряжение, не покрывается доступом в зал (есть не в каждом зале). Толкание/тяга саней.',
 }
