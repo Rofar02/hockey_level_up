@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { TouchEvent } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
@@ -17,7 +17,6 @@ import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as skillsApi from '../api/skills'
 import * as trainingBlockApi from '../api/trainingBlock'
-import * as trainingDiaryApi from '../api/trainingDiary'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -209,11 +208,6 @@ function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
 
 export function TrainingSessionPage() {
   const { dayPlanId } = useParams<{ dayPlanId: string }>()
-  const [searchParams] = useSearchParams()
-  // 2026-09-17 (audit item #3): set by TodayCard's "Заполнить дневник"
-  // navigation (?focus=diary) -- see TrainingDiaryCard's own autoFocus
-  // prop for what this does once the card is on screen.
-  const focusDiary = searchParams.get('focus') === 'diary'
   const { accessToken } = useAuth()
   const navigate = useNavigate()
 
@@ -257,7 +251,7 @@ export function TrainingSessionPage() {
   // [этап] →" label is a different length per phase and can wrap to two
   // lines on a narrow phone; the "Осталось N упражнений" hint line only
   // exists while the button is disabled), so a fixed spacer height either
-  // undershoots (footer covers the last exercise row/TrainingDiaryCard --
+  // undershoots (footer covers the last exercise row --
   // found 2026-08-27 on an iPhone) or wastes space. ResizeObserver instead
   // of a one-time measurement since both of those change without the page
   // itself resizing.
@@ -933,7 +927,7 @@ export function TrainingSessionPage() {
           </div>
 
           {/* Reserves scroll space so the sticky footer below never covers
-              the last exercise row/TrainingDiaryCard -- sized to the
+              the last exercise row -- sized to the
               footer's own measured height, not a guess (see footerHeight). */}
           <div aria-hidden="true" style={{ height: footerHeight }} />
 
@@ -973,17 +967,6 @@ export function TrainingSessionPage() {
         </>
       )}
 
-      {day !== null
-        && (day.session_type === 'on_ice' || day.session_type === 'game')
-        && trainingSessionId !== null
-        && accessToken !== null && (
-          <TrainingDiaryCard
-            trainingSessionId={trainingSessionId}
-            accessToken={accessToken}
-            autoFocus={focusDiary}
-          />
-        )}
-
       {sessionComplete !== null && accessToken !== null && (
         <SessionCompleteModal
           statTotals={sessionComplete.statTotals}
@@ -991,6 +974,12 @@ export function TrainingSessionPage() {
           escalations={sessionComplete.escalations}
           levelBeforeSession={levelBeforeSession}
           accessToken={accessToken}
+          // ON_ICE/GAME only: the one diary entry per such session is written
+          // on TrainingDiaryPage, offered right here so the player doesn't
+          // have to find it again from the home screen afterwards.
+          diaryDayPlanId={
+            day !== null && (day.session_type === 'on_ice' || day.session_type === 'game') ? day.id : null
+          }
         />
       )}
       </div>
@@ -1003,201 +992,6 @@ export function TrainingSessionPage() {
 // a dashed border + "БОНУС" tag marks that distinction instead of it looking
 // like just a fourth mandatory block.
 const BONUS_CARD_CLASS = 'rounded-md border border-dashed border-white/20 bg-dark-card/60'
-
-// ON_ICE/GAME only (gated by the caller) -- the app has no structured
-// content for either (see ScheduleService._build_on_ice_day_session /
-// _build_game_day_session), so free text is the only way the player
-// records what actually happened, in their own words. Always editable,
-// not just once at session-completion -- a real athlete's notebook gets
-// revisited, not filled in exactly once.
-function TrainingDiaryCard({
-  trainingSessionId,
-  accessToken,
-  autoFocus = false,
-}: {
-  trainingSessionId: string
-  accessToken: string
-  // 2026-09-17 (audit item #3): set when TodayCard's "Заполнить дневник"
-  // step sent the player here via ?focus=diary (see TrainingSessionPage's
-  // own read of that param below) -- scrolls this card into view and
-  // focuses the textarea once it's loaded, so the player lands directly
-  // on the one thing left to do instead of having to find it on the page.
-  autoFocus?: boolean
-}) {
-  const navigate = useNavigate()
-  const [isLoaded, setIsLoaded] = useState(false)
-  const [note, setNote] = useState('')
-  const [phase, setPhase] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  // 2026-09-19 (design pass): debounce timer for autosave-while-typing, plus
-  // the separate timer that fades "Сохранено" back to nothing after a beat
-  // -- two different clocks, not one, since typing again mid-fade must
-  // restart the save debounce without also restarting the fade.
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setIsLoaded(false)
-    trainingDiaryApi
-      .getDiaryEntry(trainingSessionId, accessToken)
-      .then((entry) => {
-        if (cancelled) {
-          return
-        }
-        setNote(entry?.note ?? '')
-        setIsLoaded(true)
-      })
-      .catch(() => {
-        // Best-effort -- worst case the card just starts empty instead of
-        // pre-filled with whatever was saved before.
-        if (!cancelled) {
-          setIsLoaded(true)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [trainingSessionId, accessToken])
-
-  useEffect(() => {
-    if (autoFocus && isLoaded) {
-      containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      textareaRef.current?.focus()
-    }
-  }, [autoFocus, isLoaded])
-
-  // Clears any pending timers on unmount (e.g. the player navigates away
-  // mid-debounce) -- persistNote below still fires (it's not cancelled by
-  // clearTimeout of a *different*, already-elapsed timer), this just stops
-  // a setState from firing on an unmounted component.
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current)
-      if (fadeTimerRef.current !== null) clearTimeout(fadeTimerRef.current)
-    }
-  }, [])
-
-  async function persistNote(noteValue: string | null) {
-    setSaveError(null)
-    try {
-      await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue }, accessToken)
-      setPhase('saved')
-      if (fadeTimerRef.current !== null) clearTimeout(fadeTimerRef.current)
-      fadeTimerRef.current = setTimeout(() => setPhase('idle'), 2200)
-    } catch (err) {
-      setPhase('idle')
-      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить запись.')
-    }
-  }
-
-  // 2026-09-19 (design pass, replaces the old explicit "Сохранить" button):
-  // saves 700ms after the player stops typing, not on every keystroke --
-  // same idea as any note app's autosave. The status dot flips to
-  // "Сохраняем…" the instant they type (honest -- a save really is now
-  // pending), the network call itself just trails behind it a little.
-  function handleNoteChange(value: string) {
-    setNote(value)
-    setPhase('saving')
-    if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current)
-    if (fadeTimerRef.current !== null) clearTimeout(fadeTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      void persistNote(value.trim() === '' ? null : value)
-    }, 700)
-  }
-
-  // 2026-09-17 (audit item #3): a diary entry row existing at all -- even
-  // with note=null -- is what marks TodayCard's diary step done (see
-  // has_diary_entry's docstring in app/schemas/schedule.py). Without this,
-  // a player who doesn't want to write anything this time has no way to
-  // clear "Заполнить дневник" off TodayCard short of typing something,
-  // which turns the card into a standing reproach. Explicit, so it saves
-  // immediately rather than waiting out the usual debounce.
-  function handleSkip() {
-    if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current)
-    setNote('')
-    setPhase('saving')
-    void persistNote(null)
-  }
-
-  if (!isLoaded) {
-    return null
-  }
-
-  // 2026-09-19 design pass: a private notebook, not a form -- no visible
-  // Save button (autosave while typing is the only save path now, see
-  // handleNoteChange), ruled-paper lines tinted to the app's own persimmon
-  // accent instead of a bordered input box, and a quiet status dot in place
-  // of a loud confirmation banner. Keeps the app's existing card language
-  // (CARD_CLASS's ice-blue top line, CardGlow) -- only the *inside* reads
-  // as a page now, not the whole app's card grammar.
-  return (
-    <div ref={containerRef} className={`relative overflow-hidden p-4 ${CARD_CLASS}`}>
-      <CardGlow corner="top-left" color="persimmon" />
-      <div className="relative flex flex-col gap-3.5">
-        <div className="flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-persimmon/15 text-accent-persimmon">
-              <i className="ti ti-notebook text-base" aria-hidden="true" />
-            </span>
-            <span className="text-sm font-medium text-text-primary">Блокнот</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span
-              className={`flex items-center gap-1.5 text-xs transition-opacity duration-500 ${
-                phase === 'idle' ? 'opacity-0' : 'opacity-100'
-              }`}
-            >
-              {phase === 'saving' && (
-                <>
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-text-secondary" />
-                  <span className="text-text-secondary">Сохраняем...</span>
-                </>
-              )}
-              {phase === 'saved' && (
-                <>
-                  <i className="ti ti-check text-accent-ice" aria-hidden="true" />
-                  <span className="text-accent-ice">Сохранено</span>
-                </>
-              )}
-            </span>
-            {/* This card only ever shows/edits *today's* entry -- the full
-                history (every past ON_ICE/GAME note) lives on its own page
-                (DiaryPage.tsx, also reachable from "Ещё"), but nothing here
-                hinted that a history even existed, which read as "only the
-                last entry is ever visible". */}
-            <button
-              type="button"
-              onClick={() => navigate('/diary')}
-              className="flex shrink-0 items-center gap-1 text-xs text-accent-ice underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary"
-            >
-              Все записи
-            </button>
-          </div>
-        </div>
-        <textarea
-          ref={textareaRef}
-          value={note}
-          onChange={(event) => handleNoteChange(event.target.value)}
-          placeholder="Что получилось сегодня, а что нет?"
-          rows={4}
-          maxLength={2000}
-          className="w-full resize-none border-none bg-transparent bg-[repeating-linear-gradient(to_bottom,transparent,transparent_27px,rgba(255,92,52,0.16)_28px)] bg-local text-sm leading-7 text-text-primary outline-none placeholder:italic placeholder:text-text-secondary/70"
-        />
-        <FormError message={saveError} />
-        <button
-          type="button"
-          onClick={handleSkip}
-          className="self-start text-xs text-text-secondary underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary"
-        >
-          Не буду писать сегодня
-        </button>
-      </div>
-    </div>
-  )
-}
 
 // Segmented progress bar, one segment per phase present in this session --
 // done (icy, this app's existing "completed" color -- see ExerciseRow's own
@@ -1536,12 +1330,16 @@ function SessionCompleteModal({
   escalations,
   levelBeforeSession,
   accessToken,
+  diaryDayPlanId,
 }: {
   statTotals: Partial<Record<TargetStat, number>>
   xpTotal: number
   escalations: CeilingEscalationRead[]
   levelBeforeSession: number | null
   accessToken: string
+  // Set (to the day plan's id) only for ON_ICE/GAME, null otherwise --
+  // drives the "Записать в дневник" button below.
+  diaryDayPlanId: string | null
 }) {
   const navigate = useNavigate()
 
@@ -1686,9 +1484,20 @@ function SessionCompleteModal({
           </div>
         )}
 
-        <Button onClick={() => navigate('/', { replace: true })} className="w-full">
-          На главную
-        </Button>
+        {diaryDayPlanId !== null ? (
+          <div className="flex w-full flex-col gap-2">
+            <Button onClick={() => navigate(`/training/${diaryDayPlanId}/diary`, { replace: true })} className="w-full">
+              Записать в дневник
+            </Button>
+            <Button variant="neutral" onClick={() => navigate('/', { replace: true })} className="w-full">
+              На главную
+            </Button>
+          </div>
+        ) : (
+          <Button onClick={() => navigate('/', { replace: true })} className="w-full">
+            На главную
+          </Button>
+        )}
       </div>
     </div>
   )

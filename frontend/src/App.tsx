@@ -33,6 +33,7 @@ import { TeamRankingPage } from './pages/TeamRankingPage'
 import { TeamsPage } from './pages/TeamsPage'
 import { TrainingPartiesPage } from './pages/TrainingPartiesPage'
 import { TrainingPartyDetailPage } from './pages/TrainingPartyDetailPage'
+import { TrainingDiaryPage } from './pages/TrainingDiaryPage'
 import { TrainingSessionPage } from './pages/TrainingSessionPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { AdminExercisesPage } from './pages/admin/AdminExercisesPage'
@@ -109,6 +110,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/schedule/new" element={<NewSchedulePage />} />
         <Route path="/training/:dayPlanId" element={<TrainingSessionPage />} />
+        <Route path="/training/:dayPlanId/diary" element={<TrainingDiaryPage />} />
         <Route path="/diary" element={<DiaryPage />} />
         <Route path="/more" element={<MorePage />} />
         <Route path="/restrictions" element={<RestrictionsPage />} />
