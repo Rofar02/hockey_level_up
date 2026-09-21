@@ -514,7 +514,7 @@ export function HomePage() {
               phaseLabel={trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null}
               phase={trainingBlock !== null ? trainingBlock.phase : null}
               onStart={() => today !== null && navigate(`/training/${today.id}`)}
-              onFillDiary={() => today !== null && navigate(`/training/${today.id}?focus=diary`)}
+              onFillDiary={() => today !== null && navigate(`/training/${today.id}/diary`)}
             />
 
             {stats !== null && <StatsRow stats={stats} onSelect={setSelectedStatType} />}
@@ -567,7 +567,7 @@ export function HomePage() {
 
 // 2026-09-17 (audit item #3): game/on_ice go through a 4-state button
 // (not-started -> in-progress -> awaiting diary -> done) since both get a
-// TrainingDiaryCard (see TrainingSessionPage.tsx); off_ice has no diary
+// full-screen diary (see TrainingDiaryPage.tsx); off_ice has no diary
 // step at all (has_diary_entry stays null there), so it keeps the
 // original 2-state start/continue behavior unchanged. Team on-ice days
 // use a different, time-based "awaiting" transition instead of this

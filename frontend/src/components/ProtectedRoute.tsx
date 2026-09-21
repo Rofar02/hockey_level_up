@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useMatch } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
@@ -23,6 +23,11 @@ import { useAuth } from '../hooks/useAuth'
 // underneath it swaps.
 export function ProtectedRoute() {
   const { isAuthenticated, hasAssessment, isInitializing } = useAuth()
+  // The training diary is a full-screen notebook (2026-09-21) -- no
+  // BottomNav and no space reserved for it, so nothing competes with the
+  // text box. Matched here (not inside the page) because BottomNav lives in
+  // this layout, above the <Outlet/>.
+  const isFullScreenRoute = useMatch('/training/:dayPlanId/diary') !== null
 
   // Hold off on any redirect while a reload is still trying to restore the
   // session from localStorage -- isAuthenticated is false at this point
@@ -45,10 +50,10 @@ export function ProtectedRoute() {
   // screen gets it automatically.
   return (
     <CoachmarkProvider>
-      <div className="pb-16">
+      <div className={isFullScreenRoute ? '' : 'pb-16'}>
         <Outlet />
       </div>
-      <BottomNav />
+      {!isFullScreenRoute && <BottomNav />}
     </CoachmarkProvider>
   )
 }

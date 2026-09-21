@@ -21,7 +21,7 @@ const MONTH_ABBREVIATIONS = [
 
 // "Open my diary and read it back" -- the player's own notebook across
 // every ON_ICE/GAME session, newest first (entries are written from
-// TrainingSessionPage's TrainingDiaryCard, one per session). Tapping a
+// TrainingDiaryPage, one per session). Tapping a
 // card opens it for READING in a modal right here (2026-09-18: navigating
 // straight into TrainingSessionPage instead, as an earlier version of
 // this did, dropped the player into the live exercise/phase flow of a
@@ -132,7 +132,7 @@ function DiaryEntryRow({ entry, onOpen }: { entry: TrainingDiaryEntryListItem; o
 }
 
 // Read-only: no textarea, no save/skip -- this is the history list's own
-// view of an entry, distinct from TrainingDiaryCard (TrainingSessionPage),
+// view of an entry, distinct from TrainingDiaryPage,
 // which is the one place an entry is actually written/edited. "Открыть
 // тренировку" is the one deliberate way out of "just reading" into the
 // live session, for whoever wants the full exercise breakdown for that day.
