@@ -1304,9 +1304,26 @@ class ScheduleService:
                 # the direct cause of the "same exercise for weeks/months"
                 # complaint. Force a rotation to a fresh candidate once the
                 # pin has been genuinely reused ROTATION_SESSION_LIMIT times
-                # in a row, same as the bodyweight-escalation break below,
-                # never during a deload-hold.
-                if use_pin and not hold_through_deload and pattern in _SESSION_CAP_ROTATED_PATTERNS:
+                # in a row, same as the bodyweight-escalation break below.
+                #
+                # 2026-09-21 fix: unlike the other two deload-hold
+                # exemptions below (difficulty escalation, stimulus-
+                # preference mismatch -- both genuinely about not pushing
+                # load/training-focus during a scheduled recovery block),
+                # this one used to skip during hold_through_deload too. A
+                # 52-week simulation caught the actual effect: a
+                # macrocycle-deload block isn't short -- it runs the same
+                # full accumulation/intensification/deload mesocycle as
+                # any other block, just at a lower weight/reps floor -- so
+                # exempting it here let a single accessory exercise repeat
+                # 6+ weeks straight, well past the ~1.5 weeks
+                # (ROTATION_SESSION_LIMIT=3 sessions) this cap exists to
+                # prevent. Swapping between same-tier accessory candidates
+                # isn't a load/intensity lever the way weight or difficulty
+                # is, so the "don't push during recovery" rationale never
+                # actually applied here -- removed the exemption for this
+                # check only.
+                if use_pin and pattern in _SESSION_CAP_ROTATED_PATTERNS:
                     if (existing_pin.times_chosen or 0) >= ROTATION_SESSION_LIMIT:
                         use_pin = False
                 # Stage 2.6 (2026-08-20 planning session): double
