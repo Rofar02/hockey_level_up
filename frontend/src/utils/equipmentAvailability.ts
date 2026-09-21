@@ -38,6 +38,30 @@ export function countExercisesUsingItem(
   return requirements.filter((requirement) => requirement.equipment_items.includes(item)).length
 }
 
+// 2026-09-21: which owned items unlock real PULL-pattern (back) training
+// at all -- the yearly equipment-profile simulation's catalog audit found
+// PULL has zero bodyweight-only candidates in the whole catalog (every
+// pull exercise needs at least one of these), so a user with none of
+// them gets a full year of push/squat but never a real pull exercise.
+// gym_machine deliberately excluded -- not something a no-gym-access user
+// would realistically own or check.
+const PULL_UNLOCKING_ITEMS: readonly EquipmentItem[] = [
+  'resistance_band',
+  'dumbbells',
+  'pull_up_bar',
+  'barbell',
+]
+
+// Whether to show the "get at least a resistance band" nudge -- true only
+// for a user who both lacks gym access and owns none of the items that
+// would unlock any PULL-pattern exercise at all.
+export function needsPullEquipmentNudge(
+  hasGymAccess: boolean,
+  ownedItems: ReadonlySet<EquipmentItem>,
+): boolean {
+  return !hasGymAccess && !PULL_UNLOCKING_ITEMS.some((item) => ownedItems.has(item))
+}
+
 // A reasonable common home setup -- one of the two quick presets ("Зал"
 // is the other, see EquipmentStep.tsx/SettingsPage.tsx), not meant to be
 // exhaustive of every possible home gym.

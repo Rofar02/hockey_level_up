@@ -77,15 +77,12 @@ class EquipmentItem(enum.StrEnum):
     STEP_PLATFORM = "step_platform"
     SLIDE_BOARD = "slide_board"
     MEDICINE_BALL = "medicine_ball"
-    # Stage 2.6 (2026-08-20 planning session): the "add external load"
-    # lever for a tracks_weight=false bodyweight exercise -- tag an
-    # exercise as requiring this item, flip tracks_weight to true and set
-    # bodyweight_ratio, and the existing double-progression machinery
-    # (WeightSuggestionService/RepsSuggestionService) just works unmodified.
-    # No DB migration needed to add this value: EquipmentItem is a
-    # VARCHAR-backed enum (see app/db/enum_column.py), not a native
-    # Postgres enum type, and nothing CHECK-constrains it to a fixed list.
-    WEIGHTED_VEST = "weighted_vest"
+    # 2026-09-21: fitball/stability ball -- the master catalog already had
+    # exercises calling for one (планка на фитболе, сгибание ног на
+    # фитболе...) with nothing to tag them with, so they were either
+    # untagged or mistagged as gym_machine. No DB migration needed, same
+    # VARCHAR-backed reasoning as every other value here.
+    FITBALL = "fitball"
     # 2026-08-31: catch-all for fixed gym equipment with no item of its own
     # yet (leg press, lat pulldown, seated row, Smith machine, rowing
     # machine, assault bike, GHD...) -- found live-testing the new master
@@ -100,6 +97,14 @@ class EquipmentItem(enum.StrEnum):
     # never be covered by User.has_gym_access, only by explicitly owning
     # one (UserEquipmentItem row).
     HOCKEY_STICK = "hockey_stick"
+    # 2026-09-21: second PERSONAL_GEAR_ITEMS entry, but for a different
+    # reason than HOCKEY_STICK -- not "a gym categorically never stocks
+    # this", but "even a gym only sometimes has one" (sled push/pull
+    # exercises, previously wrongly tagged gym_machine -- see
+    # PERSONAL_GEAR_ITEMS' own docstring on why the split is about
+    # real-world stocking, not item category). has_gym_access=True must
+    # not auto-cover it; needs its own explicit UserEquipmentItem row.
+    SLED = "sled"
 
 
 # 2026-08-22: split of EquipmentItem into two categories, found via a real
@@ -113,12 +118,32 @@ class EquipmentItem(enum.StrEnum):
 # auto-covered as before. Deliberately a hand-picked set, not inferred
 # from the item name, since the distinction is about real-world gym
 # stocking, not the item's category.
-PERSONAL_GEAR_ITEMS: frozenset[EquipmentItem] = frozenset({EquipmentItem.HOCKEY_STICK})
+PERSONAL_GEAR_ITEMS: frozenset[EquipmentItem] = frozenset(
+    {EquipmentItem.HOCKEY_STICK, EquipmentItem.SLED}
+)
 
 # The bypass-eligible complement of PERSONAL_GEAR_ITEMS -- what
 # has_gym_access=True actually covers.
 GYM_COVERED_ITEMS: frozenset[EquipmentItem] = frozenset(
     item for item in EquipmentItem if item not in PERSONAL_GEAR_ITEMS
+)
+
+# 2026-09-21: light/cheap items that are only ever a substitute for a real
+# gym machine on the same movement pattern (resistance band for a cable
+# stack, jump rope for conditioning equipment, foam roller/slide board/step
+# platform likewise) -- used by ScheduleService._pick_main to prefer the
+# "real" gym exercise over its light substitute when the user actually has
+# gym access. Deliberately excludes bodyweight-only exercises (no
+# EquipmentItem at all), which must stay on equal footing with gym
+# equipment, not get deprioritized alongside these.
+LIGHT_SUBSTITUTE_EQUIPMENT: frozenset[EquipmentItem] = frozenset(
+    {
+        EquipmentItem.RESISTANCE_BAND,
+        EquipmentItem.JUMP_ROPE,
+        EquipmentItem.FOAM_ROLLER,
+        EquipmentItem.SLIDE_BOARD,
+        EquipmentItem.STEP_PLATFORM,
+    }
 )
 
 

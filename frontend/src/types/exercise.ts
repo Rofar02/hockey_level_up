@@ -72,9 +72,10 @@ export const EQUIPMENT_ITEMS = [
   'step_platform',
   'slide_board',
   'medicine_ball',
-  'weighted_vest',
+  'fitball',
   'gym_machine',
   'hockey_stick',
+  'sled',
 ] as const
 export type EquipmentItem = (typeof EQUIPMENT_ITEMS)[number]
 
@@ -89,9 +90,10 @@ export const EQUIPMENT_ITEM_LABELS: Record<EquipmentItem, string> = {
   step_platform: 'Степ-платформа',
   slide_board: 'Слайд-борд',
   medicine_ball: 'Медбол',
-  weighted_vest: 'Утяжелительный жилет',
+  fitball: 'Фитбол',
   gym_machine: 'Тренажёр (блок/платформа/Смит и т.п.)',
   hockey_stick: 'Клюшка',
+  sled: 'Сани для тяги/толкания',
 }
 
 // 2026-08-22: mirrors PERSONAL_GEAR_ITEMS in app/models/exercise.py --
@@ -100,7 +102,11 @@ export const EQUIPMENT_ITEM_LABELS: Record<EquipmentItem, string> = {
 // screen (onboarding/settings/profile) renders these in their own
 // always-visible section, separate from the has_gym_access-gated
 // gym-equipment grid below.
-export const PERSONAL_GEAR_ITEMS: readonly EquipmentItem[] = ['hockey_stick']
+//
+// 2026-09-21: 'sled' joined this list for a different reason than
+// hockey_stick -- not "a gym never has one", but "even a gym only
+// sometimes has one", so has_gym_access still must not auto-cover it.
+export const PERSONAL_GEAR_ITEMS: readonly EquipmentItem[] = ['hockey_stick', 'sled']
 
 export const GYM_COVERED_ITEMS: readonly EquipmentItem[] = EQUIPMENT_ITEMS.filter(
   (item) => !PERSONAL_GEAR_ITEMS.includes(item),

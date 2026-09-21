@@ -135,7 +135,18 @@ async def test_pin_is_forced_to_rotate_once_the_session_limit_is_reached(db_sess
 
 
 @pytest.mark.asyncio
-async def test_pin_never_force_rotates_through_a_macrocycle_deload_hold(db_session) -> None:
+async def test_pin_still_force_rotates_through_a_macrocycle_deload_hold(db_session) -> None:
+    """2026-09-21 fix: a macrocycle-deload block runs the same full
+    mesocycle length as any other block (see is_macrocycle_deload_block's
+    own docstring) -- it isn't short, so exempting the session-rotation
+    cap here used to let one accessory exercise repeat for the whole
+    block (6+ weeks in a real simulation), well past
+    ROTATION_SESSION_LIMIT's ~1.5-week intent. Swapping between same-tier
+    accessory candidates isn't a load/intensity lever, unlike the
+    difficulty-escalation and stimulus-preference-mismatch guards
+    elsewhere in this same method, which correctly still hold through a
+    deload block -- only this cap's deload exemption was removed.
+    """
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -160,7 +171,10 @@ async def test_pin_never_force_rotates_through_a_macrocycle_deload_hold(db_sessi
         ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION, training_block=block, today=TODAY
     )
 
-    assert [e.name for e in picked] == ["Core-A"]
+    assert [e.name for e in picked] == ["Core-B"]
+    pin = await _get_pin(db_session, user)
+    assert pin.exercise_id == core_b.id
+    assert pin.times_chosen == 1
 
 
 @pytest.mark.asyncio
