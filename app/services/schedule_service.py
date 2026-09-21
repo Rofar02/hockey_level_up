@@ -34,6 +34,7 @@ from app.core.training_block import (
 )
 from app.models.exercise import (
     GYM_COVERED_ITEMS,
+    LIGHT_SUBSTITUTE_EQUIPMENT,
     WARMUP_STAGE_ORDER,
     EquipmentItem,
     Exercise,
@@ -1222,6 +1223,13 @@ class ScheduleService:
             [exercise.id for exercise in candidates]
         )
 
+        # Same bulk-fetch shape again, for the gym-access light-substitute
+        # deprioritization below (2026-09-21) -- mirrors
+        # suggest_party_exercises' own use of this repository method.
+        equipment_by_exercise = await self._exercises.list_equipment_items_by_exercise(
+            [exercise.id for exercise in candidates]
+        )
+
         # Phase: П.3 variant stability, Stage 2.4: keyed by (pattern,
         # archetype) now -- see UserMovementPatternVariantRepository.
         existing_pins: dict[
@@ -1399,6 +1407,21 @@ class ScheduleService:
 
                 if prefer_unilateral:
                     skill_pool = [e for e in skill_pool if e.is_unilateral] or skill_pool
+
+                # 2026-09-21: with real gym access, prefer the "real"
+                # equipment exercise over a light substitute (resistance
+                # band, jump rope, foam roller, slide board, step platform)
+                # tagged on the same pattern -- previously random.choice
+                # gave them equal odds even with a full gym available.
+                # Bodyweight-only exercises (no LIGHT_SUBSTITUTE_EQUIPMENT
+                # tag) are untouched, and home/no-gym users are unaffected.
+                if user.has_gym_access:
+                    non_light = [
+                        e
+                        for e in skill_pool
+                        if not (equipment_by_exercise.get(e.id, set()) & LIGHT_SUBSTITUTE_EQUIPMENT)
+                    ]
+                    skill_pool = non_light or skill_pool
 
                 if use_muscle_context:
                     loaded = set()

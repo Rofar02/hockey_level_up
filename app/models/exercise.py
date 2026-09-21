@@ -121,6 +121,24 @@ GYM_COVERED_ITEMS: frozenset[EquipmentItem] = frozenset(
     item for item in EquipmentItem if item not in PERSONAL_GEAR_ITEMS
 )
 
+# 2026-09-21: light/cheap items that are only ever a substitute for a real
+# gym machine on the same movement pattern (resistance band for a cable
+# stack, jump rope for conditioning equipment, foam roller/slide board/step
+# platform likewise) -- used by ScheduleService._pick_main to prefer the
+# "real" gym exercise over its light substitute when the user actually has
+# gym access. Deliberately excludes bodyweight-only exercises (no
+# EquipmentItem at all), which must stay on equal footing with gym
+# equipment, not get deprioritized alongside these.
+LIGHT_SUBSTITUTE_EQUIPMENT: frozenset[EquipmentItem] = frozenset(
+    {
+        EquipmentItem.RESISTANCE_BAND,
+        EquipmentItem.JUMP_ROPE,
+        EquipmentItem.FOAM_ROLLER,
+        EquipmentItem.SLIDE_BOARD,
+        EquipmentItem.STEP_PLATFORM,
+    }
+)
+
 
 class MuscleGroup(enum.StrEnum):
     """Anatomical taxonomy (Stage 2.1, 2026-08-20 planning session) --
