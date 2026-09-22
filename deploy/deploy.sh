@@ -18,6 +18,17 @@ git pull --ff-only
 echo "==> docker compose up -d --build"
 docker compose -f docker-compose.prod.yml up -d --build
 
+# 2026-09-22: nginx resolves the "backend" upstream hostname once and keeps
+# that IP -- the line above always recreates the backend container (no
+# service filter), which gets a new IP on the compose network every time,
+# so nginx keeps routing to the now-dead old IP until something makes it
+# re-resolve. Found live: /api/* 502s ("Host is unreachable") right after a
+# deploy that otherwise looked clean, nginx's own error log named the stale
+# IP. A plain restart (not recreate -- nginx's own image/config didn't
+# change) is enough to force the fresh lookup.
+echo "==> restarting nginx (picks up the backend's new container IP)"
+docker compose -f docker-compose.prod.yml restart nginx
+
 echo "==> pruning dangling images"
 docker image prune -f
 
