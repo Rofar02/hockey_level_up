@@ -3,6 +3,7 @@ import logging
 import random
 import uuid
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from typing import Iterator
 from zoneinfo import ZoneInfo
@@ -1283,7 +1284,7 @@ class ScheduleService:
             )
 
             if difficulty_predicate is not None and not gate_exhausted:
-                pool = [e for e in pool if difficulty_predicate(e)] or pool
+                pool = self._prefer_by_phase_difficulty(pool, difficulty_predicate, stimulus_preference)
 
             existing_pin = existing_pins.get((pattern, archetype))
             pinned_exercise = None
@@ -1390,7 +1391,18 @@ class ScheduleService:
                     stat_pool = [e for e in pool if e.id != existing_pin.exercise_id] or pool
 
                 if escalate_difficulty:
-                    stat_pool = self._tier_by_escalated_difficulty(stat_pool, pinned_exercise)
+                    # 2026-09-21: "strictly harder" is judged within the
+                    # wanted stimulus when there is one -- across the whole
+                    # pool it used to hand the slot to a harder exercise of
+                    # another stimulus (a strength exercise on a SKILL day),
+                    # which the preference narrowing below then had to
+                    # accept as its fallback.
+                    escalation_pool = stat_pool
+                    if stimulus_preference is not None:
+                        escalation_pool = [
+                            e for e in stat_pool if e.stimulus_type in stimulus_preference
+                        ] or stat_pool
+                    stat_pool = self._tier_by_escalated_difficulty(escalation_pool, pinned_exercise)
 
                 if stimulus_preference is not None:
                     preferred = [e for e in stat_pool if e.stimulus_type in stimulus_preference]
@@ -1889,6 +1901,39 @@ class ScheduleService:
             e for e in pool if not (muscle_groups_by_exercise.get(e.id, set()) & loaded_muscle_groups)
         ]
         return varied or pool
+
+    @staticmethod
+    def _prefer_by_phase_difficulty(
+        pool: list[Exercise],
+        difficulty_predicate: Callable[[Exercise], bool],
+        stimulus_preference: frozenset[StimulusType] | None,
+    ) -> list[Exercise]:
+        """Block-phase difficulty preference (INTENSIFICATION: difficulty >= 4,
+        DELOAD: <= 2) that never wipes out the wanted stimulus.
+
+        Applied to the whole pattern pool, the predicate used to drop every
+        exercise of a stimulus whose easiest/hardest content sits on the wrong
+        side of the threshold (push/POWER tops out at difficulty 3, so in
+        INTENSIFICATION a POWER day was handed a difficulty-4 strength
+        exercise instead) -- confirmed by a 52-week simulation, ~44% of all
+        day-archetype fallbacks. Same "narrow, fall back if empty" shape as
+        every other preference layer here:
+
+          1. The predicate narrows the pool as before, and if any wanted
+             stimulus survives, that's the result (unchanged behaviour).
+          2. The predicate would leave no wanted-stimulus exercise -> keep
+             the wanted-stimulus exercises (the phase bias yields to the day
+             archetype, not the other way round).
+          3. No stimulus preference, or nothing of it in the pool -> exactly
+             the old behaviour (predicate matches, or the whole pool).
+        """
+        narrowed = [e for e in pool if difficulty_predicate(e)] or pool
+        if stimulus_preference is None:
+            return narrowed
+        if any(e.stimulus_type in stimulus_preference for e in narrowed):
+            return narrowed
+        wanted = [e for e in pool if e.stimulus_type in stimulus_preference]
+        return wanted or narrowed
 
     @staticmethod
     def _tier_by_escalated_difficulty(pool: list[Exercise], outgoing: Exercise) -> list[Exercise]:
