@@ -86,6 +86,25 @@ const REVIEWED_FILTER_OPTIONS = [
   { value: 'reviewed', label: 'Проверенные' },
 ]
 
+// "Smart" here means tolerant of the two things that actually trip up a
+// literal substring match on this catalog's Russian names: е/ё (typing
+// "подъем" should still find "Взрывной подъём таза лёжа") and word order
+// (typing "резины поясу" should still find "Взрывная тяга резины к поясу
+// стоя") -- every query word must appear somewhere in the name, in any
+// order, not the query as one literal phrase.
+function normalizeForSearch(value: string): string {
+  return value.toLowerCase().replace(/ё/g, 'е')
+}
+
+function matchesSearch(name: string, query: string): boolean {
+  const words = normalizeForSearch(query).trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) {
+    return true
+  }
+  const normalizedName = normalizeForSearch(name)
+  return words.every((word) => normalizedName.includes(word))
+}
+
 export function AdminExercisesPage() {
   const { accessToken } = useAuth()
 
@@ -113,6 +132,8 @@ export function AdminExercisesPage() {
   // оно не попадалось") -- client-side like stimulusType/exerciseType above,
   // same reasoning (no server-side filter needed for this catalog size).
   const [reviewedFilter, setReviewedFilter] = useState<'' | 'reviewed' | 'unreviewed'>('')
+  // Client-side, same reasoning as stimulusType/exerciseType above.
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isGuideOpen, setIsGuideOpen] = useState(false)
@@ -218,7 +239,8 @@ export function AdminExercisesPage() {
 
   const filteredExercises = (exercises ?? []).filter(
     (exercise) =>
-      (stimulusType === '' || exercise.stimulus_type === stimulusType)
+      matchesSearch(exercise.name, searchQuery)
+      && (stimulusType === '' || exercise.stimulus_type === stimulusType)
       && (exerciseType === '' || exercise.exercise_type === exerciseType)
       && (!healthOnly || (issuesByExerciseId.get(exercise.id)?.length ?? 0) > 0)
       && (reviewedFilter === ''
@@ -229,6 +251,13 @@ export function AdminExercisesPage() {
     <AdminLayout title="Упражнения">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-wrap gap-3">
+          <TextField
+            label="Поиск"
+            placeholder="Название упражнения..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="min-w-[220px]"
+          />
           <SelectField
             label="Категория"
             options={CATEGORY_OPTIONS}

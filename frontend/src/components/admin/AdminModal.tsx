@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
+import { lockBodyScroll, unlockBodyScroll } from '../../utils/bodyScrollLock'
 
 // Same overlay/backdrop-click convention as the shared ui/Modal, but wider
 // (admin forms have far more fields than anything user-facing) -- kept
@@ -13,6 +14,15 @@ export function AdminModal({
   onClose: () => void
   children: ReactNode
 }) {
+  // Same fix as ui/Modal (2026-08-27): without this, the exercise-editor
+  // form (long enough to scroll on its own) let a scroll/touch gesture drag
+  // the admin table behind it too -- pin body in place for as long as this
+  // modal is mounted.
+  useEffect(() => {
+    lockBodyScroll()
+    return unlockBodyScroll
+  }, [])
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 py-8"
