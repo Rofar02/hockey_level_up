@@ -351,6 +351,22 @@ class Exercise(Base):
         Boolean, nullable=False, default=False, server_default=false()
     )
 
+    # 2026-09-22: SessionBlock.exercise_id and SetCompletion.exercise_id are
+    # deliberately plain (non-CASCADE) foreign keys -- a user's completed
+    # workout history must never silently lose which exercise they actually
+    # did (see those models' own comments on ExerciseService.delete_exercise's
+    # 409-on-IntegrityError). That leaves a hard DELETE permanently blocked
+    # for any exercise ever assigned to a real session, with no way for an
+    # admin to retire a bad/duplicate/renamed catalog entry. Archiving is the
+    # non-destructive alternative: ExerciseRepository.list_for_assembly
+    # excludes archived exercises from every future session, while existing
+    # SessionBlock/SetCompletion rows keep pointing at a real, unchanged
+    # Exercise row -- nothing about a user's history reads differently.
+    # Toggled via its own PATCH field, same convention as admin_reviewed.
+    is_archived: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+
 
 # Bare m2m tag, unlike SkillTag -- no per-pair metadata is needed, so this is
 # a plain association table (no relationship() on Exercise, consistent with

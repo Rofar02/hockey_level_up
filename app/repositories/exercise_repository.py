@@ -374,7 +374,7 @@ class ExerciseRepository:
         weight, which exists for that balancer's finer-grained use, not
         this binary exclusion.
         """
-        query = select(Exercise).where(Exercise.phase == phase)
+        query = select(Exercise).where(Exercise.phase == phase, ~Exercise.is_archived)
         if category is not None:
             query = query.where(Exercise.category == category)
         if suitable_for_game_day is not None:

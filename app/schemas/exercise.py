@@ -58,6 +58,10 @@ class ExerciseRead(BaseModel):
     # meaning, just lets the admin panel filter out exercises already gone
     # over while working through the catalog.
     admin_reviewed: bool
+    # See Exercise.is_archived -- excluded from future session assembly, but
+    # still a real row so existing session/set-completion history keeps
+    # resolving normally. Toggled via its own PATCH field, not the main form.
+    is_archived: bool
 
     # Computed, not stored -- see app.core.rest. Derived from stimulus_type
     # and difficulty_level (None only when stimulus_type is unclassified),
@@ -99,6 +103,7 @@ def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> Exer
         exercise_type=exercise.exercise_type,
         warmup_stage=exercise.warmup_stage,
         admin_reviewed=exercise.admin_reviewed,
+        is_archived=exercise.is_archived,
     )
 
 
@@ -153,6 +158,10 @@ class ExerciseUpdate(BaseModel):
     # setExerciseReviewed), so a routine content edit never accidentally
     # resets it.
     admin_reviewed: bool | None = None
+    # Same convention -- toggled via its own Archive/Unarchive button (see
+    # AdminExercisesPage's setExerciseArchived), never as a side effect of a
+    # routine content edit.
+    is_archived: bool | None = None
 
 
 class MovementPatternsReplace(BaseModel):
