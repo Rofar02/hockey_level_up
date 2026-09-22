@@ -43,6 +43,18 @@ class ProgressRepository:
         )
         return list(result.scalars().all())
 
+    async def list_all_stat_history(self, user_id: uuid.UUID) -> list[StatHistory]:
+        """Every stat type's full history at once, ascending -- avoids an
+        N+1 across TargetStat (AnalyticsService._stat_candidates,
+        SkillService.get_skill_baselines), both of which used to call
+        list_stat_history once per stat type/weight in a loop."""
+        result = await self._session.execute(
+            select(StatHistory)
+            .where(StatHistory.user_id == user_id)
+            .order_by(StatHistory.recorded_at)
+        )
+        return list(result.scalars().all())
+
     async def list_recent_history(self, user_id: uuid.UUID, limit: int) -> list[StatHistory]:
         """Last `limit` StatHistory rows across *all* stat types, newest
         first -- used by the AI coach's system prompt (a quick "what changed

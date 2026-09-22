@@ -1020,12 +1020,10 @@ class CoachChatService:
         recent_history = await self._progress.list_recent_history(user.id, RECENT_HISTORY_COUNT)
         history_section = _format_history_section(recent_history)
 
-        active_restrictions = await self._restrictions.list_active(user)
-        restrictions_section = _format_restrictions_section(active_restrictions)
-
-        resolved_restrictions = await self._restrictions.list_resolved(
+        active_restrictions, resolved_restrictions = await self._restrictions.list_for_coach_prompt(
             user, RESOLVED_RESTRICTIONS_IN_PROMPT
         )
+        restrictions_section = _format_restrictions_section(active_restrictions)
         restriction_history_section = _format_restriction_history_section(resolved_restrictions)
 
         diary_entries = await self._diary.list_entries(
@@ -1052,12 +1050,14 @@ class CoachChatService:
             if weekly_plan is not None
             else now.date() - timedelta(days=now.date().weekday())
         )
-        last_week_plan = await self._schedule.get_by_week_start_date(
-            user.id, current_week_start - timedelta(days=7)
+        adjacent_week_starts = current_week_start - timedelta(days=7), current_week_start + timedelta(
+            days=7
         )
-        next_week_plan = await self._schedule.get_by_week_start_date(
-            user.id, current_week_start + timedelta(days=7)
+        plans_by_week_start = await self._schedule.list_by_week_start_dates(
+            user.id, list(adjacent_week_starts)
         )
+        last_week_plan = plans_by_week_start.get(adjacent_week_starts[0])
+        next_week_plan = plans_by_week_start.get(adjacent_week_starts[1])
         last_week_section = _format_last_week_section(last_week_plan, now.date())
         next_week_section = _format_next_week_section(next_week_plan, now.date())
 

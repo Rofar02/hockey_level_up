@@ -77,6 +77,25 @@ class ScheduleRepository:
         result = await self._session.execute(query)
         return result.unique().scalar_one_or_none()
 
+    async def list_by_week_start_dates(
+        self, user_id: uuid.UUID, week_start_dates: list[date]
+    ) -> dict[date, WeeklyPlan]:
+        """Batched get_by_week_start_date -- one query for several distinct
+        week_start_date values (e.g. last week + next week) instead of one
+        round trip each, keyed back by week_start_date for the caller.
+        Missing weeks (never declared) simply aren't in the returned dict."""
+        query = (
+            select(WeeklyPlan)
+            .where(
+                WeeklyPlan.user_id == user_id,
+                WeeklyPlan.week_start_date.in_(week_start_dates),
+            )
+            .options(*_EAGER_LOAD_OPTIONS)
+        )
+        result = await self._session.execute(query)
+        plans = result.unique().scalars().all()
+        return {plan.week_start_date: plan for plan in plans}
+
     async def get_day_plan_for_date(self, user_id: uuid.UUID, target_date: date) -> DayPlan | None:
         """Direct (user_id, target_date) lookup via DayPlan.date -- backs
         TrainingPartyService's per-member training-status resolution (same

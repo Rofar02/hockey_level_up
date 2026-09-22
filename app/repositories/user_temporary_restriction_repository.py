@@ -48,6 +48,22 @@ class UserTemporaryRestrictionRepository:
         )
         return list(result.scalars().all())
 
+    async def list_for_prompt(
+        self, user_id: uuid.UUID
+    ) -> list[UserTemporaryRestriction]:
+        """Every restriction (active and resolved alike), newest first, in
+        one query -- UserTemporaryRestrictionService.list_for_coach_prompt
+        splits this into active vs. resolved(capped) in Python instead of
+        two separate queries with complementary WHERE clauses (this
+        method's own list_active_for_user/list_resolved_for_user above),
+        which is what the AI coach's system prompt used to call."""
+        result = await self._session.execute(
+            select(UserTemporaryRestriction)
+            .where(UserTemporaryRestriction.user_id == user_id)
+            .order_by(UserTemporaryRestriction.created_at.desc())
+        )
+        return list(result.scalars().all())
+
     async def get_active_for_pattern(
         self, user_id: uuid.UUID, pattern: MovementPattern, today: date
     ) -> UserTemporaryRestriction | None:

@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
@@ -7,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.level_unlocks import max_skill_slots_for_level
 from app.models.exercise import TargetStat
-from app.models.progress import StatHistory
+from app.models.progress import StatHistory, UserStat
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
@@ -73,6 +74,24 @@ class SkillService:
                 )
             )
         return breakdown
+
+    @staticmethod
+    def _skill_value_from_stats(
+        weights: list[SkillStatWeight],
+        stats_by_type: dict[TargetStat, UserStat],
+        now: datetime,
+    ) -> float:
+        """Same Σ weight * get_effective_value formula as _compute_breakdown
+        above, against an already-fetched stats_by_type instead of one
+        get_user_stat query per weight -- what list_skills_for_user/
+        get_skill_baselines below use to price every skill in one pass
+        instead of looping a single-skill query per skill."""
+        total = 0.0
+        for weight in weights:
+            stat = stats_by_type.get(weight.stat_type)
+            effective_value = get_effective_value(stat, now) if stat is not None else 0.0
+            total += effective_value * weight.weight
+        return total
 
     # -- historical value (on-the-fly, no persisted snapshot -- see the
     # design note in _compute_skill_history) --
@@ -181,12 +200,34 @@ class SkillService:
     # -- read endpoints --
 
     async def list_skills_for_user(self, user_id: uuid.UUID) -> list[SkillSummaryRead]:
+        """Was one get_skill_value + one list_milestones call per skill
+        (each of those itself another query per stat weight) -- an O(skills
+        * weights) query count that dominated both the Skills page and,
+        worse, the AI coach's system prompt (built fresh on every message,
+        see CoachChatService._build_system_prompt) and AnalyticsService
+        (which used to call this, plus its own equivalent per-skill loop,
+        multiple times over). Four flat queries below price every skill in
+        one pass regardless of how many skills/weights exist."""
         skills = await self._skills.list_skills()
+        all_weights = await self._skills.list_all_stat_weights()
+        all_milestones = await self._skills.list_all_milestones()
+        user_stats = await self._progress.list_user_stats(user_id)
+
+        stats_by_type = {stat.stat_type: stat for stat in user_stats}
+        weights_by_skill: dict[uuid.UUID, list[SkillStatWeight]] = defaultdict(list)
+        for weight in all_weights:
+            weights_by_skill[weight.skill_id].append(weight)
+        milestones_by_skill: dict[uuid.UUID, list[SkillMilestone]] = defaultdict(list)
+        for milestone in all_milestones:
+            milestones_by_skill[milestone.skill_id].append(milestone)
+
+        now = datetime.now(timezone.utc)
         results = []
         for skill in skills:
-            value = await self.get_skill_value(skill.id, user_id)
-            milestones = await self._skills.list_milestones(skill.id)
-            next_milestone = next((m for m in milestones if m.threshold > value), None)
+            value = self._skill_value_from_stats(weights_by_skill.get(skill.id, []), stats_by_type, now)
+            next_milestone = next(
+                (m for m in milestones_by_skill.get(skill.id, []) if m.threshold > value), None
+            )
             results.append(
                 SkillSummaryRead(
                     id=skill.id,
@@ -205,6 +246,34 @@ class SkillService:
                 )
             )
         return results
+
+    async def get_skill_baselines(self, user_id: uuid.UUID, since: datetime) -> dict[uuid.UUID, float]:
+        """Every skill's value as of `since`, in one pass -- the batched
+        equivalent of calling get_skill_value_at per skill (each of those a
+        list_stat_weights + one list_stat_history per weight), used by
+        AnalyticsService to diff a `days`-window baseline against every
+        skill's current value without an N+1 across the skill list."""
+        skills = await self._skills.list_skills()
+        all_weights = await self._skills.list_all_stat_weights()
+        all_history = await self._progress.list_all_stat_history(user_id)
+
+        weights_by_skill: dict[uuid.UUID, list[SkillStatWeight]] = defaultdict(list)
+        for weight in all_weights:
+            weights_by_skill[weight.skill_id].append(weight)
+        history_by_type: dict[TargetStat, list[StatHistory]] = defaultdict(list)
+        for entry in all_history:
+            history_by_type[entry.stat_type].append(entry)
+
+        return {
+            skill.id: sum(
+                get_stat_baseline_value(
+                    weight.stat_type, history_by_type.get(weight.stat_type, []), since
+                )
+                * weight.weight
+                for weight in weights_by_skill.get(skill.id, [])
+            )
+            for skill in skills
+        }
 
     async def get_skill_detail(self, skill_id: uuid.UUID, user_id: uuid.UUID) -> SkillDetailRead:
         skill = await self._get_skill_or_404(skill_id)
