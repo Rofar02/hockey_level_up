@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useRef } from 'react'
+import { Suspense, useRef } from 'react'
 import { Navigate } from 'react-router-dom'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
@@ -46,5 +46,6 @@ export function OnboardingRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/" replace />
   }
 
-  return <>{children}</>
+  // OnboardingPage is now a lazy chunk (see App.tsx).
+  return <Suspense fallback={<AppLoadingScreen />}>{children}</Suspense>
 }

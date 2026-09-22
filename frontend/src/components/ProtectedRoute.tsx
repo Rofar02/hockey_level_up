@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { Navigate, Outlet, useMatch } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { CoachmarkProvider } from './CoachmarkProvider'
@@ -48,10 +49,22 @@ export function ProtectedRoute() {
   // pb reserves room so BottomNav (fixed) never overlaps the page's own
   // bottom content -- kept here rather than in each page so every protected
   // screen gets it automatically.
+  //
+  // Suspense lives here, wrapping only <Outlet/>, rather than once per lazy
+  // page in App.tsx -- every protected page is now a lazy chunk (see
+  // App.tsx's own comment), and a boundary any higher up (e.g. wrapping
+  // this whole component) would catch that suspension too, but by
+  // unmounting BottomNav along with it -- exactly the remount this
+  // component's Outlet-based layout exists to avoid (see the docstring
+  // above). Placed here, only the content area shows the fallback while
+  // BottomNav stays mounted through every page-chunk load, same as it
+  // already does through every ordinary navigation.
   return (
     <CoachmarkProvider>
       <div className={isFullScreenRoute ? '' : 'pb-16'}>
-        <Outlet />
+        <Suspense fallback={<AppLoadingScreen />}>
+          <Outlet />
+        </Suspense>
       </div>
       {!isFullScreenRoute && <BottomNav />}
     </CoachmarkProvider>

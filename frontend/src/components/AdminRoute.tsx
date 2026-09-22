@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Suspense } from 'react'
 import { Navigate } from 'react-router-dom'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
@@ -25,5 +26,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/" replace />
   }
 
-  return <>{children}</>
+  // Every admin page is now a lazy chunk (see App.tsx) -- one boundary
+  // here instead of one per admin route.
+  return <Suspense fallback={<AppLoadingScreen />}>{children}</Suspense>
 }

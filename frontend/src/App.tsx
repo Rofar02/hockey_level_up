@@ -5,75 +5,128 @@ import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ScrollToTop } from './components/ScrollToTop'
 import { AppLoadingScreen } from './components/ui/AppLoadingScreen'
-import { DiaryPage } from './pages/DiaryPage'
-import { ExerciseCatalogPage } from './pages/ExerciseCatalogPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
-import { FriendsPage } from './pages/FriendsPage'
-import { HomePage } from './pages/HomePage'
-import { LeaderboardPage } from './pages/LeaderboardPage'
 import { LoginPage } from './pages/LoginPage'
-import { MorePage } from './pages/MorePage'
-import { NewSchedulePage } from './pages/NewSchedulePage'
-import { OnboardingPage } from './pages/OnboardingPage'
-import { ProfilePage } from './pages/ProfilePage'
-import { QuestsPage } from './pages/QuestsPage'
-import { ReferencePage } from './pages/ReferencePage'
 import { RegisterPage } from './pages/RegisterPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
-import { RestrictionsPage } from './pages/RestrictionsPage'
-import { SettingsAccountPage } from './pages/SettingsAccountPage'
-import { SettingsAssessmentsPage } from './pages/SettingsAssessmentsPage'
-import { SettingsEquipmentPage } from './pages/SettingsEquipmentPage'
-import { SettingsNotificationsPage } from './pages/SettingsNotificationsPage'
-import { SettingsPage } from './pages/SettingsPage'
-import { SettingsProfilePage } from './pages/SettingsProfilePage'
-import { SettingsTrainingPage } from './pages/SettingsTrainingPage'
-import { TeamDetailPage } from './pages/TeamDetailPage'
-import { TeamRankingPage } from './pages/TeamRankingPage'
-import { TeamsPage } from './pages/TeamsPage'
-import { TrainingPartiesPage } from './pages/TrainingPartiesPage'
-import { TrainingPartyDetailPage } from './pages/TrainingPartyDetailPage'
-import { TrainingDiaryPage } from './pages/TrainingDiaryPage'
-import { TrainingSessionPage } from './pages/TrainingSessionPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
-import { AdminExercisesPage } from './pages/admin/AdminExercisesPage'
-import { AdminHomePage } from './pages/admin/AdminHomePage'
-import { AdminSkillDetailPage } from './pages/admin/AdminSkillDetailPage'
-import { AdminSkillsPage } from './pages/admin/AdminSkillsPage'
-import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 
-// No route-based code-splitting elsewhere in the app yet (everything else
-// is a static import) -- these two are singled out because they're the
-// only places pulling in react-markdown (and its unified/remark/rehype
-// chain), which would otherwise ship in the main bundle for every user,
-// including the ones who never open the reference section or the admin
-// panel.
-const ReferenceArticleDetailPage = lazy(() =>
-  import('./pages/ReferenceArticleDetailPage').then((module) => ({
-    default: module.ReferenceArticleDetailPage,
+// Kept as static imports, unlike every other page below -- these are the
+// actual first paint for a logged-out visitor (there's no auth check ahead
+// of them to cover a lazy chunk's own loading flicker with, the way
+// ProtectedRoute/AdminRoute/OnboardingRoute's own Suspense boundaries do
+// for everything behind a login), and they're small enough (plain forms)
+// that splitting them out barely moves the main bundle either way.
+
+// Every page below (except the five auth forms above) used to be a static
+// import -- all ~35 of them landing in one main JS chunk regardless of
+// which single page a given visit actually needs. Suspense for these lives
+// one level up, in ProtectedRoute/AdminRoute/OnboardingRoute themselves
+// (wrapping Outlet/children there), not per-route here -- see
+// ProtectedRoute's own comment for why that placement specifically matters
+// (BottomNav must not unmount while a page chunk loads).
+const HomePage = lazy(() => import('./pages/HomePage').then((m) => ({ default: m.HomePage })))
+const NewSchedulePage = lazy(() =>
+  import('./pages/NewSchedulePage').then((m) => ({ default: m.NewSchedulePage })),
+)
+const TrainingSessionPage = lazy(() =>
+  import('./pages/TrainingSessionPage').then((m) => ({ default: m.TrainingSessionPage })),
+)
+const TrainingDiaryPage = lazy(() =>
+  import('./pages/TrainingDiaryPage').then((m) => ({ default: m.TrainingDiaryPage })),
+)
+const DiaryPage = lazy(() => import('./pages/DiaryPage').then((m) => ({ default: m.DiaryPage })))
+const MorePage = lazy(() => import('./pages/MorePage').then((m) => ({ default: m.MorePage })))
+const RestrictionsPage = lazy(() =>
+  import('./pages/RestrictionsPage').then((m) => ({ default: m.RestrictionsPage })),
+)
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })))
+const FriendsPage = lazy(() => import('./pages/FriendsPage').then((m) => ({ default: m.FriendsPage })))
+const TrainingPartiesPage = lazy(() =>
+  import('./pages/TrainingPartiesPage').then((m) => ({ default: m.TrainingPartiesPage })),
+)
+const TrainingPartyDetailPage = lazy(() =>
+  import('./pages/TrainingPartyDetailPage').then((m) => ({ default: m.TrainingPartyDetailPage })),
+)
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+)
+const SettingsProfilePage = lazy(() =>
+  import('./pages/SettingsProfilePage').then((m) => ({ default: m.SettingsProfilePage })),
+)
+const SettingsEquipmentPage = lazy(() =>
+  import('./pages/SettingsEquipmentPage').then((m) => ({ default: m.SettingsEquipmentPage })),
+)
+const SettingsTrainingPage = lazy(() =>
+  import('./pages/SettingsTrainingPage').then((m) => ({ default: m.SettingsTrainingPage })),
+)
+const SettingsAssessmentsPage = lazy(() =>
+  import('./pages/SettingsAssessmentsPage').then((m) => ({ default: m.SettingsAssessmentsPage })),
+)
+const SettingsNotificationsPage = lazy(() =>
+  import('./pages/SettingsNotificationsPage').then((m) => ({
+    default: m.SettingsNotificationsPage,
   })),
 )
-const AdminReferenceArticlesPage = lazy(() =>
-  import('./pages/admin/AdminReferenceArticlesPage').then((module) => ({
-    default: module.AdminReferenceArticlesPage,
-  })),
+const SettingsAccountPage = lazy(() =>
+  import('./pages/SettingsAccountPage').then((m) => ({ default: m.SettingsAccountPage })),
 )
-const PrivacyPage = lazy(() =>
-  import('./pages/PrivacyPage').then((module) => ({ default: module.PrivacyPage })),
+const LeaderboardPage = lazy(() =>
+  import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })),
+)
+const TeamsPage = lazy(() => import('./pages/TeamsPage').then((m) => ({ default: m.TeamsPage })))
+const TeamRankingPage = lazy(() =>
+  import('./pages/TeamRankingPage').then((m) => ({ default: m.TeamRankingPage })),
+)
+const TeamDetailPage = lazy(() =>
+  import('./pages/TeamDetailPage').then((m) => ({ default: m.TeamDetailPage })),
 )
 // Also lazy -- the only page pulling in recharts, kept out of the main
-// bundle for everyone who never opens it, same reasoning as the
-// react-markdown pages above.
+// bundle for everyone who never opens it.
 const AnalyticsPage = lazy(() =>
-  import('./pages/AnalyticsPage').then((module) => ({ default: module.AnalyticsPage })),
+  import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })),
 )
-const CoachPage = lazy(() =>
-  import('./pages/CoachPage').then((module) => ({ default: module.CoachPage })),
+const CoachPage = lazy(() => import('./pages/CoachPage').then((m) => ({ default: m.CoachPage })))
+const ReferencePage = lazy(() =>
+  import('./pages/ReferencePage').then((m) => ({ default: m.ReferencePage })),
+)
+const ExerciseCatalogPage = lazy(() =>
+  import('./pages/ExerciseCatalogPage').then((m) => ({ default: m.ExerciseCatalogPage })),
+)
+const QuestsPage = lazy(() => import('./pages/QuestsPage').then((m) => ({ default: m.QuestsPage })))
+// Pulls in react-markdown (and its unified/remark/rehype chain) -- kept out
+// of the main bundle for everyone who never opens the reference section.
+const ReferenceArticleDetailPage = lazy(() =>
+  import('./pages/ReferenceArticleDetailPage').then((m) => ({
+    default: m.ReferenceArticleDetailPage,
+  })),
+)
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then((m) => ({ default: m.PrivacyPage })))
+const OnboardingPage = lazy(() =>
+  import('./pages/OnboardingPage').then((m) => ({ default: m.OnboardingPage })),
 )
 
-function RouteLoadingFallback() {
-  return <AppLoadingScreen />
-}
+const AdminHomePage = lazy(() =>
+  import('./pages/admin/AdminHomePage').then((m) => ({ default: m.AdminHomePage })),
+)
+const AdminExercisesPage = lazy(() =>
+  import('./pages/admin/AdminExercisesPage').then((m) => ({ default: m.AdminExercisesPage })),
+)
+const AdminSkillsPage = lazy(() =>
+  import('./pages/admin/AdminSkillsPage').then((m) => ({ default: m.AdminSkillsPage })),
+)
+const AdminSkillDetailPage = lazy(() =>
+  import('./pages/admin/AdminSkillDetailPage').then((m) => ({ default: m.AdminSkillDetailPage })),
+)
+const AdminUsersPage = lazy(() =>
+  import('./pages/admin/AdminUsersPage').then((m) => ({ default: m.AdminUsersPage })),
+)
+// Pulls in react-markdown, same reasoning as ReferenceArticleDetailPage above.
+const AdminReferenceArticlesPage = lazy(() =>
+  import('./pages/admin/AdminReferenceArticlesPage').then((m) => ({
+    default: m.AdminReferenceArticlesPage,
+  })),
+)
 
 function App() {
   return (
@@ -85,10 +138,13 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      {/* No auth check ahead of this one (unlike everything gated by
+          ProtectedRoute/AdminRoute/OnboardingRoute below), so it needs its
+          own Suspense boundary rather than inheriting one from a layout. */}
       <Route
         path="/privacy"
         element={
-          <Suspense fallback={<RouteLoadingFallback />}>
+          <Suspense fallback={<AppLoadingScreen />}>
             <PrivacyPage />
           </Suspense>
         }
@@ -130,33 +186,12 @@ function App() {
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/teams/leaderboard" element={<TeamRankingPage />} />
         <Route path="/teams/:teamId" element={<TeamDetailPage />} />
-        <Route
-          path="/analytics"
-          element={
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <AnalyticsPage />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/coach"
-          element={
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <CoachPage />
-            </Suspense>
-          }
-        />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/coach" element={<CoachPage />} />
         <Route path="/reference" element={<ReferencePage />} />
         <Route path="/exercise-catalog" element={<ExerciseCatalogPage />} />
         <Route path="/quests" element={<QuestsPage />} />
-        <Route
-          path="/reference/:articleId"
-          element={
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <ReferenceArticleDetailPage />
-            </Suspense>
-          }
-        />
+        <Route path="/reference/:articleId" element={<ReferenceArticleDetailPage />} />
       </Route>
       <Route
         path="/admin"
@@ -194,9 +229,7 @@ function App() {
         path="/admin/reference-articles"
         element={
           <AdminRoute>
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <AdminReferenceArticlesPage />
-            </Suspense>
+            <AdminReferenceArticlesPage />
           </AdminRoute>
         }
       />

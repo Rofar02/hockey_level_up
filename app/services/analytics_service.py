@@ -9,7 +9,7 @@ from app.models.user import User
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.skill_repository import SkillRepository
 from app.schemas.analytics import AnalyticsMilestoneRead, AnalyticsMoverRead, AnalyticsSummaryRead
-from app.schemas.skill import NextMilestoneRead
+from app.schemas.skill import NextMilestoneRead, SkillSummaryRead
 from app.services.skill_service import SkillService
 from app.services.stat_service import (
     get_effective_value,
@@ -44,8 +44,16 @@ class AnalyticsService:
         now = datetime.now(timezone.utc)
         since = now - timedelta(days=days)
 
+        # Both skill calls are already batched (one flat pass over every
+        # skill each, see SkillService.list_skills_for_user/
+        # get_skill_baselines) -- fetched once here and reused by
+        # _skill_candidates and _closest_to_milestone below instead of each
+        # recomputing the full skill list on its own.
+        skills = await self._skills.list_skills_for_user(user.id)
+        skill_baselines = await self._skills.get_skill_baselines(user.id, since)
+
         candidates = await self._stat_candidates(user.id, since, now)
-        candidates += await self._skill_candidates(user.id, since)
+        candidates += self._skill_candidates(skills, skill_baselines)
 
         # Always present (never null in the response schema) -- with 6
         # TargetStat entries always in the pool, there's always a max, even
@@ -68,18 +76,28 @@ class AnalyticsService:
         return AnalyticsSummaryRead(
             top_gainer=top_gainer_candidate.mover,
             top_decliner=top_decliner_candidate.mover if top_decliner_candidate is not None else None,
-            closest_to_milestone=await self._closest_to_milestone(user.id),
+            closest_to_milestone=self._closest_to_milestone(skills),
             decline_reason=decline_reason,
         )
 
     async def _stat_candidates(
         self, user_id: uuid.UUID, since: datetime, now: datetime
     ) -> list[_Candidate]:
+        # Two flat queries (every stat's current value, every stat's full
+        # history) instead of one of each per TargetStat -- was 2 queries *
+        # len(TargetStat) before.
+        user_stats = await self._progress.list_user_stats(user_id)
+        stats_by_type = {stat.stat_type: stat for stat in user_stats}
+        all_history = await self._progress.list_all_stat_history(user_id)
+        history_by_type: dict[TargetStat, list] = {}
+        for entry in all_history:
+            history_by_type.setdefault(entry.stat_type, []).append(entry)
+
         candidates = []
         for stat_type in TargetStat:
-            stat = await self._progress.get_user_stat(user_id, stat_type)
+            stat = stats_by_type.get(stat_type)
             current_value = get_effective_value(stat, now) if stat is not None else 0.0
-            history = await self._progress.list_stat_history(user_id, stat_type)
+            history = history_by_type.get(stat_type, [])
             baseline_value = get_stat_baseline_value(stat_type, history, since)
             candidates.append(
                 _Candidate(
@@ -95,19 +113,23 @@ class AnalyticsService:
             )
         return candidates
 
-    async def _skill_candidates(self, user_id: uuid.UUID, since: datetime) -> list[_Candidate]:
-        skills = await self._skills_repo.list_skills()
+    @staticmethod
+    def _skill_candidates(
+        skills: list[SkillSummaryRead], baselines: dict[uuid.UUID, float]
+    ) -> list[_Candidate]:
+        """Pure Python now -- `skills` (current values) and `baselines`
+        (values as of `since`) are both already-batched, no per-skill
+        query left here at all (was 2 queries per skill before)."""
         candidates = []
         for skill in skills:
-            current_value = await self._skills.get_skill_value(skill.id, user_id)
-            baseline_value = await self._skills.get_skill_value_at(skill.id, user_id, since)
+            baseline_value = baselines.get(skill.id, 0.0)
             candidates.append(
                 _Candidate(
                     mover=AnalyticsMoverRead(
                         name=skill.name,
                         type="skill",
-                        delta=current_value - baseline_value,
-                        current_value=current_value,
+                        delta=skill.value - baseline_value,
+                        current_value=skill.value,
                     ),
                     stat_type=None,
                     skill_id=skill.id,
@@ -139,12 +161,13 @@ class AnalyticsService:
             return DECLINE_REASON_DECAY
         return None
 
-    async def _closest_to_milestone(self, user_id: uuid.UUID) -> AnalyticsMilestoneRead | None:
+    @staticmethod
+    def _closest_to_milestone(skills: list[SkillSummaryRead]) -> AnalyticsMilestoneRead | None:
         # Same selection HomePage's "Ближайшие пороги" card uses on the
         # frontend (topSkillsNearMilestone: filter to an open milestone,
         # pick the smallest points_remaining) -- just the single closest
-        # one, computed here instead of reimplemented client-side.
-        skills = await self._skills.list_skills_for_user(user_id)
+        # one. Takes the already-fetched `skills` (see get_summary) instead
+        # of calling list_skills_for_user a second time.
         open_milestones: list[tuple[str, NextMilestoneRead]] = [
             (skill.name, skill.next_milestone) for skill in skills if skill.next_milestone is not None
         ]

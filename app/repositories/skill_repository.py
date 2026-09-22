@@ -57,6 +57,15 @@ class SkillRepository:
         )
         return list(result.scalars().all())
 
+    async def list_all_stat_weights(self) -> list[SkillStatWeight]:
+        """Every skill's stat weights at once -- same batching precedent as
+        list_all_tags below, avoids an N+1 GET across every skill
+        (SkillService.list_skills_for_user/get_skill_baselines, both
+        looped over the full skill list rather than one skill at a
+        time)."""
+        result = await self._session.execute(select(SkillStatWeight))
+        return list(result.scalars().all())
+
     async def get_stat_weight(self, weight_id: uuid.UUID) -> SkillStatWeight | None:
         return await self._session.get(SkillStatWeight, weight_id)
 
@@ -125,6 +134,16 @@ class SkillRepository:
             select(SkillMilestone)
             .where(SkillMilestone.skill_id == skill_id)
             .order_by(SkillMilestone.threshold)
+        )
+        return list(result.scalars().all())
+
+    async def list_all_milestones(self) -> list[SkillMilestone]:
+        """Every skill's milestones at once, same batching reasoning as
+        list_all_stat_weights above -- ordered by (skill_id, threshold) so
+        grouping by skill_id in Python still yields each skill's own
+        milestones threshold-ascending, same as list_milestones."""
+        result = await self._session.execute(
+            select(SkillMilestone).order_by(SkillMilestone.skill_id, SkillMilestone.threshold)
         )
         return list(result.scalars().all())
 

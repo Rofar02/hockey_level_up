@@ -34,6 +34,24 @@ class UserTemporaryRestrictionService:
         today = datetime.now(ZoneInfo(user.timezone)).date()
         return await self._restrictions.list_resolved_for_user(user.id, today, limit)
 
+    async def list_for_coach_prompt(
+        self, user: User, resolved_limit: int
+    ) -> tuple[list[UserTemporaryRestriction], list[UserTemporaryRestriction]]:
+        """(active, resolved) in one query instead of the two list_active/
+        list_resolved calls above -- both read the same rows split by a
+        complementary condition, so CoachChatService's system-prompt
+        builder (the only caller that needs both at once) fetches the full
+        list once and splits it here rather than round-tripping twice."""
+        today = datetime.now(ZoneInfo(user.timezone)).date()
+        all_restrictions = await self._restrictions.list_for_prompt(user.id)
+        active = [
+            r for r in all_restrictions if r.lifted_at is None and r.expires_at >= today
+        ]
+        resolved = [
+            r for r in all_restrictions if r.lifted_at is not None or r.expires_at < today
+        ][:resolved_limit]
+        return active, resolved
+
     async def report(
         self,
         user: User,
