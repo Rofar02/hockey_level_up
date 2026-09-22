@@ -301,6 +301,12 @@ export interface ExerciseRead {
   // catalog. Toggled via its own button (setExerciseReviewed in
   // api/exercises.ts), not part of the main form's save payload.
   admin_reviewed: boolean
+  // Excluded from future session assembly (ScheduleService never picks it
+  // again) while existing session/set-completion history keeps pointing at
+  // this same row unchanged -- the safe alternative to a hard delete for an
+  // exercise already used in real training sessions. Toggled via its own
+  // button (setExerciseArchived in api/exercises.ts), not the main form.
+  is_archived: boolean
   // Computed server-side from stimulus_type/difficulty_level (see
   // app/core/rest.py) -- not a stored field, and not part of ExerciseWrite
   // below.

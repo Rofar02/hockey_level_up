@@ -103,6 +103,22 @@ export function setExerciseReviewed(
   )
 }
 
+// Same convention as setExerciseReviewed above -- the safe alternative to
+// deleteExercise for an exercise already used in real sessions (that DELETE
+// 409s rather than break a user's training history, see the backend's own
+// comment on Exercise.is_archived).
+export function setExerciseArchived(
+  exerciseId: string,
+  isArchived: boolean,
+  accessToken: string,
+): Promise<ExerciseRead> {
+  return apiPatchAuth<ExerciseRead>(
+    `/exercises/${exerciseId}`,
+    { is_archived: isArchived },
+    accessToken,
+  )
+}
+
 // Admin-only (require_admin on the backend) -- AdminExercisesPage's edit
 // form.
 export function listExerciseSkillTags(

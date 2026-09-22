@@ -134,6 +134,10 @@ export function AdminExercisesPage() {
   const [reviewedFilter, setReviewedFilter] = useState<'' | 'reviewed' | 'unreviewed'>('')
   // Client-side, same reasoning as stimulusType/exerciseType above.
   const [searchQuery, setSearchQuery] = useState('')
+  // Archived exercises are clutter for day-to-day catalog work (they're
+  // retired, see Exercise.is_archived) -- hidden by default, same
+  // show-only-when-asked shape as healthOnly below.
+  const [showArchived, setShowArchived] = useState(false)
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isGuideOpen, setIsGuideOpen] = useState(false)
@@ -233,7 +237,39 @@ export function AdminExercisesPage() {
       await exercisesApi.deleteExercise(exercise.id, accessToken)
       setExercises((previous) => previous?.filter((item) => item.id !== exercise.id) ?? previous)
     } catch (err) {
+      // 409 here specifically means "used in existing training sessions"
+      // (ExerciseService.delete_exercise's IntegrityError guard) -- a hard
+      // delete of that row is never coming back, since it'd either violate
+      // the FK or silently rewrite someone's real workout history. Archive
+      // is the actual way to retire it: offer that instead of just a dead
+      // end.
+      if (
+        err instanceof ApiError
+        && err.status === 409
+        && window.confirm(
+          `«${exercise.name}» уже есть в тренировках пользователей и не может быть удалено без потери их истории.\n\nАрхивировать вместо этого? Упражнение перестанет попадать в новые тренировки, но прошлые записи не изменятся.`,
+        )
+      ) {
+        await handleArchiveToggle(exercise, true)
+        return
+      }
       window.alert(err instanceof ApiError ? err.message : 'Не удалось удалить упражнение.')
+    }
+  }
+
+  async function handleArchiveToggle(exercise: ExerciseRead, archive: boolean) {
+    if (accessToken === null) {
+      return
+    }
+    try {
+      const updated = await exercisesApi.setExerciseArchived(exercise.id, archive, accessToken)
+      handleSaved(updated)
+    } catch (err) {
+      window.alert(
+        err instanceof ApiError
+          ? err.message
+          : `Не удалось ${archive ? 'архивировать' : 'разархивировать'} упражнение.`,
+      )
     }
   }
 
@@ -244,7 +280,8 @@ export function AdminExercisesPage() {
       && (exerciseType === '' || exercise.exercise_type === exerciseType)
       && (!healthOnly || (issuesByExerciseId.get(exercise.id)?.length ?? 0) > 0)
       && (reviewedFilter === ''
-        || (reviewedFilter === 'reviewed' ? exercise.admin_reviewed : !exercise.admin_reviewed)),
+        || (reviewedFilter === 'reviewed' ? exercise.admin_reviewed : !exercise.admin_reviewed))
+      && (showArchived || !exercise.is_archived),
   )
 
   return (
@@ -309,6 +346,14 @@ export function AdminExercisesPage() {
             Только с проблемами каталога
             {catalogHealthIssues !== null && ` (${catalogHealthIssues.length})`}
           </label>
+          <label className="flex items-center gap-2 self-end pb-2 text-sm text-text-secondary">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(event) => setShowArchived(event.target.checked)}
+            />
+            Показать архивные
+          </label>
         </div>
         <div className="flex gap-3">
           <Button type="button" variant="neutral" onClick={() => setIsGuideOpen(true)}>
@@ -349,7 +394,12 @@ export function AdminExercisesPage() {
               <tbody>
                 {filteredExercises.map((exercise) => (
                   <tr key={exercise.id} className="border-b border-white/5 hover:bg-white/5">
-                    <td className="px-3 py-2 text-text-primary">{exercise.name}</td>
+                    <td className="px-3 py-2 text-text-primary">
+                      {exercise.name}
+                      {exercise.is_archived && (
+                        <span className="ml-1.5 text-xs text-text-secondary">(архив)</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-text-secondary">
                       {EXERCISE_CATEGORY_LABELS[exercise.category]}
                     </td>
@@ -408,6 +458,13 @@ export function AdminExercisesPage() {
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleArchiveToggle(exercise, !exercise.is_archived)}
+                          className="text-text-secondary hover:underline"
+                        >
+                          {exercise.is_archived ? 'Разархивировать' : 'Архивировать'}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleDelete(exercise)}
                           className="text-accent-persimmon hover:underline"
                         >
@@ -424,7 +481,12 @@ export function AdminExercisesPage() {
           <div className="flex flex-col gap-3 md:hidden">
             {filteredExercises.map((exercise) => (
               <div key={exercise.id} className="rounded-md border border-white/10 bg-dark-card p-3">
-                <p className="text-sm font-medium text-text-primary">{exercise.name}</p>
+                <p className="text-sm font-medium text-text-primary">
+                  {exercise.name}
+                  {exercise.is_archived && (
+                    <span className="ml-1.5 text-xs text-text-secondary">(архив)</span>
+                  )}
+                </p>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
                   <span>{EXERCISE_CATEGORY_LABELS[exercise.category]}</span>
                   <span>
@@ -465,13 +527,20 @@ export function AdminExercisesPage() {
                       .join('; ')}
                   </p>
                 )}
-                <div className="mt-2 flex gap-4 text-sm">
+                <div className="mt-2 flex flex-wrap gap-4 text-sm">
                   <button
                     type="button"
                     onClick={() => openEditForm(exercise)}
                     className="text-accent-ice hover:underline"
                   >
                     Изменить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleArchiveToggle(exercise, !exercise.is_archived)}
+                    className="text-text-secondary hover:underline"
+                  >
+                    {exercise.is_archived ? 'Разархивировать' : 'Архивировать'}
                   </button>
                   <button
                     type="button"
