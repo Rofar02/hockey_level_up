@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from datetime import time as time_
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from app.models.team_event import (
     TeamEventPublishStatus,
     TeamEventStatus,
     TeamEventType,
+    TeamIceScheduleTemplate,
 )
 
 
@@ -31,12 +33,14 @@ class TeamEventRepository:
         event_type: TeamEventType,
         starts_at: datetime,
         opponent_name: str | None,
+        source_template_id: uuid.UUID | None = None,
     ) -> TeamEvent:
         event = TeamEvent(
             team_id=team_id,
             event_type=event_type,
             starts_at=starts_at,
             opponent_name=opponent_name,
+            source_template_id=source_template_id,
             # Games have no board at all (see TeamEvent's docstring) --
             # board_status stays None rather than an unused DRAFT default.
             board_status=(
@@ -46,6 +50,23 @@ class TeamEventRepository:
         self._session.add(event)
         await self._session.flush()
         return event
+
+    async def get_stamped_event(
+        self, source_template_id: uuid.UUID, starts_at: datetime
+    ) -> TeamEvent | None:
+        """The stamping job's own idempotency check -- see
+        team_event_scheduler._stamp_template. starts_at is deterministically
+        re-derived from (template.weekday, template.start_time, the
+        captain's timezone) on every tick, so an exact match is a safe key:
+        it can never coincidentally collide with a different intended slot.
+        """
+        result = await self._session.execute(
+            select(TeamEvent).where(
+                TeamEvent.source_template_id == source_template_id,
+                TeamEvent.starts_at == starts_at,
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def get_event(self, event_id: uuid.UUID) -> TeamEvent | None:
         return await self._session.get(TeamEvent, event_id)
@@ -238,3 +259,34 @@ class TeamEventRepository:
         self._session.add(entry)
         await self._session.flush()
         return entry
+
+    # -- TeamIceScheduleTemplate --
+
+    async def create_template(
+        self, team_id: uuid.UUID, weekday: int, start_time: time_
+    ) -> TeamIceScheduleTemplate:
+        template = TeamIceScheduleTemplate(team_id=team_id, weekday=weekday, start_time=start_time)
+        self._session.add(template)
+        await self._session.flush()
+        return template
+
+    async def get_template(self, template_id: uuid.UUID) -> TeamIceScheduleTemplate | None:
+        return await self._session.get(TeamIceScheduleTemplate, template_id)
+
+    async def list_templates_for_team(self, team_id: uuid.UUID) -> list[TeamIceScheduleTemplate]:
+        result = await self._session.execute(
+            select(TeamIceScheduleTemplate)
+            .where(TeamIceScheduleTemplate.team_id == team_id)
+            .order_by(TeamIceScheduleTemplate.weekday, TeamIceScheduleTemplate.start_time)
+        )
+        return list(result.scalars().all())
+
+    async def list_active_templates(self) -> list[TeamIceScheduleTemplate]:
+        result = await self._session.execute(
+            select(TeamIceScheduleTemplate).where(TeamIceScheduleTemplate.active.is_(True))
+        )
+        return list(result.scalars().all())
+
+    async def delete_template(self, template: TeamIceScheduleTemplate) -> None:
+        await self._session.delete(template)
+        await self._session.flush()

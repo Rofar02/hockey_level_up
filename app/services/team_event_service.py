@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
+from datetime import time as time_
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, update
@@ -28,6 +29,7 @@ from app.models.team_event import (
     TeamEventPublishStatus,
     TeamEventStatus,
     TeamEventType,
+    TeamIceScheduleTemplate,
 )
 from app.models.user import User
 from app.repositories.outbox_repository import OutboxRepository
@@ -44,6 +46,7 @@ from app.schemas.team_event import (
     TeamEventLineupRead,
     TeamEventNudgeResult,
     TeamEventRead,
+    TeamIceScheduleTemplateRead,
 )
 from app.services.push_service import send_push
 
@@ -87,6 +90,12 @@ class TeamEventService:
     stats + a fixed XP bonus once, on first save -- see
     save_diary_entry/_award_team_training_rewards. Games grant nothing
     here.
+
+    And CRUD for TeamIceScheduleTemplate (the recurring weekday+time slot
+    a captain sets up) -- the actual stamping of future TeamEvent rows
+    from active templates is a scheduler tick
+    (team_event_scheduler._stamp_events_from_templates), not this service,
+    same TICK-vs-instant-action split as the notification table above.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -713,6 +722,68 @@ class TeamEventService:
     def _to_diary_entry_read(entry: TeamEventDiaryEntry) -> TeamEventDiaryEntryRead:
         return TeamEventDiaryEntryRead(
             note=entry.note, created_at=entry.created_at, updated_at=entry.updated_at
+        )
+
+    # -- ice schedule template --
+
+    async def create_template(
+        self, user: User, team_id: uuid.UUID, weekday: int, start_time: time_
+    ) -> TeamIceScheduleTemplateRead:
+        team = await self._get_team_or_404(team_id)
+        self._require_captain(user, team)
+        template = await self._events.create_template(team_id, weekday, start_time)
+        await self._session.commit()
+        return self._to_template_read(template)
+
+    async def list_templates(
+        self, user: User, team_id: uuid.UUID
+    ) -> list[TeamIceScheduleTemplateRead]:
+        team = await self._get_team_or_404(team_id)
+        await self._require_member(user, team)
+        templates = await self._events.list_templates_for_team(team_id)
+        return [self._to_template_read(t) for t in templates]
+
+    async def set_template_active(
+        self, user: User, team_id: uuid.UUID, template_id: uuid.UUID, active: bool
+    ) -> TeamIceScheduleTemplateRead:
+        team = await self._get_team_or_404(team_id)
+        self._require_captain(user, team)
+        template = await self._get_template_or_404(template_id, team_id)
+        # Deactivating never touches already-stamped TeamEvent rows -- see
+        # the model's own docstring. Reactivating just lets the scheduler
+        # pick the slot back up on its next tick.
+        template.active = active
+        await self._session.commit()
+        await self._session.refresh(template)
+        return self._to_template_read(template)
+
+    async def delete_template(
+        self, user: User, team_id: uuid.UUID, template_id: uuid.UUID
+    ) -> None:
+        team = await self._get_team_or_404(team_id)
+        self._require_captain(user, team)
+        template = await self._get_template_or_404(template_id, team_id)
+        # source_template_id is ON DELETE SET NULL (see TeamEvent) -- any
+        # TeamEvent this already stamped just loses the back-reference, it
+        # isn't cascaded away.
+        await self._events.delete_template(template)
+        await self._session.commit()
+
+    async def _get_template_or_404(
+        self, template_id: uuid.UUID, team_id: uuid.UUID
+    ) -> TeamIceScheduleTemplate:
+        template = await self._events.get_template(template_id)
+        if template is None or template.team_id != team_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+        return template
+
+    @staticmethod
+    def _to_template_read(template: TeamIceScheduleTemplate) -> TeamIceScheduleTemplateRead:
+        return TeamIceScheduleTemplateRead(
+            id=template.id,
+            weekday=template.weekday,
+            start_time=template.start_time,
+            active=template.active,
         )
 
     # -- shared guards --

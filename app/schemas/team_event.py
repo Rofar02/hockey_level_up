@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from datetime import time as time_
 
 from pydantic import BaseModel, Field
 
@@ -156,3 +157,19 @@ class TeamEventDiaryEntryRead(BaseModel):
     note: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class TeamIceScheduleTemplateRead(BaseModel):
+    id: uuid.UUID
+    weekday: int
+    start_time: time_
+    active: bool
+
+
+class TeamIceScheduleTemplateCreate(BaseModel):
+    weekday: int = Field(ge=0, le=6)
+    start_time: time_
+
+
+class TeamIceScheduleTemplateUpdate(BaseModel):
+    active: bool

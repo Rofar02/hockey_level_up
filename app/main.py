@@ -27,6 +27,7 @@ from app.routers import (
     set_completions,
     skills,
     team_events,
+    team_ice_schedule_templates,
     teams,
     training_block,
     training_parties,
@@ -103,6 +104,7 @@ app.include_router(push.router)
 app.include_router(admin_users.router)
 app.include_router(teams.router)
 app.include_router(team_events.router)
+app.include_router(team_ice_schedule_templates.router)
 app.include_router(friends.router)
 app.include_router(training_parties.router)
 app.include_router(quests.router)

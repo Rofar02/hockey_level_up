@@ -1,5 +1,6 @@
 """Background loop for the two TICK-based rows of the v2 plan's
-notification table -- everything else (game scheduled, board/lineup
+notification table, plus stamping TeamEvent rows from active
+TeamIceScheduleTemplates -- everything else (game scheduled, board/lineup
 published, reschedule, cancel) is an instant push fired straight from
 TeamEventService, not here. Same while-True/asyncio.sleep pattern as
 reminder_scheduler.py/checkin_scheduler.py, including threading `now_utc`
@@ -11,6 +12,11 @@ datetime.now() itself) so tests can pin it, same as reminder_scheduler.
    board is still a draft -- same 9:00-9:05 local window idiom as
    reminder_scheduler's MORNING preference, checked against the captain's
    own User.timezone (there's no team-level timezone).
+3. Stamp future TeamEvent(TRAINING) rows from every active template, out
+   to STAMP_WEEKS_AHEAD -- re-run every tick (cheap, and idempotent via
+   TeamEventRepository.get_stamped_event), which is what keeps the
+   horizon rolling forward a day at a time as real time passes, not a
+   separate daily-only job.
 """
 import asyncio
 import logging
@@ -28,6 +34,7 @@ from app.models.team_event import (
     TeamEventPublishStatus,
     TeamEventStatus,
     TeamEventType,
+    TeamIceScheduleTemplate,
 )
 from app.models.user import User
 from app.repositories.team_event_repository import TeamEventRepository
@@ -46,6 +53,11 @@ _BOARD_NOT_READY_WINDOW: tuple[time, time] = (time(9, 0), time(9, 5))
 
 ATTENDANCE_SUMMARY_TITLE = "Сводка по явке"
 BOARD_NOT_READY_TITLE = "План не готов"
+
+# How far out a template gets stamped -- long enough that a captain always
+# sees several real weeks of upcoming trainings, short enough that
+# deactivating a template doesn't leave months of dead rows behind it.
+STAMP_WEEKS_AHEAD = 4
 
 
 async def _push_user(session: AsyncSession, user_id, title: str, body: str) -> None:
@@ -127,7 +139,62 @@ async def _maybe_send_board_not_ready(session: AsyncSession, event: TeamEvent, n
     event.board_not_ready_sent_at = now_utc
 
 
+async def _active_templates(session: AsyncSession) -> list[TeamIceScheduleTemplate]:
+    result = await session.execute(
+        select(TeamIceScheduleTemplate).where(TeamIceScheduleTemplate.active.is_(True))
+    )
+    return list(result.scalars().all())
+
+
+async def _stamp_template(session: AsyncSession, template: TeamIceScheduleTemplate, now_utc: datetime) -> None:
+    teams = TeamRepository(session)
+    events = TeamEventRepository(session)
+    team = await teams.get_by_id(template.team_id)
+    if team is None:
+        return
+    captain = await session.get(User, team.owner_id)
+    if captain is None:
+        return
+    try:
+        captain_tz = ZoneInfo(captain.timezone)
+    except Exception:
+        logger.exception(
+            "Skipping stamping for template_id=%s: invalid captain timezone %r",
+            template.id,
+            captain.timezone,
+        )
+        return
+
+    local_today = now_utc.astimezone(captain_tz).date()
+    horizon = local_today + timedelta(weeks=STAMP_WEEKS_AHEAD)
+    for offset in range((horizon - local_today).days + 1):
+        candidate_date = local_today + timedelta(days=offset)
+        if candidate_date.weekday() != template.weekday:
+            continue
+        candidate_local = datetime.combine(candidate_date, template.start_time, tzinfo=captain_tz)
+        candidate_utc = candidate_local.astimezone(timezone.utc)
+        if candidate_utc <= now_utc:
+            # Today's own slot, but it already started (or the exact
+            # instant is now) -- don't stamp a training in the past.
+            continue
+        if await events.get_stamped_event(template.id, candidate_utc) is not None:
+            continue
+        await events.create_event(
+            template.team_id,
+            TeamEventType.TRAINING,
+            candidate_utc,
+            None,
+            source_template_id=template.id,
+        )
+
+
 async def _run_tick(session: AsyncSession, now_utc: datetime) -> None:
+    for template in await _active_templates(session):
+        try:
+            await _stamp_template(session, template, now_utc)
+        except Exception:
+            logger.exception("Stamping failed for template_id=%s", template.id)
+
     for event in await _due_attendance_summary_events(session, now_utc):
         try:
             await _send_attendance_summary(session, event, now_utc)
