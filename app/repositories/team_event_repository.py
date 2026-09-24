@@ -10,6 +10,8 @@ from app.models.team_event import (
     TeamEventAttendance,
     TeamEventAttendanceStatus,
     TeamEventDrill,
+    TeamEventLineupGroup,
+    TeamEventLineupSlot,
     TeamEventPublishStatus,
     TeamEventStatus,
     TeamEventType,
@@ -139,4 +141,78 @@ class TeamEventRepository:
 
     async def delete_attendance(self, attendance: TeamEventAttendance) -> None:
         await self._session.delete(attendance)
+        await self._session.flush()
+
+    # -- TeamEventLineupGroup / TeamEventLineupSlot --
+
+    async def create_lineup_group(
+        self, team_event_id: uuid.UUID, order: int, name: str | None, color: str | None
+    ) -> TeamEventLineupGroup:
+        group = TeamEventLineupGroup(
+            team_event_id=team_event_id, order=order, name=name, color=color
+        )
+        self._session.add(group)
+        await self._session.flush()
+        return group
+
+    async def get_lineup_group(self, group_id: uuid.UUID) -> TeamEventLineupGroup | None:
+        return await self._session.get(TeamEventLineupGroup, group_id)
+
+    async def list_lineup_groups_for_event(
+        self, team_event_id: uuid.UUID
+    ) -> list[TeamEventLineupGroup]:
+        result = await self._session.execute(
+            select(TeamEventLineupGroup)
+            .where(TeamEventLineupGroup.team_event_id == team_event_id)
+            .order_by(TeamEventLineupGroup.order)
+        )
+        return list(result.scalars().all())
+
+    async def next_lineup_group_order(self, team_event_id: uuid.UUID) -> int:
+        result = await self._session.execute(
+            select(TeamEventLineupGroup.id).where(
+                TeamEventLineupGroup.team_event_id == team_event_id
+            )
+        )
+        return len(result.all())
+
+    async def delete_lineup_group(self, group: TeamEventLineupGroup) -> None:
+        await self._session.delete(group)
+        await self._session.flush()
+
+    async def get_lineup_slot(
+        self, team_event_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TeamEventLineupSlot | None:
+        result = await self._session.execute(
+            select(TeamEventLineupSlot).where(
+                TeamEventLineupSlot.team_event_id == team_event_id,
+                TeamEventLineupSlot.user_id == user_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_lineup_slots_for_event(
+        self, team_event_id: uuid.UUID
+    ) -> list[TeamEventLineupSlot]:
+        result = await self._session.execute(
+            select(TeamEventLineupSlot).where(TeamEventLineupSlot.team_event_id == team_event_id)
+        )
+        return list(result.scalars().all())
+
+    async def upsert_lineup_slot(
+        self, team_event_id: uuid.UUID, group_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TeamEventLineupSlot:
+        slot = await self.get_lineup_slot(team_event_id, user_id)
+        if slot is None:
+            slot = TeamEventLineupSlot(
+                team_event_id=team_event_id, group_id=group_id, user_id=user_id
+            )
+            self._session.add(slot)
+        else:
+            slot.group_id = group_id
+        await self._session.flush()
+        return slot
+
+    async def delete_lineup_slot(self, slot: TeamEventLineupSlot) -> None:
+        await self._session.delete(slot)
         await self._session.flush()

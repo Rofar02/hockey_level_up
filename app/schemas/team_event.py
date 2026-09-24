@@ -10,6 +10,7 @@ from app.models.team_event import (
     TeamEventStatus,
     TeamEventType,
 )
+from app.models.user import Position
 
 
 class TeamEventDrillRead(BaseModel):
@@ -96,3 +97,48 @@ class TeamEventAttendanceRosterRead(BaseModel):
 class TeamEventNudgeResult(BaseModel):
     notified_count: int
     last_nudge_sent_at: datetime
+
+
+class TeamEventLineupPlayerRead(BaseModel):
+    """position is just a UI hint for forming game lines by role -- the
+    backend never enforces it (see the v2 plan's section 7).
+    """
+
+    user_id: uuid.UUID
+    first_name: str
+    last_name: str
+    avatar_url: str | None = None
+    position: Position | None = None
+
+
+class TeamEventLineupGroupRead(BaseModel):
+    id: uuid.UUID
+    name: str | None = None
+    color: str | None = None
+    players: list[TeamEventLineupPlayerRead]
+
+
+class TeamEventLineupRead(BaseModel):
+    """Assembled manually, same visibility contract as TeamEventRead.drills
+    -- groups/unassigned are None while the lineup is a draft and the
+    caller isn't the captain, populated once published (or always for the
+    captain).
+    """
+
+    lineup_status: TeamEventPublishStatus
+    groups: list[TeamEventLineupGroupRead] | None = None
+    unassigned: list[TeamEventLineupPlayerRead] | None = None
+
+
+class TeamEventLineupGroupCreate(BaseModel):
+    name: str | None = Field(default=None, max_length=100)
+    color: str | None = Field(default=None, max_length=20)
+
+
+class TeamEventLineupGroupUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=100)
+    color: str | None = Field(default=None, max_length=20)
+
+
+class TeamEventLineupPlayerAssign(BaseModel):
+    group_id: uuid.UUID

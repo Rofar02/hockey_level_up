@@ -16,6 +16,11 @@ from app.schemas.team_event import (
     TeamEventDrillRead,
     TeamEventDrillReorder,
     TeamEventDrillUpdate,
+    TeamEventLineupGroupCreate,
+    TeamEventLineupGroupRead,
+    TeamEventLineupGroupUpdate,
+    TeamEventLineupPlayerAssign,
+    TeamEventLineupRead,
     TeamEventNudgeResult,
     TeamEventRead,
 )
@@ -173,3 +178,103 @@ async def send_attendance_nudge(
     """Captain-only, rate-limited server-side to once/hour (429 otherwise) --
     pushes everyone still unmarked."""
     return await TeamEventService(session).send_nudge(current_user, team_id, event_id)
+
+
+@router.get("/{event_id}/lineup", response_model=TeamEventLineupRead)
+async def get_lineup(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """groups/unassigned are None while the lineup is a draft and the
+    caller isn't the captain -- same visibility contract as the board.
+    """
+    return await TeamEventService(session).get_lineup(current_user, team_id, event_id)
+
+
+@router.post("/{event_id}/lineup/publish", response_model=TeamEventLineupRead)
+async def publish_lineup(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only. Idempotent, same as /board/publish."""
+    return await TeamEventService(session).publish_lineup(current_user, team_id, event_id)
+
+
+@router.post("/{event_id}/lineup/groups", response_model=TeamEventLineupGroupRead)
+async def create_lineup_group(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    body: TeamEventLineupGroupCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only. `color` 400s for a GAME event (see TeamEventService
+    ._require_color_only_for_training) -- a game's whole team wears one
+    jersey, only a training scrimmage needs per-group color.
+    """
+    return await TeamEventService(session).create_lineup_group(
+        current_user, team_id, event_id, body.name, body.color
+    )
+
+
+@router.patch("/{event_id}/lineup/groups/{group_id}", response_model=TeamEventLineupGroupRead)
+async def update_lineup_group(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    group_id: uuid.UUID,
+    body: TeamEventLineupGroupUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await TeamEventService(session).update_lineup_group(
+        current_user, team_id, event_id, group_id, body.name, body.color
+    )
+
+
+@router.delete("/{event_id}/lineup/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_lineup_group(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    group_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Its slots cascade -- those players become unassigned, not deleted."""
+    await TeamEventService(session).delete_lineup_group(current_user, team_id, event_id, group_id)
+
+
+@router.put(
+    "/{event_id}/lineup/players/{target_user_id}", response_model=TeamEventLineupGroupRead
+)
+async def assign_lineup_player(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    target_user_id: uuid.UUID,
+    body: TeamEventLineupPlayerAssign,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only. Upsert -- moves the player if they were already placed
+    in a different group for this event (at most one group per player)."""
+    return await TeamEventService(session).assign_player(
+        current_user, team_id, event_id, target_user_id, body.group_id
+    )
+
+
+@router.delete(
+    "/{event_id}/lineup/players/{target_user_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def unassign_lineup_player(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    target_user_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    await TeamEventService(session).unassign_player(
+        current_user, team_id, event_id, target_user_id
+    )

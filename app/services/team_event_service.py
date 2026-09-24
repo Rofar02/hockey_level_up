@@ -13,6 +13,8 @@ from app.models.team_event import (
     TeamEventAttendance,
     TeamEventAttendanceStatus,
     TeamEventDrill,
+    TeamEventLineupGroup,
+    TeamEventLineupSlot,
     TeamEventPublishStatus,
     TeamEventType,
 )
@@ -24,6 +26,9 @@ from app.schemas.team_event import (
     TeamEventAttendanceRead,
     TeamEventAttendanceRosterRead,
     TeamEventDrillRead,
+    TeamEventLineupGroupRead,
+    TeamEventLineupPlayerRead,
+    TeamEventLineupRead,
     TeamEventNudgeResult,
     TeamEventRead,
 )
@@ -36,14 +41,15 @@ NUDGE_MIN_INTERVAL = timedelta(hours=1)
 
 
 class TeamEventService:
-    """The TeamEvent shell, its board (TeamEventDrill), and attendance
-    (TeamEventAttendance) -- going/not_going/unmarked, the -2h freeze, and
-    the captain's rate-limited nudge push. Lineup and the rest of the
-    notification table (publish/starts_at-change/cancel pushes, the
-    attendance-summary and "board not ready" scheduler ticks) are separate,
-    later slices of the v2 plan -- not built here (see TeamEvent's own
-    attendance_summary_sent_at/board_not_ready_sent_at fields, unused so
-    far).
+    """The TeamEvent shell, its board (TeamEventDrill), attendance
+    (TeamEventAttendance), and lineup (TeamEventLineupGroup/Slot) -- one
+    group shape for both a game's position-based lines and a training's
+    mixed scrimmage teams, `color` valid only for the latter. The rest of
+    the notification table (publish/starts_at-change/cancel pushes, the
+    attendance-summary and "board not ready" scheduler ticks) is a
+    separate, later slice of the v2 plan -- not built here (see TeamEvent's
+    own attendance_summary_sent_at/board_not_ready_sent_at fields, unused
+    so far).
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -323,14 +329,195 @@ class TeamEventService:
             responded_at=attendance.responded_at if attendance else None,
         )
 
+    # -- lineup --
+
+    async def create_lineup_group(
+        self,
+        user: User,
+        team_id: uuid.UUID,
+        event_id: uuid.UUID,
+        name: str | None,
+        color: str | None,
+    ) -> TeamEventLineupGroupRead:
+        event = await self._require_captain_and_event(user, team_id, event_id)
+        self._require_color_only_for_training(event, color)
+        order = await self._events.next_lineup_group_order(event.id)
+        group = await self._events.create_lineup_group(event.id, order, name, color)
+        await self._session.commit()
+        return self._to_lineup_group_read(group, players=[])
+
+    async def update_lineup_group(
+        self,
+        user: User,
+        team_id: uuid.UUID,
+        event_id: uuid.UUID,
+        group_id: uuid.UUID,
+        name: str | None,
+        color: str | None,
+    ) -> TeamEventLineupGroupRead:
+        event = await self._require_captain_and_event(user, team_id, event_id)
+        self._require_color_only_for_training(event, color)
+        group = await self._get_lineup_group_or_404(group_id, event.id)
+        group.name = name
+        group.color = color
+        await self._session.commit()
+        await self._session.refresh(group)
+        players = await self._lineup_group_players(group.id)
+        return self._to_lineup_group_read(group, players)
+
+    async def delete_lineup_group(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, group_id: uuid.UUID
+    ) -> None:
+        event = await self._require_captain_and_event(user, team_id, event_id)
+        group = await self._get_lineup_group_or_404(group_id, event.id)
+        # Slots cascade with the group (ondelete="CASCADE") -- their players
+        # simply become unassigned again, no separate cleanup needed.
+        await self._events.delete_lineup_group(group)
+        remaining = await self._events.list_lineup_groups_for_event(event.id)
+        for index, remaining_group in enumerate(remaining):
+            remaining_group.order = index
+        await self._session.commit()
+
+    async def assign_player(
+        self,
+        user: User,
+        team_id: uuid.UUID,
+        event_id: uuid.UUID,
+        target_user_id: uuid.UUID,
+        group_id: uuid.UUID,
+    ) -> TeamEventLineupGroupRead:
+        team = await self._get_team_or_404(team_id)
+        self._require_captain(user, team)
+        event = await self._get_event_or_404(event_id, team_id)
+        if await self._teams.get_membership(team_id, target_user_id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this team"
+            )
+        group = await self._get_lineup_group_or_404(group_id, event.id)
+        # Upsert -- a player already placed elsewhere in this event just
+        # moves (the unique constraint on (team_event_id, user_id) is what
+        # enforces "at most one group at a time", not this check).
+        await self._events.upsert_lineup_slot(event.id, group.id, target_user_id)
+        await self._session.commit()
+        players = await self._lineup_group_players(group.id)
+        return self._to_lineup_group_read(group, players)
+
+    async def unassign_player(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, target_user_id: uuid.UUID
+    ) -> None:
+        team = await self._get_team_or_404(team_id)
+        self._require_captain(user, team)
+        event = await self._get_event_or_404(event_id, team_id)
+        slot = await self._events.get_lineup_slot(event.id, target_user_id)
+        if slot is not None:
+            await self._events.delete_lineup_slot(slot)
+            await self._session.commit()
+
+    async def get_lineup(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
+    ) -> TeamEventLineupRead:
+        team = await self._get_team_or_404(team_id)
+        await self._require_member(user, team)
+        event = await self._get_event_or_404(event_id, team_id)
+        is_captain = team.owner_id == user.id
+        if not is_captain and event.lineup_status != TeamEventPublishStatus.PUBLISHED:
+            return TeamEventLineupRead(lineup_status=event.lineup_status)
+        return await self._build_lineup_read(event)
+
+    async def publish_lineup(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
+    ) -> TeamEventLineupRead:
+        event = await self._require_captain_and_event(user, team_id, event_id)
+        # Idempotent, same reasoning as publish_board.
+        event.lineup_status = TeamEventPublishStatus.PUBLISHED
+        await self._session.commit()
+        await self._session.refresh(event)
+        return await self._build_lineup_read(event)
+
+    async def _build_lineup_read(self, event: TeamEvent) -> TeamEventLineupRead:
+        members = await self._teams.list_members(event.team_id)
+        groups = await self._events.list_lineup_groups_for_event(event.id)
+        slots = await self._events.list_lineup_slots_for_event(event.id)
+        members_by_id = {m.id: m for m in members}
+
+        players_by_group: dict[uuid.UUID, list[User]] = {g.id: [] for g in groups}
+        assigned_user_ids: set[uuid.UUID] = set()
+        for slot in slots:
+            member = members_by_id.get(slot.user_id)
+            if member is not None and slot.group_id in players_by_group:
+                players_by_group[slot.group_id].append(member)
+                assigned_user_ids.add(slot.user_id)
+
+        group_reads = [
+            self._to_lineup_group_read(group, players_by_group[group.id]) for group in groups
+        ]
+        unassigned = [
+            self._to_lineup_player_read(m) for m in members if m.id not in assigned_user_ids
+        ]
+        return TeamEventLineupRead(
+            lineup_status=event.lineup_status, groups=group_reads, unassigned=unassigned
+        )
+
+    async def _lineup_group_players(self, group_id: uuid.UUID) -> list[User]:
+        slots = await self._session.execute(
+            select(TeamEventLineupSlot).where(TeamEventLineupSlot.group_id == group_id)
+        )
+        user_ids = [slot.user_id for slot in slots.scalars().all()]
+        if not user_ids:
+            return []
+        result = await self._session.execute(select(User).where(User.id.in_(user_ids)))
+        return list(result.scalars().all())
+
+    @staticmethod
+    def _require_color_only_for_training(event: TeamEvent, color: str | None) -> None:
+        if color and event.event_type != TeamEventType.TRAINING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="color only applies to a training scrimmage group",
+            )
+
+    async def _get_lineup_group_or_404(
+        self, group_id: uuid.UUID, team_event_id: uuid.UUID
+    ) -> TeamEventLineupGroup:
+        group = await self._events.get_lineup_group(group_id)
+        if group is None or group.team_event_id != team_event_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+        return group
+
+    @staticmethod
+    def _to_lineup_player_read(member: User) -> TeamEventLineupPlayerRead:
+        return TeamEventLineupPlayerRead(
+            user_id=member.id,
+            first_name=member.first_name,
+            last_name=member.last_name,
+            avatar_url=member.avatar_url,
+            position=member.position,
+        )
+
+    @classmethod
+    def _to_lineup_group_read(
+        cls, group: TeamEventLineupGroup, players: list[User]
+    ) -> TeamEventLineupGroupRead:
+        return TeamEventLineupGroupRead(
+            id=group.id,
+            name=group.name,
+            color=group.color,
+            players=[cls._to_lineup_player_read(p) for p in players],
+        )
+
     # -- shared guards --
 
-    async def _require_captain_and_training_event(
+    async def _require_captain_and_event(
         self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
     ) -> TeamEvent:
         team = await self._get_team_or_404(team_id)
         self._require_captain(user, team)
-        event = await self._get_event_or_404(event_id, team_id)
+        return await self._get_event_or_404(event_id, team_id)
+
+    async def _require_captain_and_training_event(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
+    ) -> TeamEvent:
+        event = await self._require_captain_and_event(user, team_id, event_id)
         if event.event_type != TeamEventType.TRAINING:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="A game has no board"

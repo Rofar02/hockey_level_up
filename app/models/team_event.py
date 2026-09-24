@@ -219,3 +219,69 @@ class TeamEventAttendance(Base):
     responded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+
+class TeamEventLineupGroup(Base):
+    """One group in the lineup -- a game's lines/pairs (by position) and a
+    training's scrimmage teams (mixed) are the SAME shape, per the v2 plan:
+    free-form (name + optional color + a player list), not a fixed
+    "3 lines + 3 pairs" grid. `color` only makes sense for a TRAINING
+    scrimmage (a game's whole team wears one jersey) -- TeamEventService
+    rejects it for a GAME event's group, same nullability tradeoff as
+    TeamEvent.board_status.
+    """
+
+    __tablename__ = "team_event_lineup_groups"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    team_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_events.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Display order among this event's groups -- same dense-from-0 idiom as
+    # TeamEventDrill.order, kept contiguous by TeamEventService.delete_lineup_group.
+    order: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class TeamEventLineupSlot(Base):
+    """One player's placement into exactly one TeamEventLineupGroup for one
+    event. team_event_id is denormalized from the group (same convention as
+    TrainingDiaryEntry.user_id) -- it's what the unique constraint below
+    needs to enforce "at most one group per player per event" without a
+    join, and what get_lineup's per-user lookup filters on directly.
+    """
+
+    __tablename__ = "team_event_lineup_slots"
+    __table_args__ = (
+        UniqueConstraint(
+            "team_event_id", "user_id", name="uq_team_event_lineup_slots_event_user"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    team_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_events.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_event_lineup_groups.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
