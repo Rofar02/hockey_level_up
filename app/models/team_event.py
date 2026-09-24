@@ -3,7 +3,18 @@ import uuid
 from datetime import datetime
 from datetime import time as time_
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Time, func, true
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+    func,
+    true,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +35,18 @@ class TeamEventStatus(enum.StrEnum):
 class TeamEventPublishStatus(enum.StrEnum):
     DRAFT = "draft"
     PUBLISHED = "published"
+
+
+class TeamEventAttendanceStatus(enum.StrEnum):
+    GOING = "going"
+    NOT_GOING = "not_going"
+
+
+class TeamEventAbsenceReason(enum.StrEnum):
+    WORK = "work"
+    INJURY = "injury"
+    STUDY = "study"
+    OTHER = "other"
 
 
 class TeamIceScheduleTemplate(Base):
@@ -149,5 +172,50 @@ class TeamEventDrill(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class TeamEventAttendance(Base):
+    """A player's own going/not_going call for one TeamEvent -- "unmarked"
+    (the plan's third status) is the absence of a row here, not a stored
+    value, so this table only ever holds the two states that actually need
+    data attached (a reason for not_going). Applies identically to
+    TRAINING and GAME, unlike the board.
+
+    Deadline (starts_at - 2h, see TeamEventService.ATTENDANCE_DEADLINE) is
+    computed on read, never stored -- TeamEventService rejects writes past
+    it, GET stays open so the frozen status/board remain viewable.
+    """
+
+    __tablename__ = "team_event_attendances"
+    __table_args__ = (
+        UniqueConstraint(
+            "team_event_id", "user_id", name="uq_team_event_attendances_event_user"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    team_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_events.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    status: Mapped[TeamEventAttendanceStatus] = mapped_column(
+        enum_column(TeamEventAttendanceStatus, "team_event_attendance_status"), nullable=False
+    )
+    # Only meaningful when status=NOT_GOING -- left nullable rather than a
+    # CHECK constraint, same tradeoff as TeamEvent.board_status above.
+    reason: Mapped[TeamEventAbsenceReason | None] = mapped_column(
+        enum_column(TeamEventAbsenceReason, "team_event_absence_reason"), nullable=True
+    )
+    reason_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responded_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

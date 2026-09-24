@@ -3,7 +3,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.models.team_event import TeamEventPublishStatus, TeamEventStatus, TeamEventType
+from app.models.team_event import (
+    TeamEventAbsenceReason,
+    TeamEventAttendanceStatus,
+    TeamEventPublishStatus,
+    TeamEventStatus,
+    TeamEventType,
+)
 
 
 class TeamEventDrillRead(BaseModel):
@@ -50,3 +56,43 @@ class TeamEventDrillUpdate(BaseModel):
 
 class TeamEventDrillReorder(BaseModel):
     drill_ids: list[uuid.UUID] = Field(min_length=1)
+
+
+class TeamEventAttendanceSet(BaseModel):
+    status: TeamEventAttendanceStatus
+    reason: TeamEventAbsenceReason | None = None
+    reason_note: str | None = None
+
+
+class TeamEventAttendanceRead(BaseModel):
+    status: TeamEventAttendanceStatus
+    reason: TeamEventAbsenceReason | None = None
+    reason_note: str | None = None
+    responded_at: datetime
+
+
+class TeamEventAttendanceMemberRead(BaseModel):
+    """One roster row -- assembled manually in TeamEventService from
+    (TeamEventAttendance | None, User). reason/reason_note/responded_at
+    stay None for the unmarked group.
+    """
+
+    user_id: uuid.UUID
+    first_name: str
+    last_name: str
+    avatar_url: str | None = None
+    reason: TeamEventAbsenceReason | None = None
+    reason_note: str | None = None
+    responded_at: datetime | None = None
+
+
+class TeamEventAttendanceRosterRead(BaseModel):
+    is_locked: bool
+    going: list[TeamEventAttendanceMemberRead]
+    not_going: list[TeamEventAttendanceMemberRead]
+    unmarked: list[TeamEventAttendanceMemberRead]
+
+
+class TeamEventNudgeResult(BaseModel):
+    notified_count: int
+    last_nudge_sent_at: datetime

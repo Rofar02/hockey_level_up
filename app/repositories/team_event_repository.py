@@ -6,6 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.team_event import (
     TeamEvent,
+    TeamEventAbsenceReason,
+    TeamEventAttendance,
+    TeamEventAttendanceStatus,
     TeamEventDrill,
     TeamEventPublishStatus,
     TeamEventStatus,
@@ -86,4 +89,54 @@ class TeamEventRepository:
 
     async def delete_drill(self, drill: TeamEventDrill) -> None:
         await self._session.delete(drill)
+        await self._session.flush()
+
+    # -- TeamEventAttendance --
+
+    async def get_attendance(
+        self, team_event_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TeamEventAttendance | None:
+        result = await self._session.execute(
+            select(TeamEventAttendance).where(
+                TeamEventAttendance.team_event_id == team_event_id,
+                TeamEventAttendance.user_id == user_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_attendance_for_event(
+        self, team_event_id: uuid.UUID
+    ) -> list[TeamEventAttendance]:
+        result = await self._session.execute(
+            select(TeamEventAttendance).where(TeamEventAttendance.team_event_id == team_event_id)
+        )
+        return list(result.scalars().all())
+
+    async def upsert_attendance(
+        self,
+        team_event_id: uuid.UUID,
+        user_id: uuid.UUID,
+        status: TeamEventAttendanceStatus,
+        reason: TeamEventAbsenceReason | None,
+        reason_note: str | None,
+    ) -> TeamEventAttendance:
+        attendance = await self.get_attendance(team_event_id, user_id)
+        if attendance is None:
+            attendance = TeamEventAttendance(
+                team_event_id=team_event_id,
+                user_id=user_id,
+                status=status,
+                reason=reason,
+                reason_note=reason_note,
+            )
+            self._session.add(attendance)
+        else:
+            attendance.status = status
+            attendance.reason = reason
+            attendance.reason_note = reason_note
+        await self._session.flush()
+        return attendance
+
+    async def delete_attendance(self, attendance: TeamEventAttendance) -> None:
+        await self._session.delete(attendance)
         await self._session.flush()

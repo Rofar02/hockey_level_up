@@ -8,11 +8,15 @@ from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
 from app.schemas.team_event import (
+    TeamEventAttendanceRead,
+    TeamEventAttendanceRosterRead,
+    TeamEventAttendanceSet,
     TeamEventCreate,
     TeamEventDrillCreate,
     TeamEventDrillRead,
     TeamEventDrillReorder,
     TeamEventDrillUpdate,
+    TeamEventNudgeResult,
     TeamEventRead,
 )
 from app.services.team_event_service import TeamEventService
@@ -118,3 +122,54 @@ async def delete_drill(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     await TeamEventService(session).delete_drill(current_user, team_id, event_id, drill_id)
+
+
+@router.get("/{event_id}/attendance", response_model=TeamEventAttendanceRosterRead)
+async def get_attendance_roster(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Any team member can see the full roster (going/not_going/unmarked),
+    not just the captain -- nothing in the v2 plan restricts this, and
+    knowing who else is coming is useful to players too.
+    """
+    return await TeamEventService(session).get_attendance_roster(current_user, team_id, event_id)
+
+
+@router.put("/{event_id}/attendance/me", response_model=TeamEventAttendanceRead)
+async def set_my_attendance(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    body: TeamEventAttendanceSet,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """409s past the -2h deadline (TeamEventService._require_attendance_open)."""
+    return await TeamEventService(session).set_my_attendance(
+        current_user, team_id, event_id, body.status, body.reason, body.reason_note
+    )
+
+
+@router.delete("/{event_id}/attendance/me", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_my_attendance(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Back to "unmarked" -- also locked past the -2h deadline."""
+    await TeamEventService(session).clear_my_attendance(current_user, team_id, event_id)
+
+
+@router.post("/{event_id}/attendance/nudge", response_model=TeamEventNudgeResult)
+async def send_attendance_nudge(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only, rate-limited server-side to once/hour (429 otherwise) --
+    pushes everyone still unmarked."""
+    return await TeamEventService(session).send_nudge(current_user, team_id, event_id)
