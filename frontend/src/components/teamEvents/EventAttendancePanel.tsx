@@ -102,8 +102,11 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
     return () => {
       cancelled = true
     }
+    // event.starts_at (not just event.id) -- is_locked is computed
+    // server-side from starts_at, so a captain's reschedule must re-fetch
+    // the roster while this tab stays mounted, not just on first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accessToken, teamId, event.id])
+  }, [accessToken, teamId, event.id, event.starts_at])
 
   if (roster === null) {
     return loadError !== null ? (
