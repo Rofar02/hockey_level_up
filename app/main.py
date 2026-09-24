@@ -26,6 +26,7 @@ from app.routers import (
     session_blocks,
     set_completions,
     skills,
+    team_events,
     teams,
     training_block,
     training_parties,
@@ -96,6 +97,7 @@ app.include_router(leaderboard.router)
 app.include_router(push.router)
 app.include_router(admin_users.router)
 app.include_router(teams.router)
+app.include_router(team_events.router)
 app.include_router(friends.router)
 app.include_router(training_parties.router)
 app.include_router(quests.router)

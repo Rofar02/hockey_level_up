@@ -1,0 +1,89 @@
+import uuid
+from datetime import datetime
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.team_event import (
+    TeamEvent,
+    TeamEventDrill,
+    TeamEventPublishStatus,
+    TeamEventStatus,
+    TeamEventType,
+)
+
+
+class TeamEventRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    # -- TeamEvent --
+
+    async def create_event(
+        self,
+        team_id: uuid.UUID,
+        event_type: TeamEventType,
+        starts_at: datetime,
+        opponent_name: str | None,
+    ) -> TeamEvent:
+        event = TeamEvent(
+            team_id=team_id,
+            event_type=event_type,
+            starts_at=starts_at,
+            opponent_name=opponent_name,
+            # Games have no board at all (see TeamEvent's docstring) --
+            # board_status stays None rather than an unused DRAFT default.
+            board_status=(
+                TeamEventPublishStatus.DRAFT if event_type == TeamEventType.TRAINING else None
+            ),
+        )
+        self._session.add(event)
+        await self._session.flush()
+        return event
+
+    async def get_event(self, event_id: uuid.UUID) -> TeamEvent | None:
+        return await self._session.get(TeamEvent, event_id)
+
+    async def list_events_for_team(self, team_id: uuid.UUID) -> list[TeamEvent]:
+        result = await self._session.execute(
+            select(TeamEvent)
+            .where(TeamEvent.team_id == team_id, TeamEvent.status == TeamEventStatus.SCHEDULED)
+            .order_by(TeamEvent.starts_at)
+        )
+        return list(result.scalars().all())
+
+    # -- TeamEventDrill --
+
+    async def create_drill(
+        self, team_event_id: uuid.UUID, order: int, title: str, description: str | None
+    ) -> TeamEventDrill:
+        drill = TeamEventDrill(
+            team_event_id=team_event_id, order=order, title=title, description=description
+        )
+        self._session.add(drill)
+        await self._session.flush()
+        return drill
+
+    async def get_drill(self, drill_id: uuid.UUID) -> TeamEventDrill | None:
+        return await self._session.get(TeamEventDrill, drill_id)
+
+    async def list_drills_for_event(self, team_event_id: uuid.UUID) -> list[TeamEventDrill]:
+        result = await self._session.execute(
+            select(TeamEventDrill)
+            .where(TeamEventDrill.team_event_id == team_event_id)
+            .order_by(TeamEventDrill.order)
+        )
+        return list(result.scalars().all())
+
+    async def next_drill_order(self, team_event_id: uuid.UUID) -> int:
+        # len() rather than MAX(order)+1: reorder_drills below always
+        # renumbers the full set densely from 0, so the count is always
+        # exactly the next free slot -- no gaps a MAX could skip past.
+        result = await self._session.execute(
+            select(TeamEventDrill.id).where(TeamEventDrill.team_event_id == team_event_id)
+        )
+        return len(result.all())
+
+    async def delete_drill(self, drill: TeamEventDrill) -> None:
+        await self._session.delete(drill)
+        await self._session.flush()

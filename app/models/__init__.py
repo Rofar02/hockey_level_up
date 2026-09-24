@@ -33,6 +33,7 @@ from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag, U
 from app.models.team import Team, TeamJoinRequest, TeamJoinRequestStatus, TeamMembership
 from app.models.team_event import (
     TeamEvent,
+    TeamEventDrill,
     TeamEventPublishStatus,
     TeamEventStatus,
     TeamEventType,
@@ -77,6 +78,7 @@ __all__ = [
     "StatHistory",
     "Team",
     "TeamEvent",
+    "TeamEventDrill",
     "TeamEventPublishStatus",
     "TeamEventStatus",
     "TeamEventType",

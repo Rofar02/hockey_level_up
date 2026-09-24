@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from datetime import time as time_
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Time, func, true
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Time, func, true
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -113,4 +113,41 @@ class TeamEvent(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class TeamEventDrill(Base):
+    """One card on the board, TRAINING events only -- GAME has no board at
+    all (see TeamEvent.board_status). Deliberately no difficulty_level,
+    unlike Exercise -- the v2 plan calls this out explicitly, the coach
+    picks whatever content fits without the app grading it.
+
+    Content edits (title/description) after the board is published happen
+    silently, no push -- see TeamEventService.update_drill. Only starts_at
+    changes and the publish/cancel actions themselves notify the team.
+    """
+
+    __tablename__ = "team_event_drills"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    team_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_events.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Dense 0..N-1 within a team_event_id, kept contiguous by
+    # TeamEventService.reorder_drills -- no UniqueConstraint on
+    # (team_event_id, order) since a reorder briefly passes through
+    # colliding values before the final flush settles them.
+    order: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
