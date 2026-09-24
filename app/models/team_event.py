@@ -285,3 +285,47 @@ class TeamEventLineupSlot(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+
+
+class TeamEventDiaryEntry(Base):
+    """A player's own note for a TRAINING TeamEvent -- the personal-schedule
+    TrainingDiaryEntry's team-day counterpart, deliberately a separate
+    table rather than reusing it: per the v2 plan, a team day generates no
+    WeeklyPlan/DayPlan/TrainingSession at all (that stack stays untouched),
+    so there's no training_session_id to hang an entry off of.
+
+    Saving this entry -- with a note or an explicit skip (note=None), same
+    "empty is still a save" convention as TrainingDiaryEntry -- is the
+    reward trigger (see TeamEventService.save_diary_entry): the three
+    on-ice stats + a fixed XP bonus, once, on first save, regardless of
+    what the player's attendance said beforehand. A game gets no entry
+    here (TeamEventService 400s) -- rewards are training-only per the plan
+    (a game is too unpredictable to credit a specific skill).
+    """
+
+    __tablename__ = "team_event_diary_entries"
+    __table_args__ = (
+        UniqueConstraint(
+            "team_event_id", "user_id", name="uq_team_event_diary_entries_event_user"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    team_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_events.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

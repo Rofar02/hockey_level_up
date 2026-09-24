@@ -9,6 +9,7 @@ from app.models.team_event import (
     TeamEventAbsenceReason,
     TeamEventAttendance,
     TeamEventAttendanceStatus,
+    TeamEventDiaryEntry,
     TeamEventDrill,
     TeamEventLineupGroup,
     TeamEventLineupSlot,
@@ -216,3 +217,24 @@ class TeamEventRepository:
     async def delete_lineup_slot(self, slot: TeamEventLineupSlot) -> None:
         await self._session.delete(slot)
         await self._session.flush()
+
+    # -- TeamEventDiaryEntry --
+
+    async def get_diary_entry(
+        self, team_event_id: uuid.UUID, user_id: uuid.UUID
+    ) -> TeamEventDiaryEntry | None:
+        result = await self._session.execute(
+            select(TeamEventDiaryEntry).where(
+                TeamEventDiaryEntry.team_event_id == team_event_id,
+                TeamEventDiaryEntry.user_id == user_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def create_diary_entry(
+        self, team_event_id: uuid.UUID, user_id: uuid.UUID, note: str | None
+    ) -> TeamEventDiaryEntry:
+        entry = TeamEventDiaryEntry(team_event_id=team_event_id, user_id=user_id, note=note)
+        self._session.add(entry)
+        await self._session.flush()
+        return entry

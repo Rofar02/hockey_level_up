@@ -146,3 +146,13 @@ class TeamEventLineupGroupUpdate(BaseModel):
 
 class TeamEventLineupPlayerAssign(BaseModel):
     group_id: uuid.UUID
+
+
+class TeamEventDiaryEntrySave(BaseModel):
+    note: str | None = None
+
+
+class TeamEventDiaryEntryRead(BaseModel):
+    note: str | None = None
+    created_at: datetime
+    updated_at: datetime

@@ -2,9 +2,18 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.events.handlers.block_completed import (
+    DIMINISHING_EXPONENT,
+    LEVEL_UP_EVENT,
+    STAT_HARD_CAP,
+    xp_to_next_level,
+)
+from app.models.exercise import TargetStat
+from app.models.progress import StatHistory, UserStat
 from app.models.push_subscription import PushSubscription
 from app.models.team import Team
 from app.models.team_event import (
@@ -12,6 +21,7 @@ from app.models.team_event import (
     TeamEventAbsenceReason,
     TeamEventAttendance,
     TeamEventAttendanceStatus,
+    TeamEventDiaryEntry,
     TeamEventDrill,
     TeamEventLineupGroup,
     TeamEventLineupSlot,
@@ -20,12 +30,14 @@ from app.models.team_event import (
     TeamEventType,
 )
 from app.models.user import User
+from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.team_event_repository import TeamEventRepository
 from app.repositories.team_repository import TeamRepository
 from app.schemas.team_event import (
     TeamEventAttendanceMemberRead,
     TeamEventAttendanceRead,
     TeamEventAttendanceRosterRead,
+    TeamEventDiaryEntryRead,
     TeamEventDrillRead,
     TeamEventLineupGroupRead,
     TeamEventLineupPlayerRead,
@@ -39,6 +51,19 @@ from app.services.push_service import send_push
 ATTENDANCE_DEADLINE = timedelta(hours=2)
 # Nudge-button rate limit, checked server-side (see send_nudge).
 NUDGE_MIN_INTERVAL = timedelta(hours=1)
+
+# Rewards for a TRAINING diary entry (see save_diary_entry) -- training
+# only, per the v2 plan (a game is too unpredictable to credit a specific
+# skill). Same diminishing-returns curve as block_completed.stat_consumer
+# (STAT_HARD_CAP/DIMINISHING_EXPONENT imported from there, not
+# redeclared, so the two curves can't drift apart), just with no
+# Exercise/difficulty_level to derive a base gain from -- this fixed
+# per-stat value stands in for it, sized to roughly a mid-difficulty
+# exercise's own per-stat share (difficulty_level=3, split 3 ways: see
+# stat_consumer's `base_gain = (difficulty_level * 0.5) / len(stat_types)`).
+TEAM_TRAINING_STATS = (TargetStat.INTELLECT, TargetStat.PUCK_HANDLING, TargetStat.ON_ICE_SKATING)
+TEAM_TRAINING_BASE_GAIN_PER_STAT = 0.5
+TEAM_TRAINING_XP_BONUS = 50
 
 
 class TeamEventService:
@@ -56,6 +81,12 @@ class TeamEventService:
     app/services/team_event_scheduler.py instead, same reasoning as
     reminder_scheduler.py vs. an instant push: both need a clock, not a
     triggering API call.
+
+    Also the team-day reward path: saving a TeamEventDiaryEntry for a
+    TRAINING event (a note, or an explicit skip) grants the three on-ice
+    stats + a fixed XP bonus once, on first save -- see
+    save_diary_entry/_award_team_training_rewards. Games grant nothing
+    here.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -568,6 +599,120 @@ class TeamEventService:
             name=group.name,
             color=group.color,
             players=[cls._to_lineup_player_read(p) for p in players],
+        )
+
+    # -- diary / rewards --
+
+    async def save_diary_entry(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, note: str | None
+    ) -> TeamEventDiaryEntryRead:
+        team = await self._get_team_or_404(team_id)
+        await self._require_member(user, team)
+        event = await self._get_event_or_404(event_id, team_id)
+        if event.event_type != TeamEventType.TRAINING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Diary entries only apply to a training",
+            )
+
+        existing = await self._events.get_diary_entry(event.id, user.id)
+        if existing is not None:
+            # Editing an already-saved entry (or re-submitting the same
+            # skip) never re-grants -- the reward is a first-save trigger,
+            # not a per-edit one (see the model's own docstring).
+            existing.note = note
+            await self._session.commit()
+            await self._session.refresh(existing)
+            return self._to_diary_entry_read(existing)
+
+        entry = await self._events.create_diary_entry(event.id, user.id, note)
+        await self._award_team_training_rewards(user.id, event.id)
+        await self._session.commit()
+        await self._session.refresh(entry)
+        return self._to_diary_entry_read(entry)
+
+    async def get_diary_entry(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
+    ) -> TeamEventDiaryEntryRead | None:
+        team = await self._get_team_or_404(team_id)
+        await self._require_member(user, team)
+        event = await self._get_event_or_404(event_id, team_id)
+        entry = await self._events.get_diary_entry(event.id, user.id)
+        return self._to_diary_entry_read(entry) if entry is not None else None
+
+    async def _award_team_training_rewards(self, user_id: uuid.UUID, team_event_id: uuid.UUID) -> None:
+        """Same shape as block_completed.stat_consumer's per-stat upsert
+        (atomic, clamped to STAT_HARD_CAP in SQL) and xp_consumer's atomic
+        XP increment + level-up check -- reused directly here rather than
+        going through the outbox/block_completed event, since there's no
+        Exercise/SessionBlock for this to be "about" and nothing else needs
+        to react to it asynchronously; this already runs in
+        save_diary_entry's own transaction.
+        """
+        for stat_type in TEAM_TRAINING_STATS:
+            current_value = (
+                await self._session.execute(
+                    select(UserStat.current_value).where(
+                        UserStat.user_id == user_id, UserStat.stat_type == stat_type
+                    )
+                )
+            ).scalar_one_or_none() or 0.0
+            diminishing_factor = max(0.0, 1 - current_value / STAT_HARD_CAP) ** DIMINISHING_EXPONENT
+            gain = round(TEAM_TRAINING_BASE_GAIN_PER_STAT * diminishing_factor, 2)
+
+            upsert = pg_insert(UserStat).values(
+                user_id=user_id,
+                stat_type=stat_type,
+                current_value=gain,
+                last_updated_at=datetime.now(timezone.utc),
+            )
+            upsert = upsert.on_conflict_do_update(
+                constraint="uq_user_stats_user_stat_type",
+                set_={
+                    "current_value": func.least(
+                        UserStat.current_value + upsert.excluded.current_value, STAT_HARD_CAP
+                    ),
+                    "last_updated_at": upsert.excluded.last_updated_at,
+                },
+            ).returning(UserStat.current_value)
+            new_value = (await self._session.execute(upsert)).scalar_one()
+
+            self._session.add(
+                StatHistory(
+                    user_id=user_id,
+                    stat_type=stat_type,
+                    value=new_value,
+                    reason=f"team_training:{team_event_id}",
+                )
+            )
+
+        result = await self._session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(xp=User.xp + TEAM_TRAINING_XP_BONUS)
+            .returning(User.xp, User.level)
+        )
+        row = result.first()
+        if row is None:
+            return
+        xp, level = row
+        threshold = xp_to_next_level(level)
+        if xp >= threshold:
+            old_level = level
+            level += 1
+            xp -= threshold
+            await self._session.execute(
+                update(User).where(User.id == user_id).values(xp=xp, level=level)
+            )
+            OutboxRepository(self._session).add(
+                LEVEL_UP_EVENT,
+                {"user_id": str(user_id), "old_level": old_level, "new_level": level},
+            )
+
+    @staticmethod
+    def _to_diary_entry_read(entry: TeamEventDiaryEntry) -> TeamEventDiaryEntryRead:
+        return TeamEventDiaryEntryRead(
+            note=entry.note, created_at=entry.created_at, updated_at=entry.updated_at
         )
 
     # -- shared guards --
