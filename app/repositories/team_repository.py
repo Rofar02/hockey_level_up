@@ -61,6 +61,16 @@ class TeamRepository:
         )
         return list(result.scalars().all())
 
+    async def get_membership_for_user(self, user_id: uuid.UUID) -> TeamMembership | None:
+        """v2: a user belongs to at most one team app-wide (see
+        TeamMembership's docstring) -- the guard TeamService.create_team/
+        join_by_code/approve_request check before creating a new row.
+        """
+        result = await self._session.execute(
+            select(TeamMembership).where(TeamMembership.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
     async def list_members(self, team_id: uuid.UUID) -> list[User]:
         result = await self._session.execute(
             select(User)

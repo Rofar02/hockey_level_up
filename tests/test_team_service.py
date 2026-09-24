@@ -1,5 +1,5 @@
-"""TeamService: multi-team membership, invite-code join flow, captain
-approval, leave/disband, and the team-scoped leaderboard filter.
+"""TeamService: one-team-per-user membership, invite-code join flow,
+captain approval, leave/disband, and the team-scoped leaderboard filter.
 
 Same `_make_user` shape as test_pick_main_periodization.py -- first_name/
 last_name are left unset (server_default="" populates them on flush), only
@@ -45,7 +45,7 @@ async def test_create_team_makes_creator_captain_and_member(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_user_can_belong_to_several_teams_simultaneously(db_session) -> None:
+async def test_user_cannot_belong_to_two_teams_at_once(db_session) -> None:
     captain_a = _make_user()
     captain_b = _make_user()
     player = _make_user()
@@ -57,13 +57,32 @@ async def test_user_can_belong_to_several_teams_simultaneously(db_session) -> No
     team_b = await service.create_team(captain_b, "Team B")
 
     request_a = await service.join_by_code(player, team_a.invite_code)
-    request_b = await service.join_by_code(player, team_b.invite_code)
     await service.approve_request(captain_a, request_a.id)
-    await service.approve_request(captain_b, request_b.id)
+
+    # Already on Team A -- join_by_code itself refuses a second team.
+    with pytest.raises(HTTPException) as exc_info:
+        await service.join_by_code(player, team_b.invite_code)
+    assert exc_info.value.status_code == 409
 
     my_teams = await service.list_my_teams(player)
-    assert {t.id for t in my_teams} == {team_a.id, team_b.id}
-    assert all(t.is_captain is False for t in my_teams)
+    assert [t.id for t in my_teams] == [team_a.id]
+
+
+@pytest.mark.asyncio
+async def test_create_team_rejects_user_already_on_a_team(db_session) -> None:
+    captain = _make_user()
+    player = _make_user()
+    db_session.add_all([captain, player])
+    await db_session.flush()
+
+    service = TeamService(db_session)
+    team = await service.create_team(captain, "Sharks")
+    request = await service.join_by_code(player, team.invite_code)
+    await service.approve_request(captain, request.id)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.create_team(player, "Second Team")
+    assert exc_info.value.status_code == 409
 
 
 @pytest.mark.asyncio
