@@ -403,6 +403,18 @@ export function TeamDetailPage() {
               )}
             </div>
 
+            <button
+              type="button"
+              onClick={() => navigate(`/teams/${teamId}/events`)}
+              className={`flex items-center gap-3 p-4 text-left transition-colors hover:bg-white/5 ${CARD_CLASS}`}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-ice/10">
+                <i className="ti ti-clipboard-list text-lg text-accent-ice" aria-hidden="true" />
+              </span>
+              <span className="flex-1 text-sm font-medium text-[#F5F7FA]">Тренировки и игры</span>
+              <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
+            </button>
+
             <div className="flex flex-col gap-4">
               <div className="flex border-b border-white/10">
                 <TabButton active={effectiveTab === 'members'} onClick={() => setActiveTab('members')}>
