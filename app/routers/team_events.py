@@ -23,6 +23,7 @@ from app.schemas.team_event import (
     TeamEventLineupRead,
     TeamEventNudgeResult,
     TeamEventRead,
+    TeamEventReschedule,
 )
 from app.services.team_event_service import TeamEventService
 
@@ -58,6 +59,31 @@ async def get_event(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await TeamEventService(session).get_event(current_user, team_id, event_id)
+
+
+@router.put("/{event_id}/schedule", response_model=TeamEventRead)
+async def reschedule_event(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    body: TeamEventReschedule,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only. Pushes the whole team -- see TeamEventService._push_team."""
+    return await TeamEventService(session).reschedule_event(
+        current_user, team_id, event_id, body.starts_at
+    )
+
+
+@router.post("/{event_id}/cancel", response_model=TeamEventRead)
+async def cancel_event(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only. 409s if already cancelled. Pushes the whole team."""
+    return await TeamEventService(session).cancel_event(current_user, team_id, event_id)
 
 
 @router.post("/{event_id}/board/publish", response_model=TeamEventRead)

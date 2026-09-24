@@ -45,6 +45,10 @@ class TeamEventCreate(BaseModel):
     opponent_name: str | None = Field(default=None, max_length=100)
 
 
+class TeamEventReschedule(BaseModel):
+    starts_at: datetime
+
+
 class TeamEventDrillCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None

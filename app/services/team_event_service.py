@@ -16,6 +16,7 @@ from app.models.team_event import (
     TeamEventLineupGroup,
     TeamEventLineupSlot,
     TeamEventPublishStatus,
+    TeamEventStatus,
     TeamEventType,
 )
 from app.models.user import User
@@ -44,12 +45,17 @@ class TeamEventService:
     """The TeamEvent shell, its board (TeamEventDrill), attendance
     (TeamEventAttendance), and lineup (TeamEventLineupGroup/Slot) -- one
     group shape for both a game's position-based lines and a training's
-    mixed scrimmage teams, `color` valid only for the latter. The rest of
-    the notification table (publish/starts_at-change/cancel pushes, the
-    attendance-summary and "board not ready" scheduler ticks) is a
-    separate, later slice of the v2 plan -- not built here (see TeamEvent's
-    own attendance_summary_sent_at/board_not_ready_sent_at fields, unused
-    so far).
+    mixed scrimmage teams, `color` valid only for the latter.
+
+    Instant pushes (game scheduled, board/lineup published, reschedule,
+    cancel) fire straight from the relevant method via _push_team --
+    content-only edits (drill/group details, attendance) stay silent, per
+    the v2 plan's notification table. The two TICK-based rows of that same
+    table (attendance summary to the captain at the -2h deadline, "board
+    not ready" the morning of a training) live in
+    app/services/team_event_scheduler.py instead, same reasoning as
+    reminder_scheduler.py vs. an instant push: both need a clock, not a
+    triggering API call.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -81,8 +87,61 @@ class TeamEventService:
             )
         event = await self._events.create_event(team_id, event_type, starts_at, opponent_name)
         await self._session.commit()
+        if event_type == TeamEventType.GAME:
+            # Training gets no "scheduled" push -- the team first hears
+            # about it when the board is published (see publish_board).
+            await self._push_team(
+                team_id,
+                "Назначена игра",
+                f"Игра с {opponent_name} -- отметь явку",
+            )
         drills = [] if event_type == TeamEventType.TRAINING else None
         return self._to_event_read(event, drills=drills, viewer_is_captain=True)
+
+    async def reschedule_event(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, starts_at: datetime
+    ) -> TeamEventRead:
+        event = await self._require_captain_and_event(user, team_id, event_id)
+        self._require_scheduled(event)
+        event.starts_at = starts_at
+        await self._session.commit()
+        await self._session.refresh(event)
+        what = "тренировки" if event.event_type == TeamEventType.TRAINING else "игры"
+        await self._push_team(team_id, "Время перенесено", f"Изменилось время {what}")
+        is_captain = True
+        drills = await self._visible_drills(event, is_captain)
+        return self._to_event_read(event, drills, viewer_is_captain=is_captain)
+
+    async def cancel_event(self, user: User, team_id: uuid.UUID, event_id: uuid.UUID) -> TeamEventRead:
+        event = await self._require_captain_and_event(user, team_id, event_id)
+        self._require_scheduled(event)
+        event.status = TeamEventStatus.CANCELLED
+        await self._session.commit()
+        await self._session.refresh(event)
+        what = "Тренировка" if event.event_type == TeamEventType.TRAINING else "Игра"
+        await self._push_team(team_id, "Отмена", f"{what} отменена")
+        is_captain = True
+        drills = await self._visible_drills(event, is_captain)
+        return self._to_event_read(event, drills, viewer_is_captain=is_captain)
+
+    @staticmethod
+    def _require_scheduled(event: TeamEvent) -> None:
+        if event.status != TeamEventStatus.SCHEDULED:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Event is already cancelled"
+            )
+
+    async def _push_team(self, team_id: uuid.UUID, title: str, body: str) -> None:
+        members = await self._teams.list_members(team_id)
+        for member in members:
+            result = await self._session.execute(
+                select(PushSubscription).where(PushSubscription.user_id == member.id)
+            )
+            for subscription in result.scalars().all():
+                await send_push(self._session, subscription, title, body)
+        # send_push flushes (not commits) a dead-subscription delete on a
+        # 410 -- persist that here, same as the scheduler ticks below.
+        await self._session.commit()
 
     async def list_events(self, user: User, team_id: uuid.UUID) -> list[TeamEventRead]:
         team = await self._get_team_or_404(team_id)
@@ -179,9 +238,12 @@ class TeamEventService:
         event = await self._require_captain_and_training_event(user, team_id, event_id)
         # Idempotent -- re-publishing an already-published board is a no-op,
         # not an error (the captain may just hit the button again).
+        already_published = event.board_status == TeamEventPublishStatus.PUBLISHED
         event.board_status = TeamEventPublishStatus.PUBLISHED
         await self._session.commit()
         await self._session.refresh(event)
+        if not already_published:
+            await self._push_team(team_id, "План тренировки готов", "Доска тренировки опубликована")
         drills = await self._events.list_drills_for_event(event.id)
         return self._to_event_read(event, drills, viewer_is_captain=True)
 
@@ -429,9 +491,12 @@ class TeamEventService:
     ) -> TeamEventLineupRead:
         event = await self._require_captain_and_event(user, team_id, event_id)
         # Idempotent, same reasoning as publish_board.
+        already_published = event.lineup_status == TeamEventPublishStatus.PUBLISHED
         event.lineup_status = TeamEventPublishStatus.PUBLISHED
         await self._session.commit()
         await self._session.refresh(event)
+        if not already_published:
+            await self._push_team(team_id, "Состав опубликован", "Тренер опубликовал состав")
         return await self._build_lineup_read(event)
 
     async def _build_lineup_read(self, event: TeamEvent) -> TeamEventLineupRead:
