@@ -9,8 +9,7 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { DayPlanRead } from '../types/schedule'
-import { addDays, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
-import { loadOptional } from '../utils/loadOptional'
+import { parseIsoDate } from '../utils/date'
 
 const AUTOSAVE_DELAY_MS = 700
 const SAVED_FADE_MS = 2200
@@ -60,21 +59,13 @@ export function TrainingDiaryPage() {
       return
     }
     let cancelled = false
-    // Same two-week lookup as TrainingSessionPage: a day can belong to next
-    // week's plan (NewSchedulePage lets one be started a week ahead).
-    const nextMondayIso = toIsoDate(addDays(getMondayOfCurrentWeek(), 7))
-    Promise.all([
-      scheduleApi.getCurrentWeeklyPlan(accessToken),
-      loadOptional(scheduleApi.getWeeklyPlan(nextMondayIso, accessToken)),
-    ])
-      .then(async ([currentPlan, nextPlan]) => {
-        const foundDay =
-          currentPlan.day_plans.find((candidate) => candidate.id === dayPlanId) ??
-          nextPlan?.day_plans.find((candidate) => candidate.id === dayPlanId)
-        const session = foundDay?.training_session
+    // By id, same as TrainingSessionPage -- the day can be from any week.
+    scheduleApi
+      .getDayPlanById(dayPlanId, accessToken)
+      .then(async (foundDay) => {
+        const session = foundDay.training_session
         if (
-          foundDay === undefined
-          || session == null
+          session == null
           || (foundDay.session_type !== 'on_ice' && foundDay.session_type !== 'game')
         ) {
           if (!cancelled) {
@@ -93,9 +84,13 @@ export function TrainingDiaryPage() {
         setNote(entry?.note ?? '')
         setIsLoaded(true)
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (!cancelled) {
-          setLoadError('Не удалось загрузить дневник. Попробуйте ещё раз.')
+          setLoadError(
+            err instanceof ApiError && err.status === 404
+              ? 'Дневник для этой тренировки недоступен.'
+              : 'Не удалось загрузить дневник. Попробуйте ещё раз.',
+          )
         }
       })
     return () => {

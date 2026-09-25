@@ -30,7 +30,7 @@ import type { SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
 import { lockBodyScroll, unlockBodyScroll } from '../utils/bodyScrollLock'
-import { WEEKDAY_LABELS, addDays, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
+import { WEEKDAY_LABELS, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -327,29 +327,20 @@ export function TrainingSessionPage() {
       return
     }
     let cancelled = false
-    // dayPlanId can belong to next week's plan, not just the current one --
-    // NewSchedulePage lets a day be planned/started a week ahead (its
-    // WeekSlot 'next' tab), and a training party's day_plan_id follows the
-    // same two-week model. Looking only at getCurrentWeeklyPlan() made
-    // opening one of those days show "Тренировка не найдена." with no
-    // exercises, even though the plan existed one week over. loadOptional
-    // for next week since it may not have been generated yet.
-    const nextMondayIso = toIsoDate(addDays(getMondayOfCurrentWeek(), 7))
+    // By id, not by scanning current/next week's plans -- a DiaryPage entry
+    // can link to a day from any past week, which the old two-week scan
+    // reported as "Тренировка не найдена." (see getDayPlanById).
     Promise.all([
-      scheduleApi.getCurrentWeeklyPlan(accessToken),
-      loadOptional(scheduleApi.getWeeklyPlan(nextMondayIso, accessToken)),
+      scheduleApi.getDayPlanById(dayPlanId, accessToken),
       // Same "optional, 404 means not declared yet" handling as HomePage --
       // a session can be viewed without an active periodization block.
       loadOptional(trainingBlockApi.getCurrentTrainingBlock(accessToken)),
     ])
-      .then(([currentPlan, nextPlan, block]) => {
+      .then(([foundDay, block]) => {
         if (cancelled) {
           return
         }
-        const foundDay =
-          currentPlan.day_plans.find((candidate) => candidate.id === dayPlanId) ??
-          nextPlan?.day_plans.find((candidate) => candidate.id === dayPlanId)
-        if (foundDay?.training_session == null) {
+        if (foundDay.training_session == null) {
           setLoadError('Тренировка не найдена.')
           return
         }
@@ -359,9 +350,13 @@ export function TrainingSessionPage() {
         setTrainingSessionId(foundDay.training_session.id)
         setTrainingBlock(block)
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (!cancelled) {
-          setLoadError('Не удалось загрузить тренировку. Попробуйте ещё раз.')
+          setLoadError(
+            err instanceof ApiError && err.status === 404
+              ? 'Тренировка не найдена.'
+              : 'Не удалось загрузить тренировку. Попробуйте ещё раз.',
+          )
         }
       })
     return () => {

@@ -2812,6 +2812,24 @@ class ScheduleService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No day plan for {target_date.isoformat()}",
             )
+        return await self._single_day_plan_to_read_schema(day)
+
+    async def get_day_plan_by_id(self, user: User, day_plan_id: uuid.UUID) -> DayPlanRead:
+        """GET /schedule/day-plans/{day_plan_id} -- a single day by id, from
+        any week. Backs TrainingSessionPage/TrainingDiaryPage, which used to
+        scan only the current + next WeeklyPlan for the id, so opening a
+        diary entry (DiaryPage links by day_plan_id) for a day 2+ weeks old
+        showed "Тренировка не найдена." even though the day still existed.
+        """
+        day = await self._schedule.get_day_plan_by_id(user.id, day_plan_id)
+        if day is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No day plan {day_plan_id}",
+            )
+        return await self._single_day_plan_to_read_schema(day)
+
+    async def _single_day_plan_to_read_schema(self, day: DayPlan) -> DayPlanRead:
         exercise_ids = (
             [block.exercise_id for block in day.training_session.blocks]
             if day.training_session is not None

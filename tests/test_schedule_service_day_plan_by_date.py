@@ -146,3 +146,77 @@ async def test_get_day_plan_for_date_rest_day_has_no_training_session(db_session
 
     assert result.session_type == DaySessionType.REST
     assert result.training_session is None
+
+
+# GET /schedule/day-plans/{id} -- TrainingSessionPage/TrainingDiaryPage used
+# to find the day by scanning only the current + next WeeklyPlan, so a
+# DiaryPage entry 2+ weeks old opened as "Тренировка не найдена.".
+@pytest.mark.asyncio
+async def test_get_day_plan_by_id_finds_a_day_weeks_in_the_past(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    old_monday = _monday_of(date.today()) - timedelta(days=28)
+    block = TrainingBlock(
+        id=uuid.uuid4(), user_id=user.id, block_number=1, phase_started_at=old_monday
+    )
+    exercise = _make_exercise()
+    db_session.add_all([block, exercise])
+    await db_session.flush()
+
+    day_plan_id = uuid.uuid4()
+    weekly_plan = WeeklyPlan(
+        id=uuid.uuid4(), user_id=user.id, week_start_date=old_monday, training_block_id=block.id
+    )
+    weekly_plan.day_plans.append(
+        DayPlan(
+            id=day_plan_id,
+            date=old_monday + timedelta(days=2),
+            session_type=DaySessionType.ON_ICE,
+            training_session=TrainingSession(
+                id=uuid.uuid4(),
+                blocks=[
+                    SessionBlock(
+                        id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0
+                    )
+                ],
+            ),
+        )
+    )
+    db_session.add(weekly_plan)
+    await db_session.flush()
+
+    result = await ScheduleService(db_session).get_day_plan_by_id(user, day_plan_id)
+
+    assert result.id == day_plan_id
+    assert result.training_session is not None
+    assert result.training_session.blocks[0].exercise.id == exercise.id
+
+
+@pytest.mark.asyncio
+async def test_get_day_plan_by_id_404s_for_another_users_day(db_session) -> None:
+    owner = _make_user()
+    intruder = _make_user()
+    db_session.add_all([owner, intruder])
+    await db_session.flush()
+
+    monday = _monday_of(date.today())
+    block = TrainingBlock(id=uuid.uuid4(), user_id=owner.id, block_number=1, phase_started_at=monday)
+    db_session.add(block)
+    await db_session.flush()
+
+    day_plan_id = uuid.uuid4()
+    weekly_plan = WeeklyPlan(
+        id=uuid.uuid4(), user_id=owner.id, week_start_date=monday, training_block_id=block.id
+    )
+    weekly_plan.day_plans.append(
+        DayPlan(id=day_plan_id, date=monday, session_type=DaySessionType.REST)
+    )
+    db_session.add(weekly_plan)
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await ScheduleService(db_session).get_day_plan_by_id(intruder, day_plan_id)
+
+    assert exc_info.value.status_code == 404

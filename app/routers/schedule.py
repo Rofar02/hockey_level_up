@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from typing import Annotated
 
@@ -81,3 +82,15 @@ async def get_day_plan(
     date_: Annotated[date, Query(alias="date")],
 ):
     return await ScheduleService(session).get_day_plan_for_date(current_user, date_)
+
+
+# A single day by id, from any week -- TrainingSessionPage/TrainingDiaryPage
+# open a day by the id in their URL (DiaryPage links there for entries of any
+# age), see ScheduleService.get_day_plan_by_id.
+@router.get("/day-plans/{day_plan_id}", response_model=DayPlanRead)
+async def get_day_plan_by_id(
+    day_plan_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await ScheduleService(session).get_day_plan_by_id(current_user, day_plan_id)
