@@ -11,8 +11,6 @@ import type {
   TeamEventAttendanceRosterRead,
   TeamEventAttendanceSetPayload,
   TeamEventCreatePayload,
-  TeamEventDiaryEntryRead,
-  TeamEventDiaryEntrySavePayload,
   TeamEventDrillCreatePayload,
   TeamEventDrillRead,
   TeamEventDrillSectionRead,
@@ -312,28 +310,6 @@ export function unassignLineupPlayer(
     `/teams/${teamId}/events/${eventId}/lineup/players/${targetUserId}`,
     accessToken,
   )
-}
-
-// -- diary / rewards --
-
-export function getMyDiaryEntry(
-  teamId: string,
-  eventId: string,
-  accessToken: string,
-): Promise<TeamEventDiaryEntryRead | null> {
-  return apiGet<TeamEventDiaryEntryRead | null>(`/teams/${teamId}/events/${eventId}/diary/me`, accessToken)
-}
-
-// note=null is an explicit skip -- either way, the FIRST save grants the
-// three on-ice stats + a fixed XP bonus; re-saving to edit the note never
-// re-grants. 400s for a GAME event.
-export function saveMyDiaryEntry(
-  teamId: string,
-  eventId: string,
-  payload: TeamEventDiaryEntrySavePayload,
-  accessToken: string,
-): Promise<TeamEventDiaryEntryRead> {
-  return apiPutAuth<TeamEventDiaryEntryRead>(`/teams/${teamId}/events/${eventId}/diary/me`, payload, accessToken)
 }
 
 // -- ice schedule template --

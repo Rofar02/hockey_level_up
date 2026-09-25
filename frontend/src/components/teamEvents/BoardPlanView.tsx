@@ -170,6 +170,15 @@ function DiagramLegend() {
           {item.label}
         </span>
       ))}
+      <span className="flex items-center gap-1">
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <circle cx="6" cy="6" r="5.5" fill="#FF6A3D" />
+          <text x="6" y="6.4" textAnchor="middle" dominantBaseline="central" fontSize="7" fontWeight="800" fill="#fff">
+            1
+          </text>
+        </svg>
+        порядок: одинаковые цифры — одновременно
+      </span>
     </div>
   )
 }

@@ -12,8 +12,6 @@ from app.schemas.team_event import (
     TeamEventAttendanceRosterRead,
     TeamEventAttendanceSet,
     TeamEventCreate,
-    TeamEventDiaryEntryRead,
-    TeamEventDiaryEntrySave,
     TeamEventDrillCreate,
     TeamEventDrillDiagramSet,
     TeamEventDrillRead,
@@ -388,33 +386,4 @@ async def unassign_lineup_player(
 ):
     await TeamEventService(session).unassign_player(
         current_user, team_id, event_id, target_user_id
-    )
-
-
-@router.get("/{event_id}/diary/me", response_model=TeamEventDiaryEntryRead | None)
-async def get_my_diary_entry(
-    team_id: uuid.UUID,
-    event_id: uuid.UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
-):
-    return await TeamEventService(session).get_diary_entry(current_user, team_id, event_id)
-
-
-@router.put("/{event_id}/diary/me", response_model=TeamEventDiaryEntryRead)
-async def save_my_diary_entry(
-    team_id: uuid.UUID,
-    event_id: uuid.UUID,
-    body: TeamEventDiaryEntrySave,
-    current_user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_db)],
-):
-    """note=None is an explicit skip, same convention as the personal
-    diary -- either way, the FIRST save grants the three on-ice stats + a
-    fixed XP bonus (TeamEventService._award_team_training_rewards);
-    re-saving to edit the note never re-grants. 400s for a GAME event --
-    rewards are training-only.
-    """
-    return await TeamEventService(session).save_diary_entry(
-        current_user, team_id, event_id, body.note
     )

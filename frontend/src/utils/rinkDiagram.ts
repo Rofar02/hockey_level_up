@@ -160,17 +160,24 @@ function toPath(points: Pt[]): string {
 // SVG path for an arrow in rink units: straight, or a smooth curve through
 // its `via` points. An arrow that starts at a token starts at its edge, not
 // its centre; skate_puck is drawn as a wave that follows the curve.
-export function arrowPath(arrow: DiagramArrow): string {
+// The arrow's centre line in rink units: the smooth curve through its
+// points, starting at the edge of the token it leaves from (if any).
+function arrowLine(arrow: DiagramArrow): Pt[] {
   const control = [arrow.start, ...(arrow.via ?? []), arrow.end].map(toRink)
-  let line = smoothPolyline(control)
+  const line = smoothPolyline(control)
   const fullLength = polylineLength(line)
-  if (fullLength < 1) {
+  if (fullLength >= 1 && arrow.from_token != null) {
+    return sliceFrom(line, Math.min(TOKEN_RADIUS.own + 1, fullLength / 2))
+  }
+  return line
+}
+
+export function arrowPath(arrow: DiagramArrow): string {
+  const line = arrowLine(arrow)
+  const length = polylineLength(line)
+  if (length < 1) {
     return toPath([line[0], line[line.length - 1]])
   }
-  if (arrow.from_token != null) {
-    line = sliceFrom(line, Math.min(TOKEN_RADIUS.own + 1, fullLength / 2))
-  }
-  const length = polylineLength(line)
   if (arrow.kind !== 'skate_puck' || length <= STRAIGHT_TAIL + 2) {
     return toPath(line)
   }
@@ -289,4 +296,50 @@ export function smoothStroke(points: DiagramPoint[], maxPoints = 8): DiagramPoin
   }
   const fromRink = (p: Pt): DiagramPoint => ({ x: clamp01(p.x / RINK_WIDTH), y: clamp01(p.y / RINK_HEIGHT) })
   return [first, ...indices.slice(1, -1).map((index) => fromRink(smoothed[index])), last]
+}
+
+export const MAX_ARROW_STEP = 20
+export const STEP_BADGE_RADIUS = 5.5
+
+// Where an arrow's step badge sits: a little way along the arrow from its
+// start, so it marks where the movement begins without covering the
+// arrowhead of the arrow it continues from.
+export function arrowBadgePoint(arrow: DiagramArrow): { x: number; y: number } {
+  const line = arrowLine(arrow)
+  const length = polylineLength(line)
+  if (length < 1) {
+    return line[0]
+  }
+  return pointAtLength(line, Math.min(STEP_BADGE_RADIUS + 3, length / 3)).point
+}
+
+const SAME_POINT = 0.004
+
+// Step of every arrow: its stored one, or derived -- 1 for an arrow from a
+// player (different players start together by default), the step of the
+// arrow it continues from + 1 for a chained one. Arrows are in the order
+// they were drawn, so a predecessor is always resolved first.
+export function arrowSteps(diagram: DrillDiagram): Map<string, number> {
+  const steps = new Map<string, number>()
+  for (const arrow of diagram.arrows) {
+    if (arrow.step != null) {
+      steps.set(arrow.id, arrow.step)
+      continue
+    }
+    let step = 1
+    if (arrow.from_token == null) {
+      const previous = diagram.arrows.find(
+        (candidate) =>
+          candidate.id !== arrow.id &&
+          steps.has(candidate.id) &&
+          Math.abs(candidate.end.x - arrow.start.x) < SAME_POINT &&
+          Math.abs(candidate.end.y - arrow.start.y) < SAME_POINT,
+      )
+      if (previous !== undefined) {
+        step = Math.min(MAX_ARROW_STEP, (steps.get(previous.id) ?? 1) + 1)
+      }
+    }
+    steps.set(arrow.id, step)
+  }
+  return steps
 }

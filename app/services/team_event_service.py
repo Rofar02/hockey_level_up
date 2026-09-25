@@ -22,7 +22,6 @@ from app.models.team_event import (
     TeamEventAbsenceReason,
     TeamEventAttendance,
     TeamEventAttendanceStatus,
-    TeamEventDiaryEntry,
     TeamEventDrill,
     TeamEventDrillSection,
     TeamEventLineupGroup,
@@ -40,7 +39,6 @@ from app.schemas.team_event import (
     TeamEventAttendanceMemberRead,
     TeamEventAttendanceRead,
     TeamEventAttendanceRosterRead,
-    TeamEventDiaryEntryRead,
     DrillDiagram,
     TeamEventDrillRead,
     TeamEventDrillSectionRead,
@@ -59,7 +57,7 @@ ATTENDANCE_DEADLINE = timedelta(hours=2)
 # Nudge-button rate limit, checked server-side (see send_nudge).
 NUDGE_MIN_INTERVAL = timedelta(hours=1)
 
-# Rewards for a TRAINING diary entry (see save_diary_entry) -- training
+# Rewards for a team training (see grant_team_training_reward) -- training
 # only, per the v2 plan (a game is too unpredictable to credit a specific
 # skill). Same diminishing-returns curve as block_completed.stat_consumer
 # (STAT_HARD_CAP/DIMINISHING_EXPONENT imported from there, not
@@ -89,11 +87,10 @@ class TeamEventService:
     reminder_scheduler.py vs. an instant push: both need a clock, not a
     triggering API call.
 
-    Also the team-day reward path: saving a TeamEventDiaryEntry for a
-    TRAINING event (a note, or an explicit skip) grants the three on-ice
-    stats + a fixed XP bonus once, on first save -- see
-    save_diary_entry/_award_team_training_rewards. Games grant nothing
-    here.
+    Also the team-day reward: the first personal-diary save for a day a
+    TRAINING event took over (a note, or an explicit skip) grants the three
+    on-ice stats + a fixed XP bonus once -- see grant_team_training_reward,
+    called from TrainingDiaryService. Games grant nothing here.
 
     And CRUD for TeamIceScheduleTemplate (the recurring weekday+time slot
     a captain sets up) -- the actual stamping of future TeamEvent rows
@@ -732,44 +729,30 @@ class TeamEventService:
             players=[cls._to_lineup_player_read(p) for p in players],
         )
 
-    # -- diary / rewards --
+    # -- rewards --
 
-    async def save_diary_entry(
-        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, note: str | None
-    ) -> TeamEventDiaryEntryRead:
-        team = await self._get_team_or_404(team_id)
-        await self._require_member(user, team)
-        event = await self._get_event_or_404(event_id, team_id)
-        if event.event_type != TeamEventType.TRAINING:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Diary entries only apply to a training",
-            )
-
-        existing = await self._events.get_diary_entry(event.id, user.id)
-        if existing is not None:
-            # Editing an already-saved entry (or re-submitting the same
-            # skip) never re-grants -- the reward is a first-save trigger,
-            # not a per-edit one (see the model's own docstring).
-            existing.note = note
-            await self._session.commit()
-            await self._session.refresh(existing)
-            return self._to_diary_entry_read(existing)
-
-        entry = await self._events.create_diary_entry(event.id, user.id, note)
+    async def grant_team_training_reward(
+        self, user: User, team_event_id: uuid.UUID, note: str | None
+    ) -> bool:
+        """Called by TrainingDiaryService on the first personal-diary save
+        for a day a team training took over (DayPlan.team_event_id): grants
+        the team-training stats + XP once per player per event. There is no
+        separate team diary any more -- players and the coach keep the
+        ordinary personal one. The TeamEventDiaryEntry row is kept as the
+        "already rewarded" marker (players rewarded through the old team
+        diary tab aren't rewarded twice). A game, a vanished event or a
+        player no longer in the team gets nothing. Doesn't commit.
+        """
+        event = await self._events.get_event(team_event_id)
+        if event is None or event.event_type != TeamEventType.TRAINING:
+            return False
+        if await self._teams.get_membership(event.team_id, user.id) is None:
+            return False
+        if await self._events.get_diary_entry(event.id, user.id) is not None:
+            return False
+        await self._events.create_diary_entry(event.id, user.id, note)
         await self._award_team_training_rewards(user.id, event.id)
-        await self._session.commit()
-        await self._session.refresh(entry)
-        return self._to_diary_entry_read(entry)
-
-    async def get_diary_entry(
-        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
-    ) -> TeamEventDiaryEntryRead | None:
-        team = await self._get_team_or_404(team_id)
-        await self._require_member(user, team)
-        event = await self._get_event_or_404(event_id, team_id)
-        entry = await self._events.get_diary_entry(event.id, user.id)
-        return self._to_diary_entry_read(entry) if entry is not None else None
+        return True
 
     async def _award_team_training_rewards(self, user_id: uuid.UUID, team_event_id: uuid.UUID) -> None:
         """Same shape as block_completed.stat_consumer's per-stat upsert
@@ -840,11 +823,6 @@ class TeamEventService:
                 {"user_id": str(user_id), "old_level": old_level, "new_level": level},
             )
 
-    @staticmethod
-    def _to_diary_entry_read(entry: TeamEventDiaryEntry) -> TeamEventDiaryEntryRead:
-        return TeamEventDiaryEntryRead(
-            note=entry.note, created_at=entry.created_at, updated_at=entry.updated_at
-        )
 
     # -- ice schedule template --
 

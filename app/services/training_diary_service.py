@@ -3,12 +3,13 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.schedule import DaySessionType
+from app.models.schedule import DaySessionType, TrainingSession
 from app.models.training_diary import TrainingDiaryEntry
 from app.models.user import User
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.training_diary_repository import TrainingDiaryRepository
 from app.schemas.training_diary import TrainingDiaryEntryListItem
+from app.services.team_event_service import TeamEventService
 
 _DIARY_ELIGIBLE_SESSION_TYPES = (DaySessionType.ON_ICE, DaySessionType.GAME)
 
@@ -19,9 +20,9 @@ class TrainingDiaryService:
         self._diary = TrainingDiaryRepository(session)
         self._schedule = ScheduleRepository(session)
 
-    async def _get_owned_eligible_session_id(
+    async def _get_owned_eligible_session(
         self, user: User, training_session_id: uuid.UUID
-    ) -> uuid.UUID:
+    ) -> TrainingSession:
         """Same ownership-check shape as
         SetCompletionService._get_owned_exercise_in_session, plus the
         ON_ICE/GAME gate -- OFF_ICE already gets rich structured feedback
@@ -37,18 +38,19 @@ class TrainingDiaryService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Дневник доступен только для дней на льду и игр",
             )
-        return training_session.id
+        return training_session
 
     async def get_entry(
         self, user: User, training_session_id: uuid.UUID
     ) -> TrainingDiaryEntry | None:
-        session_id = await self._get_owned_eligible_session_id(user, training_session_id)
-        return await self._diary.get_by_training_session(session_id)
+        training_session = await self._get_owned_eligible_session(user, training_session_id)
+        return await self._diary.get_by_training_session(training_session.id)
 
     async def save_entry(
         self, user: User, training_session_id: uuid.UUID, note: str | None
     ) -> TrainingDiaryEntry:
-        session_id = await self._get_owned_eligible_session_id(user, training_session_id)
+        training_session = await self._get_owned_eligible_session(user, training_session_id)
+        session_id = training_session.id
 
         existing = await self._diary.get_by_training_session(session_id)
         if existing is not None:
@@ -57,6 +59,11 @@ class TrainingDiaryService:
         else:
             entry = TrainingDiaryEntry(user_id=user.id, training_session_id=session_id, note=note)
             await self._diary.save(entry)
+            # A team training took this day over: the first diary save is
+            # what credits it (stats + XP), same as the old team diary did.
+            team_event_id = training_session.day_plan.team_event_id
+            if team_event_id is not None:
+                await TeamEventService(self._session).grant_team_training_reward(user, team_event_id, note)
 
         await self._session.commit()
         # created_at/updated_at are server-computed (func.now()/onupdate) --

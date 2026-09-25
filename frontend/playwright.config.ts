@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { TZ } from './e2e/tz'
 
 // End-to-end tests against the local dev stack (docker compose up:
 // frontend on :5173, backend on :8000). Every test seeds its own users and
@@ -14,7 +15,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5173',
-    timezoneId: 'Europe/Moscow',
+    // Whichever zone is mid-day right now -- see e2e/tz.ts.
+    timezoneId: TZ,
     locale: 'ru-RU',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

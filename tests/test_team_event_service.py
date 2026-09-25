@@ -364,3 +364,17 @@ def test_drill_diagram_accepts_repass_arrows() -> None:
     assert shot.arrows[0].kind == "shot"
     with pytest.raises(ValidationError):
         _diagram(arrows=[{"id": "r1", "kind": "slapshot", "start": {"x": 0.2, "y": 0.5}, "end": {"x": 0.7, "y": 0.5}}])
+
+
+def test_drill_diagram_arrow_steps() -> None:
+    from pydantic import ValidationError
+
+    def arrow(step):
+        return {"id": "s1", "kind": "pass", "start": {"x": 0.2, "y": 0.5}, "end": {"x": 0.7, "y": 0.5}, "step": step}
+
+    assert _diagram(arrows=[arrow(2)]).arrows[0].step == 2
+    # Older schemes without a step still validate (derived on display).
+    assert _diagram().arrows[0].step is None
+    for bad in (0, 21):
+        with pytest.raises(ValidationError):
+            _diagram(arrows=[arrow(bad)])
