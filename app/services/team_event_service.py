@@ -49,6 +49,7 @@ from app.schemas.team_event import (
     TeamIceScheduleTemplateRead,
 )
 from app.services.push_service import send_push
+from app.services.schedule_service import ScheduleService
 
 # -2h from starts_at -- see TeamEventAttendance's own docstring.
 ATTENDANCE_DEADLINE = timedelta(hours=2)
@@ -102,6 +103,7 @@ class TeamEventService:
         self._session = session
         self._teams = TeamRepository(session)
         self._events = TeamEventRepository(session)
+        self._schedule = ScheduleService(session)
 
     # -- TeamEvent --
 
@@ -144,6 +146,11 @@ class TeamEventService:
         event = await self._require_captain_and_event(user, team_id, event_id)
         self._require_scheduled(event)
         event.starts_at = starts_at
+        # "Going" players' days follow the event: old day back to what it
+        # was, the new date's day taken over instead.
+        for member in await self._going_members(event):
+            await self._schedule.revert_team_event_days(member, event.id)
+            await self._schedule.apply_team_event_to_day(member, event)
         await self._session.commit()
         await self._session.refresh(event)
         what = "тренировки" if event.event_type == TeamEventType.TRAINING else "игры"
@@ -156,6 +163,8 @@ class TeamEventService:
         event = await self._require_captain_and_event(user, team_id, event_id)
         self._require_scheduled(event)
         event.status = TeamEventStatus.CANCELLED
+        for member in await self._going_members(event):
+            await self._schedule.revert_team_event_days(member, event.id)
         await self._session.commit()
         await self._session.refresh(event)
         what = "Тренировка" if event.event_type == TeamEventType.TRAINING else "Игра"
@@ -163,6 +172,12 @@ class TeamEventService:
         is_captain = True
         drills = await self._visible_drills(event, is_captain)
         return self._to_event_read(event, drills, viewer_is_captain=is_captain)
+
+    async def _going_members(self, event: TeamEvent) -> list[User]:
+        rows = await self._events.list_attendance_for_event(event.id)
+        going_ids = {row.user_id for row in rows if row.status == TeamEventAttendanceStatus.GOING}
+        members = await self._teams.list_members(event.team_id)
+        return [member for member in members if member.id in going_ids]
 
     @staticmethod
     def _require_scheduled(event: TeamEvent) -> None:
@@ -315,6 +330,12 @@ class TeamEventService:
         attendance = await self._events.upsert_attendance(
             event.id, user.id, attendance_status, reason, reason_note
         )
+        # "Going" replaces the player's own day with the team event (see
+        # ScheduleService.apply_team_event_to_day); "not going" puts it back.
+        if attendance_status == TeamEventAttendanceStatus.GOING and event.status == TeamEventStatus.SCHEDULED:
+            await self._schedule.apply_team_event_to_day(user, event)
+        else:
+            await self._schedule.revert_team_event_days(user, event.id)
         await self._session.commit()
         await self._session.refresh(attendance)
         return self._to_attendance_read(attendance)
@@ -329,6 +350,7 @@ class TeamEventService:
         attendance = await self._events.get_attendance(event.id, user.id)
         if attendance is not None:
             await self._events.delete_attendance(attendance)
+            await self._schedule.revert_team_event_days(user, event.id)
             await self._session.commit()
 
     async def get_attendance_roster(

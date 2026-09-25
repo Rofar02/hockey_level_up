@@ -167,6 +167,20 @@ class DayPlan(Base):
     reminder_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Set while a TeamEvent the user marked "going" has taken this day over
+    # (TRAINING -> ON_ICE, GAME -> GAME), see
+    # ScheduleService.apply_team_event_to_day. replaced_session_type is what
+    # the day was before, so "not going"/cancel/reschedule can put it back
+    # (revert_team_event_days). Both None on an ordinary day.
+    team_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_events.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    replaced_session_type: Mapped[DaySessionType | None] = mapped_column(
+        enum_column(DaySessionType, "day_session_type"), nullable=True
+    )
 
     weekly_plan: Mapped["WeeklyPlan"] = relationship(back_populates="day_plans")
     training_session: Mapped["TrainingSession | None"] = relationship(

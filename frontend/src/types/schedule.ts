@@ -81,6 +81,8 @@ export interface DayPlanRead {
   date: string
   session_type: DaySessionType
   training_session: TrainingSessionRead | null
+  // Set while a team event the user marked "going" has taken this day over.
+  team_event_id: string | null
 }
 
 export interface WeeklyPlanRead {

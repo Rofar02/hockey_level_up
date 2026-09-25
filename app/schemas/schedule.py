@@ -76,6 +76,9 @@ class DayPlanRead(BaseModel):
     date: date
     session_type: DaySessionType
     training_session: TrainingSessionRead | None
+    # Set while a team event the user marked "going" has taken this day over
+    # (see DayPlan.team_event_id).
+    team_event_id: uuid.UUID | None = None
 
 
 class WeeklyPlanRead(BaseModel):

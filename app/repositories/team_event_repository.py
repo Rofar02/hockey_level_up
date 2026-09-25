@@ -136,6 +136,29 @@ class TeamEventRepository:
         )
         return list(result.scalars().all())
 
+    async def list_going_events_for_user(
+        self, user_id: uuid.UUID, starts_from: datetime, starts_before: datetime
+    ) -> list[TeamEvent]:
+        """SCHEDULED events in [starts_from, starts_before) the user marked
+        "going" -- ScheduleService.create_weekly_plan folds these into a
+        freshly declared week (see apply_team_event_to_day for the
+        already-declared case). Ordered by starts_at so the earliest event
+        wins when two land on the same local date.
+        """
+        result = await self._session.execute(
+            select(TeamEvent)
+            .join(TeamEventAttendance, TeamEventAttendance.team_event_id == TeamEvent.id)
+            .where(
+                TeamEventAttendance.user_id == user_id,
+                TeamEventAttendance.status == TeamEventAttendanceStatus.GOING,
+                TeamEvent.status == TeamEventStatus.SCHEDULED,
+                TeamEvent.starts_at >= starts_from,
+                TeamEvent.starts_at < starts_before,
+            )
+            .order_by(TeamEvent.starts_at)
+        )
+        return list(result.scalars().all())
+
     async def upsert_attendance(
         self,
         team_event_id: uuid.UUID,
