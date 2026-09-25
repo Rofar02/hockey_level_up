@@ -28,7 +28,12 @@ export function ProtectedRoute() {
   // BottomNav and no space reserved for it, so nothing competes with the
   // text box. Matched here (not inside the page) because BottomNav lives in
   // this layout, above the <Outlet/>.
-  const isFullScreenRoute = useMatch('/training/:dayPlanId/diary') !== null
+  const isDiary = useMatch('/training/:dayPlanId/diary') !== null
+  // The AI coach chat has its message box at the bottom of the screen,
+  // exactly where the floating nav capsule would sit -- it gets the whole
+  // screen too (its header has its own back link).
+  const isCoachChat = useMatch('/coach') !== null
+  const isFullScreenRoute = isDiary || isCoachChat
 
   // Hold off on any redirect while a reload is still trying to restore the
   // session from localStorage -- isAuthenticated is false at this point
@@ -61,7 +66,7 @@ export function ProtectedRoute() {
   // already does through every ordinary navigation.
   return (
     <CoachmarkProvider>
-      <div className={isFullScreenRoute ? '' : 'pb-16'}>
+      <div className={isFullScreenRoute ? '' : 'pb-[var(--bottom-nav-space)]'}>
         <Suspense fallback={<AppLoadingScreen />}>
           <Outlet />
         </Suspense>

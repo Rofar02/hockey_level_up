@@ -131,6 +131,27 @@ test('coach screens fit the phone', async ({ page }) => {
   await shot(page, 'layout-diagram-editor')
 })
 
+test('floating tab bar: all tabs on screen, coach in the middle opens the chat', async ({ page }) => {
+  await loginAs(page, setup.player)
+  await page.goto('/')
+  const nav = page.getByRole('navigation', { name: 'Основная навигация' })
+  const labels = ['Главная', 'Неделя', 'ИИ-тренер', 'Профиль', 'Ещё']
+  for (const name of labels) {
+    await expect(nav.getByRole('link', { name })).toBeInViewport({ ratio: 1 })
+  }
+  // Coach is the middle one, in visual order too.
+  const xs = await Promise.all(labels.map(async (name) => (await nav.getByRole('link', { name }).boundingBox())!.x))
+  expect([...xs].sort((a, b) => a - b)).toEqual(xs)
+  await shot(page, 'layout-tabbar')
+
+  await nav.getByRole('link', { name: 'ИИ-тренер' }).click()
+  await expect(page).toHaveURL(/\/coach$/)
+  // The chat's message box sits at the bottom -- the capsule steps aside.
+  await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toHaveCount(0)
+  await expect(page.getByPlaceholder('Спросите тренера о тренировках...')).toBeInViewport()
+  await shot(page, 'layout-coach-chat')
+})
+
 test('player screens fit the phone', async ({ page }) => {
   await loginAs(page, setup.player)
   await page.goto('/')

@@ -928,8 +928,11 @@ export function TrainingSessionPage() {
 
           <div
             ref={setFooterNode}
-            className="fixed inset-x-0 z-40 border-t border-white/5 bg-dark-card px-4 py-3"
-            style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom))' }}
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+            // Solid all the way down: the floating BottomNav capsule sits on
+            // top of this bar's lower part instead of over a strip of
+            // scrolling exercises; the button stays clear above the capsule.
+            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
           >
             <div className="mx-auto max-w-2xl">
               <Button onClick={handleFinishPhase} disabled={!canFinishPhase} className="w-full">

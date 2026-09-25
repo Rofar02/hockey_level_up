@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+  /* Height of the strip the floating BottomNav capsule occupies (capsule,
+     its raised coach button, the gap under it, the home indicator) -- the
+     one number pages and bottom-pinned bars reserve so nothing ends up
+     under it. Keep in sync with BottomNav's own padding/height. */
+  :root {
+    --bottom-nav-space: calc(104px + env(safe-area-inset-bottom));
+  }
+
   /* overflow-x hidden on both html and body: any child that's briefly wider
      than the viewport (a badge row, an unwrapped label) must not turn into a
      horizontally scrollable page. On mobile browsers a `position: fixed`
