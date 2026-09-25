@@ -14,6 +14,7 @@ import type {
   TeamEventDiaryEntrySavePayload,
   TeamEventDrillCreatePayload,
   TeamEventDrillRead,
+  TeamEventDrillSectionRead,
   TeamEventDrillUpdatePayload,
   TeamEventLineupGroupCreatePayload,
   TeamEventLineupGroupRead,
@@ -78,6 +79,52 @@ export function publishBoard(
   return apiPostAuth<TeamEventRead>(`/teams/${teamId}/events/${eventId}/board/publish`, {}, accessToken)
 }
 
+// Captain-only. Deleting a section deletes its drills too.
+export function addSection(
+  teamId: string,
+  eventId: string,
+  name: string,
+  accessToken: string,
+): Promise<TeamEventDrillSectionRead> {
+  return apiPostAuth<TeamEventDrillSectionRead>(`/teams/${teamId}/events/${eventId}/sections`, { name }, accessToken)
+}
+
+export function renameSection(
+  teamId: string,
+  eventId: string,
+  sectionId: string,
+  name: string,
+  accessToken: string,
+): Promise<TeamEventDrillSectionRead> {
+  return apiPatchAuth<TeamEventDrillSectionRead>(
+    `/teams/${teamId}/events/${eventId}/sections/${sectionId}`,
+    { name },
+    accessToken,
+  )
+}
+
+export function deleteSection(
+  teamId: string,
+  eventId: string,
+  sectionId: string,
+  accessToken: string,
+): Promise<void> {
+  return apiDeleteAuth<void>(`/teams/${teamId}/events/${eventId}/sections/${sectionId}`, accessToken)
+}
+
+export function reorderSections(
+  teamId: string,
+  eventId: string,
+  sectionIds: string[],
+  accessToken: string,
+): Promise<void> {
+  return apiPutAuth<void>(
+    `/teams/${teamId}/events/${eventId}/sections/order`,
+    { section_ids: sectionIds },
+    accessToken,
+  )
+}
+
 export function addDrill(
   teamId: string,
   eventId: string,
@@ -110,15 +157,17 @@ export function deleteDrill(
   return apiDeleteAuth<void>(`/teams/${teamId}/events/${eventId}/drills/${drillId}`, accessToken)
 }
 
+// Order within one section -- drillIds must be exactly that section's drills.
 export function reorderDrills(
   teamId: string,
   eventId: string,
+  sectionId: string,
   drillIds: string[],
   accessToken: string,
 ): Promise<TeamEventDrillRead[]> {
   return apiPutAuth<TeamEventDrillRead[]>(
     `/teams/${teamId}/events/${eventId}/drills/order`,
-    { drill_ids: drillIds },
+    { section_id: sectionId, drill_ids: drillIds },
     accessToken,
   )
 }

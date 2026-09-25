@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/Button'
 import { CardGlow } from '../ui/CardGlow'
 import { CARD_CLASS } from '../ui/cardStyle'
+import { BoardPlanModal } from './BoardPlanView'
 import * as teamEventsApi from '../../api/teamEvents'
 import * as teamsApi from '../../api/teams'
 import { useAuth } from '../../hooks/useAuth'
+import { boardTotalMinutes, formatMinutes, totalMinutes } from '../../utils/boardPlan'
 import type { DayPlanRead } from '../../types/schedule'
 import type { TeamEventDiaryEntryRead, TeamEventLineupRead, TeamEventRead } from '../../types/teamEvent'
 import { formatTime } from '../../utils/date'
@@ -148,7 +150,7 @@ export function TeamDayCard({
           <div className="flex flex-col gap-2">
             {warmupAvailable && (
               <Button onClick={onStartWarmup} className="w-full">
-                Разминка перед льдом
+                Разминка до выхода на лёд
               </Button>
             )}
             <Button variant={warmupAvailable ? 'neutral' : 'primary'} onClick={() => navigate(eventPath)} className="w-full">
@@ -173,27 +175,47 @@ function SummaryRow({ icon, label, children }: { icon: string; label: string; ch
   )
 }
 
-const MAX_DRILLS_SHOWN = 3
-
+// One line per section ("Разминка · 2 · 10 мин") -- stays short however
+// many drills the coach adds; the full plan opens in BoardPlanModal.
 function BoardSummary({ event }: { event: TeamEventRead }) {
-  // drills is null for a non-captain while the board is still a draft.
-  const drills = event.board_status === 'published' ? (event.drills ?? []) : null
-  return (
-    <SummaryRow icon="ti-clipboard-list" label="План">
-      {drills === null || drills.length === 0 ? (
+  const [isPlanOpen, setIsPlanOpen] = useState(false)
+  // sections is null for a non-captain while the board is still a draft.
+  const sections =
+    event.board_status === 'published'
+      ? (event.sections ?? []).filter((section) => section.drills.length > 0)
+      : null
+  if (sections === null || sections.length === 0) {
+    return (
+      <SummaryRow icon="ti-clipboard-list" label="План">
         <span className="text-[#8A94A6]">Тренер ещё не опубликовал план</span>
-      ) : (
-        <>
-          {drills.slice(0, MAX_DRILLS_SHOWN).map((drill) => (
-            <p key={drill.id} className="truncate">
-              {drill.title}
-            </p>
-          ))}
-          {drills.length > MAX_DRILLS_SHOWN && (
-            <p className="text-[#8A94A6]">и ещё {drills.length - MAX_DRILLS_SHOWN}</p>
-          )}
-        </>
-      )}
+      </SummaryRow>
+    )
+  }
+  const boardMinutes = boardTotalMinutes(sections)
+  return (
+    <SummaryRow icon="ti-clipboard-list" label={boardMinutes !== null ? `План · ${formatMinutes(boardMinutes)}` : 'План'}>
+      {sections.map((section) => {
+        const minutes = totalMinutes(section.drills)
+        return (
+          <p key={section.id} className="truncate">
+            {section.name}
+            <span className="text-[#8A94A6]">
+              {' · '}
+              {section.drills.length}
+              {minutes !== null && ` · ${formatMinutes(minutes)}`}
+            </span>
+          </p>
+        )
+      })}
+      <button
+        type="button"
+        onClick={() => setIsPlanOpen(true)}
+        className="mt-1 flex items-center gap-1 text-sm font-medium text-accent-ice transition-opacity hover:opacity-80"
+      >
+        Смотреть план
+        <i className="ti ti-chevron-right" aria-hidden="true" />
+      </button>
+      {isPlanOpen && <BoardPlanModal sections={sections} onClose={() => setIsPlanOpen(false)} />}
     </SummaryRow>
   )
 }

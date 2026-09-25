@@ -24,6 +24,7 @@ from app.models.team_event import (
     TeamEventAttendanceStatus,
     TeamEventDiaryEntry,
     TeamEventDrill,
+    TeamEventDrillSection,
     TeamEventLineupGroup,
     TeamEventLineupSlot,
     TeamEventPublishStatus,
@@ -41,6 +42,7 @@ from app.schemas.team_event import (
     TeamEventAttendanceRosterRead,
     TeamEventDiaryEntryRead,
     TeamEventDrillRead,
+    TeamEventDrillSectionRead,
     TeamEventLineupGroupRead,
     TeamEventLineupPlayerRead,
     TeamEventLineupRead,
@@ -137,8 +139,8 @@ class TeamEventService:
                 "Назначена игра",
                 f"Игра с {opponent_name} -- отметь явку",
             )
-        drills = [] if event_type == TeamEventType.TRAINING else None
-        return self._to_event_read(event, drills=drills, viewer_is_captain=True)
+        sections = [] if event_type == TeamEventType.TRAINING else None
+        return self._to_event_read(event, sections=sections, viewer_is_captain=True)
 
     async def reschedule_event(
         self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, starts_at: datetime
@@ -156,8 +158,8 @@ class TeamEventService:
         what = "тренировки" if event.event_type == TeamEventType.TRAINING else "игры"
         await self._push_team(team_id, "Время перенесено", f"Изменилось время {what}")
         is_captain = True
-        drills = await self._visible_drills(event, is_captain)
-        return self._to_event_read(event, drills, viewer_is_captain=is_captain)
+        sections = await self._visible_sections(event, is_captain)
+        return self._to_event_read(event, sections, viewer_is_captain=is_captain)
 
     async def cancel_event(self, user: User, team_id: uuid.UUID, event_id: uuid.UUID) -> TeamEventRead:
         event = await self._require_captain_and_event(user, team_id, event_id)
@@ -170,8 +172,8 @@ class TeamEventService:
         what = "Тренировка" if event.event_type == TeamEventType.TRAINING else "Игра"
         await self._push_team(team_id, "Отмена", f"{what} отменена")
         is_captain = True
-        drills = await self._visible_drills(event, is_captain)
-        return self._to_event_read(event, drills, viewer_is_captain=is_captain)
+        sections = await self._visible_sections(event, is_captain)
+        return self._to_event_read(event, sections, viewer_is_captain=is_captain)
 
     async def _going_members(self, event: TeamEvent) -> list[User]:
         rows = await self._events.list_attendance_for_event(event.id)
@@ -205,8 +207,8 @@ class TeamEventService:
         events = await self._events.list_events_for_team(team_id)
         reads = []
         for event in events:
-            drills = await self._visible_drills(event, is_captain)
-            reads.append(self._to_event_read(event, drills, viewer_is_captain=is_captain))
+            sections = await self._visible_sections(event, is_captain)
+            reads.append(self._to_event_read(event, sections, viewer_is_captain=is_captain))
         return reads
 
     async def get_event(self, user: User, team_id: uuid.UUID, event_id: uuid.UUID) -> TeamEventRead:
@@ -214,31 +216,89 @@ class TeamEventService:
         await self._require_member(user, team)
         event = await self._get_event_or_404(event_id, team_id)
         is_captain = team.owner_id == user.id
-        drills = await self._visible_drills(event, is_captain)
-        return self._to_event_read(event, drills, viewer_is_captain=is_captain)
+        sections = await self._visible_sections(event, is_captain)
+        return self._to_event_read(event, sections, viewer_is_captain=is_captain)
 
-    async def _visible_drills(
+    async def _visible_sections(
         self, event: TeamEvent, viewer_is_captain: bool
-    ) -> list[TeamEventDrill] | None:
+    ) -> list[tuple[TeamEventDrillSection, list[TeamEventDrill]]] | None:
         if event.event_type != TeamEventType.TRAINING:
             return None
         if not viewer_is_captain and event.board_status != TeamEventPublishStatus.PUBLISHED:
             return None
-        return await self._events.list_drills_for_event(event.id)
+        sections = await self._events.list_sections_for_event(event.id)
+        drills = await self._events.list_drills_for_event(event.id)
+        by_section: dict[uuid.UUID, list[TeamEventDrill]] = {section.id: [] for section in sections}
+        for drill in drills:
+            by_section[drill.section_id].append(drill)
+        return [(section, by_section[section.id]) for section in sections]
 
-    # -- board --
+    # -- board: sections --
+
+    async def add_section(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, name: str
+    ) -> TeamEventDrillSectionRead:
+        event = await self._require_captain_and_training_event(user, team_id, event_id)
+        order = len(await self._events.list_sections_for_event(event.id))
+        section = await self._events.create_section(event.id, order, name.strip())
+        await self._session.commit()
+        return self._to_section_read(section, [])
+
+    async def rename_section(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, section_id: uuid.UUID, name: str
+    ) -> TeamEventDrillSectionRead:
+        event = await self._require_captain_and_training_event(user, team_id, event_id)
+        section = await self._get_section_or_404(section_id, event.id)
+        section.name = name.strip()
+        await self._session.commit()
+        await self._session.refresh(section)
+        drills = await self._events.list_drills_for_section(section.id)
+        return self._to_section_read(section, drills)
+
+    async def delete_section(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, section_id: uuid.UUID
+    ) -> None:
+        """Deletes the section's drills too -- the frontend confirms first."""
+        event = await self._require_captain_and_training_event(user, team_id, event_id)
+        section = await self._get_section_or_404(section_id, event.id)
+        await self._events.delete_section(section)
+        for index, remaining in enumerate(await self._events.list_sections_for_event(event.id)):
+            remaining.order = index
+        await self._session.commit()
+
+    async def reorder_sections(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, section_ids: list[uuid.UUID]
+    ) -> None:
+        event = await self._require_captain_and_training_event(user, team_id, event_id)
+        existing = await self._events.list_sections_for_event(event.id)
+        if {s.id for s in existing} != set(section_ids) or len(section_ids) != len(existing):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="section_ids must contain exactly this event's current sections",
+            )
+        by_id = {s.id: s for s in existing}
+        for index, section_id in enumerate(section_ids):
+            by_id[section_id].order = index
+        await self._session.commit()
+
+    # -- board: drills --
 
     async def add_drill(
         self,
         user: User,
         team_id: uuid.UUID,
         event_id: uuid.UUID,
+        section_id: uuid.UUID,
         title: str,
         description: str | None,
+        duration_minutes: int | None,
     ) -> TeamEventDrillRead:
         event = await self._require_captain_and_training_event(user, team_id, event_id)
-        order = await self._events.next_drill_order(event.id)
-        drill = await self._events.create_drill(event.id, order, title, description)
+        section = await self._get_section_or_404(section_id, event.id)
+        order = len(await self._events.list_drills_for_section(section.id))
+        drill = await self._events.create_drill(
+            event.id, section.id, order, title, description, duration_minutes
+        )
         await self._session.commit()
         return self._to_drill_read(drill)
 
@@ -248,13 +308,25 @@ class TeamEventService:
         team_id: uuid.UUID,
         event_id: uuid.UUID,
         drill_id: uuid.UUID,
+        section_id: uuid.UUID,
         title: str,
         description: str | None,
+        duration_minutes: int | None,
     ) -> TeamEventDrillRead:
+        """A different section_id moves the drill to the end of that
+        section, closing the gap it left in the old one."""
         event = await self._require_captain_and_training_event(user, team_id, event_id)
         drill = await self._get_drill_or_404(drill_id, event.id)
+        if section_id != drill.section_id:
+            target = await self._get_section_or_404(section_id, event.id)
+            old_section_id = drill.section_id
+            drill.order = len(await self._events.list_drills_for_section(target.id))
+            drill.section_id = target.id
+            await self._session.flush()
+            await self._renumber_section_drills(old_section_id)
         drill.title = title
         drill.description = description
+        drill.duration_minutes = duration_minutes
         await self._session.commit()
         await self._session.refresh(drill)
         return self._to_drill_read(drill)
@@ -264,28 +336,37 @@ class TeamEventService:
     ) -> None:
         event = await self._require_captain_and_training_event(user, team_id, event_id)
         drill = await self._get_drill_or_404(drill_id, event.id)
+        section_id = drill.section_id
         await self._events.delete_drill(drill)
-        remaining = await self._events.list_drills_for_event(event.id)
-        for index, remaining_drill in enumerate(remaining):
-            remaining_drill.order = index
+        await self._renumber_section_drills(section_id)
         await self._session.commit()
 
     async def reorder_drills(
-        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, drill_ids: list[uuid.UUID]
+        self,
+        user: User,
+        team_id: uuid.UUID,
+        event_id: uuid.UUID,
+        section_id: uuid.UUID,
+        drill_ids: list[uuid.UUID],
     ) -> list[TeamEventDrillRead]:
         event = await self._require_captain_and_training_event(user, team_id, event_id)
-        existing = await self._events.list_drills_for_event(event.id)
+        section = await self._get_section_or_404(section_id, event.id)
+        existing = await self._events.list_drills_for_section(section.id)
         if {d.id for d in existing} != set(drill_ids) or len(drill_ids) != len(existing):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="drill_ids must contain exactly this event's current drills",
+                detail="drill_ids must contain exactly this section's current drills",
             )
         by_id = {d.id: d for d in existing}
         for index, drill_id in enumerate(drill_ids):
             by_id[drill_id].order = index
         await self._session.commit()
-        reordered = await self._events.list_drills_for_event(event.id)
+        reordered = await self._events.list_drills_for_section(section.id)
         return [self._to_drill_read(d) for d in reordered]
+
+    async def _renumber_section_drills(self, section_id: uuid.UUID) -> None:
+        for index, drill in enumerate(await self._events.list_drills_for_section(section_id)):
+            drill.order = index
 
     async def publish_board(
         self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
@@ -299,8 +380,8 @@ class TeamEventService:
         await self._session.refresh(event)
         if not already_published:
             await self._push_team(team_id, "План тренировки готов", "Доска тренировки опубликована")
-        drills = await self._events.list_drills_for_event(event.id)
-        return self._to_event_read(event, drills, viewer_is_captain=True)
+        sections = await self._visible_sections(event, viewer_is_captain=True)
+        return self._to_event_read(event, sections, viewer_is_captain=True)
 
     # -- attendance --
 
@@ -839,6 +920,14 @@ class TeamEventService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         return event
 
+    async def _get_section_or_404(
+        self, section_id: uuid.UUID, team_event_id: uuid.UUID
+    ) -> TeamEventDrillSection:
+        section = await self._events.get_section(section_id)
+        if section is None or section.team_event_id != team_event_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Section not found")
+        return section
+
     async def _get_drill_or_404(
         self, drill_id: uuid.UUID, team_event_id: uuid.UUID
     ) -> TeamEventDrill:
@@ -863,14 +952,30 @@ class TeamEventService:
     @staticmethod
     def _to_drill_read(drill: TeamEventDrill) -> TeamEventDrillRead:
         return TeamEventDrillRead(
-            id=drill.id, order=drill.order, title=drill.title, description=drill.description
+            id=drill.id,
+            section_id=drill.section_id,
+            order=drill.order,
+            title=drill.title,
+            description=drill.description,
+            duration_minutes=drill.duration_minutes,
+        )
+
+    @classmethod
+    def _to_section_read(
+        cls, section: TeamEventDrillSection, drills: list[TeamEventDrill]
+    ) -> TeamEventDrillSectionRead:
+        return TeamEventDrillSectionRead(
+            id=section.id,
+            order=section.order,
+            name=section.name,
+            drills=[cls._to_drill_read(d) for d in drills],
         )
 
     @classmethod
     def _to_event_read(
         cls,
         event: TeamEvent,
-        drills: list[TeamEventDrill] | None,
+        sections: list[tuple[TeamEventDrillSection, list[TeamEventDrill]]] | None,
         viewer_is_captain: bool,
     ) -> TeamEventRead:
         return TeamEventRead(
@@ -881,6 +986,8 @@ class TeamEventService:
             starts_at=event.starts_at,
             opponent_name=event.opponent_name,
             board_status=event.board_status,
-            drills=None if drills is None else [cls._to_drill_read(d) for d in drills],
+            sections=None
+            if sections is None
+            else [cls._to_section_read(section, drills) for section, drills in sections],
             created_at=event.created_at,
         )

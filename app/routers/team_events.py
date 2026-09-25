@@ -17,6 +17,10 @@ from app.schemas.team_event import (
     TeamEventDrillCreate,
     TeamEventDrillRead,
     TeamEventDrillReorder,
+    TeamEventDrillSectionCreate,
+    TeamEventDrillSectionRead,
+    TeamEventDrillSectionReorder,
+    TeamEventDrillSectionUpdate,
     TeamEventDrillUpdate,
     TeamEventLineupGroupCreate,
     TeamEventLineupGroupRead,
@@ -101,6 +105,56 @@ async def publish_board(
     return await TeamEventService(session).publish_board(current_user, team_id, event_id)
 
 
+@router.post("/{event_id}/sections", response_model=TeamEventDrillSectionRead)
+async def add_section(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    body: TeamEventDrillSectionCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only. The frontend suggests preset names ("Разминка",
+    "Броски", ...), the backend accepts any."""
+    return await TeamEventService(session).add_section(current_user, team_id, event_id, body.name)
+
+
+@router.put("/{event_id}/sections/order", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_sections(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    body: TeamEventDrillSectionReorder,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    await TeamEventService(session).reorder_sections(current_user, team_id, event_id, body.section_ids)
+
+
+@router.patch("/{event_id}/sections/{section_id}", response_model=TeamEventDrillSectionRead)
+async def rename_section(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    section_id: uuid.UUID,
+    body: TeamEventDrillSectionUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await TeamEventService(session).rename_section(
+        current_user, team_id, event_id, section_id, body.name
+    )
+
+
+@router.delete("/{event_id}/sections/{section_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_section(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    section_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Deletes the section's drills too."""
+    await TeamEventService(session).delete_section(current_user, team_id, event_id, section_id)
+
+
 @router.post("/{event_id}/drills", response_model=TeamEventDrillRead)
 async def add_drill(
     team_id: uuid.UUID,
@@ -110,7 +164,13 @@ async def add_drill(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await TeamEventService(session).add_drill(
-        current_user, team_id, event_id, body.title, body.description
+        current_user,
+        team_id,
+        event_id,
+        body.section_id,
+        body.title,
+        body.description,
+        body.duration_minutes,
     )
 
 
@@ -128,7 +188,7 @@ async def reorder_drills(
     "/me"-before-"/{id}" discipline teams.py uses elsewhere in this app.
     """
     return await TeamEventService(session).reorder_drills(
-        current_user, team_id, event_id, body.drill_ids
+        current_user, team_id, event_id, body.section_id, body.drill_ids
     )
 
 
@@ -142,7 +202,14 @@ async def update_drill(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await TeamEventService(session).update_drill(
-        current_user, team_id, event_id, drill_id, body.title, body.description
+        current_user,
+        team_id,
+        event_id,
+        drill_id,
+        body.section_id,
+        body.title,
+        body.description,
+        body.duration_minutes,
     )
 
 

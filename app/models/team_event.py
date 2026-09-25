@@ -139,6 +139,32 @@ class TeamEvent(Base):
     )
 
 
+class TeamEventDrillSection(Base):
+    """A named block of the board ("Разминка", "Броски", ...) -- the coach
+    creates these freely (the frontend only suggests preset names), then
+    adds drills inside. Deleting a section deletes its drills.
+    """
+
+    __tablename__ = "team_event_drill_sections"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    team_event_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_events.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Dense 0..N-1 within a team_event_id, same convention as
+    # TeamEventDrill.order.
+    order: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class TeamEventDrill(Base):
     """One card on the board, TRAINING events only -- GAME has no board at
     all (see TeamEvent.board_status). Deliberately no difficulty_level,
@@ -161,13 +187,22 @@ class TeamEventDrill(Base):
         nullable=False,
         index=True,
     )
-    # Dense 0..N-1 within a team_event_id, kept contiguous by
+    section_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("team_event_drill_sections.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # Dense 0..N-1 within a section_id, kept contiguous by
     # TeamEventService.reorder_drills -- no UniqueConstraint on
-    # (team_event_id, order) since a reorder briefly passes through
+    # (section_id, order) since a reorder briefly passes through
     # colliding values before the final flush settles them.
     order: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Optional planned length -- sums into the section/board totals shown
+    # to players.
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

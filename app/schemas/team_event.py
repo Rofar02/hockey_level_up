@@ -16,17 +16,26 @@ from app.models.user import Position
 
 class TeamEventDrillRead(BaseModel):
     id: uuid.UUID
+    section_id: uuid.UUID
     order: int
     title: str
     description: str | None = None
+    duration_minutes: int | None = None
+
+
+class TeamEventDrillSectionRead(BaseModel):
+    id: uuid.UUID
+    order: int
+    name: str
+    drills: list[TeamEventDrillRead]
 
 
 class TeamEventRead(BaseModel):
     """Assembled manually in TeamEventService, not from_attributes --
-    `drills` is None while the board is a draft and the caller isn't the
+    `sections` is None while the board is a draft and the caller isn't the
     captain (event exists, content hidden), [] once published with no
-    cards yet, and populated once cards exist. GAME events always get
-    board_status=None/drills=None -- games have no board.
+    sections yet, and populated once they exist. GAME events always get
+    board_status=None/sections=None -- games have no board.
     """
 
     id: uuid.UUID
@@ -36,7 +45,7 @@ class TeamEventRead(BaseModel):
     starts_at: datetime
     opponent_name: str | None = None
     board_status: TeamEventPublishStatus | None = None
-    drills: list[TeamEventDrillRead] | None = None
+    sections: list[TeamEventDrillSectionRead] | None = None
     created_at: datetime
 
 
@@ -50,17 +59,37 @@ class TeamEventReschedule(BaseModel):
     starts_at: datetime
 
 
+class TeamEventDrillSectionCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class TeamEventDrillSectionUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class TeamEventDrillSectionReorder(BaseModel):
+    section_ids: list[uuid.UUID] = Field(min_length=1)
+
+
 class TeamEventDrillCreate(BaseModel):
+    section_id: uuid.UUID
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=180)
 
 
 class TeamEventDrillUpdate(BaseModel):
+    # A different section_id moves the drill to the end of that section.
+    section_id: uuid.UUID
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=180)
 
 
 class TeamEventDrillReorder(BaseModel):
+    """Order within ONE section -- drill_ids must be exactly its drills."""
+
+    section_id: uuid.UUID
     drill_ids: list[uuid.UUID] = Field(min_length=1)
 
 
@@ -124,7 +153,7 @@ class TeamEventLineupGroupRead(BaseModel):
 
 
 class TeamEventLineupRead(BaseModel):
-    """Assembled manually, same visibility contract as TeamEventRead.drills
+    """Assembled manually, same visibility contract as TeamEventRead.sections
     -- groups/unassigned are None while the lineup is a draft and the
     caller isn't the captain, populated once published (or always for the
     captain).

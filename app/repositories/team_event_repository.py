@@ -12,6 +12,7 @@ from app.models.team_event import (
     TeamEventAttendanceStatus,
     TeamEventDiaryEntry,
     TeamEventDrill,
+    TeamEventDrillSection,
     TeamEventLineupGroup,
     TeamEventLineupSlot,
     TeamEventPublishStatus,
@@ -81,11 +82,49 @@ class TeamEventRepository:
 
     # -- TeamEventDrill --
 
+    async def create_section(
+        self, team_event_id: uuid.UUID, order: int, name: str
+    ) -> TeamEventDrillSection:
+        section = TeamEventDrillSection(team_event_id=team_event_id, order=order, name=name)
+        self._session.add(section)
+        await self._session.flush()
+        return section
+
+    async def get_section(self, section_id: uuid.UUID) -> TeamEventDrillSection | None:
+        return await self._session.get(TeamEventDrillSection, section_id)
+
+    async def list_sections_for_event(self, team_event_id: uuid.UUID) -> list[TeamEventDrillSection]:
+        result = await self._session.execute(
+            select(TeamEventDrillSection)
+            .where(TeamEventDrillSection.team_event_id == team_event_id)
+            .order_by(TeamEventDrillSection.order)
+        )
+        return list(result.scalars().all())
+
+    async def delete_section(self, section: TeamEventDrillSection) -> None:
+        # Drills go with it (ON DELETE CASCADE) -- delete them through the
+        # session too so the identity map doesn't keep stale rows around.
+        for drill in await self.list_drills_for_section(section.id):
+            await self._session.delete(drill)
+        await self._session.delete(section)
+        await self._session.flush()
+
     async def create_drill(
-        self, team_event_id: uuid.UUID, order: int, title: str, description: str | None
+        self,
+        team_event_id: uuid.UUID,
+        section_id: uuid.UUID,
+        order: int,
+        title: str,
+        description: str | None,
+        duration_minutes: int | None,
     ) -> TeamEventDrill:
         drill = TeamEventDrill(
-            team_event_id=team_event_id, order=order, title=title, description=description
+            team_event_id=team_event_id,
+            section_id=section_id,
+            order=order,
+            title=title,
+            description=description,
+            duration_minutes=duration_minutes,
         )
         self._session.add(drill)
         await self._session.flush()
@@ -102,14 +141,13 @@ class TeamEventRepository:
         )
         return list(result.scalars().all())
 
-    async def next_drill_order(self, team_event_id: uuid.UUID) -> int:
-        # len() rather than MAX(order)+1: reorder_drills below always
-        # renumbers the full set densely from 0, so the count is always
-        # exactly the next free slot -- no gaps a MAX could skip past.
+    async def list_drills_for_section(self, section_id: uuid.UUID) -> list[TeamEventDrill]:
         result = await self._session.execute(
-            select(TeamEventDrill.id).where(TeamEventDrill.team_event_id == team_event_id)
+            select(TeamEventDrill)
+            .where(TeamEventDrill.section_id == section_id)
+            .order_by(TeamEventDrill.order)
         )
-        return len(result.all())
+        return list(result.scalars().all())
 
     async def delete_drill(self, drill: TeamEventDrill) -> None:
         await self._session.delete(drill)

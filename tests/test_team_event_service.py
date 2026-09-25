@@ -70,27 +70,35 @@ async def test_game_requires_opponent_name_training_rejects_it(db_session) -> No
 
 
 @pytest.mark.asyncio
-async def test_board_draft_hides_drills_from_non_captain(db_session) -> None:
+async def test_board_draft_hides_sections_from_non_captain(db_session) -> None:
     captain, player, team = await _make_team_with_player(db_session)
     events = TeamEventService(db_session)
 
     event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
-    await events.add_drill(captain, team.id, event.id, "Edge work", "Inside/outside edges")
+    assert event.sections == []
+    section = await events.add_section(captain, team.id, event.id, "Разминка")
+    await events.add_drill(
+        captain, team.id, event.id, section.id, "Edge work", "Inside/outside edges", 10
+    )
 
     as_player = await events.get_event(player, team.id, event.id)
     assert as_player.board_status == "draft"
-    assert as_player.drills is None
+    assert as_player.sections is None
 
     as_captain = await events.get_event(captain, team.id, event.id)
-    assert as_captain.drills is not None
-    assert len(as_captain.drills) == 1
+    assert as_captain.sections is not None
+    assert len(as_captain.sections) == 1
+    assert len(as_captain.sections[0].drills) == 1
 
     published = await events.publish_board(captain, team.id, event.id)
     assert published.board_status == "published"
 
     as_player_after = await events.get_event(player, team.id, event.id)
-    assert as_player_after.drills is not None
-    assert as_player_after.drills[0].title == "Edge work"
+    assert as_player_after.sections is not None
+    assert as_player_after.sections[0].name == "Разминка"
+    drill = as_player_after.sections[0].drills[0]
+    assert drill.title == "Edge work"
+    assert drill.duration_minutes == 10
 
 
 @pytest.mark.asyncio
@@ -102,34 +110,40 @@ async def test_game_event_has_no_board(db_session) -> None:
         captain, team.id, TeamEventType.GAME, _future(), "Rival HC"
     )
     assert event.board_status is None
-    assert event.drills is None
+    assert event.sections is None
 
     with pytest.raises(HTTPException) as exc_info:
-        await events.add_drill(captain, team.id, event.id, "Warmup", None)
+        await events.add_section(captain, team.id, event.id, "Разминка")
     assert exc_info.value.status_code == 409
 
 
 @pytest.mark.asyncio
-async def test_reorder_and_delete_drill_keep_order_dense(db_session) -> None:
+async def test_reorder_and_delete_drill_keep_order_dense_within_section(db_session) -> None:
     captain, player, team = await _make_team_with_player(db_session)
     events = TeamEventService(db_session)
 
     event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
-    first = await events.add_drill(captain, team.id, event.id, "Drill 1", None)
-    second = await events.add_drill(captain, team.id, event.id, "Drill 2", None)
-    third = await events.add_drill(captain, team.id, event.id, "Drill 3", None)
+    section = await events.add_section(captain, team.id, event.id, "Броски")
+    other = await events.add_section(captain, team.id, event.id, "Игра")
+    first = await events.add_drill(captain, team.id, event.id, section.id, "Drill 1", None, None)
+    second = await events.add_drill(captain, team.id, event.id, section.id, "Drill 2", None, None)
+    third = await events.add_drill(captain, team.id, event.id, section.id, "Drill 3", None, None)
+    elsewhere = await events.add_drill(captain, team.id, event.id, other.id, "Other 1", None, None)
     assert [d.order for d in (first, second, third)] == [0, 1, 2]
+    assert elsewhere.order == 0
 
     reordered = await events.reorder_drills(
-        captain, team.id, event.id, [third.id, first.id, second.id]
+        captain, team.id, event.id, section.id, [third.id, first.id, second.id]
     )
     assert [d.id for d in reordered] == [third.id, first.id, second.id]
     assert [d.order for d in reordered] == [0, 1, 2]
 
     await events.delete_drill(captain, team.id, event.id, first.id)
-    remaining = (await events.get_event(captain, team.id, event.id)).drills
+    sections = (await events.get_event(captain, team.id, event.id)).sections
+    remaining = sections[0].drills
     assert [d.id for d in remaining] == [third.id, second.id]
     assert [d.order for d in remaining] == [0, 1]
+    assert [d.id for d in sections[1].drills] == [elsewhere.id]
 
 
 @pytest.mark.asyncio
@@ -138,8 +152,77 @@ async def test_reorder_rejects_mismatched_drill_ids(db_session) -> None:
     events = TeamEventService(db_session)
 
     event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
-    await events.add_drill(captain, team.id, event.id, "Drill 1", None)
+    section = await events.add_section(captain, team.id, event.id, "Броски")
+    await events.add_drill(captain, team.id, event.id, section.id, "Drill 1", None, None)
 
     with pytest.raises(HTTPException) as exc_info:
-        await events.reorder_drills(captain, team.id, event.id, [uuid.uuid4()])
+        await events.reorder_drills(captain, team.id, event.id, section.id, [uuid.uuid4()])
     assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_moving_a_drill_to_another_section_appends_it_and_closes_the_gap(db_session) -> None:
+    captain, player, team = await _make_team_with_player(db_session)
+    events = TeamEventService(db_session)
+
+    event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
+    source = await events.add_section(captain, team.id, event.id, "Разминка")
+    target = await events.add_section(captain, team.id, event.id, "Броски")
+    moving = await events.add_drill(captain, team.id, event.id, source.id, "A", None, None)
+    staying = await events.add_drill(captain, team.id, event.id, source.id, "B", None, None)
+    await events.add_drill(captain, team.id, event.id, target.id, "C", None, None)
+
+    moved = await events.update_drill(
+        captain, team.id, event.id, moving.id, target.id, "A", "now in Броски", 15
+    )
+    assert moved.section_id == target.id
+    assert moved.order == 1
+    assert moved.duration_minutes == 15
+
+    sections = (await events.get_event(captain, team.id, event.id)).sections
+    assert [(d.id, d.order) for d in sections[0].drills] == [(staying.id, 0)]
+    assert [d.title for d in sections[1].drills] == ["C", "A"]
+
+
+@pytest.mark.asyncio
+async def test_section_rename_reorder_and_delete_with_its_drills(db_session) -> None:
+    captain, player, team = await _make_team_with_player(db_session)
+    events = TeamEventService(db_session)
+
+    event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
+    warmup = await events.add_section(captain, team.id, event.id, "Разминка")
+    shots = await events.add_section(captain, team.id, event.id, "Броски")
+    game = await events.add_section(captain, team.id, event.id, "Игра")
+    await events.add_drill(captain, team.id, event.id, shots.id, "Shot 1", None, None)
+
+    renamed = await events.rename_section(captain, team.id, event.id, game.id, "  Игра 3 на 3 ")
+    assert renamed.name == "Игра 3 на 3"
+
+    await events.reorder_sections(captain, team.id, event.id, [game.id, warmup.id, shots.id])
+    await events.delete_section(captain, team.id, event.id, shots.id)
+
+    sections = (await events.get_event(captain, team.id, event.id)).sections
+    assert [(s.name, s.order) for s in sections] == [("Игра 3 на 3", 0), ("Разминка", 1)]
+    assert all(s.drills == [] for s in sections)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await events.reorder_sections(captain, team.id, event.id, [game.id])
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_non_captain_cannot_edit_sections_and_foreign_section_is_404(db_session) -> None:
+    captain, player, team = await _make_team_with_player(db_session)
+    events = TeamEventService(db_session)
+
+    event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
+    other_event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
+    foreign = await events.add_section(captain, team.id, other_event.id, "Чужой")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await events.add_section(player, team.id, event.id, "Разминка")
+    assert exc_info.value.status_code == 403
+
+    with pytest.raises(HTTPException) as exc_info:
+        await events.add_drill(captain, team.id, event.id, foreign.id, "X", None, None)
+    assert exc_info.value.status_code == 404
