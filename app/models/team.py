@@ -38,17 +38,20 @@ class Team(Base):
 
 
 class TeamMembership(Base):
-    """One row per (team, user) a player is actively part of -- a user can
-    hold several of these at once (membership in multiple teams), which is
-    exactly why this isn't a single team_id column on User. The team's
-    captain also gets a row here (see TeamService.create_team), so member
-    listing never has to special-case the owner.
+    """One row per team a player is actively part of. v2 (2026-09-24): a
+    user can belong to at most ONE team app-wide -- unique on user_id alone,
+    not (team_id, user_id) -- so this is still a separate table rather than
+    a team_id column on User only for symmetry with TeamJoinRequest and to
+    keep TeamService's membership queries unchanged, not because multiple
+    rows per user are still possible. The team's captain also gets a row
+    here (see TeamService.create_team), so member listing never has to
+    special-case the owner. TeamService.create_team/join_by_code/
+    approve_request all guard on TeamRepository.get_membership_for_user
+    before creating a second row.
     """
 
     __tablename__ = "team_memberships"
-    __table_args__ = (
-        UniqueConstraint("team_id", "user_id", name="uq_team_memberships_team_user"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", name="uq_team_memberships_user"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

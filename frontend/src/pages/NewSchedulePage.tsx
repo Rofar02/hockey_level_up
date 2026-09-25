@@ -7,6 +7,8 @@ import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
 import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
+import { TeamDayPlanModal, TeamDayWeekLine } from '../components/teamEvents/TeamDayWeekParts'
+import { clearTeamEventCache } from '../hooks/useTeamEvent'
 import { ExerciseTechnique } from '../components/ExerciseTechnique'
 import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
@@ -156,6 +158,8 @@ interface DayRow {
   sessionType: DaySessionType
   completionStatus: DayCompletionStatus
   trainingSession: TrainingSessionRead | null
+  // Set while a team event the user said "going" to has taken the day over.
+  teamEventId: string | null
 }
 
 // "Started" (in-progress or done) is what actually gates editing controls
@@ -172,6 +176,7 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     sessionType: day.session_type,
     completionStatus: completionStatusFromBlocks(day.training_session?.blocks),
     trainingSession: day.training_session,
+    teamEventId: day.team_event_id,
   }))
 }
 
@@ -182,6 +187,7 @@ function rowsForWeek(dates: Date[]): DayRow[] {
     sessionType: 'rest',
     completionStatus: 'not-started',
     trainingSession: null,
+    teamEventId: null,
   }))
 }
 
@@ -200,6 +206,13 @@ export function NewSchedulePage() {
   // generating a plan), matching how ProfilePage tracks selectedSkillId by
   // id rather than by array position.
   const [previewIsoDate, setPreviewIsoDate] = useState<string | null>(null)
+  // A team training day opens the coach's plan instead of the plain day
+  // preview (which stays reachable from there as the app's warmup).
+  const [teamPlanIsoDate, setTeamPlanIsoDate] = useState<string | null>(null)
+  // Fresh team events on every visit (the coach may have published or
+  // changed the plan since) -- in a state initializer so it runs before
+  // the rows' own fetches, not after them like an effect would.
+  useState(clearTeamEventCache)
   // null = view mode (read-only); non-null = editing, holding the
   // session_type each day had when editing started, so
   // handleSaveChanges can diff against it (rather than per-row original*
@@ -450,6 +463,8 @@ export function NewSchedulePage() {
 
   const previewIndex = previewIsoDate !== null ? rows.findIndex((row) => row.isoDate === previewIsoDate) : -1
   const previewRow = previewIndex !== -1 ? rows[previewIndex] : null
+  const teamPlanIndex = teamPlanIsoDate !== null ? rows.findIndex((row) => row.isoDate === teamPlanIsoDate) : -1
+  const teamPlanRow = teamPlanIndex !== -1 ? rows[teamPlanIndex] : null
   const todayIso = toIsoDate(new Date())
 
   return (
@@ -519,6 +534,16 @@ export function NewSchedulePage() {
                 // above for why these stay mutually exclusive.
                 const isPreviewable = !started && trainingSession !== null
                 const isExpandable = started && trainingSession !== null
+                const isTeamTraining = row.teamEventId !== null && row.sessionType === 'on_ice'
+                const openRow = () => {
+                  if (isTeamTraining && !started) {
+                    setTeamPlanIsoDate(row.isoDate)
+                  } else if (isPreviewable) {
+                    setPreviewIsoDate(row.isoDate)
+                  } else if (isExpandable) {
+                    setExpandedRowIsoDate(isExpanded ? null : row.isoDate)
+                  }
+                }
                 const isExpanded = isExpandable && expandedRowIsoDate === row.isoDate
                 const badgeLabel = completionBadgeLabel(row, todayIso)
                 const isToday = row.isoDate === todayIso
@@ -557,23 +582,13 @@ export function NewSchedulePage() {
                     <div
                       role={isPreviewable || isExpandable ? 'button' : undefined}
                       tabIndex={isPreviewable || isExpandable ? 0 : undefined}
-                      onClick={
-                        isPreviewable
-                          ? () => setPreviewIsoDate(row.isoDate)
-                          : isExpandable
-                            ? () => setExpandedRowIsoDate(isExpanded ? null : row.isoDate)
-                            : undefined
-                      }
+                      onClick={isPreviewable || isExpandable ? openRow : undefined}
                       onKeyDown={
                         isPreviewable || isExpandable
                           ? (event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault()
-                                if (isPreviewable) {
-                                  setPreviewIsoDate(row.isoDate)
-                                } else {
-                                  setExpandedRowIsoDate(isExpanded ? null : row.isoDate)
-                                }
+                                openRow()
                               }
                             }
                           : undefined
@@ -592,12 +607,19 @@ export function NewSchedulePage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[row.sessionType]}`}
-                        >
-                          <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
-                          {DAY_SESSION_TYPE_LABELS[row.sessionType]}
-                        </span>
+                        {row.teamEventId !== null ? (
+                          <span className="flex items-center gap-1.5 text-sm text-accent-ice">
+                            <i className="ti ti-users-group" aria-hidden="true" />
+                            {row.sessionType === 'game' ? 'Командная игра' : 'Командная тренировка'}
+                          </span>
+                        ) : (
+                          <span
+                            className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[row.sessionType]}`}
+                          >
+                            <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
+                            {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+                          </span>
+                        )}
                         {badgeLabel !== undefined && (
                           <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
                             {badgeLabel}
@@ -613,7 +635,23 @@ export function NewSchedulePage() {
                         )}
                       </div>
                     </div>
-                    <DaySummary row={row} />
+                    {row.teamEventId !== null ? (
+                      <div className="flex flex-col gap-2">
+                        <TeamDayWeekLine eventId={row.teamEventId} />
+                        {isTeamTraining && (
+                          <button
+                            type="button"
+                            onClick={() => setTeamPlanIsoDate(row.isoDate)}
+                            className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-accent-ice/30 bg-accent-ice/10 text-sm font-medium text-accent-ice transition-colors hover:bg-accent-ice/15"
+                          >
+                            <i className="ti ti-clipboard-list" aria-hidden="true" />
+                            План тренировки
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <DaySummary row={row} />
+                    )}
                     {isExpanded && trainingSession !== null && (
                       <StartedDayExerciseList
                         trainingSession={trainingSession}
@@ -698,6 +736,22 @@ export function NewSchedulePage() {
             sessionType={previewRow.sessionType}
             trainingSession={previewRow.trainingSession}
             onClose={() => setPreviewIsoDate(null)}
+          />
+        )}
+
+        {teamPlanRow !== null && teamPlanRow.teamEventId !== null && (
+          <TeamDayPlanModal
+            title={`${WEEKDAY_LABELS[teamPlanIndex]}, ${formatShortDate(teamPlanRow.date)} — командная тренировка`}
+            eventId={teamPlanRow.teamEventId}
+            onClose={() => setTeamPlanIsoDate(null)}
+            onOpenWarmup={
+              teamPlanRow.trainingSession !== null && !isStarted(teamPlanRow)
+                ? () => {
+                    setTeamPlanIsoDate(null)
+                    setPreviewIsoDate(teamPlanRow.isoDate)
+                  }
+                : null
+            }
           />
         )}
 

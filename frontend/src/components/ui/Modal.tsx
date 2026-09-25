@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { lockBodyScroll, unlockBodyScroll } from '../../utils/bodyScrollLock'
 import { useSuppressCoachmarks } from '../../hooks/useSuppressCoachmarks'
 
@@ -28,13 +29,20 @@ export function Modal({ title, onClose, children }: ModalProps) {
   // through/over a modal the same way it briefly rendered over
   // OnboardingTour's welcome screen (found live, 2026-08-30).
   useSuppressCoachmarks(true)
+  const titleId = useId()
 
-  return (
+  // Portaled to <body>: rendered in place, a modal sits inside its page's
+  // own stacking context and BottomNav (fixed, z-40) paints over the
+  // backdrop and the bottom of the card on a phone.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         // Full white/10 border for definition against the black/60 backdrop
         // (a CARD_CLASS top-border-only card would read as unbounded while
         // floating), but the top edge picks up the same icy tint CARD_CLASS
@@ -45,18 +53,21 @@ export function Modal({ title, onClose, children }: ModalProps) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/5 px-6 py-4">
-          <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+          <h2 id={titleId} className="text-lg font-semibold text-text-primary">
+            {title}
+          </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Закрыть"
-            className="text-text-secondary transition-colors hover:text-text-primary"
+            className="-mr-3 flex h-11 w-11 shrink-0 items-center justify-center text-text-secondary transition-colors hover:text-text-primary"
           >
             <i className="ti ti-x text-xl" aria-hidden="true" />
           </button>
         </div>
         <div className="overflow-y-auto p-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

@@ -26,6 +26,8 @@ from app.routers import (
     session_blocks,
     set_completions,
     skills,
+    team_events,
+    team_ice_schedule_templates,
     teams,
     training_block,
     training_parties,
@@ -34,6 +36,7 @@ from app.routers import (
 )
 from app.services.checkin_scheduler import run_checkin_scheduler
 from app.services.reminder_scheduler import run_reminder_scheduler
+from app.services.team_event_scheduler import run_team_event_scheduler
 
 settings = get_settings()
 
@@ -52,11 +55,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     relay_task = asyncio.create_task(run_outbox_relay())
     reminder_task = asyncio.create_task(run_reminder_scheduler())
     checkin_task = asyncio.create_task(run_checkin_scheduler())
+    team_event_task = asyncio.create_task(run_team_event_scheduler())
     yield
     consumer_task.cancel()
     relay_task.cancel()
     reminder_task.cancel()
     checkin_task.cancel()
+    team_event_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await consumer_task
     with contextlib.suppress(asyncio.CancelledError):
@@ -65,6 +70,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await reminder_task
     with contextlib.suppress(asyncio.CancelledError):
         await checkin_task
+    with contextlib.suppress(asyncio.CancelledError):
+        await team_event_task
     await close_publisher()
 
 
@@ -96,6 +103,8 @@ app.include_router(leaderboard.router)
 app.include_router(push.router)
 app.include_router(admin_users.router)
 app.include_router(teams.router)
+app.include_router(team_events.router)
+app.include_router(team_ice_schedule_templates.router)
 app.include_router(friends.router)
 app.include_router(training_parties.router)
 app.include_router(quests.router)

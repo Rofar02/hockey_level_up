@@ -81,6 +81,17 @@ const TeamRankingPage = lazy(() =>
 const TeamDetailPage = lazy(() =>
   import('./pages/TeamDetailPage').then((m) => ({ default: m.TeamDetailPage })),
 )
+const TeamEventsPage = lazy(() =>
+  import('./pages/TeamEventsPage').then((m) => ({ default: m.TeamEventsPage })),
+)
+const TeamEventDetailPage = lazy(() =>
+  import('./pages/TeamEventDetailPage').then((m) => ({ default: m.TeamEventDetailPage })),
+)
+const TeamIceScheduleTemplatesPage = lazy(() =>
+  import('./pages/TeamIceScheduleTemplatesPage').then((m) => ({
+    default: m.TeamIceScheduleTemplatesPage,
+  })),
+)
 // Also lazy -- the only page pulling in recharts, kept out of the main
 // bundle for everyone who never opens it.
 const AnalyticsPage = lazy(() =>
@@ -186,6 +197,12 @@ function App() {
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/teams/leaderboard" element={<TeamRankingPage />} />
         <Route path="/teams/:teamId" element={<TeamDetailPage />} />
+        <Route path="/teams/:teamId/events" element={<TeamEventsPage />} />
+        <Route path="/teams/:teamId/events/:eventId" element={<TeamEventDetailPage />} />
+        <Route
+          path="/teams/:teamId/ice-schedule-templates"
+          element={<TeamIceScheduleTemplatesPage />}
+        />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/coach" element={<CoachPage />} />
         <Route path="/reference" element={<ReferencePage />} />

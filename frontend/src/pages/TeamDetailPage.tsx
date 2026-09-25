@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { NextEventCard } from '../components/teamEvents/NextEventCard'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
@@ -402,6 +403,8 @@ export function TeamDetailPage() {
                 </span>
               )}
             </div>
+
+            <NextEventCard teamId={teamId!} isCaptain={team.is_captain} />
 
             <div className="flex flex-col gap-4">
               <div className="flex border-b border-white/10">

@@ -122,6 +122,40 @@ class ScheduleRepository:
         result = await self._session.execute(query)
         return result.unique().scalar_one_or_none()
 
+    async def get_day_plan_by_id(self, user_id: uuid.UUID, day_plan_id: uuid.UUID) -> DayPlan | None:
+        """Direct (user_id, day_plan_id) lookup -- backs
+        ScheduleService.get_day_plan_by_id. Same eager-load shape as
+        get_day_plan_for_date; the WeeklyPlan.user_id filter is the ownership
+        check, so another user's id simply comes back None (-> 404).
+        """
+        query = (
+            select(DayPlan)
+            .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
+            .where(WeeklyPlan.user_id == user_id, DayPlan.id == day_plan_id)
+            .options(
+                selectinload(DayPlan.training_session)
+                .selectinload(TrainingSession.blocks)
+                .selectinload(SessionBlock.exercise)
+            )
+        )
+        result = await self._session.execute(query)
+        return result.unique().scalar_one_or_none()
+
+    async def list_day_plans_for_team_event(
+        self, user_id: uuid.UUID, team_event_id: uuid.UUID
+    ) -> list[DayPlan]:
+        """The user's days a TeamEvent has taken over (DayPlan.team_event_id)
+        -- looked up by event, not by date, so a rescheduled event's old day
+        is still found after TeamEvent.starts_at has already moved.
+        """
+        query = (
+            select(DayPlan)
+            .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
+            .where(WeeklyPlan.user_id == user_id, DayPlan.team_event_id == team_event_id)
+        )
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
     async def get_session_block_with_owner(self, block_id: uuid.UUID) -> SessionBlock | None:
         query = (
             select(SessionBlock)

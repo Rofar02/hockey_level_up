@@ -11,6 +11,7 @@ from app.models.user import User
 from app.routers.deps import get_current_user, require_premium
 from app.schemas.analytics import AnalyticsSummaryRead
 from app.schemas.coach_chat import (
+    CoachAttentionRead,
     CoachChatMessageCreate,
     CoachChatMessageRead,
     CoachChatReplyRead,
@@ -40,6 +41,7 @@ from app.schemas.user_temporary_restriction import (
     UserTemporaryRestrictionRead,
 )
 from app.services.analytics_service import AnalyticsService
+from app.services.coach_attention_service import CoachAttentionService
 from app.services.coach_chat_service import CoachChatService
 from app.services.coach_personality_phrases import get_rest_done_body
 from app.services.coachmark_service import CoachmarkService
@@ -85,6 +87,16 @@ async def mark_coach_personality_intro_seen(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await UserService(session).mark_coach_personality_intro_seen(current_user)
+
+
+@router.get("/me/coach-attention", response_model=CoachAttentionRead)
+async def get_coach_attention(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Whether (and why) the tab bar's AI coach button should glow."""
+    reason = await CoachAttentionService(session).get_reason(current_user)
+    return CoachAttentionRead(reason=reason)
 
 
 @router.get("/me/coachmarks-seen", response_model=list[str])

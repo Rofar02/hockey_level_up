@@ -33,6 +33,7 @@ class TeamService:
     # -- Team --
 
     async def create_team(self, user: User, name: str) -> TeamRead:
+        await self._require_no_team(user)
         invite_code = await self._generate_invite_code()
         team = await self._teams.create_team(name=name, owner_id=user.id, invite_code=invite_code)
         # Captain is always a member too -- keeps list_members simple, no
@@ -187,6 +188,7 @@ class TeamService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Already a member of this team"
             )
+        await self._require_no_team(user)
         if await self._teams.get_pending_request(team.id, user.id) is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -229,6 +231,14 @@ class TeamService:
 
     async def approve_request(self, user: User, request_id: uuid.UUID) -> TeamJoinRequestRead:
         request, team, requester = await self._get_pending_request_context(user, request_id)
+        # Requester could have joined a different team between requesting
+        # and now (join_by_code's own _require_no_team check only ran at
+        # request time) -- re-check right before creating the membership row.
+        if await self._teams.get_membership_for_user(requester.id) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Requester already joined another team",
+            )
         await self._teams.create_membership(team.id, requester.id)
         await self._teams.update_join_request_status(request, TeamJoinRequestStatus.APPROVED)
         await self._session.commit()
@@ -277,6 +287,13 @@ class TeamService:
         return await self._ratings.get_team_rankings(limit, offset)
 
     # -- shared helpers --
+
+    async def _require_no_team(self, user: User) -> None:
+        if await self._teams.get_membership_for_user(user.id) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Already a member of a team -- leave it first",
+            )
 
     async def _get_team_or_404(self, team_id: uuid.UUID) -> Team:
         team = await self._teams.get_by_id(team_id)

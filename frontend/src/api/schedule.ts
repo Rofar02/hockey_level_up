@@ -28,6 +28,13 @@ export function getDayPlan(dateIso: string, accessToken: string): Promise<DayPla
   return apiGet<DayPlanRead>(`/schedule/day-plan?date=${dateIso}`, accessToken)
 }
 
+// A single day by id, from any week -- TrainingSessionPage/TrainingDiaryPage
+// open a day by the id in their URL, which can point at any past week (e.g.
+// a DiaryPage entry). 404s for an id that isn't one of the user's own days.
+export function getDayPlanById(dayPlanId: string, accessToken: string): Promise<DayPlanRead> {
+  return apiGet<DayPlanRead>(`/schedule/day-plans/${dayPlanId}`, accessToken)
+}
+
 export function createWeeklyPlan(
   payload: WeeklyPlanCreate,
   accessToken: string,

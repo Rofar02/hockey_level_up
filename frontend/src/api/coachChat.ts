@@ -1,5 +1,5 @@
 import { apiGet, apiPostAuth } from './client'
-import type { CoachChatMessageRead, CoachChatReplyRead, ProposedActionRead } from '../types/coachChat'
+import type { CoachAttentionRead, CoachChatMessageRead, CoachChatReplyRead, ProposedActionRead } from '../types/coachChat'
 
 export function sendCoachChatMessage(
   message: string,
@@ -35,4 +35,8 @@ export function dismissProposedAction(
     {},
     accessToken,
   )
+}
+
+export function getCoachAttention(accessToken: string): Promise<CoachAttentionRead> {
+  return apiGet<CoachAttentionRead>('/users/me/coach-attention', accessToken)
 }

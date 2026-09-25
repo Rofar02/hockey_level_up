@@ -10,9 +10,11 @@ import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { ShieldIcon } from '../components/ui/ShieldIcon'
 import * as authApi from '../api/auth'
 import * as coachChatApi from '../api/coachChat'
+import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import type { CoachChatMessageRead, ProposedActionRead } from '../types/coachChat'
+import { COACH_CHAT_OPENED_HINT } from '../types/coachChat'
+import type { CoachAttentionReason, CoachChatMessageRead, ProposedActionRead } from '../types/coachChat'
 import type { CoachPersonality } from '../types/user'
 
 export function CoachPage() {
@@ -30,6 +32,33 @@ export function CoachPage() {
     }
   }, [user])
 
+  // Why the tab bar button was glowing, read before this visit marks the
+  // chat as opened (which ends the first_visit glow).
+  const [attention, setAttention] = useState<CoachAttentionReason | null>(null)
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    coachChatApi
+      .getCoachAttention(accessToken)
+      .catch(() => ({ reason: null }))
+      .then((result) => {
+        // Only the run that wasn't cancelled marks the chat as opened --
+        // under StrictMode's double effect run, a cancelled first run
+        // marking it could land before the second run's read and hide the
+        // first_visit note.
+        if (cancelled) {
+          return
+        }
+        setAttention(result.reason)
+        usersApi.markCoachmarkSeen(COACH_CHAT_OPENED_HINT, accessToken).catch(() => undefined)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
@@ -43,6 +72,8 @@ export function CoachPage() {
             </span>
           </h1>
         </div>
+
+        {attention !== null && <AttentionNote reason={attention} />}
 
         {/* 2026-09-17 (audit item #7): the backend no longer walls chat
             access behind premium at all -- CoachChatService.send_message
@@ -65,6 +96,32 @@ export function CoachPage() {
         <CoachPersonalityIntroModal onClose={() => setShowPersonalityIntro(false)} />
       )}
     </div>
+  )
+}
+
+const ATTENTION_NOTES: Record<CoachAttentionReason, { icon: string; text: string }> = {
+  pending_action: {
+    icon: 'ti-checklist',
+    text: 'Тренер предложил изменение и ждёт вашего ответа — примите или отклоните его ниже.',
+  },
+  checkin: {
+    icon: 'ti-heart-rate-monitor',
+    text: 'Ограничение закончилось — расскажите тренеру, как самочувствие, и он подстроит план.',
+  },
+  first_visit: {
+    icon: 'ti-sparkles',
+    text: 'Это ваш ИИ-тренер: спросите о тренировках, нагрузке, восстановлении или подготовке к игре.',
+  },
+}
+
+// The reason the tab bar button was glowing, so the glow never feels random.
+function AttentionNote({ reason }: { reason: CoachAttentionReason }) {
+  const note = ATTENTION_NOTES[reason]
+  return (
+    <p className="flex items-start gap-2.5 rounded-xl border border-accent-persimmon/30 bg-accent-persimmon/10 px-3 py-2.5 text-sm text-[#F5F7FA]">
+      <i className={`ti ${note.icon} mt-0.5 text-base text-accent-persimmon`} aria-hidden="true" />
+      {note.text}
+    </p>
   )
 }
 

@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+  /* Height of the strip the floating BottomNav capsule occupies (capsule,
+     its raised coach button, the gap under it, the home indicator) -- the
+     one number pages and bottom-pinned bars reserve so nothing ends up
+     under it. Keep in sync with BottomNav's own padding/height. */
+  :root {
+    --bottom-nav-space: calc(104px + env(safe-area-inset-bottom));
+  }
+
   /* overflow-x hidden on both html and body: any child that's briefly wider
      than the viewport (a badge row, an unwrapped label) must not turn into a
      horizontally scrollable page. On mobile browsers a `position: fixed`
@@ -90,4 +98,36 @@
 
 .animate-shimmer {
   animation: shimmer 2.6s ease-in-out infinite;
+}
+
+/* BottomNav's AI coach button, only while the coach has something for the
+   player (see useCoachAttention): a soft ring that swells out and fades
+   every few seconds -- draws the eye without flashing.
+   Off for anyone who asked their OS for less motion. */
+@keyframes coach-glow {
+  0% {
+    box-shadow:
+      0 6px 18px -4px rgba(255, 106, 61, 0.6),
+      0 0 0 0 rgba(255, 106, 61, 0.32);
+  }
+  70% {
+    box-shadow:
+      0 6px 20px -3px rgba(255, 106, 61, 0.7),
+      0 0 0 7px rgba(255, 106, 61, 0);
+  }
+  100% {
+    box-shadow:
+      0 6px 18px -4px rgba(255, 106, 61, 0.6),
+      0 0 0 0 rgba(255, 106, 61, 0);
+  }
+}
+
+.coach-glow {
+  animation: coach-glow 3s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-glow {
+    animation: none;
+  }
 }

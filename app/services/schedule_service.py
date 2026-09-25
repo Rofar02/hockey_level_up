@@ -57,11 +57,13 @@ from app.models.schedule import (
     TrainingSession,
     WeeklyPlan,
 )
+from app.models.team_event import TeamEvent, TeamEventType
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.progress_repository import ProgressRepository
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.skill_repository import SkillRepository
+from app.repositories.team_event_repository import TeamEventRepository
 from app.repositories.training_diary_repository import TrainingDiaryRepository
 from app.repositories.user_movement_pattern_variant_repository import (
     UserMovementPatternVariantRepository,
@@ -103,6 +105,14 @@ _SESSION_TYPE_TO_CATEGORY = {
 # exercise in" without duplicating the literal pattern lists a second time.
 # Role 4 (accessories) has no fixed set of its own -- it's everything these
 # three don't claim, computed by _role_patterns_for below.
+# What a TeamEvent the user marked "going" turns their day into -- see
+# ScheduleService.apply_team_event_to_day. A team practice is exactly what
+# ON_ICE already models (coach-run ice time, app adds warmup + cooldown).
+_TEAM_EVENT_SESSION_TYPE: dict[TeamEventType, DaySessionType] = {
+    TeamEventType.TRAINING: DaySessionType.ON_ICE,
+    TeamEventType.GAME: DaySessionType.GAME,
+}
+
 _EXPLOSIVE_PATTERNS: tuple[MovementPattern, ...] = (
     MovementPattern.LOCOMOTION, MovementPattern.STICK_HANDLING, MovementPattern.COORDINATION,
 )
@@ -271,15 +281,31 @@ class ScheduleService:
         training_block = await self._training_block_service.get_or_create_and_resolve(user.id)
         block_phase = await self._overload_service.apply_brakes(user, training_block.phase)
         archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
-        endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(payload.days)
+        # Team events the user already said "going" to take their days over
+        # from the start -- same result apply_team_event_to_day gives a week
+        # that was declared before the answer came in.
+        team_events_by_date = await self._going_team_events_by_date(user, dates)
+        effective_days = [
+            DayPlanIn(
+                date=day_in.date,
+                session_type=_TEAM_EVENT_SESSION_TYPE[team_events_by_date[day_in.date].event_type],
+            )
+            if day_in.date in team_events_by_date
+            else day_in
+            for day_in in payload.days
+        ]
+        endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(effective_days)
 
         weekly_plan = WeeklyPlan(
             user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
         )
-        for day_in in payload.days:
+        for requested_day, day_in in zip(payload.days, effective_days):
+            team_event = team_events_by_date.get(day_in.date)
             day_plan = DayPlan(
                 date=day_in.date,
                 session_type=day_in.session_type,
+                team_event_id=team_event.id if team_event is not None else None,
+                replaced_session_type=requested_day.session_type if team_event is not None else None,
             )
             if day_in.session_type != DaySessionType.REST:
                 day_plan.training_session = await self._build_session_for_day(
@@ -413,35 +439,165 @@ class ScheduleService:
                 )
                 continue
 
-            day_plan.session_type = day_in.session_type
-            if day_plan.training_session is not None:
-                # Explicit delete + flush *before* attaching a replacement --
-                # TrainingSession.day_plan_id is unique, and simply
-                # reassigning the relationship would rely on the ORM
-                # ordering this row's DELETE before the new row's INSERT
-                # within the same flush, which SQLAlchemy does not
-                # guarantee (inserts/updates are flushed before deletes).
-                await self._session.delete(day_plan.training_session)
-                await self._session.flush()
-                day_plan.training_session = None
-
-            if day_in.session_type != DaySessionType.REST:
-                day_plan.training_session = await self._build_session_for_day(
-                    day_in.session_type,
-                    user,
-                    block_phase,
-                    training_block,
-                    today=day_in.date,
-                    archetype_rotation=archetype_rotation,
-                    guarantee_endurance=day_in.date == endurance_date,
-                    guarantee_locomotion=day_in.date == locomotion_date,
-                )
+            # A manual edit wins over a team event's takeover of this day --
+            # drop the link so a later "not going"/cancel doesn't revert the
+            # user's own choice (see revert_team_event_days).
+            day_plan.team_event_id = None
+            day_plan.replaced_session_type = None
+            await self._rebuild_day_session(
+                day_plan,
+                day_in.session_type,
+                user,
+                block_phase,
+                training_block,
+                archetype_rotation=archetype_rotation,
+                guarantee_endurance=day_in.date == endurance_date,
+                guarantee_locomotion=day_in.date == locomotion_date,
+            )
 
         await self._session.commit()
         saved = await self._schedule.get_by_id_with_details(weekly_plan.id)
         return WeeklyPlanPatchResult(
             weekly_plan=await self._to_read_schema(saved), conflicts=conflicts
         )
+
+    # -- team events --
+
+    async def apply_team_event_to_day(self, user: User, event: TeamEvent) -> bool:
+        """The user marked `event` "going": their day on the event's local
+        date becomes ON_ICE (training) or GAME, remembering what it was in
+        DayPlan.replaced_session_type. Only a day that exists (its week is
+        declared -- otherwise create_weekly_plan picks the event up later),
+        isn't in the past and isn't started; anything else is left alone.
+        Doesn't commit (TeamEventService commits with the attendance row).
+        Returns whether the day is now linked to the event.
+        """
+        tz = ZoneInfo(user.timezone or "UTC")
+        event_date = event.starts_at.astimezone(tz).date()
+        if event_date < datetime.now(tz).date():
+            return False
+        weekly_plan = await self._schedule.get_current(user.id, event_date)
+        if weekly_plan is None:
+            return False
+        day_plan = next((day for day in weekly_plan.day_plans if day.date == event_date), None)
+        if day_plan is None or self._has_completed_block(day_plan):
+            return False
+
+        if day_plan.team_event_id is None:
+            day_plan.replaced_session_type = day_plan.session_type
+        day_plan.team_event_id = event.id
+        target = _TEAM_EVENT_SESSION_TYPE[event.event_type]
+        if day_plan.session_type != target:
+            await self._retype_day(user, weekly_plan, day_plan, target)
+        await self._session.flush()
+        return True
+
+    async def revert_team_event_days(self, user: User, team_event_id: uuid.UUID) -> None:
+        """Undo apply_team_event_to_day -- "not going", attendance cleared,
+        event cancelled or moved. Found by DayPlan.team_event_id, not by
+        date, so a rescheduled event's old day is still found. A past or
+        started day keeps what actually happened. Doesn't commit.
+        """
+        tz = ZoneInfo(user.timezone or "UTC")
+        today = datetime.now(tz).date()
+        for linked_day in await self._schedule.list_day_plans_for_team_event(user.id, team_event_id):
+            if linked_day.date < today:
+                continue
+            weekly_plan = await self._schedule.get_current(user.id, linked_day.date)
+            if weekly_plan is None:
+                continue
+            day_plan = next(day for day in weekly_plan.day_plans if day.id == linked_day.id)
+            if self._has_completed_block(day_plan):
+                continue
+            original = day_plan.replaced_session_type
+            day_plan.team_event_id = None
+            day_plan.replaced_session_type = None
+            if original is not None and day_plan.session_type != original:
+                await self._retype_day(user, weekly_plan, day_plan, original)
+        await self._session.flush()
+
+    async def _retype_day(
+        self,
+        user: User,
+        weekly_plan: WeeklyPlan,
+        day_plan: DayPlan,
+        session_type: DaySessionType,
+    ) -> None:
+        """Single-day version of _patch_weekly_plan's per-day rebuild, with
+        the same block/phase/rotation/guarantee context it builds per batch."""
+        training_block = await self._training_block_for_weekly_plan(weekly_plan)
+        block_phase = await self._overload_service.apply_brakes(
+            user, training_block.phase if training_block is not None else BlockPhase.ACCUMULATION
+        )
+        archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
+        endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(
+            [DayPlanIn(date=day_plan.date, session_type=session_type)]
+        )
+        await self._rebuild_day_session(
+            day_plan,
+            session_type,
+            user,
+            block_phase,
+            training_block,
+            archetype_rotation=archetype_rotation,
+            guarantee_endurance=day_plan.date == endurance_date,
+            guarantee_locomotion=day_plan.date == locomotion_date,
+        )
+
+    async def _going_team_events_by_date(
+        self, user: User, dates: list[date]
+    ) -> dict[date, TeamEvent]:
+        """Events the user marked "going" that fall on `dates` in their own
+        timezone -- the earliest one wins a date that has two."""
+        tz = ZoneInfo(user.timezone or "UTC")
+        starts_from = datetime.combine(min(dates), datetime.min.time(), tzinfo=tz)
+        starts_before = datetime.combine(max(dates) + timedelta(days=1), datetime.min.time(), tzinfo=tz)
+        events = await TeamEventRepository(self._session).list_going_events_for_user(
+            user.id, starts_from, starts_before
+        )
+        by_date: dict[date, TeamEvent] = {}
+        for event in events:
+            by_date.setdefault(event.starts_at.astimezone(tz).date(), event)
+        return by_date
+
+    async def _rebuild_day_session(
+        self,
+        day_plan: DayPlan,
+        session_type: DaySessionType,
+        user: User,
+        block_phase: BlockPhase,
+        training_block: TrainingBlock | None,
+        *,
+        archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None,
+        guarantee_endurance: bool,
+        guarantee_locomotion: bool,
+    ) -> None:
+        """Retype one day and rebuild its TrainingSession from scratch --
+        shared by _patch_weekly_plan and the team-event day sync. Caller has
+        already checked the day isn't started; doesn't commit."""
+        day_plan.session_type = session_type
+        if day_plan.training_session is not None:
+            # Explicit delete + flush *before* attaching a replacement --
+            # TrainingSession.day_plan_id is unique, and simply
+            # reassigning the relationship would rely on the ORM
+            # ordering this row's DELETE before the new row's INSERT
+            # within the same flush, which SQLAlchemy does not
+            # guarantee (inserts/updates are flushed before deletes).
+            await self._session.delete(day_plan.training_session)
+            await self._session.flush()
+            day_plan.training_session = None
+
+        if session_type != DaySessionType.REST:
+            day_plan.training_session = await self._build_session_for_day(
+                session_type,
+                user,
+                block_phase,
+                training_block,
+                today=day_plan.date,
+                archetype_rotation=archetype_rotation,
+                guarantee_endurance=guarantee_endurance,
+                guarantee_locomotion=guarantee_locomotion,
+            )
 
     async def _training_block_for_weekly_plan(self, weekly_plan: WeeklyPlan) -> TrainingBlock | None:
         """Read-only: whatever block this week is already tied to.
@@ -2767,6 +2923,7 @@ class ScheduleService:
             date=day.date,
             session_type=day.session_type,
             training_session=session_read,
+            team_event_id=day.team_event_id,
         )
 
     async def _to_read_schema(self, weekly_plan: WeeklyPlan) -> WeeklyPlanRead:
@@ -2812,6 +2969,24 @@ class ScheduleService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No day plan for {target_date.isoformat()}",
             )
+        return await self._single_day_plan_to_read_schema(day)
+
+    async def get_day_plan_by_id(self, user: User, day_plan_id: uuid.UUID) -> DayPlanRead:
+        """GET /schedule/day-plans/{day_plan_id} -- a single day by id, from
+        any week. Backs TrainingSessionPage/TrainingDiaryPage, which used to
+        scan only the current + next WeeklyPlan for the id, so opening a
+        diary entry (DiaryPage links by day_plan_id) for a day 2+ weeks old
+        showed "Тренировка не найдена." even though the day still existed.
+        """
+        day = await self._schedule.get_day_plan_by_id(user.id, day_plan_id)
+        if day is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No day plan {day_plan_id}",
+            )
+        return await self._single_day_plan_to_read_schema(day)
+
+    async def _single_day_plan_to_read_schema(self, day: DayPlan) -> DayPlanRead:
         exercise_ids = (
             [block.exercise_id for block in day.training_session.blocks]
             if day.training_session is not None
