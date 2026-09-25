@@ -6,6 +6,7 @@ import {
   apiPutAuth,
 } from './client'
 import type {
+  DrillDiagram,
   TeamEventAttendanceRead,
   TeamEventAttendanceRosterRead,
   TeamEventAttendanceSetPayload,
@@ -155,6 +156,21 @@ export function deleteDrill(
   accessToken: string,
 ): Promise<void> {
   return apiDeleteAuth<void>(`/teams/${teamId}/events/${eventId}/drills/${drillId}`, accessToken)
+}
+
+// Captain-only. Replaces the drill's whole rink scheme; null clears it.
+export function setDrillDiagram(
+  teamId: string,
+  eventId: string,
+  drillId: string,
+  diagram: DrillDiagram | null,
+  accessToken: string,
+): Promise<TeamEventDrillRead> {
+  return apiPutAuth<TeamEventDrillRead>(
+    `/teams/${teamId}/events/${eventId}/drills/${drillId}/diagram`,
+    { diagram },
+    accessToken,
+  )
 }
 
 // Order within one section -- drillIds must be exactly that section's drills.

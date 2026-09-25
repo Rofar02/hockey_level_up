@@ -226,3 +226,141 @@ async def test_non_captain_cannot_edit_sections_and_foreign_section_is_404(db_se
     with pytest.raises(HTTPException) as exc_info:
         await events.add_drill(captain, team.id, event.id, foreign.id, "X", None, None)
     assert exc_info.value.status_code == 404
+
+
+def _diagram(**overrides):
+    from app.schemas.team_event import DrillDiagram
+
+    data = {
+        "tokens": [
+            {"id": "t1", "kind": "own", "position": "F", "number": 17, "x": 0.3, "y": 0.66},
+            {"id": "t2", "kind": "opponent", "x": 0.5, "y": 0.2},
+            {"id": "p", "kind": "puck", "x": 0.31, "y": 0.64},
+        ],
+        "arrows": [
+            {
+                "id": "a1",
+                "kind": "skate_puck",
+                "from_token": "t1",
+                "start": {"x": 0.3, "y": 0.66},
+                "end": {"x": 0.4, "y": 0.35},
+            },
+            {"id": "a2", "kind": "pass", "start": {"x": 0.4, "y": 0.35}, "end": {"x": 0.6, "y": 0.25}},
+        ],
+    }
+    data.update(overrides)
+    return DrillDiagram.model_validate(data)
+
+
+@pytest.mark.asyncio
+async def test_drill_diagram_round_trips_and_clears(db_session) -> None:
+    captain, player, team = await _make_team_with_player(db_session)
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
+    section = await events.add_section(captain, team.id, event.id, "Броски")
+    drill = await events.add_drill(captain, team.id, event.id, section.id, "2 в 1", None, None)
+    assert drill.diagram is None
+
+    saved = await events.set_drill_diagram(captain, team.id, event.id, drill.id, _diagram())
+    assert saved.diagram is not None
+    assert [t.id for t in saved.diagram.tokens] == ["t1", "t2", "p"]
+    assert saved.diagram.arrows[0].from_token == "t1"
+
+    await events.publish_board(captain, team.id, event.id)
+    as_player = await events.get_event(player, team.id, event.id)
+    assert as_player.sections[0].drills[0].diagram == saved.diagram
+
+    cleared = await events.set_drill_diagram(captain, team.id, event.id, drill.id, None)
+    assert cleared.diagram is None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await events.set_drill_diagram(player, team.id, event.id, drill.id, _diagram())
+    assert exc_info.value.status_code == 403
+
+
+def test_drill_diagram_rejects_bad_shapes() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        _diagram(tokens=[{"id": "t1", "kind": "own", "x": 1.5, "y": 0.5}], arrows=[])
+    with pytest.raises(ValidationError):
+        _diagram(
+            tokens=[],
+            arrows=[
+                {
+                    "id": "a1",
+                    "kind": "pass",
+                    "from_token": "ghost",
+                    "start": {"x": 0.1, "y": 0.1},
+                    "end": {"x": 0.2, "y": 0.2},
+                }
+            ],
+        )
+    with pytest.raises(ValidationError):
+        _diagram(
+            tokens=[
+                {"id": "t1", "kind": "own", "x": 0.1, "y": 0.1},
+                {"id": "t1", "kind": "own", "x": 0.2, "y": 0.2},
+            ],
+            arrows=[],
+        )
+    with pytest.raises(ValidationError):
+        _diagram(tokens=[{"id": "t1", "kind": "opponent", "position": "D", "x": 0.1, "y": 0.1}], arrows=[])
+
+
+def test_drill_diagram_curved_arrow_via_points() -> None:
+    from pydantic import ValidationError
+
+    curved = _diagram(
+        arrows=[
+            {
+                "id": "c1",
+                "kind": "skate",
+                "from_token": "t1",
+                "start": {"x": 0.3, "y": 0.66},
+                "via": [{"x": 0.2, "y": 0.5}, {"x": 0.35, "y": 0.4}],
+                "end": {"x": 0.5, "y": 0.3},
+            }
+        ]
+    )
+    assert [(p.x, p.y) for p in curved.arrows[0].via] == [(0.2, 0.5), (0.35, 0.4)]
+    # Old straight arrows (no "via" at all) still validate.
+    assert _diagram().arrows[1].via == []
+
+    with pytest.raises(ValidationError):
+        _diagram(
+            arrows=[
+                {
+                    "id": "c1",
+                    "kind": "skate",
+                    "start": {"x": 0.3, "y": 0.66},
+                    "via": [{"x": 0.5, "y": 0.5}] * 25,
+                    "end": {"x": 0.5, "y": 0.3},
+                }
+            ]
+        )
+    with pytest.raises(ValidationError):
+        _diagram(
+            arrows=[
+                {
+                    "id": "c1",
+                    "kind": "skate",
+                    "start": {"x": 0.3, "y": 0.66},
+                    "via": [{"x": 1.2, "y": 0.5}],
+                    "end": {"x": 0.5, "y": 0.3},
+                }
+            ]
+        )
+
+
+def test_drill_diagram_accepts_repass_arrows() -> None:
+    from pydantic import ValidationError
+
+    diagram = _diagram(
+        arrows=[{"id": "r1", "kind": "repass", "start": {"x": 0.2, "y": 0.5}, "end": {"x": 0.7, "y": 0.5}}]
+    )
+    assert diagram.arrows[0].kind == "repass"
+    shot = _diagram(arrows=[{"id": "s1", "kind": "shot", "start": {"x": 0.4, "y": 0.3}, "end": {"x": 0.5, "y": 0.06}}])
+    assert shot.arrows[0].kind == "shot"
+    with pytest.raises(ValidationError):
+        _diagram(arrows=[{"id": "r1", "kind": "slapshot", "start": {"x": 0.2, "y": 0.5}, "end": {"x": 0.7, "y": 0.5}}])

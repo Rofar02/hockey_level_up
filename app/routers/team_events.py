@@ -15,6 +15,7 @@ from app.schemas.team_event import (
     TeamEventDiaryEntryRead,
     TeamEventDiaryEntrySave,
     TeamEventDrillCreate,
+    TeamEventDrillDiagramSet,
     TeamEventDrillRead,
     TeamEventDrillReorder,
     TeamEventDrillSectionCreate,
@@ -210,6 +211,21 @@ async def update_drill(
         body.title,
         body.description,
         body.duration_minutes,
+    )
+
+
+@router.put("/{event_id}/drills/{drill_id}/diagram", response_model=TeamEventDrillRead)
+async def set_drill_diagram(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    drill_id: uuid.UUID,
+    body: TeamEventDrillDiagramSet,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only. Replaces the drill's whole rink scheme; null clears it."""
+    return await TeamEventService(session).set_drill_diagram(
+        current_user, team_id, event_id, drill_id, body.diagram
     )
 
 

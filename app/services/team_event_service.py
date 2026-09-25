@@ -41,6 +41,7 @@ from app.schemas.team_event import (
     TeamEventAttendanceRead,
     TeamEventAttendanceRosterRead,
     TeamEventDiaryEntryRead,
+    DrillDiagram,
     TeamEventDrillRead,
     TeamEventDrillSectionRead,
     TeamEventLineupGroupRead,
@@ -327,6 +328,24 @@ class TeamEventService:
         drill.title = title
         drill.description = description
         drill.duration_minutes = duration_minutes
+        await self._session.commit()
+        await self._session.refresh(drill)
+        return self._to_drill_read(drill)
+
+    async def set_drill_diagram(
+        self,
+        user: User,
+        team_id: uuid.UUID,
+        event_id: uuid.UUID,
+        drill_id: uuid.UUID,
+        diagram: DrillDiagram | None,
+    ) -> TeamEventDrillRead:
+        """Replaces the drill's whole scheme (None clears it) -- the editor
+        always sends the full diagram, never a patch. Silent like other
+        content edits after publish (see update_drill)."""
+        event = await self._require_captain_and_training_event(user, team_id, event_id)
+        drill = await self._get_drill_or_404(drill_id, event.id)
+        drill.diagram = diagram.model_dump() if diagram is not None else None
         await self._session.commit()
         await self._session.refresh(drill)
         return self._to_drill_read(drill)
@@ -958,6 +977,7 @@ class TeamEventService:
             title=drill.title,
             description=drill.description,
             duration_minutes=drill.duration_minutes,
+            diagram=DrillDiagram.model_validate(drill.diagram) if drill.diagram is not None else None,
         )
 
     @classmethod

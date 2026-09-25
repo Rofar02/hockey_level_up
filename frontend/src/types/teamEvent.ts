@@ -15,6 +15,55 @@ export type TeamEventAttendanceStatus = (typeof TEAM_EVENT_ATTENDANCE_STATUSES)[
 export const TEAM_EVENT_ABSENCE_REASONS = ['work', 'injury', 'study', 'other'] as const
 export type TeamEventAbsenceReason = (typeof TEAM_EVENT_ABSENCE_REASONS)[number]
 
+// Rink scheme of one drill -- coordinates are fractions of the rink
+// (x across, y along the length; 0..1), see schemas.team_event.DrillDiagram.
+export type DiagramTokenKind = 'own' | 'opponent' | 'puck'
+export type DiagramPosition = 'F' | 'D' | 'G'
+export type DiagramArrowKind = 'pass' | 'repass' | 'shot' | 'skate' | 'skate_puck'
+
+export interface DiagramPoint {
+  x: number
+  y: number
+}
+
+export interface DiagramToken extends DiagramPoint {
+  id: string
+  kind: DiagramTokenKind
+  position?: DiagramPosition | null
+  number?: number | null
+}
+
+export interface DiagramArrow {
+  id: string
+  kind: DiagramArrowKind
+  // Set when the arrow starts at a token -- it then follows that token.
+  from_token?: string | null
+  start: DiagramPoint
+  end: DiagramPoint
+  // Points of a finger-drawn path between start and end (a smooth curve is
+  // drawn through them); absent or empty = straight arrow.
+  via?: DiagramPoint[]
+}
+
+export interface DrillDiagram {
+  tokens: DiagramToken[]
+  arrows: DiagramArrow[]
+}
+
+export const DIAGRAM_POSITION_LETTERS: Record<DiagramPosition, string> = { F: 'Н', D: 'З', G: 'В' }
+export const DIAGRAM_POSITION_LABELS: Record<DiagramPosition, string> = {
+  F: 'Нападающий',
+  D: 'Защитник',
+  G: 'Вратарь',
+}
+export const DIAGRAM_ARROW_LABELS: Record<DiagramArrowKind, string> = {
+  pass: 'Пас',
+  repass: 'Перепас',
+  shot: 'Бросок',
+  skate_puck: 'Кат с шайбой',
+  skate: 'Кат без шайбы',
+}
+
 export interface TeamEventDrillRead {
   id: string
   section_id: string
@@ -22,6 +71,7 @@ export interface TeamEventDrillRead {
   title: string
   description: string | null
   duration_minutes: number | null
+  diagram: DrillDiagram | null
 }
 
 // A named block of the board -- the coach names it freely; these are just
