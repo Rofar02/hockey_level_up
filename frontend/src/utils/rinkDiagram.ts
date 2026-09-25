@@ -1,4 +1,4 @@
-import type { DiagramArrow, DiagramArrowKind, DiagramPoint, DrillDiagram } from '../types/teamEvent'
+import type { DiagramArrow, DiagramArrowKind, DiagramPoint, DiagramToken, DrillDiagram } from '../types/teamEvent'
 
 // The rink is drawn in a fixed 200x360 viewBox (vertical, our goal at the
 // bottom) -- a real rink is ~2.35:1, squashed a little so a whole rink plus
@@ -299,23 +299,14 @@ export function smoothStroke(points: DiagramPoint[], maxPoints = 8): DiagramPoin
 }
 
 export const MAX_ARROW_STEP = 20
-export const STEP_BADGE_RADIUS = 5.5
-
-// Where an arrow's step badge sits: a little way along the arrow from its
-// start, so it marks where the movement begins without covering the
-// arrowhead of the arrow it continues from.
-export function arrowBadgePoint(arrow: DiagramArrow): { x: number; y: number } {
-  const line = arrowLine(arrow)
-  const length = polylineLength(line)
-  if (length < 1) {
-    return line[0]
-  }
-  return pointAtLength(line, Math.min(STEP_BADGE_RADIUS + 3, length / 3)).point
-}
-
 const SAME_POINT = 0.004
 
-// Step of every arrow: its stored one, or derived -- 1 for an arrow from a
+// Distinct frames ("кадры") the scheme uses, in order.
+export function diagramFrames(diagram: DrillDiagram): number[] {
+  return [...new Set(arrowSteps(diagram).values())].sort((a, b) => a - b)
+}
+
+// Frame ("кадр", stored as the arrow's step) of every arrow: its stored one, or derived -- 1 for an arrow from a
 // player (different players start together by default), the step of the
 // arrow it continues from + 1 for a chained one. Arrows are in the order
 // they were drawn, so a predecessor is always resolved first.
@@ -342,4 +333,136 @@ export function arrowSteps(diagram: DrillDiagram): Map<string, number> {
     steps.set(arrow.id, step)
   }
   return steps
+}
+
+// ---- playback: who moves where, frame by frame ----
+
+// A point part-way (t = 0..1) along an arrow's smooth centre line, from its
+// very start -- a token riding the arrow starts at its own centre.
+export function pointOnArrow(arrow: DiagramArrow, t: number): DiagramPoint {
+  const line = smoothPolyline([arrow.start, ...(arrow.via ?? []), arrow.end].map(toRink))
+  const length = polylineLength(line)
+  const { point } = pointAtLength(line, length * Math.min(1, Math.max(0, t)))
+  return { x: point.x / RINK_WIDTH, y: point.y / RINK_HEIGHT }
+}
+
+// How close (rink units) a token must stand to an arrow's start to be the
+// one that rides it.
+const RIDE_RADIUS = 12
+
+export interface TokenMove {
+  tokenId: string
+  arrowId: string
+  // 'there-and-back' for a repass: the puck goes out and returns.
+  path: 'along' | 'there-and-back'
+  // A puck carried by a skating player keeps this offset from the path, so
+  // it rides at the stick instead of on top of the player's letter.
+  offset?: DiagramPoint
+}
+
+export interface PlaybackPlan {
+  frames: number[]
+  // Where every token stands when each frame begins.
+  startPositions: Map<number, Map<string, DiagramPoint>>
+  moves: Map<number, TokenMove[]>
+}
+
+// Where a puck sits next to a player -- at the stick, left of the token
+// (the number badge is on the right) -- when the coach dropped it right on
+// the player or a pass ends on one. Kept inside RIDE_RADIUS so the player's
+// next pass or shot still picks it up.
+const STICK_OFFSET = { x: -10 / RINK_WIDTH, y: 4 / RINK_HEIGHT }
+const ON_TOP_RADIUS = 5
+
+// Plays the frames through in order: a skate arrow carries the player
+// standing at its start (its own token, or whoever got there in an earlier
+// frame) and, for skate_puck, the puck with them; a pass/shot carries the
+// puck when it's at the start; a repass takes it out and back.
+export function playbackPlan(diagram: DrillDiagram): PlaybackPlan {
+  const steps = arrowSteps(diagram)
+  const frames = diagramFrames(diagram)
+  const positions = new Map(diagram.tokens.map((token) => [token.id, { x: token.x, y: token.y }]))
+  const startPositions = new Map<number, Map<string, DiagramPoint>>()
+  const moves = new Map<number, TokenMove[]>()
+
+  const standingAt = (point: DiagramPoint, kinds: DiagramToken['kind'][], taken: Set<string>) => {
+    const at = toRink(point)
+    let best: { id: string; distance: number } | null = null
+    for (const token of diagram.tokens) {
+      if (!kinds.includes(token.kind) || taken.has(token.id)) {
+        continue
+      }
+      const here = toRink(positions.get(token.id)!)
+      const distance = Math.hypot(here.x - at.x, here.y - at.y)
+      if (distance <= RIDE_RADIUS && (best === null || distance < best.distance)) {
+        best = { id: token.id, distance }
+      }
+    }
+    return best?.id ?? null
+  }
+
+  for (const frame of frames) {
+    startPositions.set(frame, new Map(positions))
+    const frameMoves: TokenMove[] = []
+    const taken = new Set<string>()
+    for (const arrow of diagram.arrows) {
+      if (steps.get(arrow.id) !== frame) {
+        continue
+      }
+      if (arrow.kind === 'skate' || arrow.kind === 'skate_puck') {
+        const player =
+          arrow.from_token != null && !taken.has(arrow.from_token)
+            ? arrow.from_token
+            : standingAt(arrow.start, ['own', 'opponent'], taken)
+        if (player !== null) {
+          frameMoves.push({ tokenId: player, arrowId: arrow.id, path: 'along' })
+          taken.add(player)
+        }
+        if (arrow.kind === 'skate_puck') {
+          const puck = standingAt(arrow.start, ['puck'], taken)
+          if (puck !== null) {
+            // Keep where the coach put it relative to the skater -- unless
+            // that's right on top of them.
+            const at = positions.get(puck)!
+            const offset = { x: at.x - arrow.start.x, y: at.y - arrow.start.y }
+            const onTop = Math.hypot(offset.x * RINK_WIDTH, offset.y * RINK_HEIGHT) < ON_TOP_RADIUS
+            frameMoves.push({ tokenId: puck, arrowId: arrow.id, path: 'along', offset: onTop ? STICK_OFFSET : offset })
+            taken.add(puck)
+          }
+        }
+      } else {
+        const puck = standingAt(arrow.start, ['puck'], taken)
+        if (puck !== null) {
+          frameMoves.push({ tokenId: puck, arrowId: arrow.id, path: arrow.kind === 'repass' ? 'there-and-back' : 'along' })
+          taken.add(puck)
+        }
+      }
+    }
+    for (const move of frameMoves) {
+      const arrow = diagram.arrows.find((candidate) => candidate.id === move.arrowId)!
+      const end = move.path === 'there-and-back' ? arrow.start : arrow.end
+      positions.set(move.tokenId, { x: end.x + (move.offset?.x ?? 0), y: end.y + (move.offset?.y ?? 0) })
+    }
+    // A pass or shot that ends on a player: the puck settles at their stick.
+    for (const move of frameMoves) {
+      const token = diagram.tokens.find((candidate) => candidate.id === move.tokenId)
+      if (token?.kind !== 'puck' || move.offset !== undefined) {
+        continue
+      }
+      const at = toRink(positions.get(move.tokenId)!)
+      const receiver = diagram.tokens.find((candidate) => {
+        if (candidate.kind === 'puck') {
+          return false
+        }
+        const player = toRink(positions.get(candidate.id)!)
+        return Math.hypot(player.x - at.x, player.y - at.y) < ON_TOP_RADIUS + TOKEN_RADIUS.own
+      })
+      if (receiver !== undefined) {
+        const player = positions.get(receiver.id)!
+        positions.set(move.tokenId, { x: player.x + STICK_OFFSET.x, y: player.y + STICK_OFFSET.y })
+      }
+    }
+    moves.set(frame, frameMoves)
+  }
+  return { frames, startPositions, moves }
 }

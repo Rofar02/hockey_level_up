@@ -199,10 +199,21 @@ export async function shot(page: Page, name: string): Promise<void> {
 // Scrolled to the very bottom, the page's last content must end above the
 // fixed BottomNav, not underneath it.
 export async function expectBottomNotHiddenByNav(page: Page): Promise<void> {
-  // Late data (members, events) grows the page -- measure the final one.
+  // Late data (members, events) grows the page -- keep scrolling to the
+  // bottom until its height stops changing, then measure.
   await page.waitForLoadState('networkidle')
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
-  await page.waitForTimeout(400)
+  let previousHeight = -1
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const height = await page.evaluate(() => {
+      window.scrollTo(0, document.documentElement.scrollHeight)
+      return document.documentElement.scrollHeight
+    })
+    if (height === previousHeight) {
+      break
+    }
+    previousHeight = height
+    await page.waitForTimeout(350)
+  }
   const result = await page.evaluate(() => {
     const nav = document.querySelector('nav a[href="/more"]')?.closest('nav')
     if (!nav) {

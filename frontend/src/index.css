@@ -131,3 +131,21 @@
     animation: none;
   }
 }
+
+/* Rink scheme playback (RinkDiagram playKey): the playing frame's arrows
+   fade in while a dot runs along each. */
+@keyframes arrow-draw-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.arrow-draw-in {
+  animation: arrow-draw-in 0.45s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrow-draw-in {
+    animation: none;
+  }
+}

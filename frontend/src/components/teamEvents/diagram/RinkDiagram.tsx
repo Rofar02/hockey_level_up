@@ -1,16 +1,17 @@
-import { forwardRef, useId, type PointerEvent as ReactPointerEvent } from 'react'
+import { forwardRef, useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { DIAGRAM_POSITION_LETTERS } from '../../../types/teamEvent'
 import type { DiagramArrow, DiagramArrowKind, DiagramPoint, DiagramToken, DrillDiagram } from '../../../types/teamEvent'
 import {
   ARROW_COLORS,
   RINK_HEIGHT,
   RINK_WIDTH,
-  STEP_BADGE_RADIUS,
   TOKEN_RADIUS,
-  arrowBadgePoint,
   arrowPath,
   arrowSteps,
+  playbackPlan,
+  pointOnArrow,
   toRink,
+  type PlaybackPlan,
 } from '../../../utils/rinkDiagram'
 
 interface RinkDiagramProps {
@@ -26,6 +27,18 @@ interface RinkDiagramProps {
   onPointerUp?: (event: ReactPointerEvent<SVGSVGElement>) => void
   // The arrow currently being drawn with a finger, shown as it's drawn.
   draft?: { kind: DiagramArrowKind; points: DiagramPoint[] } | null
+  // Frame ("кадр") to focus: its arrows at full strength, earlier frames
+  // faded, later ones hidden (viewer) or faded further (editor). null =
+  // the whole scheme, as it always looked.
+  frame?: number | null
+  laterFrames?: 'hide' | 'dim'
+  // Changes every time a frame is played: its arrows fade in and the
+  // players (and puck) ride them; a dot runs along any arrow nobody rides.
+  // null = no animation.
+  playKey?: number | null
+  // Players' view: tokens stand where each frame begins and ride their
+  // arrows while it plays. Off in the editor, where tokens stay put.
+  moveTokens?: boolean
 }
 
 const RED_LINE = '#C94A3A'
@@ -48,11 +61,22 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
     onPointerMove,
     onPointerUp,
     draft = null,
+    frame = null,
+    laterFrames = 'hide',
+    playKey = null,
+    moveTokens = false,
   },
   ref,
 ) {
   const markerPrefix = useId().replace(/:/g, '')
   const interactive = onTokenPointerDown !== undefined
+  const frames = frame !== null ? arrowSteps(diagram) : null
+  const plan = useMemo(() => (moveTokens ? playbackPlan(diagram) : null), [moveTokens, diagram])
+  const riding = useTokenRide(diagram, plan, frame, playKey)
+  const frameStart = plan !== null && frame !== null ? plan.startPositions.get(frame) : undefined
+  const riddenArrows = new Set(
+    playKey !== null && frame !== null ? (plan?.moves.get(frame) ?? []).map((move) => move.arrowId) : [],
+  )
 
   return (
     <svg
@@ -103,20 +127,36 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
       {diagram.arrows.map((arrow) => {
         const path = arrowPath(arrow)
         const selected = arrow.id === selectedArrowId
+        const arrowFrame = frames?.get(arrow.id) ?? null
+        const state =
+          frame === null || arrowFrame === null ? 'all' : arrowFrame === frame ? 'current' : arrowFrame < frame ? 'past' : 'future'
+        if (state === 'future' && laterFrames === 'hide') {
+          return null
+        }
+        const opacity = state === 'past' ? 0.3 : state === 'future' ? 0.15 : 1
+        const pathId = `${markerPrefix}-path-${arrow.id}`
+        const animate = playKey !== null && state === 'current'
         return (
-          <g key={arrow.id}>
+          <g
+            key={animate ? `${arrow.id}-${playKey}` : arrow.id}
+            data-frame={arrowFrame ?? undefined}
+            data-frame-state={state}
+            opacity={opacity}
+            className={animate ? 'arrow-draw-in' : undefined}
+          >
             {selected && <path d={path} fill="none" stroke={SELECTION} strokeWidth="6" strokeOpacity="0.35" strokeLinecap="round" />}
             {arrow.kind === 'shot' ? (
               // Бросок: the standard double line -- a wide stroke with an
               // ice-coloured core, then the head drawn last so the core
               // doesn't cut through it.
               <>
-                <path d={path} fill="none" stroke={ARROW_COLORS.shot} strokeWidth="4.4" strokeLinecap="butt" />
+                <path id={pathId} d={path} fill="none" stroke={ARROW_COLORS.shot} strokeWidth="4.4" strokeLinecap="butt" />
                 <path d={path} fill="none" stroke={ICE} strokeWidth="1.6" strokeLinecap="butt" />
                 <path d={path} fill="none" stroke="none" markerEnd={`url(#${markerPrefix}-shot)`} />
               </>
             ) : (
             <path
+              id={pathId}
               d={path}
               fill="none"
               stroke={ARROW_COLORS[arrow.kind]}
@@ -129,6 +169,7 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
               markerStart={arrow.kind === 'repass' ? `url(#${markerPrefix}-${arrow.kind})` : undefined}
             />
             )}
+            {animate && !riddenArrows.has(arrow.id) && <MovingDot pathId={pathId} color={ARROW_COLORS[arrow.kind]} />}
             {interactive && (
               // Wide invisible hit area -- a 1.8px line is impossible to tap.
               <path
@@ -142,10 +183,6 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
           </g>
         )
       })}
-
-      {/* Order of play: a numbered badge where each movement starts; same
-          number = at the same time. Pointless with a single arrow. */}
-      {diagram.arrows.length > 1 && <StepBadges diagram={diagram} />}
 
       {draft !== null && draft.points.length > 1 && (
         <polyline
@@ -164,7 +201,7 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
       {diagram.tokens.map((token) => (
         <Token
           key={token.id}
-          token={token}
+          token={{ ...token, ...(riding?.get(token.id) ?? frameStart?.get(token.id) ?? {}) }}
           selected={token.id === selectedTokenId}
           onPointerDown={onTokenPointerDown}
         />
@@ -188,7 +225,7 @@ function Token({
 
   if (token.kind === 'puck') {
     return (
-      <g onPointerDown={handleDown} className={cursor}>
+      <g onPointerDown={handleDown} className={cursor} data-token={token.kind}>
         {selected && <circle cx={x} cy={y} r={TOKEN_RADIUS.puck + 4} fill={SELECTION} fillOpacity="0.35" />}
         {/* Invisible, larger tap target around the small puck. */}
         <circle cx={x} cy={y} r={10} fill="transparent" />
@@ -200,7 +237,7 @@ function Token({
   if (token.kind === 'opponent') {
     const r = TOKEN_RADIUS.opponent
     return (
-      <g onPointerDown={handleDown} className={cursor}>
+      <g onPointerDown={handleDown} className={cursor} data-token={token.kind}>
         {selected && <circle cx={x} cy={y} r={r + 4} fill={SELECTION} fillOpacity="0.35" />}
         <circle cx={x} cy={y} r={r} fill="#1A2634" stroke="#0078A8" strokeWidth="1.8" />
         <path d={`M ${x - 3.5} ${y - 3.5} L ${x + 3.5} ${y + 3.5} M ${x + 3.5} ${y - 3.5} L ${x - 3.5} ${y + 3.5}`} stroke="#8FB8CC" strokeWidth="1.4" strokeLinecap="round" />
@@ -214,7 +251,7 @@ function Token({
   const centerLabel = letter ?? (token.number != null ? String(token.number) : '')
   const showBadge = letter !== null && token.number != null
   return (
-    <g onPointerDown={handleDown} className={cursor}>
+    <g onPointerDown={handleDown} className={cursor} data-token={token.kind}>
       {selected && <circle cx={x} cy={y} r={r + 4} fill={SELECTION} fillOpacity="0.35" />}
       <circle cx={x} cy={y} r={r} fill={isGoalie ? '#FFCF5C' : '#F4F6F8'} stroke="#10151C" strokeWidth="1.6" />
       <text
@@ -240,23 +277,82 @@ function Token({
   )
 }
 
-function StepBadges({ diagram }: { diagram: DrillDiagram }) {
-  const steps = arrowSteps(diagram)
-  return (
-    <g pointerEvents="none" aria-hidden="true">
-      {diagram.arrows.map((arrow) => {
-        const { x, y } = arrowBadgePoint(arrow)
-        return (
-          <g key={arrow.id} data-step={steps.get(arrow.id)}>
-            <circle cx={x} cy={y} r={STEP_BADGE_RADIUS} fill={ARROW_COLORS[arrow.kind]} stroke="#E9F4FA" strokeWidth="1.2" />
-            <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize="6.5" fontWeight="800" fill="#FFFFFF">
-              {steps.get(arrow.id)}
-            </text>
-          </g>
-        )
-      })}
-    </g>
-  )
+const DOT_DURATION_MS = 1100
+
+// Positions of the tokens riding the playing frame's arrows, updated every
+// animation frame for DOT_DURATION_MS (same easing as the dots), then held
+// at the arrows' ends. null when nothing is playing.
+function useTokenRide(
+  diagram: DrillDiagram,
+  plan: PlaybackPlan | null,
+  frame: number | null,
+  playKey: number | null,
+): Map<string, DiagramPoint> | null {
+  const [positions, setPositions] = useState<Map<string, DiagramPoint> | null>(null)
+  useEffect(() => {
+    const moves = plan !== null && frame !== null && playKey !== null ? (plan.moves.get(frame) ?? []) : []
+    if (moves.length === 0) {
+      setPositions(null)
+      return
+    }
+    const place = (t: number) =>
+      new Map(
+        moves.map((move) => {
+          const arrow = diagram.arrows.find((candidate) => candidate.id === move.arrowId)!
+          const along = move.path === 'there-and-back' ? (t < 0.5 ? t * 2 : (1 - t) * 2) : t
+          const point = pointOnArrow(arrow, 1 - (1 - along) ** 2)
+          return [move.tokenId, { x: point.x + (move.offset?.x ?? 0), y: point.y + (move.offset?.y ?? 0) }]
+        }),
+      )
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setPositions(place(1))
+      return
+    }
+    let frameId = 0
+    const started = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - started) / DOT_DURATION_MS)
+      setPositions(place(t))
+      if (t < 1) {
+        frameId = requestAnimationFrame(tick)
+      }
+    }
+    frameId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frameId)
+  }, [diagram, plan, frame, playKey])
+  return positions
+}
+
+// A dot that runs once along an arrow while its frame plays. Driven by
+// requestAnimationFrame over the path's own length rather than SMIL
+// <animateMotion>, which treats an animation inserted after page load as
+// already finished.
+function MovingDot({ pathId, color }: { pathId: string; color: string }) {
+  const dotRef = useRef<SVGCircleElement>(null)
+  useEffect(() => {
+    const dot = dotRef.current
+    const path = dot?.ownerDocument.getElementById(pathId) as SVGPathElement | null
+    if (dot == null || path == null || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return
+    }
+    const length = path.getTotalLength()
+    let frameId = 0
+    const started = performance.now()
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - started) / DOT_DURATION_MS)
+      // Ease out: the movement settles into its end point.
+      const point = path.getPointAtLength(length * (1 - (1 - t) ** 2))
+      dot.setAttribute('cx', String(point.x))
+      dot.setAttribute('cy', String(point.y))
+      dot.setAttribute('opacity', t < 0.85 ? '1' : String((1 - t) / 0.15))
+      if (t < 1) {
+        frameId = requestAnimationFrame(tick)
+      }
+    }
+    frameId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frameId)
+  }, [pathId])
+  return <circle ref={dotRef} r="3.2" fill={color} stroke="#E9F4FA" strokeWidth="1" opacity="0" pointerEvents="none" />
 }
 
 // Proportions follow a real rink loosely: goal lines 20 from the ends,

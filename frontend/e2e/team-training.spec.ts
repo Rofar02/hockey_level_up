@@ -194,15 +194,19 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   const nearGoal = rink.at(0.58, 0.12)
   await page.mouse.click(nearGoal.x, nearGoal.y)
 
-  // Такты: the chain got 1..5 on its own (each arrow continues the last).
-  // The shot is selected -- move it to step 3, same time as the skate.
-  await expect(editor.locator('g[data-step]')).toHaveCount(5)
+  // Кадры: the chain went into frames 1..5 on its own (each arrow
+  // continues the last). The shot is selected -- move it to frame 3, the
+  // same moment as the skate; the frame strip follows it.
+  const frameChips = editor.getByRole('group', { name: 'Кадры' }).getByRole('button', { name: /^Кадр \d+$/ })
+  await expect(frameChips).toHaveCount(5)
   await expect(editor.getByTestId('arrow-step')).toHaveText('5')
-  await editor.getByRole('button', { name: 'Такт раньше' }).click()
-  await editor.getByRole('button', { name: 'Такт раньше' }).click()
+  await editor.getByRole('button', { name: 'Кадр раньше' }).click()
+  await editor.getByRole('button', { name: 'Кадр раньше' }).click()
   await expect(editor.getByTestId('arrow-step')).toHaveText('3')
-  await expect(editor.locator('g[data-step="3"]')).toHaveCount(2)
-  await shot(page, '04a-diagram-steps')
+  await expect(frameChips).toHaveCount(4)
+  await expect(editor.getByRole('button', { name: 'Кадр 3', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.locator('g[data-frame-state="current"]')).toHaveCount(2)
+  await shot(page, '04a-diagram-frames')
 
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Соперник' }).click()
@@ -317,6 +321,21 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await shot(page, '10a-plan-modal-list')
   await schemeRow.click()
   await expect(modal.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeVisible()
+  // Frames: "Всё" at rest; a frame shows only what happens then; ▶ plays
+  // them through and comes back to the whole scheme.
+  const frames = modal.getByRole('group', { name: 'Кадры' })
+  await expect(frames.getByRole('button', { name: 'Всё' })).toHaveAttribute('aria-pressed', 'true')
+  const player = modal.locator('g[data-token="own"] circle').first()
+  const restX = Number(await player.getAttribute('cx'))
+  await frames.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await expect(modal.locator('g[data-frame-state="current"]')).toHaveCount(1)
+  // Frame 2 begins after frame 1's skate: the player stands at its end.
+  expect(Number(await player.getAttribute('cx'))).not.toBeCloseTo(restX, 0)
+  await shot(page, '10b-plan-drill-frame-2')
+  await modal.getByRole('button', { name: 'Проиграть' }).click()
+  await expect(modal.getByRole('button', { name: 'Пауза' })).toBeVisible()
+  await expect(modal.getByRole('button', { name: 'Проиграть' })).toBeVisible({ timeout: 15_000 })
+  await expect(frames.getByRole('button', { name: 'Всё' })).toHaveAttribute('aria-pressed', 'true')
   await shot(page, '10-plan-modal-drill-scheme')
   await expectNoHorizontalOverflow(page)
   await modal.getByRole('button', { name: 'Весь план' }).click()

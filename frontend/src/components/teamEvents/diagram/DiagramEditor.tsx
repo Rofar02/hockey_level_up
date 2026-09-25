@@ -21,6 +21,7 @@ import {
   TOKEN_RADIUS,
   arrowSteps,
   clamp01,
+  diagramFrames,
   emptyDiagram,
   isEmptyDiagram,
   newDiagramId,
@@ -59,6 +60,12 @@ export function DiagramEditor({
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const [diagram, setDiagram] = useState<DrillDiagram>(initial ?? emptyDiagram())
+  // Frame ("кадр") being drawn: new arrows land in it, the other frames'
+  // arrows are faded. Opens on the scheme's last frame.
+  const [currentFrame, setCurrentFrame] = useState(() => {
+    const existing = diagramFrames(initial ?? emptyDiagram())
+    return existing[existing.length - 1] ?? 1
+  })
   const [past, setPast] = useState<DrillDiagram[]>([])
   const [selection, setSelection] = useState<Selection>(null)
   const [drawing, setDrawing] = useState<Drawing>(null)
@@ -164,14 +171,16 @@ export function DiagramEditor({
       via,
       end,
     }
-    // Store the step it would get anyway (1 from a player, previous + 1 when
-    // continuing an arrow), so later edits elsewhere never renumber it.
-    const step = arrowSteps({ ...diagram, arrows: [...diagram.arrows, draftArrow] }).get(draftArrow.id) ?? 1
+    // Frame: the one being drawn; an arrow that continues another goes at
+    // least one frame after it (a chain reads in order without extra taps).
+    const derived = arrowSteps({ ...diagram, arrows: [...diagram.arrows, draftArrow] }).get(draftArrow.id) ?? 1
+    const step = drawing.fromToken !== null ? currentFrame : Math.min(MAX_ARROW_STEP, Math.max(currentFrame, derived))
     const arrow: DiagramArrow = { ...draftArrow, step }
     commit({ ...diagram, arrows: [...diagram.arrows, arrow] })
     setDrawing(null)
     // Select the new arrow so the next move can chain straight from its end.
     setSelection({ type: 'arrow', id: arrow.id })
+    setCurrentFrame(step)
   }
 
   function startArrow(kind: DiagramArrowKind) {
@@ -201,6 +210,7 @@ export function DiagramEditor({
       ...diagram,
       arrows: diagram.arrows.map((arrow) => (arrow.id === arrowId ? { ...arrow, step: next } : arrow)),
     })
+    setCurrentFrame(next)
   }
 
   function removeSelected() {
@@ -265,6 +275,7 @@ export function DiagramEditor({
       return
     }
     setSelection({ type: 'arrow', id: arrow.id })
+    setCurrentFrame(arrowSteps(diagram).get(arrow.id) ?? 1)
   }
 
   function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
@@ -335,6 +346,8 @@ export function DiagramEditor({
     }
   }
 
+  const frames = [...new Set([...diagramFrames(diagram), currentFrame])].sort((a, b) => a - b)
+
   const selectedToken =
     selection?.type === 'token' ? diagram.tokens.find((token) => token.id === selection.id) ?? null : null
   // A puck doesn't skate or pass on its own -- only players get arrows.
@@ -392,10 +405,7 @@ export function DiagramEditor({
                 {DIAGRAM_ARROW_LABELS[kind].toLowerCase()}
               </span>
             ))}
-            <span className="flex items-center gap-1">
-              <StepSwatch />
-              такт: одинаковые — одновременно
-            </span>
+
           </div>
         )}
       </div>
@@ -414,6 +424,8 @@ export function DiagramEditor({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           draft={drawing !== null && stroke !== null ? { kind: drawing.kind, points: [drawing.start, ...stroke] } : null}
+          frame={frames.length > 1 ? currentFrame : null}
+          laterFrames="dim"
         />
 
         {isEmptyDiagram(diagram) && (
@@ -449,6 +461,21 @@ export function DiagramEditor({
         )}
       </div>
 
+      {diagram.arrows.length > 0 && (
+        <FrameStrip
+          frames={frames}
+          current={currentFrame}
+          onPick={(value) => {
+            setCurrentFrame(value)
+            setSelection(null)
+          }}
+          onAdd={() => {
+            setCurrentFrame(Math.min(MAX_ARROW_STEP, frames[frames.length - 1] + 1))
+            setSelection(null)
+          }}
+        />
+      )}
+
       <nav className="flex shrink-0 gap-1.5 border-t border-white/10 bg-[#121820] px-3 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-2.5">
         <ToolbarButton icon="ti-user" label="Свой" onClick={() => setIsAddingPlayer(true)} />
         <ToolbarButton icon="ti-user-x" label="Соперник" onClick={() => addToken({ kind: 'opponent' })} />
@@ -475,15 +502,6 @@ export function DiagramEditor({
       )}
     </div>,
     document.body,
-  )
-}
-
-function StepSwatch() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-      <circle cx="6" cy="6" r="5.5" fill="#FF6A3D" />
-      <text x="6" y="6.4" textAnchor="middle" dominantBaseline="central" fontSize="7" fontWeight="800" fill="#fff">1</text>
-    </svg>
   )
 }
 
@@ -514,19 +532,19 @@ function ArrowSwatch({ kind }: { kind: DiagramArrowKind }) {
   )
 }
 
-// "Такт" of the selected arrow: same number = at the same time.
+// Frame of the selected arrow: move it earlier/later.
 function StepControl({ step, onChange }: { step: number; onChange: (delta: -1 | 1) => void }) {
   return (
     <div
       role="group"
-      aria-label="Такт стрелки"
+      aria-label="Кадр стрелки"
       className="flex h-11 items-center gap-0.5 rounded-xl bg-white/5 px-1 text-[#C9D1DC]"
     >
       <button
         type="button"
         onClick={() => onChange(-1)}
         disabled={step <= 1}
-        aria-label="Такт раньше"
+        aria-label="Кадр раньше"
         className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/10 disabled:opacity-30"
       >
         <i className="ti ti-minus" aria-hidden="true" />
@@ -535,17 +553,64 @@ function StepControl({ step, onChange }: { step: number; onChange: (delta: -1 | 
         <span className="font-display text-base font-bold text-[#F5F7FA]" data-testid="arrow-step">
           {step}
         </span>
-        <span className="text-[9px]">такт</span>
+        <span className="text-[9px]">кадр</span>
       </span>
       <button
         type="button"
         onClick={() => onChange(1)}
         disabled={step >= MAX_ARROW_STEP}
-        aria-label="Такт позже"
+        aria-label="Кадр позже"
         className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/10 disabled:opacity-30"
       >
         <i className="ti ti-plus" aria-hidden="true" />
       </button>
+    </div>
+  )
+}
+
+// "Кадр 1 · 2 · 3 · +": which frame new arrows go into; arrows of the same
+// frame happen at the same time. The players' view steps and plays through
+// the same frames.
+function FrameStrip({
+  frames,
+  current,
+  onPick,
+  onAdd,
+}: {
+  frames: number[]
+  current: number
+  onPick: (frame: number) => void
+  onAdd: () => void
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 px-3 pb-2">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-[#8A94A6]">Кадр</span>
+      <div role="group" aria-label="Кадры" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        {frames.map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onPick(value)}
+            aria-label={`Кадр ${value}`}
+            aria-pressed={value === current}
+            className={`flex h-9 min-w-9 shrink-0 items-center justify-center rounded-full px-2 text-sm font-semibold transition-colors ${
+              value === current ? 'bg-accent-ice text-[#0B0F14]' : 'bg-white/5 text-[#C9D1DC] hover:bg-white/10'
+            }`}
+          >
+            {value}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={onAdd}
+          aria-label="Новый кадр"
+          disabled={frames[frames.length - 1] >= MAX_ARROW_STEP}
+          className="flex h-9 shrink-0 items-center justify-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-sm text-accent-ice transition-colors hover:bg-accent-ice/10 disabled:opacity-40"
+        >
+          <i className="ti ti-plus" aria-hidden="true" />
+          кадр
+        </button>
+      </div>
     </div>
   )
 }
