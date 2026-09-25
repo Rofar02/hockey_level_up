@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
+import { TeamDayCard } from '../components/teamEvents/TeamDayCard'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
 import { CARD_BORDER, CARD_CLASS } from '../components/ui/cardStyle'
@@ -509,13 +510,29 @@ export function HomePage() {
 
         {!isLoading && (
           <div className="flex flex-col gap-4">
-            <TodayCard
-              day={today}
-              phaseLabel={trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null}
-              phase={trainingBlock !== null ? trainingBlock.phase : null}
-              onStart={() => today !== null && navigate(`/training/${today.id}`)}
-              onFillDiary={() => today !== null && navigate(`/training/${today.id}/diary`)}
-            />
+            {(() => {
+              const personalCard = (
+                <TodayCard
+                  day={today}
+                  phaseLabel={trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null}
+                  phase={trainingBlock !== null ? trainingBlock.phase : null}
+                  onStart={() => today !== null && navigate(`/training/${today.id}`)}
+                  onFillDiary={() => today !== null && navigate(`/training/${today.id}/diary`)}
+                />
+              )
+              if (today === null || today.team_event_id === null) {
+                return personalCard
+              }
+              const weekday = WEEKDAY_LABELS[(parseIsoDate(today.date).getDay() + 6) % 7]
+              return (
+                <TeamDayCard
+                  day={{ ...today, team_event_id: today.team_event_id }}
+                  eyebrow={`${weekday} · Команда`}
+                  onStartWarmup={() => navigate(`/training/${today.id}`)}
+                  personalCard={personalCard}
+                />
+              )
+            })()}
 
             {stats !== null && <StatsRow stats={stats} onSelect={setSelectedStatType} />}
 

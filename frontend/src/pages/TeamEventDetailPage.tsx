@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_CLASS } from '../components/ui/cardStyle'
@@ -26,6 +26,9 @@ type DetailTab = 'board' | 'attendance' | 'lineup' | 'diary'
 export function TeamEventDetailPage() {
   const { teamId, eventId } = useParams<{ teamId: string; eventId: string }>()
   const { accessToken } = useAuth()
+  // ?tab=diary -- HomePage's team day card links straight to the diary.
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
 
   const [team, setTeam] = useState<TeamRead | null>(null)
   const [event, setEvent] = useState<TeamEventRead | null>(null)
@@ -51,7 +54,15 @@ export function TeamEventDetailPage() {
     ])
     setTeam(teamResult)
     setEvent(eventResult)
-    setActiveTab((current) => current ?? (eventResult.event_type === 'training' ? 'board' : 'attendance'))
+    setActiveTab((current) => {
+      if (current !== null) {
+        return current
+      }
+      if (requestedTab === 'diary' && eventResult.event_type === 'training') {
+        return 'diary'
+      }
+      return eventResult.event_type === 'training' ? 'board' : 'attendance'
+    })
   }
 
   useEffect(() => {

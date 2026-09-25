@@ -971,9 +971,14 @@ export function TrainingSessionPage() {
           accessToken={accessToken}
           // ON_ICE/GAME only: the one diary entry per such session is written
           // on TrainingDiaryPage, offered right here so the player doesn't
-          // have to find it again from the home screen afterwards.
+          // have to find it again from the home screen afterwards. Not on a
+          // team practice day: this session is only the warmup before the
+          // ice time, and that day's diary is the team one (TeamDayCard).
           diaryDayPlanId={
-            day !== null && (day.session_type === 'on_ice' || day.session_type === 'game') ? day.id : null
+            day !== null &&
+            (day.session_type === 'game' || (day.session_type === 'on_ice' && day.team_event_id === null))
+              ? day.id
+              : null
           }
         />
       )}
