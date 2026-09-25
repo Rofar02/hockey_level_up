@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
+import * as coachChatApi from '../api/coachChat'
+import { useAuth } from '../hooks/useAuth'
+import type { CoachAttentionReason } from '../types/coachChat'
 
 interface Tab {
   to: string
@@ -108,14 +111,51 @@ function TabLink({ tab }: { tab: Tab }) {
   )
 }
 
+// Re-checked on every navigation (cheap: three COUNT queries) -- mainly so
+// the glow goes out as soon as the player comes back from the chat.
+function useCoachAttention(): CoachAttentionReason | null {
+  const { accessToken } = useAuth()
+  const { pathname } = useLocation()
+  const [reason, setReason] = useState<CoachAttentionReason | null>(null)
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    coachChatApi
+      .getCoachAttention(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setReason(result.reason)
+        }
+      })
+      .catch(() => {
+        // Best-effort: no glow is the safe default.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, pathname])
+  return reason
+}
+
+const ATTENTION_LABELS: Record<CoachAttentionReason, string> = {
+  pending_action: 'ИИ-тренер: ждёт ответа на предложение',
+  checkin: 'ИИ-тренер: спрашивает о самочувствии',
+  first_visit: 'ИИ-тренер: познакомьтесь',
+}
+
 function CoachButton() {
+  // Glows only when the coach actually has something for the player.
+  const reason = useCoachAttention()
   return (
     <NavLink
       to="/coach"
-      aria-label="ИИ-тренер"
+      aria-label={reason !== null ? ATTENTION_LABELS[reason] : 'ИИ-тренер'}
+      data-attention={reason ?? undefined}
       className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-0.5 pb-1.5 text-[10px] font-medium text-accent-ice"
     >
-      <span className="-mt-7 flex h-[52px] w-[52px] items-center justify-center rounded-full border-4 border-dark-bg bg-accent-persimmon text-white shadow-[0_6px_18px_-4px_rgba(255,106,61,0.6)] transition-transform active:scale-95">
+      <span className={`-mt-7 flex h-[52px] w-[52px] items-center justify-center rounded-full border-4 border-dark-bg ${reason !== null ? 'coach-glow' : ''} bg-accent-persimmon text-white shadow-[0_6px_18px_-4px_rgba(255,106,61,0.6)] transition-transform active:scale-95`}>
         <i className="ti ti-message-chatbot text-2xl" aria-hidden="true" />
       </span>
       <span aria-hidden="true">Тренер</span>

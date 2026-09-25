@@ -135,7 +135,11 @@ test('floating tab bar: all tabs on screen, coach in the middle opens the chat',
   await loginAs(page, setup.player)
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Основная навигация' })
-  const labels = ['Главная', 'Неделя', 'ИИ-тренер', 'Профиль', 'Ещё']
+  // A player who has never met the coach: the centre button glows.
+  const coachLink = nav.locator('a[href="/coach"]')
+  await expect(coachLink).toHaveAttribute('data-attention', 'first_visit')
+  await expect(coachLink.locator('.coach-glow')).toHaveCount(1)
+  const labels = ['Главная', 'Неделя', /ИИ-тренер/, 'Профиль', 'Ещё']
   for (const name of labels) {
     await expect(nav.getByRole('link', { name })).toBeInViewport({ ratio: 1 })
   }
@@ -144,12 +148,20 @@ test('floating tab bar: all tabs on screen, coach in the middle opens the chat',
   expect([...xs].sort((a, b) => a - b)).toEqual(xs)
   await shot(page, 'layout-tabbar')
 
-  await nav.getByRole('link', { name: 'ИИ-тренер' }).click()
+  await coachLink.click()
   await expect(page).toHaveURL(/\/coach$/)
   // The chat's message box sits at the bottom -- the capsule steps aside.
   await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toHaveCount(0)
   await expect(page.getByPlaceholder('Спросите тренера о тренировках...')).toBeInViewport()
+  // The chat says why the button was glowing.
+  await expect(page.getByText(/Это ваш ИИ-тренер/)).toBeVisible()
   await shot(page, 'layout-coach-chat')
+
+  // Opening the chat ends the "get acquainted" glow.
+  await page.getByRole('button', { name: 'Назад' }).click()
+  const navBack = page.getByRole('navigation', { name: 'Основная навигация' })
+  await expect(navBack.locator('a[href="/coach"]')).not.toHaveAttribute('data-attention', /.+/)
+  await expect(navBack.locator('.coach-glow')).toHaveCount(0)
 })
 
 test('player screens fit the phone', async ({ page }) => {

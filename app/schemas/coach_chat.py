@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -45,3 +46,10 @@ class CoachChatReplyRead(BaseModel):
     dialogue)."""
 
     reply: CoachChatMessageRead
+
+
+class CoachAttentionRead(BaseModel):
+    """Why the tab bar's coach button glows (None = it doesn't) -- see
+    CoachAttentionService for what each reason means."""
+
+    reason: Literal["pending_action", "checkin", "first_visit"] | None
