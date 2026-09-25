@@ -7,8 +7,8 @@ import {
   declareWeek,
   expectNoHorizontalOverflow,
   loginAs,
-  moscowIso,
-  moscowNow,
+  localIso,
+  localNow,
   shot,
   type TeamSetup,
 } from './helpers'
@@ -24,17 +24,17 @@ let eventId: string
 let today: string
 
 test.beforeAll(async () => {
-  const now = moscowNow()
+  const now = localNow()
   // "Going" closes 2h before the start and the event must still be today
   // for the home card -- there's no such slot late in the evening.
-  test.skip(now.hour >= 21, 'needs an event later today at least 2.5h away (run before 21:00 MSK)')
+  test.skip(now.hour >= 21, 'needs an event later today at least 2.5h away -- pin a mid-day zone with E2E_TZ')
   today = now.date
   setup = await createTeamWithPlayer()
   await declareWeek(setup.player, today)
   const startHour = now.hour + 3
   const event = await api<{ id: string }>('POST', `/teams/${setup.teamId}/events`, {
     token: setup.captain.token,
-    body: { event_type: 'training', starts_at: moscowIso(today, startHour, now.minute) },
+    body: { event_type: 'training', starts_at: localIso(today, startHour, now.minute) },
   })
   eventId = event.id
 })
@@ -194,6 +194,16 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   const nearGoal = rink.at(0.58, 0.12)
   await page.mouse.click(nearGoal.x, nearGoal.y)
 
+  // Такты: the chain got 1..5 on its own (each arrow continues the last).
+  // The shot is selected -- move it to step 3, same time as the skate.
+  await expect(editor.locator('g[data-step]')).toHaveCount(5)
+  await expect(editor.getByTestId('arrow-step')).toHaveText('5')
+  await editor.getByRole('button', { name: 'Такт раньше' }).click()
+  await editor.getByRole('button', { name: 'Такт раньше' }).click()
+  await expect(editor.getByTestId('arrow-step')).toHaveText('3')
+  await expect(editor.locator('g[data-step="3"]')).toHaveCount(2)
+  await shot(page, '04a-diagram-steps')
+
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Отменить' }).click()
@@ -207,7 +217,10 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
     sections: {
       drills: {
         title: string
-        diagram: { tokens: unknown[]; arrows: { kind: string; via?: unknown[]; end: { x: number; y: number } }[] } | null
+        diagram: {
+          tokens: unknown[]
+          arrows: { kind: string; via?: unknown[]; step?: number | null; end: { x: number; y: number } }[]
+        } | null
       }[]
     }[]
   }>(
@@ -220,6 +233,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   expect(drawn?.diagram?.arrows.map((arrow) => arrow.kind)).toEqual(['skate_puck', 'pass', 'skate', 'repass', 'shot'])
   const [skatePuck, pass, skateLine, repass, shotArrow] = drawn?.diagram?.arrows ?? []
   expect(shotArrow.via ?? []).toEqual([])
+  expect(drawn?.diagram?.arrows.map((arrow) => arrow.step)).toEqual([1, 2, 3, 4, 3])
   expect(shotArrow.end.x).toBeCloseTo(0.5, 5)
   expect(shotArrow.end.y).toBeCloseTo(22 / 360, 5)
   expect(skatePuck.via?.length ?? 0, 'the S-curve keeps its shape').toBeGreaterThanOrEqual(1)
@@ -308,9 +322,13 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await modal.getByRole('button', { name: 'Весь план' }).click()
   await expect(modal.getByRole('button', { name: /Катание по кругам/ })).toBeVisible()
   await modal.getByRole('button', { name: 'Закрыть' }).click()
+  // Let the modal finish closing (it restores the page's scroll) before
+  // tapping the tab bar -- tapping mid-close occasionally went nowhere.
+  await expect(modal).toBeHidden()
 
   // The week screen shows the team day and the same plan.
   await page.getByRole('link', { name: 'Неделя' }).click()
+  await expect(page).toHaveURL(/\/schedule\/new$/)
   await expect(page.getByText('Командная тренировка')).toBeVisible()
   await expect(page.getByText(/2 упражнения · 25 мин · 1 схема/)).toBeVisible()
   await shot(page, '12-week-team-day')
@@ -343,22 +361,29 @@ test('"not going" gives the day back, "going" takes it again', async () => {
   expect(day.session_type).toBe('on_ice')
 })
 
-test('after the start the home card turns into the team diary', async ({ page }) => {
-  const now = moscowNow()
+test('after the start the home card leads to the personal diary, which grants the team reward', async ({ page }) => {
+  const now = localNow()
   test.skip(now.hour === 0 && now.minute < 20, 'needs a start time earlier today')
   // Start moved to a few minutes ago -- the takeover follows the event.
   const minutesAgo = Math.max(0, now.hour * 60 + now.minute - 10)
   await api('PUT', `/teams/${setup.teamId}/events/${eventId}/schedule`, {
     token: setup.captain.token,
-    body: { starts_at: moscowIso(today, Math.floor(minutesAgo / 60), minutesAgo % 60) },
+    body: { starts_at: localIso(today, Math.floor(minutesAgo / 60), minutesAgo % 60) },
   })
 
   await loginAs(page, setup.player)
   await page.goto('/')
   await expect(page.getByText(/Началась в/)).toBeVisible()
+  const xpBefore = (await api<{ xp: number }>('GET', '/auth/me', { token: setup.player.token })).xp
   await page.getByRole('button', { name: 'Вести дневник' }).click()
-  await expect(page).toHaveURL(/tab=diary/)
-  await page.getByRole('button', { name: 'Пропустить без заметки' }).click()
+  // The ordinary personal diary -- there is no separate team diary.
+  await expect(page).toHaveURL(/\/training\/[^/]+\/diary$/)
+  await page.getByRole('textbox').fill('Отработали 2 в 1, бросок шёл хорошо')
+  await page.getByRole('button', { name: 'Готово' }).click()
+  await expect(page).toHaveURL(/\/$/)
+  // The first entry on a team-training day grants the team reward.
+  const xpAfter = (await api<{ xp: number }>('GET', '/auth/me', { token: setup.player.token })).xp
+  expect(xpAfter - xpBefore).toBe(50)
   await page.goto('/')
   await expect(page.getByText('Выполнено')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Открыть дневник' })).toBeVisible()

@@ -9,23 +9,23 @@ import * as teamsApi from '../../api/teams'
 import { useAuth } from '../../hooks/useAuth'
 import { boardTotalMinutes, formatMinutes, pluralRu, totalMinutes } from '../../utils/boardPlan'
 import type { DayPlanRead } from '../../types/schedule'
-import type { TeamEventDiaryEntryRead, TeamEventLineupRead, TeamEventRead } from '../../types/teamEvent'
+import type { TeamEventLineupRead, TeamEventRead } from '../../types/teamEvent'
 import { formatTime } from '../../utils/date'
 
 interface Loaded {
   teamId: string
   event: TeamEventRead
   lineup: TeamEventLineupRead | null
-  diaryEntry: TeamEventDiaryEntryRead | null
 }
 
 // HomePage's today card for a day a team event has taken over (the player
 // marked "going" -- see ScheduleService.apply_team_event_to_day):
 // "Подготовка" before the event starts (board, lineup group, jersey color,
-// the app's own on-ice warmup), then the team diary once it has. The team
-// diary replaces the personal on-ice one here -- it's the one that grants
-// the team-training rewards. A game has no team diary, so after its start
-// (and on any load failure) this hands back to the ordinary personal card.
+// the app's own on-ice warmup), then the ordinary personal diary once it
+// has -- there's no separate team diary; its first save on this day is
+// what grants the team-training rewards (TrainingDiaryService). A game has
+// no board to prepare with, so after its start (and on any load failure)
+// this hands back to the ordinary personal card.
 export function TeamDayCard({
   day,
   eyebrow,
@@ -55,13 +55,8 @@ export function TeamDayCard({
         return null
       }
       const event = await teamEventsApi.getTeamEvent(team.id, eventId, token)
-      const [lineup, diaryEntry] = await Promise.all([
-        teamEventsApi.getLineup(team.id, eventId, token).catch(() => null),
-        event.event_type === 'training'
-          ? teamEventsApi.getMyDiaryEntry(team.id, eventId, token).catch(() => null)
-          : Promise.resolve(null),
-      ])
-      return { teamId: team.id, event, lineup, diaryEntry }
+      const lineup = await teamEventsApi.getLineup(team.id, eventId, token).catch(() => null)
+      return { teamId: team.id, event, lineup }
     }
     load(accessToken)
       .then((result) => {
@@ -96,7 +91,7 @@ export function TeamDayCard({
     )
   }
 
-  const { teamId, event, lineup, diaryEntry } = loaded
+  const { teamId, event, lineup } = loaded
   const startsAt = new Date(event.starts_at)
   const hasStarted = Date.now() >= startsAt.getTime()
   const isTraining = event.event_type === 'training'
@@ -106,7 +101,7 @@ export function TeamDayCard({
 
   const eventPath = `/teams/${teamId}/events/${event.id}`
   const title = isTraining ? 'Командная тренировка' : `Игра${event.opponent_name ? ` с ${event.opponent_name}` : ''}`
-  const diaryDone = hasStarted && diaryEntry !== null
+  const diaryDone = hasStarted && day.training_session?.has_diary_entry === true
   const warmupAvailable =
     !hasStarted &&
     day.training_session !== null &&
@@ -143,7 +138,7 @@ export function TeamDayCard({
         )}
 
         {hasStarted ? (
-          <Button onClick={() => navigate(`${eventPath}?tab=diary`)} className="w-full">
+          <Button onClick={() => navigate(`/training/${day.id}/diary`)} className="w-full">
             {diaryDone ? 'Открыть дневник' : 'Вести дневник'}
           </Button>
         ) : (

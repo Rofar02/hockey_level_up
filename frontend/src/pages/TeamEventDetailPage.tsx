@@ -12,7 +12,6 @@ import { TextField } from '../components/ui/TextField'
 import { EventBoardPanel } from '../components/teamEvents/EventBoardPanel'
 import { EventAttendancePanel } from '../components/teamEvents/EventAttendancePanel'
 import { EventLineupPanel } from '../components/teamEvents/EventLineupPanel'
-import { EventDiaryPanel } from '../components/teamEvents/EventDiaryPanel'
 import * as teamsApi from '../api/teams'
 import * as teamEventsApi from '../api/teamEvents'
 import { ApiError } from '../api/client'
@@ -21,13 +20,14 @@ import type { TeamRead } from '../types/team'
 import type { TeamEventRead } from '../types/teamEvent'
 import { formatDateTime, toDatetimeLocalValue } from '../utils/date'
 
-type DetailTab = 'board' | 'attendance' | 'lineup' | 'diary'
+type DetailTab = 'board' | 'attendance' | 'lineup'
 
 export function TeamEventDetailPage() {
   const { teamId, eventId } = useParams<{ teamId: string; eventId: string }>()
   const { accessToken } = useAuth()
-  // ?tab=board|attendance|lineup|diary -- HomePage's team card links to the
-  // diary, the team page's "Ближайшее" card to the board.
+  // ?tab=board|attendance|lineup -- e.g. the team page's "Ближайшее" card
+  // links straight to the board. (No diary tab: after a team training
+  // players and the coach use their ordinary personal diary.)
   const [searchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
 
@@ -59,9 +59,9 @@ export function TeamEventDetailPage() {
       if (current !== null) {
         return current
       }
-      const trainingOnly: string[] = ['board', 'diary']
+      const trainingOnly: string[] = ['board']
       if (
-        (requestedTab === 'board' || requestedTab === 'attendance' || requestedTab === 'lineup' || requestedTab === 'diary') &&
+        (requestedTab === 'board' || requestedTab === 'attendance' || requestedTab === 'lineup') &&
         (eventResult.event_type === 'training' || !trainingOnly.includes(requestedTab))
       ) {
         return requestedTab
@@ -202,11 +202,6 @@ export function TeamEventDetailPage() {
               <TabButton active={activeTab === 'lineup'} onClick={() => setActiveTab('lineup')}>
                 Состав
               </TabButton>
-              {event.event_type === 'training' && (
-                <TabButton active={activeTab === 'diary'} onClick={() => setActiveTab('diary')}>
-                  Дневник
-                </TabButton>
-              )}
             </div>
 
             {activeTab === 'board' && event.event_type === 'training' && (
@@ -222,9 +217,6 @@ export function TeamEventDetailPage() {
             )}
             {activeTab === 'lineup' && (
               <EventLineupPanel teamId={teamId!} event={event} isCaptain={team.is_captain} />
-            )}
-            {activeTab === 'diary' && event.event_type === 'training' && (
-              <EventDiaryPanel teamId={teamId!} event={event} />
             )}
           </>
         )}

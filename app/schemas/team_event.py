@@ -23,6 +23,7 @@ from app.models.user import Position
 MAX_DIAGRAM_TOKENS = 30
 MAX_DIAGRAM_ARROWS = 40
 MAX_ARROW_VIA_POINTS = 24
+MAX_ARROW_STEP = 20
 
 Coordinate = Field(ge=0, le=1)
 
@@ -57,6 +58,11 @@ class DiagramArrow(BaseModel):
     # simplified client-side); the frontend draws a smooth curve through
     # them. Empty = straight arrow, as before.
     via: list[DiagramPoint] = Field(default_factory=list, max_length=MAX_ARROW_VIA_POINTS)
+    # Order of play ("такт"): arrows with the same step happen at the same
+    # time, a higher step later. None (older schemes) = derived on display:
+    # 1 for an arrow from a player, previous arrow's step + 1 for one that
+    # continues another arrow.
+    step: int | None = Field(default=None, ge=1, le=MAX_ARROW_STEP)
 
 
 class DrillDiagram(BaseModel):
@@ -249,16 +255,6 @@ class TeamEventLineupGroupUpdate(BaseModel):
 
 class TeamEventLineupPlayerAssign(BaseModel):
     group_id: uuid.UUID
-
-
-class TeamEventDiaryEntrySave(BaseModel):
-    note: str | None = None
-
-
-class TeamEventDiaryEntryRead(BaseModel):
-    note: str | None = None
-    created_at: datetime
-    updated_at: datetime
 
 
 class TeamIceScheduleTemplateRead(BaseModel):

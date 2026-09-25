@@ -17,7 +17,9 @@ import type {
 import {
   RINK_HEIGHT,
   RINK_WIDTH,
+  MAX_ARROW_STEP,
   TOKEN_RADIUS,
+  arrowSteps,
   clamp01,
   emptyDiagram,
   isEmptyDiagram,
@@ -154,7 +156,7 @@ export function DiagramEditor({
     if (drawing === null) {
       return
     }
-    const arrow: DiagramArrow = {
+    const draftArrow: DiagramArrow = {
       id: newDiagramId(),
       kind: drawing.kind,
       from_token: drawing.fromToken,
@@ -162,6 +164,10 @@ export function DiagramEditor({
       via,
       end,
     }
+    // Store the step it would get anyway (1 from a player, previous + 1 when
+    // continuing an arrow), so later edits elsewhere never renumber it.
+    const step = arrowSteps({ ...diagram, arrows: [...diagram.arrows, draftArrow] }).get(draftArrow.id) ?? 1
+    const arrow: DiagramArrow = { ...draftArrow, step }
     commit({ ...diagram, arrows: [...diagram.arrows, arrow] })
     setDrawing(null)
     // Select the new arrow so the next move can chain straight from its end.
@@ -183,6 +189,18 @@ export function DiagramEditor({
         setDrawing({ kind, fromToken: null, start: arrow.end })
       }
     }
+  }
+
+  function changeStep(arrowId: string, delta: -1 | 1) {
+    const current = arrowSteps(diagram).get(arrowId) ?? 1
+    const next = Math.min(MAX_ARROW_STEP, Math.max(1, current + delta))
+    if (next === current) {
+      return
+    }
+    commit({
+      ...diagram,
+      arrows: diagram.arrows.map((arrow) => (arrow.id === arrowId ? { ...arrow, step: next } : arrow)),
+    })
   }
 
   function removeSelected() {
@@ -374,6 +392,10 @@ export function DiagramEditor({
                 {DIAGRAM_ARROW_LABELS[kind].toLowerCase()}
               </span>
             ))}
+            <span className="flex items-center gap-1">
+              <StepSwatch />
+              такт: одинаковые — одновременно
+            </span>
           </div>
         )}
       </div>
@@ -413,6 +435,12 @@ export function DiagramEditor({
                     <ArrowSwatch kind={kind} />
                   </PaletteButton>
                 ))}
+              {selection.type === 'arrow' && (
+                <StepControl
+                  step={arrowSteps(diagram).get(selection.id) ?? 1}
+                  onChange={(delta) => changeStep(selection.id, delta)}
+                />
+              )}
               <PaletteButton label={selection.type === 'token' ? 'Убрать фишку' : 'Убрать стрелку'} onClick={removeSelected}>
                 <i className="ti ti-trash text-[#8A94A6]" aria-hidden="true" />
               </PaletteButton>
@@ -450,6 +478,15 @@ export function DiagramEditor({
   )
 }
 
+function StepSwatch() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <circle cx="6" cy="6" r="5.5" fill="#FF6A3D" />
+      <text x="6" y="6.4" textAnchor="middle" dominantBaseline="central" fontSize="7" fontWeight="800" fill="#fff">1</text>
+    </svg>
+  )
+}
+
 // Legend/palette swatches sit on the dark UI, where the rink's navy skate
 // colour would vanish -- lighter variants of the same three.
 const SWATCH_COLORS: Record<DiagramArrowKind, string> = {
@@ -474,6 +511,42 @@ function ArrowSwatch({ kind }: { kind: DiagramArrowKind }) {
         <line x1="0" y1="4" x2="18" y2="4" stroke={visible} strokeWidth="2" strokeDasharray={kind === 'skate' ? '3 3' : undefined} />
       )}
     </svg>
+  )
+}
+
+// "Такт" of the selected arrow: same number = at the same time.
+function StepControl({ step, onChange }: { step: number; onChange: (delta: -1 | 1) => void }) {
+  return (
+    <div
+      role="group"
+      aria-label="Такт стрелки"
+      className="flex h-11 items-center gap-0.5 rounded-xl bg-white/5 px-1 text-[#C9D1DC]"
+    >
+      <button
+        type="button"
+        onClick={() => onChange(-1)}
+        disabled={step <= 1}
+        aria-label="Такт раньше"
+        className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/10 disabled:opacity-30"
+      >
+        <i className="ti ti-minus" aria-hidden="true" />
+      </button>
+      <span className="flex min-w-12 flex-col items-center leading-tight">
+        <span className="font-display text-base font-bold text-[#F5F7FA]" data-testid="arrow-step">
+          {step}
+        </span>
+        <span className="text-[9px]">такт</span>
+      </span>
+      <button
+        type="button"
+        onClick={() => onChange(1)}
+        disabled={step >= MAX_ARROW_STEP}
+        aria-label="Такт позже"
+        className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/10 disabled:opacity-30"
+      >
+        <i className="ti ti-plus" aria-hidden="true" />
+      </button>
+    </div>
   )
 }
 

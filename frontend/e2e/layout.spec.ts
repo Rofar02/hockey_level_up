@@ -6,8 +6,8 @@ import {
   expectBottomNotHiddenByNav,
   expectNoHorizontalOverflow,
   loginAs,
-  moscowIso,
-  moscowNow,
+  localIso,
+  localNow,
   shot,
   type TeamSetup,
 } from './helpers'
@@ -21,13 +21,13 @@ let setup: TeamSetup
 let eventId: string
 
 test.beforeAll(async () => {
-  const now = moscowNow()
-  test.skip(now.hour >= 21, 'needs an event later today at least 2.5h away (run before 21:00 MSK)')
+  const now = localNow()
+  test.skip(now.hour >= 21, 'needs an event later today at least 2.5h away -- pin a mid-day zone with E2E_TZ')
   setup = await createTeamWithPlayer()
   await declareWeek(setup.player, now.date)
   const event = await api<{ id: string }>('POST', `/teams/${setup.teamId}/events`, {
     token: setup.captain.token,
-    body: { event_type: 'training', starts_at: moscowIso(now.date, now.hour + 3, now.minute) },
+    body: { event_type: 'training', starts_at: localIso(now.date, now.hour + 3, now.minute) },
   })
   eventId = event.id
   const base = `/teams/${setup.teamId}/events/${eventId}`

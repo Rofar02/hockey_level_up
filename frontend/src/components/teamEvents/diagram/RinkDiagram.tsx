@@ -5,8 +5,11 @@ import {
   ARROW_COLORS,
   RINK_HEIGHT,
   RINK_WIDTH,
+  STEP_BADGE_RADIUS,
   TOKEN_RADIUS,
+  arrowBadgePoint,
   arrowPath,
+  arrowSteps,
   toRink,
 } from '../../../utils/rinkDiagram'
 
@@ -140,6 +143,10 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
         )
       })}
 
+      {/* Order of play: a numbered badge where each movement starts; same
+          number = at the same time. Pointless with a single arrow. */}
+      {diagram.arrows.length > 1 && <StepBadges diagram={diagram} />}
+
       {draft !== null && draft.points.length > 1 && (
         <polyline
           points={draft.points.map((point) => `${toRink(point).x},${toRink(point).y}`).join(' ')}
@@ -229,6 +236,25 @@ function Token({
           </text>
         </g>
       )}
+    </g>
+  )
+}
+
+function StepBadges({ diagram }: { diagram: DrillDiagram }) {
+  const steps = arrowSteps(diagram)
+  return (
+    <g pointerEvents="none" aria-hidden="true">
+      {diagram.arrows.map((arrow) => {
+        const { x, y } = arrowBadgePoint(arrow)
+        return (
+          <g key={arrow.id} data-step={steps.get(arrow.id)}>
+            <circle cx={x} cy={y} r={STEP_BADGE_RADIUS} fill={ARROW_COLORS[arrow.kind]} stroke="#E9F4FA" strokeWidth="1.2" />
+            <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize="6.5" fontWeight="800" fill="#FFFFFF">
+              {steps.get(arrow.id)}
+            </text>
+          </g>
+        )
+      })}
     </g>
   )
 }

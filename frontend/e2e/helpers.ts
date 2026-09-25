@@ -3,7 +3,9 @@ import { expect, type Page } from '@playwright/test'
 // API seeding for e2e tests -- talks to the backend directly, the browser
 // only ever does what a real user would.
 export const API_URL = process.env.E2E_API_URL ?? 'http://localhost:8000'
-export const TZ = 'Europe/Moscow'
+import { TZ } from './tz'
+
+export { TZ }
 const PASSWORD = 'E2ePass123!'
 
 export interface TestUser {
@@ -93,10 +95,11 @@ export async function createTeamWithPlayer(): Promise<TeamSetup> {
   return { captain, player, teamId: team.id, teamName }
 }
 
-// Wall-clock date in Moscow as YYYY-MM-DD, plus hour/minute -- tests pick
-// event times relative to this so "today" means the same thing to the
-// backend (user timezone) and the browser (timezoneId in the config).
-export function moscowNow(): { date: string; hour: number; minute: number } {
+// Wall-clock date in the test timezone (see tz.ts) as YYYY-MM-DD, plus
+// hour/minute -- tests pick event times relative to this so "today" means
+// the same thing to the backend (user timezone) and the browser
+// (timezoneId in the config).
+export function localNow(): { date: string; hour: number; minute: number } {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: TZ,
     year: 'numeric',
@@ -121,9 +124,18 @@ export function mondayOf(isoDate: string): string {
   return addDays(isoDate, -weekday)
 }
 
-// Moscow is UTC+3 all year.
-export function moscowIso(isoDate: string, hour: number, minute = 0): string {
-  return `${isoDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+03:00`
+// UTC offset of the test timezone right now, e.g. "+03:00" or "-04:00".
+function tzOffset(): string {
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: TZ, timeZoneName: 'longOffset' })
+    .formatToParts(new Date())
+    .find((part) => part.type === 'timeZoneName')?.value
+  const match = name?.match(/GMT([+-]\d{2}:\d{2})/)
+  return match ? match[1] : '+00:00'
+}
+
+// A wall-clock time in the test timezone as an ISO timestamp.
+export function localIso(isoDate: string, hour: number, minute = 0): string {
+  return `${isoDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00${tzOffset()}`
 }
 
 // A week where `trainingDay` is OFF_ICE and every other day is REST.

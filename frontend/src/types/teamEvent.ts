@@ -43,6 +43,9 @@ export interface DiagramArrow {
   // Points of a finger-drawn path between start and end (a smooth curve is
   // drawn through them); absent or empty = straight arrow.
   via?: DiagramPoint[]
+  // Order of play ("такт"): same step = at the same time. Absent (older
+  // schemes) = derived on display, see arrowSteps in utils/rinkDiagram.
+  step?: number | null
 }
 
 export interface DrillDiagram {
@@ -192,16 +195,6 @@ export interface TeamEventLineupGroupCreatePayload {
 export interface TeamEventLineupGroupUpdatePayload {
   name?: string | null
   color?: string | null
-}
-
-export interface TeamEventDiaryEntryRead {
-  note: string | null
-  created_at: string
-  updated_at: string
-}
-
-export interface TeamEventDiaryEntrySavePayload {
-  note?: string | null
 }
 
 export interface TeamIceScheduleTemplateRead {
