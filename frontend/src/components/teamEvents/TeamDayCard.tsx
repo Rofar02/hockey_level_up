@@ -7,7 +7,7 @@ import { BoardPlanModal } from './BoardPlanView'
 import * as teamEventsApi from '../../api/teamEvents'
 import * as teamsApi from '../../api/teams'
 import { useAuth } from '../../hooks/useAuth'
-import { boardTotalMinutes, formatMinutes, totalMinutes } from '../../utils/boardPlan'
+import { boardTotalMinutes, formatMinutes, pluralRu, totalMinutes } from '../../utils/boardPlan'
 import type { DayPlanRead } from '../../types/schedule'
 import type { TeamEventDiaryEntryRead, TeamEventLineupRead, TeamEventRead } from '../../types/teamEvent'
 import { formatTime } from '../../utils/date'
@@ -192,16 +192,24 @@ function BoardSummary({ event }: { event: TeamEventRead }) {
     )
   }
   const boardMinutes = boardTotalMinutes(sections)
+  const schemeCount = sections.flatMap((section) => section.drills).filter((drill) => drill.diagram !== null).length
+  const planLabel = [
+    'План',
+    boardMinutes !== null ? formatMinutes(boardMinutes) : null,
+    schemeCount > 0 ? `${schemeCount} ${pluralRu(schemeCount, ['схема', 'схемы', 'схем'])}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   return (
-    <SummaryRow icon="ti-clipboard-list" label={boardMinutes !== null ? `План · ${formatMinutes(boardMinutes)}` : 'План'}>
+    <SummaryRow icon="ti-clipboard-list" label={planLabel}>
       {sections.map((section) => {
         const minutes = totalMinutes(section.drills)
         return (
-          <p key={section.id} className="truncate">
-            {section.name}
-            <span className="text-[#8A94A6]">
-              {' · '}
-              {section.drills.length}
+          // Only the name truncates -- the counts are the useful part.
+          <p key={section.id} className="flex min-w-0 gap-1">
+            <span className="truncate">{section.name}</span>
+            <span className="shrink-0 text-[#8A94A6]">
+              · {section.drills.length}
               {minutes !== null && ` · ${formatMinutes(minutes)}`}
             </span>
           </p>

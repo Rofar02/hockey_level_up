@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { EventPlanStatus } from '../components/teamEvents/EventPlanStatus'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_CLASS } from '../components/ui/cardStyle'
@@ -14,6 +15,7 @@ import * as teamsApi from '../api/teams'
 import * as teamEventsApi from '../api/teamEvents'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { isPastEvent, upcomingEvents } from '../utils/teamEvents'
 import type { TeamRead } from '../types/team'
 import type { TeamEventRead, TeamEventType } from '../types/teamEvent'
 import { formatDateTime, toDatetimeLocalValue } from '../utils/date'
@@ -40,19 +42,52 @@ function EventTypeIcon({ eventType }: { eventType: TeamEventType }) {
   )
 }
 
-function BoardStatusBadge({ event }: { event: TeamEventRead }) {
-  if (event.event_type !== 'training' || event.board_status === null) {
+function EventList({
+  title,
+  events,
+  isCaptain,
+  muted = false,
+  onOpen,
+}: {
+  title: string
+  events: TeamEventRead[]
+  isCaptain: boolean
+  muted?: boolean
+  onOpen: (event: TeamEventRead) => void
+}) {
+  if (events.length === 0) {
     return null
   }
-  const isPublished = event.board_status === 'published'
   return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
-        isPublished ? 'bg-accent-ice/15 text-accent-ice' : 'bg-white/10 text-[#8A94A6]'
-      }`}
-    >
-      {isPublished ? 'План готов' : 'Черновик'}
-    </span>
+    <section className="flex flex-col gap-2">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-[#8A94A6]">{title}</h2>
+      {events.map((event) => {
+        const cancelled = event.status === 'cancelled'
+        return (
+          <button
+            key={event.id}
+            type="button"
+            onClick={() => onOpen(event)}
+            className={`flex items-center gap-3 p-3 text-left transition-colors hover:bg-white/5 ${CARD_CLASS} ${
+              muted ? 'opacity-70' : ''
+            }`}
+          >
+            <EventTypeIcon eventType={event.event_type} />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <span className={`truncate text-sm font-medium text-[#F5F7FA] ${cancelled ? 'line-through' : ''}`}>
+                {event.event_type === 'training' ? 'Тренировка' : `Игра с ${event.opponent_name}`}
+              </span>
+              <span className="text-xs text-[#8A94A6]">
+                {formatDateTime(new Date(event.starts_at))}
+                {cancelled && ' · отменена'}
+              </span>
+              {!cancelled && !muted && <EventPlanStatus event={event} isCaptain={isCaptain} />}
+            </div>
+            <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
+          </button>
+        )
+      })}
+    </section>
   )
 }
 
@@ -172,26 +207,23 @@ export function TeamEventsPage() {
                 }
               />
             ) : (
-              <div className="flex flex-col gap-2">
-                {events.map((event) => (
-                  <button
-                    key={event.id}
-                    type="button"
-                    onClick={() => navigate(`/teams/${teamId}/events/${event.id}`)}
-                    className={`flex items-center gap-3 p-3 text-left transition-colors hover:bg-white/5 ${CARD_CLASS}`}
-                  >
-                    <EventTypeIcon eventType={event.event_type} />
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="truncate text-sm font-medium text-[#F5F7FA]">
-                        {event.event_type === 'training' ? 'Тренировка' : `Игра с ${event.opponent_name}`}
-                      </span>
-                      <span className="text-xs text-[#8A94A6]">{formatDateTime(new Date(event.starts_at))}</span>
-                    </div>
-                    <BoardStatusBadge event={event} />
-                    <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
-                  </button>
-                ))}
-              </div>
+              <>
+                <EventList
+                  title="Предстоящие"
+                  events={upcomingEvents(events)}
+                  isCaptain={team.is_captain}
+                  onOpen={(event) => navigate(`/teams/${teamId}/events/${event.id}`)}
+                />
+                <EventList
+                  title="Прошедшие и отменённые"
+                  muted
+                  events={events
+                    .filter((event) => event.status === 'cancelled' || isPastEvent(event))
+                    .sort((x, y) => new Date(y.starts_at).getTime() - new Date(x.starts_at).getTime())}
+                  isCaptain={team.is_captain}
+                  onOpen={(event) => navigate(`/teams/${teamId}/events/${event.id}`)}
+                />
+              </>
             )}
           </>
         )}

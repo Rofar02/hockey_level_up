@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
+import { CoachPlanReminderCard } from '../components/teamEvents/CoachPlanReminderCard'
 import { TeamDayCard } from '../components/teamEvents/TeamDayCard'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
@@ -510,6 +511,10 @@ export function HomePage() {
 
         {!isLoading && (
           <div className="flex flex-col gap-4">
+            {/* Captains only, and only while a training this week has no
+                published plan -- renders nothing otherwise. */}
+            <CoachPlanReminderCard />
+
             {(() => {
               const personalCard = (
                 <TodayCard

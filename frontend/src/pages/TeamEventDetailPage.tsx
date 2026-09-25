@@ -26,7 +26,8 @@ type DetailTab = 'board' | 'attendance' | 'lineup' | 'diary'
 export function TeamEventDetailPage() {
   const { teamId, eventId } = useParams<{ teamId: string; eventId: string }>()
   const { accessToken } = useAuth()
-  // ?tab=diary -- HomePage's team day card links straight to the diary.
+  // ?tab=board|attendance|lineup|diary -- HomePage's team card links to the
+  // diary, the team page's "Ближайшее" card to the board.
   const [searchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
 
@@ -58,8 +59,12 @@ export function TeamEventDetailPage() {
       if (current !== null) {
         return current
       }
-      if (requestedTab === 'diary' && eventResult.event_type === 'training') {
-        return 'diary'
+      const trainingOnly: string[] = ['board', 'diary']
+      if (
+        (requestedTab === 'board' || requestedTab === 'attendance' || requestedTab === 'lineup' || requestedTab === 'diary') &&
+        (eventResult.event_type === 'training' || !trainingOnly.includes(requestedTab))
+      ) {
+        return requestedTab
       }
       return eventResult.event_type === 'training' ? 'board' : 'attendance'
     })
