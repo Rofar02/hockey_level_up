@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { CARD_CLASS } from '../ui/cardStyle'
 import { Modal } from '../ui/Modal'
+import { FramePlayer } from './diagram/FramePlayer'
 import { RinkDiagram } from './diagram/RinkDiagram'
 import type { TeamEventDrillRead, TeamEventDrillSectionRead } from '../../types/teamEvent'
 import { formatMinutes, totalMinutes } from '../../utils/boardPlan'
@@ -131,7 +132,7 @@ function DrillDetail({
       </div>
       {drill.diagram !== null && (
         <div className="flex flex-col gap-2">
-          <RinkDiagram diagram={drill.diagram} className="mx-auto max-h-[60dvh] w-auto max-w-full rounded-[18px]" />
+          <FramePlayer diagram={drill.diagram} className="mx-auto max-h-[55dvh] w-auto max-w-full rounded-[18px]" />
           <DiagramLegend />
         </div>
       )}
@@ -170,15 +171,6 @@ function DiagramLegend() {
           {item.label}
         </span>
       ))}
-      <span className="flex items-center gap-1">
-        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-          <circle cx="6" cy="6" r="5.5" fill="#FF6A3D" />
-          <text x="6" y="6.4" textAnchor="middle" dominantBaseline="central" fontSize="7" fontWeight="800" fill="#fff">
-            1
-          </text>
-        </svg>
-        порядок: одинаковые цифры — одновременно
-      </span>
     </div>
   )
 }
