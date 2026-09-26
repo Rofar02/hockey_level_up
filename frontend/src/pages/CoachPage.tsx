@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { CoachPersonalityIntroModal } from '../components/CoachPersonalityIntroModal'
 import { MarkdownContent } from '../components/MarkdownContent'
 import { BackLink } from '../components/ui/BackLink'
@@ -158,7 +159,10 @@ function CoachChatContent({
   // is later unset. Once we learn it, the input disappears for the rest of
   // this page visit.
   const [unavailable, setUnavailable] = useState(false)
-  const [input, setInput] = useState('')
+  // Another screen can open the chat with a question ready to send
+  // (Analytics' "Спросить тренера") -- the player still sends it themselves.
+  const location = useLocation()
+  const [input, setInput] = useState(() => (location.state as { draft?: string } | null)?.draft ?? '')
   const [isSending, setIsSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [decidingActionId, setDecidingActionId] = useState<string | null>(null)

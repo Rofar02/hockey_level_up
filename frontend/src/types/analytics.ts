@@ -1,27 +1,67 @@
-// Mirrors app/schemas/analytics.py -- structured data for the summary text,
-// not ready-made copy (see utils/analyticsSummary.ts, which assembles the
-// actual Russian sentences from this).
+// Mirrors app/schemas/analytics.py's overview response.
 import type { TargetStat } from './exercise'
 
-export interface AnalyticsMoverRead {
-  // For type: 'stat', this is the raw TargetStat value (e.g. "strength"),
-  // not a Russian label -- look it up via TARGET_STAT_LABELS. For 'skill',
-  // it's already the skill's real (Russian) name.
-  name: string | TargetStat
-  type: 'stat' | 'skill'
-  delta: number
+// -- GET /users/me/analytics/overview: the whole Analytics screen --
+
+export interface AnalyticsInsightRead {
+  kind: 'decline' | 'records' | 'milestone' | 'regularity'
+  tone: 'good' | 'warning' | 'neutral'
+  title: string
+  detail: string
+  action: 'ask_coach' | 'records' | null
+  // The ready question "Спросить тренера" opens the chat with.
+  coach_prompt: string | null
+}
+
+export interface AnalyticsStatRead {
+  stat: TargetStat
   current_value: number
+  delta: number
+  skipped_dates: string[]
+  planned_blocks: number
 }
 
-export interface AnalyticsMilestoneRead {
-  skill_name: string
-  points_remaining: number
-  threshold: number
+export interface AnalyticsRecordRead {
+  exercise_name: string
+  unit: 'kg' | 'reps' | 'seconds'
+  before: number
+  after: number
+  achieved_on: string
 }
 
-export interface AnalyticsSummaryRead {
-  top_gainer: AnalyticsMoverRead
-  top_decliner: AnalyticsMoverRead | null
-  closest_to_milestone: AnalyticsMilestoneRead | null
-  decline_reason: string | null
+export type AnalyticsDayStatus = 'done' | 'team' | 'skipped' | 'rest' | 'future' | 'none'
+
+export interface AnalyticsRegularityRead {
+  planned_sessions: number
+  completed_sessions: number
+  streak_days: number
+  team_going: number | null
+  team_total: number | null
+  // Four Monday-started weeks ending with the current one.
+  calendar: { date: string; status: AnalyticsDayStatus }[]
+  most_skipped: { exercise_name: string; count: number }[]
+}
+
+export interface AnalyticsLoadWeekRead {
+  week_start: string
+  tonnage_kg: number
+  sets: number
+  hard_share: number | null
+}
+
+export type AnalyticsMuscleGroup = 'legs' | 'core' | 'back' | 'chest_shoulders' | 'arms'
+
+export interface AnalyticsOverviewRead {
+  days: number
+  insights: AnalyticsInsightRead[]
+  stats: AnalyticsStatRead[]
+  records: AnalyticsRecordRead[]
+  regularity: AnalyticsRegularityRead
+  load: { weeks: AnalyticsLoadWeekRead[]; warning: string | null }
+  balance: {
+    groups: { group: AnalyticsMuscleGroup; share: number }[]
+    pull_blocks: number
+    push_blocks: number
+    note: string | null
+  }
 }

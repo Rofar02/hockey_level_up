@@ -80,6 +80,11 @@ class AnalyticsService:
             decline_reason=decline_reason,
         )
 
+    async def stat_deltas(self, user_id: uuid.UUID, since: datetime, now: datetime) -> list[_Candidate]:
+        """Every stat's current value and change since `since` -- the same
+        numbers get_summary ranks, for the Analytics overview's stat grid."""
+        return await self._stat_candidates(user_id, since, now)
+
     async def _stat_candidates(
         self, user_id: uuid.UUID, since: datetime, now: datetime
     ) -> list[_Candidate]:

@@ -9,7 +9,7 @@ from app.db.session import get_db
 from app.models.exercise import EquipmentItem, TargetStat
 from app.models.user import User
 from app.routers.deps import get_current_user, require_premium
-from app.schemas.analytics import AnalyticsSummaryRead
+from app.schemas.analytics import AnalyticsOverviewRead, AnalyticsSummaryRead
 from app.schemas.coach_chat import (
     CoachAttentionRead,
     CoachChatMessageCreate,
@@ -40,6 +40,7 @@ from app.schemas.user_temporary_restriction import (
     UserTemporaryRestrictionIn,
     UserTemporaryRestrictionRead,
 )
+from app.services.analytics_overview_service import AnalyticsOverviewService
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_attention_service import CoachAttentionService
 from app.services.coach_chat_service import CoachChatService
@@ -198,6 +199,21 @@ async def get_my_skills_history(
     if skill_id is not None:
         return await service.get_skill_history(skill_id, current_user.id, days)
     return await service.get_all_skills_history(current_user.id, days)
+
+
+@router.get("/me/analytics/overview", response_model=AnalyticsOverviewRead)
+async def get_my_analytics_overview(
+    current_user: Annotated[User, Depends(require_premium)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    days: int = Query(default=30, ge=7, le=365),
+):
+    """The whole Analytics screen for the last `days` days: findings with a
+    next step, the six stats with the blocks skipped for each, personal
+    records, regularity, weekly load and muscle balance -- see
+    AnalyticsOverviewService. Stat chart points still come from
+    /me/analytics/stats-history.
+    """
+    return await AnalyticsOverviewService(session).get_overview(current_user, days)
 
 
 @router.get("/me/analytics/summary", response_model=AnalyticsSummaryRead)
