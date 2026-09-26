@@ -290,12 +290,19 @@ class TeamEventService:
         title: str,
         description: str | None,
         duration_minutes: int | None,
+        diagram: DrillDiagram | None = None,
     ) -> TeamEventDrillRead:
         event = await self._require_captain_and_training_event(user, team_id, event_id)
         section = await self._get_section_or_404(section_id, event.id)
         order = len(await self._events.list_drills_for_section(section.id))
         drill = await self._events.create_drill(
-            event.id, section.id, order, title, description, duration_minutes
+            event.id,
+            section.id,
+            order,
+            title,
+            description,
+            duration_minutes,
+            diagram.model_dump() if diagram is not None else None,
         )
         await self._session.commit()
         return self._to_drill_read(drill)

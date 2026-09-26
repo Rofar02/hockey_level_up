@@ -337,6 +337,10 @@ export function arrowSteps(diagram: DrillDiagram): Map<string, number> {
 
 // ---- playback: who moves where, frame by frame ----
 
+// How long each frame stays on screen while playing -- long enough for its
+// dots and riders to finish (RinkDiagram's DOT_DURATION_MS is 1.1s).
+export const PLAY_FRAME_MS = 1700
+
 // A point part-way (t = 0..1) along an arrow's smooth centre line, from its
 // very start -- a token riding the arrow starts at its own centre.
 export function pointOnArrow(arrow: DiagramArrow, t: number): DiagramPoint {
@@ -364,7 +368,17 @@ export interface PlaybackPlan {
   frames: number[]
   // Where every token stands when each frame begins.
   startPositions: Map<number, Map<string, DiagramPoint>>
+  // Where every token stands once the last frame has played.
+  endPositions: Map<string, DiagramPoint>
   moves: Map<number, TokenMove[]>
+}
+
+// Where every token stands when `frame` begins -- also for a frame with no
+// arrows yet (the editor's fresh "+" frame): nothing moves in between, so
+// it's the start of the next used frame, or the end of the whole scheme.
+export function tokenPositionsAt(plan: PlaybackPlan, frame: number): Map<string, DiagramPoint> {
+  const next = plan.frames.find((value) => value >= frame)
+  return next !== undefined ? plan.startPositions.get(next)! : plan.endPositions
 }
 
 // Where a puck sits next to a player -- at the stick, left of the token
@@ -464,5 +478,18 @@ export function playbackPlan(diagram: DrillDiagram): PlaybackPlan {
     }
     moves.set(frame, frameMoves)
   }
-  return { frames, startPositions, moves }
+  return { frames, startPositions, endPositions: positions, moves }
+}
+
+// The move that last carried a token before `frame` begins -- the arrow
+// whose end is where the token stands in `frame`. null = hasn't moved yet.
+export function lastMoveBefore(plan: PlaybackPlan, tokenId: string, frame: number): TokenMove | null {
+  let last: TokenMove | null = null
+  for (const value of plan.frames) {
+    if (value >= frame) {
+      break
+    }
+    last = (plan.moves.get(value) ?? []).find((move) => move.tokenId === tokenId) ?? last
+  }
+  return last
 }

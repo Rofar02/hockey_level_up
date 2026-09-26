@@ -7,6 +7,8 @@ import {
 } from './client'
 import type {
   DrillDiagram,
+  DrillTemplateCreatePayload,
+  DrillTemplateRead,
   TeamEventAttendanceRead,
   TeamEventAttendanceRosterRead,
   TeamEventAttendanceSetPayload,
@@ -356,4 +358,27 @@ export function deleteIceScheduleTemplate(
   accessToken: string,
 ): Promise<void> {
   return apiDeleteAuth<void>(`/teams/${teamId}/ice-schedule-templates/${templateId}`, accessToken)
+}
+
+// -- a coach's own drill templates --
+
+export function listDrillTemplates(accessToken: string): Promise<DrillTemplateRead[]> {
+  return apiGet<DrillTemplateRead[]>('/users/me/drill-templates', accessToken)
+}
+
+// 409 once the coach has the maximum number of templates.
+export function createDrillTemplate(
+  payload: DrillTemplateCreatePayload,
+  accessToken: string,
+): Promise<DrillTemplateRead> {
+  return apiPostAuth<DrillTemplateRead>('/users/me/drill-templates', payload, accessToken)
+}
+
+export function renameDrillTemplate(templateId: string, title: string, accessToken: string): Promise<DrillTemplateRead> {
+  return apiPatchAuth<DrillTemplateRead>(`/users/me/drill-templates/${templateId}`, { title }, accessToken)
+}
+
+// Drills already copied from it stay as they are.
+export function deleteDrillTemplate(templateId: string, accessToken: string): Promise<void> {
+  return apiDeleteAuth<void>(`/users/me/drill-templates/${templateId}`, accessToken)
 }

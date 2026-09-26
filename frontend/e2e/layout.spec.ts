@@ -113,6 +113,9 @@ test('coach screens fit the phone', async ({ page }) => {
   await expect(editor.getByRole('button', { name: 'Сохранить' })).toBeInViewport({ ratio: 1 })
   await expectNoHorizontalOverflow(page)
   // Tapping a player shows the arrow palette -- every button on screen.
+  // Frame 1: the editor opens on the last frame, where the defender has
+  // already skated up the rink.
+  await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
   const box = await editor.getByRole('img', { name: 'Схема упражнения на площадке' }).boundingBox()
   await page.mouse.click(box!.x + box!.width * 0.7, box!.y + box!.height * 0.8)
   for (const name of ['Пас', 'Перепас', 'Бросок', 'Кат с шайбой', 'Кат без шайбы', 'Убрать фишку']) {

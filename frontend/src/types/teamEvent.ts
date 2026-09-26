@@ -119,6 +119,27 @@ export interface TeamEventDrillCreatePayload {
   title: string
   description?: string | null
   duration_minutes?: number | null
+  // From a coach's template: the scheme lands with the drill in one write.
+  diagram?: DrillDiagram | null
+}
+
+// A coach's own saved drill -- follows them across teams; a board gets a
+// copy, editing it never touches the template.
+export interface DrillTemplateRead {
+  id: string
+  title: string
+  description: string | null
+  duration_minutes: number | null
+  diagram: DrillDiagram | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DrillTemplateCreatePayload {
+  title: string
+  description?: string | null
+  duration_minutes?: number | null
+  diagram?: DrillDiagram | null
 }
 
 // A different section_id moves the drill to the end of that section.

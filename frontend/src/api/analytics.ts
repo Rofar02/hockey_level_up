@@ -1,9 +1,6 @@
 import { apiGet } from './client'
-import type { AnalyticsSummaryRead } from '../types/analytics'
+import type { AnalyticsOverviewRead } from '../types/analytics'
 
-export function getAnalyticsSummary(
-  days: number,
-  accessToken: string,
-): Promise<AnalyticsSummaryRead> {
-  return apiGet<AnalyticsSummaryRead>(`/users/me/analytics/summary?days=${days}`, accessToken)
+export function getAnalyticsOverview(days: number, accessToken: string): Promise<AnalyticsOverviewRead> {
+  return apiGet<AnalyticsOverviewRead>(`/users/me/analytics/overview?days=${days}`, accessToken)
 }

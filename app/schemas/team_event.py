@@ -155,6 +155,9 @@ class TeamEventDrillCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
     duration_minutes: int | None = Field(default=None, ge=1, le=180)
+    # Set when the drill comes from a coach's template -- the scheme lands
+    # in the same write as the drill itself.
+    diagram: DrillDiagram | None = None
 
 
 class TeamEventDrillUpdate(BaseModel):
@@ -271,3 +274,27 @@ class TeamIceScheduleTemplateCreate(BaseModel):
 
 class TeamIceScheduleTemplateUpdate(BaseModel):
     active: bool
+
+
+# -- a coach's own drill templates --
+
+
+class DrillTemplateCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=180)
+    diagram: DrillDiagram | None = None
+
+
+class DrillTemplateRename(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
+class DrillTemplateRead(BaseModel):
+    id: uuid.UUID
+    title: str
+    description: str | None = None
+    duration_minutes: int | None = None
+    diagram: DrillDiagram | None = None
+    created_at: datetime
+    updated_at: datetime

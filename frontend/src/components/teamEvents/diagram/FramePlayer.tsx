@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react'
 import { RinkDiagram } from './RinkDiagram'
 import type { DrillDiagram } from '../../../types/teamEvent'
-import { diagramFrames } from '../../../utils/rinkDiagram'
-
-// How long each frame stays on screen while playing -- long enough for its
-// dots to finish their run (RinkDiagram's MovingDot takes 1.1s).
-const FRAME_MS = 1700
+import { PLAY_FRAME_MS, diagramFrames } from '../../../utils/rinkDiagram'
 
 // A drill's scheme for players: the whole thing at rest ("Всё"), frame by
 // frame ("1 · 2 · 3" -- what happens at the same time, and in what order),
@@ -17,7 +13,7 @@ export function FramePlayer({ diagram, className = '' }: { diagram: DrillDiagram
   const [isPlaying, setIsPlaying] = useState(false)
   const [playKey, setPlayKey] = useState(0)
 
-  // One step of playback per FRAME_MS: 1 → 2 → … → last → back to "Всё".
+  // One step of playback per PLAY_FRAME_MS: 1 → 2 → … → last → back to "Всё".
   useEffect(() => {
     if (!isPlaying) {
       return
@@ -31,7 +27,7 @@ export function FramePlayer({ diagram, className = '' }: { diagram: DrillDiagram
         setFrame(null)
         setIsPlaying(false)
       }
-    }, frame === null ? 0 : FRAME_MS)
+    }, frame === null ? 0 : PLAY_FRAME_MS)
     return () => clearTimeout(timer)
   }, [isPlaying, frame, frames])
 

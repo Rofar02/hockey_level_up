@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { CARD_CLASS } from '../ui/cardStyle'
-import { Modal } from '../ui/Modal'
+import { FullScreenSheet } from '../ui/FullScreenSheet'
 import { FramePlayer } from './diagram/FramePlayer'
 import { RinkDiagram } from './diagram/RinkDiagram'
 import type { TeamEventDrillRead, TeamEventDrillSectionRead } from '../../types/teamEvent'
@@ -132,7 +132,7 @@ function DrillDetail({
       </div>
       {drill.diagram !== null && (
         <div className="flex flex-col gap-2">
-          <FramePlayer diagram={drill.diagram} className="mx-auto max-h-[55dvh] w-auto max-w-full rounded-[18px]" />
+          <FramePlayer diagram={drill.diagram} className="mx-auto max-h-[62dvh] w-auto max-w-full rounded-[18px]" />
           <DiagramLegend />
         </div>
       )}
@@ -183,8 +183,8 @@ export function BoardPlanModal({
   onClose: () => void
 }) {
   return (
-    <Modal title="План тренировки" onClose={onClose}>
+    <FullScreenSheet title="План тренировки" onClose={onClose}>
       <BoardPlanView sections={sections} />
-    </Modal>
+    </FullScreenSheet>
   )
 }

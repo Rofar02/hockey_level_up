@@ -24,11 +24,15 @@ import {
   diagramFrames,
   emptyDiagram,
   isEmptyDiagram,
+  lastMoveBefore,
   newDiagramId,
+  PLAY_FRAME_MS,
+  playbackPlan,
   smoothStroke,
   snapToGoal,
   strokeLength,
   toRink,
+  tokenPositionsAt,
 } from '../../../utils/rinkDiagram'
 
 type Selection = { type: 'token'; id: string } | { type: 'arrow'; id: string } | null
@@ -39,11 +43,19 @@ type Drawing = { kind: DiagramArrowKind; fromToken: string | null; start: Diagra
 
 interface DragState {
   tokenId: string
+  // Set in a later frame, for a token an earlier arrow already moved: the
+  // drag moves that arrow's end (where the token stands now), not the
+  // token's starting spot.
+  arrowId: string | null
   before: DrillDiagram
   moved: boolean
 }
 
 const ARROW_KINDS: DiagramArrowKind[] = ['pass', 'repass', 'shot', 'skate_puck', 'skate']
+
+function isSamePoint(a: DiagramPoint, b: DiagramPoint): boolean {
+  return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6
+}
 
 // Full-screen scheme editor for one drill (captain only). Everything is
 // local until "Сохранить" sends the whole diagram in one PUT.
@@ -75,11 +87,67 @@ export function DiagramEditor({
   const [isAddingPlayer, setIsAddingPlayer] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // "▶" in the frame strip: plays the frames through like the players'
+  // view, then comes back to the frame being drawn. Editing is paused.
+  const [playing, setPlaying] = useState<{ returnTo: number } | null>(null)
+  const [playKey, setPlayKey] = useState(0)
+
+  const frames = [...new Set([...diagramFrames(diagram), currentFrame])].sort((a, b) => a - b)
+  // Tokens stand where the current frame begins: a player who skated in
+  // frame 1 is at his arrow's end in frame 2, and new arrows start there.
+  const plan = playbackPlan(diagram)
+  const framePositions = frames.length > 1 ? tokenPositionsAt(plan, currentFrame) : null
+  function positionOf(token: DiagramToken): DiagramPoint {
+    return framePositions?.get(token.id) ?? { x: token.x, y: token.y }
+  }
+  // Moved by an earlier frame's arrow -- not at its own starting spot.
+  function hasMoved(token: DiagramToken): boolean {
+    const at = positionOf(token)
+    return !isSamePoint(at, token)
+  }
 
   useEffect(() => {
     lockBodyScroll()
     return unlockBodyScroll
   }, [])
+
+  // One frame per PLAY_FRAME_MS; after the last one, back where we were.
+  const playedFrames = plan.frames.join(',')
+  useEffect(() => {
+    if (playing === null) {
+      return
+    }
+    const timer = setTimeout(() => {
+      const next = playedFrames
+        .split(',')
+        .map(Number)
+        .find((value) => value > currentFrame)
+      if (next !== undefined) {
+        setCurrentFrame(next)
+        setPlayKey((key) => key + 1)
+      } else {
+        setCurrentFrame(playing.returnTo)
+        setPlaying(null)
+      }
+    }, PLAY_FRAME_MS)
+    return () => clearTimeout(timer)
+  }, [playing, currentFrame, playedFrames])
+
+  function togglePlay() {
+    if (playing !== null) {
+      setCurrentFrame(playing.returnTo)
+      setPlaying(null)
+      return
+    }
+    if (plan.frames.length === 0) {
+      return
+    }
+    setSelection(null)
+    setDrawing(null)
+    setPlaying({ returnTo: currentFrame })
+    setCurrentFrame(plan.frames[0])
+    setPlayKey((key) => key + 1)
+  }
   useSuppressCoachmarks(true)
 
   function commit(next: DrillDiagram) {
@@ -134,10 +202,10 @@ export function DiagramEditor({
       if (token.id === drawing?.fromToken) {
         return false
       }
-      const center = toRink(token)
+      const center = toRink(positionOf(token))
       return Math.hypot(center.x - at.x, center.y - at.y) <= TOKEN_RADIUS.own + 3
     })
-    return hit !== undefined ? { x: hit.x, y: hit.y } : point
+    return hit !== undefined ? positionOf(hit) : point
   }
 
   // A tap (barely any movement) makes a straight arrow to that point, like
@@ -190,7 +258,7 @@ export function DiagramEditor({
     if (selection.type === 'token') {
       const token = diagram.tokens.find((candidate) => candidate.id === selection.id)
       if (token !== undefined) {
-        setDrawing({ kind, fromToken: token.id, start: { x: token.x, y: token.y } })
+        setDrawing({ kind, fromToken: token.id, start: positionOf(token) })
       }
     } else {
       const arrow = diagram.arrows.find((candidate) => candidate.id === selection.id)
@@ -248,6 +316,9 @@ export function DiagramEditor({
   }
 
   function handleBackgroundPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
+    if (playing !== null) {
+      return
+    }
     if (drawing !== null) {
       beginStroke(event)
       return
@@ -257,6 +328,9 @@ export function DiagramEditor({
 
   function handleTokenPointerDown(token: DiagramToken, event: ReactPointerEvent<SVGGElement>) {
     event.stopPropagation()
+    if (playing !== null) {
+      return
+    }
     if (drawing !== null) {
       // Starting the stroke on the player himself is the natural gesture
       // (draw from the player); a tap on another token ends there.
@@ -264,12 +338,32 @@ export function DiagramEditor({
       return
     }
     setSelection({ type: 'token', id: token.id })
-    setDrag({ tokenId: token.id, before: diagram, moved: false })
-    capturePointer(event.pointerId)
+    // Dragging a token that hasn't moved yet sets where it starts the
+    // drill. In a later frame, one an earlier arrow already moved drags that
+    // arrow's end -- "he skates to here instead". A puck carried along by a
+    // skater, or one that went out and back on a repass, stays put. (The
+    // rink hands over the token as drawn, at its frame position.)
+    const stored = diagram.tokens.find((candidate) => candidate.id === token.id)
+    if (stored === undefined) {
+      return
+    }
+    if (!hasMoved(stored)) {
+      setDrag({ tokenId: token.id, arrowId: null, before: diagram, moved: false })
+      capturePointer(event.pointerId)
+      return
+    }
+    const move = lastMoveBefore(plan, token.id, currentFrame)
+    if (move !== null && move.path === 'along' && move.offset === undefined) {
+      setDrag({ tokenId: token.id, arrowId: move.arrowId, before: diagram, moved: false })
+      capturePointer(event.pointerId)
+    }
   }
 
   function handleArrowPointerDown(arrow: DiagramArrow, event: ReactPointerEvent<SVGPathElement>) {
     event.stopPropagation()
+    if (playing !== null) {
+      return
+    }
     if (drawing !== null) {
       beginStroke(event)
       return
@@ -296,13 +390,46 @@ export function DiagramEditor({
       return
     }
     // Live update without history -- the whole drag becomes one undo step
-    // on pointer up. Arrows starting at the token move with it.
-    setDiagram((current) => ({
-      tokens: current.tokens.map((token) => (token.id === drag.tokenId ? { ...token, ...point } : token)),
-      arrows: current.arrows.map((arrow) =>
-        arrow.from_token === drag.tokenId ? { ...arrow, start: point } : arrow,
-      ),
-    }))
+    // on pointer up.
+    const arrowId = drag.arrowId
+    if (arrowId !== null) {
+      // The arrow now ends here, and what carries on from its old end
+      // (the token's next arrows, a chained move) starts here.
+      setDiagram((current) => {
+        const moved = current.arrows.find((arrow) => arrow.id === arrowId)
+        if (moved === undefined) {
+          return current
+        }
+        return {
+          ...current,
+          arrows: current.arrows.map((arrow) => {
+            if (arrow.id === arrowId) {
+              return { ...arrow, end: point }
+            }
+            const continues =
+              (arrow.from_token === drag.tokenId || arrow.from_token == null) && isSamePoint(arrow.start, moved.end)
+            return continues ? { ...arrow, start: point } : arrow
+          }),
+        }
+      })
+      if (!drag.moved) {
+        setDrag({ ...drag, moved: true })
+      }
+      return
+    }
+    // Arrows leaving from the token's starting spot move with it; ones it
+    // takes later, from where an earlier arrow left it, don't.
+    setDiagram((current) => {
+      const dragged = current.tokens.find((token) => token.id === drag.tokenId)
+      return {
+        tokens: current.tokens.map((token) => (token.id === drag.tokenId ? { ...token, ...point } : token)),
+        arrows: current.arrows.map((arrow) =>
+          arrow.from_token === drag.tokenId && dragged !== undefined && isSamePoint(arrow.start, dragged)
+            ? { ...arrow, start: point }
+            : arrow,
+        ),
+      }
+    })
     if (!drag.moved) {
       setDrag({ ...drag, moved: true })
     }
@@ -346,17 +473,20 @@ export function DiagramEditor({
     }
   }
 
-  const frames = [...new Set([...diagramFrames(diagram), currentFrame])].sort((a, b) => a - b)
-
   const selectedToken =
     selection?.type === 'token' ? diagram.tokens.find((token) => token.id === selection.id) ?? null : null
+  // "Дальше отсюда": the frame right after the selected player's last move,
+  // where he stands at its end, ready for his next arrow.
+  const lastMoveFrame =
+    selectedToken !== null ? plan.frames.filter((value) => (plan.moves.get(value) ?? []).some((move) => move.tokenId === selectedToken.id)).pop() : undefined
+  const continueFrame = lastMoveFrame !== undefined ? Math.min(MAX_ARROW_STEP, lastMoveFrame + 1) : null
   // A puck doesn't skate or pass on its own -- only players get arrows.
   const canDrawFromSelection = selection?.type === 'arrow' || (selectedToken !== null && selectedToken.kind !== 'puck')
   // Where the action is: the palette moves to the top of the rink when it
   // would otherwise cover the selected player (it wraps to two rows on a
   // narrow phone and hides the whole bottom zone).
   const selectedArrow = selection?.type === 'arrow' ? diagram.arrows.find((arrow) => arrow.id === selection.id) : undefined
-  const focusY = selectedToken?.y ?? selectedArrow?.end.y ?? 0
+  const focusY = (selectedToken !== null ? positionOf(selectedToken).y : undefined) ?? selectedArrow?.end.y ?? 0
   const paletteAtTop = focusY > 0.55
 
   // Portaled to <body>: rendered in place it sits inside the page's own
@@ -426,6 +556,8 @@ export function DiagramEditor({
           draft={drawing !== null && stroke !== null ? { kind: drawing.kind, points: [drawing.start, ...stroke] } : null}
           frame={frames.length > 1 ? currentFrame : null}
           laterFrames="dim"
+          playKey={playing !== null ? playKey : null}
+          moveTokens
         />
 
         {isEmptyDiagram(diagram) && (
@@ -447,6 +579,11 @@ export function DiagramEditor({
                     <ArrowSwatch kind={kind} />
                   </PaletteButton>
                 ))}
+              {canDrawFromSelection && selection.type === 'token' && continueFrame !== null && continueFrame !== currentFrame && (
+                <PaletteButton label="Дальше отсюда" onClick={() => setCurrentFrame(continueFrame)}>
+                  <i className="ti ti-arrow-right text-accent-ice" aria-hidden="true" />
+                </PaletteButton>
+              )}
               {selection.type === 'arrow' && (
                 <StepControl
                   step={arrowSteps(diagram).get(selection.id) ?? 1}
@@ -465,7 +602,10 @@ export function DiagramEditor({
         <FrameStrip
           frames={frames}
           current={currentFrame}
+          isPlaying={playing !== null}
+          onTogglePlay={togglePlay}
           onPick={(value) => {
+            setPlaying(null)
             setCurrentFrame(value)
             setSelection(null)
           }}
@@ -574,16 +714,35 @@ function StepControl({ step, onChange }: { step: number; onChange: (delta: -1 | 
 function FrameStrip({
   frames,
   current,
+  isPlaying,
+  onTogglePlay,
   onPick,
   onAdd,
 }: {
   frames: number[]
   current: number
+  isPlaying: boolean
+  onTogglePlay: () => void
   onPick: (frame: number) => void
   onAdd: () => void
 }) {
   return (
     <div className="flex shrink-0 items-center gap-2 px-3 pb-2">
+      <button
+        type="button"
+        onClick={onTogglePlay}
+        aria-label={isPlaying ? 'Остановить' : 'Проиграть схему'}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-persimmon text-white transition-transform active:scale-95"
+      >
+        {/* Inline -- the icon font on the CDN has no filled variants. */}
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+          {isPlaying ? (
+            <path d="M3.5 3.5h9v9h-9z" fill="currentColor" />
+          ) : (
+            <path d="M4.5 2.3v11.4c0 .5.5.8.9.5l8.4-5.7a.6.6 0 0 0 0-1L5.4 1.8c-.4-.3-.9 0-.9.5z" fill="currentColor" />
+          )}
+        </svg>
+      </button>
       <span className="text-[11px] font-medium uppercase tracking-wide text-[#8A94A6]">Кадр</span>
       <div role="group" aria-label="Кадры" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {frames.map((value) => (

@@ -9,13 +9,15 @@ import { Modal } from '../ui/Modal'
 import { SelectField } from '../ui/SelectField'
 import { TextField } from '../ui/TextField'
 import { BoardPlanModal, BoardPlanView } from './BoardPlanView'
+import { DrillTemplatePicker } from './DrillTemplatePicker'
 import { DiagramEditor } from './diagram/DiagramEditor'
 import { RinkDiagram } from './diagram/RinkDiagram'
 import * as teamEventsApi from '../../api/teamEvents'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
+import { useDrillTemplates } from '../../hooks/useDrillTemplates'
 import { DRILL_SECTION_PRESETS } from '../../types/teamEvent'
-import type { TeamEventDrillRead, TeamEventDrillSectionRead, TeamEventRead } from '../../types/teamEvent'
+import type { DrillTemplateRead, TeamEventDrillRead, TeamEventDrillSectionRead, TeamEventRead } from '../../types/teamEvent'
 import { boardStats, formatMinutes, pluralRu, totalMinutes } from '../../utils/boardPlan'
 
 interface EventBoardPanelProps {
@@ -214,6 +216,40 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
           sectionOptions={sectionOptions}
           busy={busy}
           onClose={() => setDrillSheet(null)}
+          onPickTemplate={async (template, sectionId) => {
+            const added = await run('Не удалось добавить упражнение из шаблона.', (token) =>
+              teamEventsApi.addDrill(
+                teamId,
+                event.id,
+                {
+                  section_id: sectionId,
+                  title: template.title,
+                  description: template.description,
+                  duration_minutes: template.duration_minutes,
+                  diagram: template.diagram,
+                },
+                token,
+              ),
+            )
+            if (added !== undefined) {
+              setDrillSheet(null)
+            }
+          }}
+          onSaveTemplate={async (values) => {
+            if (accessToken === null || editing === null) {
+              return false
+            }
+            await teamEventsApi.createDrillTemplate(
+              {
+                title: values.title.trim() || editing.drill.title,
+                description: values.description.trim() || null,
+                duration_minutes: parseMinutes(values.minutes),
+                diagram: editing.drill.diagram,
+              },
+              accessToken,
+            )
+            return true
+          }}
           onSave={async (values, thenDraw) => {
             const saved = await saveDrill(values)
             if (saved !== undefined) {
@@ -582,6 +618,8 @@ function DrillSheetModal({
   sectionOptions,
   busy,
   onClose,
+  onPickTemplate,
+  onSaveTemplate,
   onSave,
   onDrawDiagram,
   onMove,
@@ -592,6 +630,9 @@ function DrillSheetModal({
   sectionOptions: { value: string; label: string }[]
   busy: boolean
   onClose: () => void
+  onPickTemplate: (template: DrillTemplateRead, sectionId: string) => void
+  // Throws on failure; resolves once the template is saved.
+  onSaveTemplate: (values: DrillFormValues) => Promise<boolean>
   onSave: (values: DrillFormValues, thenDraw: boolean) => void
   onDrawDiagram: () => void
   onMove: (direction: -1 | 1) => void
@@ -607,6 +648,23 @@ function DrillSheetModal({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
   const titleId = useId()
+  // New drill: the coach's templates, one tap away.
+  const [templates, setTemplates] = useDrillTemplates()
+  const [isPickingTemplate, setIsPickingTemplate] = useState(false)
+  const [templateState, setTemplateState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [templateError, setTemplateError] = useState<string | null>(null)
+
+  async function saveAsTemplate() {
+    setTemplateState('saving')
+    setTemplateError(null)
+    try {
+      await onSaveTemplate(values)
+      setTemplateState('saved')
+    } catch (err) {
+      setTemplateState('error')
+      setTemplateError(err instanceof ApiError ? err.message : 'Не удалось сохранить шаблон.')
+    }
+  }
 
   // The buttons stay tappable with an empty title -- a greyed-out button
   // that silently does nothing reads as broken; say what's missing instead.
@@ -628,8 +686,29 @@ function DrillSheetModal({
   }
 
   return (
-    <Modal title={drill === null ? 'Новое упражнение' : 'Упражнение'} onClose={onClose}>
+    <Modal title={drill === null ? (isPickingTemplate ? 'Мои шаблоны' : 'Новое упражнение') : 'Упражнение'} onClose={onClose}>
+      {drill === null && isPickingTemplate && templates !== null ? (
+        <DrillTemplatePicker
+          templates={templates}
+          onTemplatesChange={setTemplates}
+          busy={busy}
+          onPick={(template) => onPickTemplate(template, values.sectionId)}
+          onBack={() => setIsPickingTemplate(false)}
+        />
+      ) : (
       <form onSubmit={submit} className="flex flex-col gap-3">
+        {drill === null && templates !== null && templates.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setIsPickingTemplate(true)}
+            className="flex min-h-11 items-center gap-3 rounded-xl border border-accent-ice/30 bg-accent-ice/10 px-3 text-left text-sm text-[#F5F7FA] transition-colors hover:bg-accent-ice/15"
+          >
+            <i className="ti ti-bookmarks text-accent-ice" aria-hidden="true" />
+            <span className="flex-1">Взять из моих шаблонов</span>
+            <span className="text-xs text-[#8A94A6]">{templates.length}</span>
+            <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
+          </button>
+        )}
         <div className="flex flex-col gap-1">
           <TextField
             id={titleId}
@@ -696,6 +775,15 @@ function DrillSheetModal({
 
         {editing !== null && (
           <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
+            <SheetAction
+              icon={templateState === 'saved' ? 'ti-check' : 'ti-bookmark'}
+              label={
+                templateState === 'saved' ? 'Сохранено в мои шаблоны' : templateState === 'saving' ? 'Сохраняю…' : 'Сохранить как шаблон'
+              }
+              disabled={busy || templateState === 'saving' || templateState === 'saved'}
+              onClick={() => void saveAsTemplate()}
+            />
+            <FormError message={templateError} />
             <div className="grid grid-cols-2 gap-2">
               <SheetAction icon="ti-arrow-up" label="Выше" disabled={busy || editing.index === 0} onClick={() => onMove(-1)} />
               <SheetAction
@@ -720,6 +808,7 @@ function DrillSheetModal({
           </div>
         )}
       </form>
+      )}
     </Modal>
   )
 }

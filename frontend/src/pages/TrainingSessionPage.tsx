@@ -54,8 +54,7 @@ const PHASE_ICONS: Record<TrainingPhase, string> = {
 // Accusative -- "Завершить [что?]" -- and genitive -- "после завершения
 // [чего?]" -- case forms of PHASE_LABELS, needed because the step-by-step
 // flow's footer button and locked-preview hint both use a phase name as a
-// grammatical object rather than a standalone label (same "get the grammar
-// right" bar as analyticsSummary's pluralizePoints).
+// grammatical object rather than a standalone label.
 const PHASE_LABELS_ACCUSATIVE: Record<TrainingPhase, string> = {
   warmup: 'разминку',
   main: 'основную часть',
@@ -76,7 +75,7 @@ const PHASE_LABELS_GENITIVE: Record<TrainingPhase, string> = {
 const PHASE_SEQUENCE: TrainingPhase[] = ['warmup', 'main', 'cooldown', 'puck']
 
 // Standard Russian plural-form selection (1 упражнение / 2 упражнения / 5
-// упражнений), same algorithm as analyticsSummary's pluralizePoints.
+// упражнений).
 function pluralizeExercises(count: number): string {
   const mod10 = count % 10
   const mod100 = count % 100
