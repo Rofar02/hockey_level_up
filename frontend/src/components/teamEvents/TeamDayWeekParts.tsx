@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/Button'
-import { Modal } from '../ui/Modal'
+import { FullScreenSheet } from '../ui/FullScreenSheet'
 import { BoardPlanView } from './BoardPlanView'
 import { useTeamEvent, type LoadedTeamEvent } from '../../hooks/useTeamEvent'
 import { formatMinutes, pluralRu, boardTotalMinutes } from '../../utils/boardPlan'
@@ -61,7 +61,7 @@ export function TeamDayPlanModal({
   const sections = loaded != null ? publishedSections(loaded) : []
 
   return (
-    <Modal title={title} onClose={onClose}>
+    <FullScreenSheet title={title} onClose={onClose}>
       <div className="flex flex-col gap-4">
         {loaded === undefined && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
         {loaded === null && <p className="text-sm text-[#8A94A6]">Не удалось загрузить командное событие.</p>}
@@ -92,6 +92,6 @@ export function TeamDayPlanModal({
           </>
         )}
       </div>
-    </Modal>
+    </FullScreenSheet>
   )
 }
