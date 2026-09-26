@@ -243,6 +243,35 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await standsAt(0.2, 0.3)
   await editor.getByRole('button', { name: 'Отменить' }).click()
 
+  // Dragging him in frame 2 moves the end of frame 1's skate (he skates
+  // there instead), and the pass chained from that end follows. Undone.
+  await editor.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await standsAt(0.35, 0.37)
+  const grabbed = await editor.locator('g[data-token="own"] circle[r="10"]').boundingBox()
+  const dropAt = rink.at(0.25, 0.45)
+  await page.mouse.move(grabbed!.x + grabbed!.width / 2, grabbed!.y + grabbed!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(dropAt.x, dropAt.y, { steps: 8 })
+  await page.mouse.up()
+  const draggedTo = { x: Number(await forward.getAttribute('cx')), y: Number(await forward.getAttribute('cy')) }
+  expect(Math.hypot(draggedTo.x - 0.35 * 200, draggedTo.y - 0.37 * 360), 'moved off the old end').toBeGreaterThan(20)
+  await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
+  await standsAt(0.3, 0.75)
+  // Frame 1's skate now ends exactly where he was dropped.
+  const skatePath = (await editor.locator('g[data-frame="1"] path').first().getAttribute('d')) ?? ''
+  const [endX, endY] = skatePath.trim().split(/\s+/).slice(-2).map(Number)
+  expect(Math.hypot(endX - draggedTo.x, endY - draggedTo.y)).toBeLessThan(0.5)
+  await editor.getByRole('button', { name: 'Отменить' }).click()
+  await editor.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await standsAt(0.35, 0.37)
+
+  // ▶ in the editor plays the frames through and comes back to frame 2.
+  await editor.getByRole('button', { name: 'Проиграть схему' }).click()
+  await expect(editor.getByRole('button', { name: 'Остановить' })).toBeVisible()
+  await expect(editor.getByRole('button', { name: 'Кадр 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Проиграть схему' })).toBeVisible({ timeout: 15_000 })
+  await expect(editor.getByRole('button', { name: 'Кадр 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Отменить' }).click()
