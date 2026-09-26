@@ -199,6 +199,21 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
         />
       )}
 
+      {/* Where a token started the drill, faint, once an earlier frame has
+          moved it -- who went where reads at a glance. */}
+      {frameStart !== undefined &&
+        diagram.tokens.map((token) => {
+          const at = frameStart.get(token.id)
+          if (at === undefined || (Math.abs(at.x - token.x) < 1e-6 && Math.abs(at.y - token.y) < 1e-6)) {
+            return null
+          }
+          return (
+            <g key={`ghost-${token.id}`} opacity={0.28} pointerEvents="none">
+              <Token token={token} selected={false} ghost />
+            </g>
+          )
+        })}
+
       {diagram.tokens.map((token) => (
         <Token
           key={token.id}
@@ -215,18 +230,23 @@ function Token({
   token,
   selected,
   onPointerDown,
+  ghost = false,
 }: {
   token: DiagramToken
   selected: boolean
   onPointerDown?: (token: DiagramToken, event: ReactPointerEvent<SVGGElement>) => void
+  // The faint copy at the token's starting spot -- tagged apart from the
+  // real token.
+  ghost?: boolean
 }) {
+  const tag = ghost ? { 'data-ghost': token.kind } : { 'data-token': token.kind }
   const { x, y } = toRink(token)
   const handleDown = onPointerDown ? (event: ReactPointerEvent<SVGGElement>) => onPointerDown(token, event) : undefined
   const cursor = onPointerDown ? 'cursor-grab' : ''
 
   if (token.kind === 'puck') {
     return (
-      <g onPointerDown={handleDown} className={cursor} data-token={token.kind}>
+      <g onPointerDown={handleDown} className={cursor} {...tag}>
         {selected && <circle cx={x} cy={y} r={TOKEN_RADIUS.puck + 4} fill={SELECTION} fillOpacity="0.35" />}
         {/* Invisible, larger tap target around the small puck. */}
         <circle cx={x} cy={y} r={10} fill="transparent" />
@@ -238,7 +258,7 @@ function Token({
   if (token.kind === 'opponent') {
     const r = TOKEN_RADIUS.opponent
     return (
-      <g onPointerDown={handleDown} className={cursor} data-token={token.kind}>
+      <g onPointerDown={handleDown} className={cursor} {...tag}>
         {selected && <circle cx={x} cy={y} r={r + 4} fill={SELECTION} fillOpacity="0.35" />}
         <circle cx={x} cy={y} r={r} fill="#1A2634" stroke="#0078A8" strokeWidth="1.8" />
         <path d={`M ${x - 3.5} ${y - 3.5} L ${x + 3.5} ${y + 3.5} M ${x + 3.5} ${y - 3.5} L ${x - 3.5} ${y + 3.5}`} stroke="#8FB8CC" strokeWidth="1.4" strokeLinecap="round" />
@@ -252,7 +272,7 @@ function Token({
   const centerLabel = letter ?? (token.number != null ? String(token.number) : '')
   const showBadge = letter !== null && token.number != null
   return (
-    <g onPointerDown={handleDown} className={cursor} data-token={token.kind}>
+    <g onPointerDown={handleDown} className={cursor} {...tag}>
       {selected && <circle cx={x} cy={y} r={r + 4} fill={SELECTION} fillOpacity="0.35" />}
       <circle cx={x} cy={y} r={r} fill={isGoalie ? '#FFCF5C' : '#F4F6F8'} stroke="#10151C" strokeWidth="1.6" />
       <text

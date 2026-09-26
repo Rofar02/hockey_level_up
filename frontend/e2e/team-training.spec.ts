@@ -223,8 +223,15 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   }
   await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
   await standsAt(0.3, 0.75)
-  await editor.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await expect(editor.locator('g[data-ghost]')).toHaveCount(0)
+  // "Дальше отсюда" on the selected player jumps to the frame after his
+  // last move: he stands at its end, a faint copy marks where he started.
+  await editor.locator('g[data-token="own"]').click()
+  await editor.getByRole('button', { name: 'Дальше отсюда' }).click()
+  await expect(editor.getByRole('button', { name: 'Кадр 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await standsAt(0.35, 0.37)
+  await expect(editor.locator('g[data-ghost="own"]')).toHaveCount(1)
+  await expect(editor.getByRole('button', { name: 'Дальше отсюда' })).toHaveCount(0)
   // Tapped, not dragged: he stays where frame 1 left him.
   await editor.locator('g[data-token="own"]').click()
   await standsAt(0.35, 0.37)

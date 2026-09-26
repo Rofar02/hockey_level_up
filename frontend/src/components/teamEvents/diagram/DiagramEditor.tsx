@@ -85,7 +85,8 @@ export function DiagramEditor({
   const frames = [...new Set([...diagramFrames(diagram), currentFrame])].sort((a, b) => a - b)
   // Tokens stand where the current frame begins: a player who skated in
   // frame 1 is at his arrow's end in frame 2, and new arrows start there.
-  const framePositions = frames.length > 1 ? tokenPositionsAt(playbackPlan(diagram), currentFrame) : null
+  const plan = playbackPlan(diagram)
+  const framePositions = frames.length > 1 ? tokenPositionsAt(plan, currentFrame) : null
   function positionOf(token: DiagramToken): DiagramPoint {
     return framePositions?.get(token.id) ?? { x: token.x, y: token.y }
   }
@@ -379,6 +380,11 @@ export function DiagramEditor({
 
   const selectedToken =
     selection?.type === 'token' ? diagram.tokens.find((token) => token.id === selection.id) ?? null : null
+  // "Дальше отсюда": the frame right after the selected player's last move,
+  // where he stands at its end, ready for his next arrow.
+  const lastMoveFrame =
+    selectedToken !== null ? plan.frames.filter((value) => (plan.moves.get(value) ?? []).some((move) => move.tokenId === selectedToken.id)).pop() : undefined
+  const continueFrame = lastMoveFrame !== undefined ? Math.min(MAX_ARROW_STEP, lastMoveFrame + 1) : null
   // A puck doesn't skate or pass on its own -- only players get arrows.
   const canDrawFromSelection = selection?.type === 'arrow' || (selectedToken !== null && selectedToken.kind !== 'puck')
   // Where the action is: the palette moves to the top of the rink when it
@@ -477,6 +483,11 @@ export function DiagramEditor({
                     <ArrowSwatch kind={kind} />
                   </PaletteButton>
                 ))}
+              {canDrawFromSelection && selection.type === 'token' && continueFrame !== null && continueFrame !== currentFrame && (
+                <PaletteButton label="Дальше отсюда" onClick={() => setCurrentFrame(continueFrame)}>
+                  <i className="ti ti-arrow-right text-accent-ice" aria-hidden="true" />
+                </PaletteButton>
+              )}
               {selection.type === 'arrow' && (
                 <StepControl
                   step={arrowSteps(diagram).get(selection.id) ?? 1}
