@@ -18,7 +18,9 @@ from app.core.training_block import (
     is_tapering,
     main_exercise_count_range,
     next_phase,
+    phase_calendar_ceiling_weeks,
     phase_transition_due,
+    sessions_to_advance_phase,
 )
 from app.models.exercise import ExerciseCategory
 from app.models.schedule import BlockPhase
@@ -261,3 +263,32 @@ def test_no_taper_falls_back_to_season_period() -> None:
     assert main_exercise_count_range(
         BlockPhase.ACCUMULATION, category=ExerciseCategory.OFF_ICE, season_period=SeasonPeriod.SEASON
     ) == (4, 5)
+
+
+@pytest.mark.parametrize(
+    ("season_period", "working", "deload", "working_weeks", "deload_weeks"),
+    [
+        (SeasonPeriod.OFFSEASON, 6, 3, 8, 4),
+        (SeasonPeriod.PRESEASON, 6, 3, 8, 4),
+        (SeasonPeriod.SEASON, 4, 2, 5, 3),
+        (SeasonPeriod.PLAYOFFS, 3, 2, 4, 2),
+    ],
+)
+def test_deload_runs_half_as_long_as_a_working_phase(
+    season_period: SeasonPeriod, working: int, deload: int, working_weeks: int, deload_weeks: int
+) -> None:
+    """Regression (year simulation, 2026-09-26): deload used to be as long
+    as accumulation/intensification -- a third of the year."""
+    assert sessions_to_advance_phase(BlockPhase.ACCUMULATION, season_period) == working
+    assert sessions_to_advance_phase(BlockPhase.DELOAD, season_period) == deload
+    assert phase_calendar_ceiling_weeks(BlockPhase.INTENSIFICATION, season_period) == working_weeks
+    assert phase_calendar_ceiling_weeks(BlockPhase.DELOAD, season_period) == deload_weeks
+    assert phase_transition_due(
+        sessions_completed_in_phase=deload, weeks_since_phase_started=0, season_period=season_period, phase=BlockPhase.DELOAD
+    )
+    assert not phase_transition_due(
+        sessions_completed_in_phase=deload, weeks_since_phase_started=0, season_period=season_period, phase=BlockPhase.ACCUMULATION
+    )
+    assert phase_transition_due(
+        sessions_completed_in_phase=0, weeks_since_phase_started=deload_weeks, season_period=season_period, phase=BlockPhase.DELOAD
+    )
