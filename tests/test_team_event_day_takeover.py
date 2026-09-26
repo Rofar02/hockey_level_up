@@ -179,20 +179,22 @@ async def test_started_day_is_left_alone(db_session) -> None:
     await db_session.flush()
     day_plan = await _day(db_session, player, event_day)
     day_plan.session_type = DaySessionType.OFF_ICE
-    db_session.add(
-        TrainingSession(
-            id=uuid.uuid4(),
-            day_plan_id=day_plan.id,
-            blocks=[
-                SessionBlock(
-                    id=uuid.uuid4(),
-                    phase=TrainingPhase.MAIN,
-                    exercise_id=exercise.id,
-                    order=0,
-                    completed_at=date.today(),
-                )
-            ],
-        )
+    # Through the relationship, not day_plan_id: the DayPlan object may
+    # still be in the session's identity map with training_session cached as
+    # None (whether depends on when GC collects the week<->days cycle), and
+    # the service would then see an unstarted day and build a second
+    # session for it -- a flaky UniqueViolation in the full suite.
+    day_plan.training_session = TrainingSession(
+        id=uuid.uuid4(),
+        blocks=[
+            SessionBlock(
+                id=uuid.uuid4(),
+                phase=TrainingPhase.MAIN,
+                exercise_id=exercise.id,
+                order=0,
+                completed_at=datetime.now(timezone.utc),
+            )
+        ],
     )
     await db_session.flush()
     events = TeamEventService(db_session)
