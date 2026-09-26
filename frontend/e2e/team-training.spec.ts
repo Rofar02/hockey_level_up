@@ -293,7 +293,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await warmup.getByRole('button', { name: 'Упражнение Катание по кругам' }).click()
   await page.getByRole('dialog').getByLabel('Минут').fill('10')
   await expect(page.getByRole('dialog').getByText('Нарисовать схему')).toBeVisible()
-  await page.getByRole('dialog').getByRole('button', { name: 'Сохранить' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Сохранить', exact: true }).click()
   await expect(warmup.getByText('1 упражнение · 10 мин')).toBeVisible()
 
   // Header totals, publish, preview as a player.

@@ -117,6 +117,7 @@ class TeamEventRepository:
         title: str,
         description: str | None,
         duration_minutes: int | None,
+        diagram: dict | None = None,
     ) -> TeamEventDrill:
         drill = TeamEventDrill(
             team_event_id=team_event_id,
@@ -125,6 +126,7 @@ class TeamEventRepository:
             title=title,
             description=description,
             duration_minutes=duration_minutes,
+            diagram=diagram,
         )
         self._session.add(drill)
         await self._session.flush()

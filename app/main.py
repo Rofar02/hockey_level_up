@@ -16,6 +16,7 @@ from app.routers import (
     admin_users,
     assessment,
     auth,
+    drill_templates,
     exercises,
     friends,
     leaderboard,
@@ -105,6 +106,7 @@ app.include_router(admin_users.router)
 app.include_router(teams.router)
 app.include_router(team_events.router)
 app.include_router(team_ice_schedule_templates.router)
+app.include_router(drill_templates.router)
 app.include_router(friends.router)
 app.include_router(training_parties.router)
 app.include_router(quests.router)

@@ -170,6 +170,7 @@ async def add_drill(
         body.title,
         body.description,
         body.duration_minutes,
+        body.diagram,
     )
 
 
