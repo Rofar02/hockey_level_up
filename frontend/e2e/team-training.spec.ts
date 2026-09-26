@@ -208,6 +208,34 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await expect(editor.locator('g[data-frame-state="current"]')).toHaveCount(2)
   await shot(page, '04a-diagram-frames')
 
+  // A later frame shows the player where frame 1's skate left him, and a
+  // new arrow from him starts right there -- then he's at its end in the
+  // next frame. Undone, so the saved scheme below stays as drawn.
+  const forward = editor.locator('g[data-token="own"] circle[r="10"]')
+  // Within a token's radius (rink units) -- a finger stroke's end lands
+  // a few units off the exact point.
+  const standsAt = async (x: number, y: number) => {
+    await expect
+      .poll(async () =>
+        Math.hypot(Number(await forward.getAttribute('cx')) - x * 200, Number(await forward.getAttribute('cy')) - y * 360),
+      )
+      .toBeLessThan(10)
+  }
+  await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
+  await standsAt(0.3, 0.75)
+  await editor.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await standsAt(0.35, 0.37)
+  // Tapped, not dragged: he stays where frame 1 left him.
+  await editor.locator('g[data-token="own"]').click()
+  await standsAt(0.35, 0.37)
+  await editor.getByRole('button', { name: 'Кат без шайбы' }).click()
+  const onward = rink.at(0.2, 0.3)
+  await page.mouse.click(onward.x, onward.y)
+  await expect(editor.getByTestId('arrow-step')).toHaveText('2')
+  await editor.getByRole('button', { name: 'Кадр 3', exact: true }).click()
+  await standsAt(0.2, 0.3)
+  await editor.getByRole('button', { name: 'Отменить' }).click()
+
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Отменить' }).click()
@@ -349,7 +377,7 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await page.getByRole('link', { name: 'Неделя' }).click()
   await expect(page).toHaveURL(/\/schedule\/new$/)
   await expect(page.getByText('Командная тренировка')).toBeVisible()
-  await expect(page.getByText(/2 упражнения · 25 мин · 1 схема/)).toBeVisible()
+  await expect(page.getByText(/План · 25 мин · 1 схема/)).toBeVisible()
   await shot(page, '12-week-team-day')
   await expectNoHorizontalOverflow(page)
   await page.getByRole('button', { name: 'План тренировки' }).click()

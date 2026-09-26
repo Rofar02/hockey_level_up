@@ -364,7 +364,17 @@ export interface PlaybackPlan {
   frames: number[]
   // Where every token stands when each frame begins.
   startPositions: Map<number, Map<string, DiagramPoint>>
+  // Where every token stands once the last frame has played.
+  endPositions: Map<string, DiagramPoint>
   moves: Map<number, TokenMove[]>
+}
+
+// Where every token stands when `frame` begins -- also for a frame with no
+// arrows yet (the editor's fresh "+" frame): nothing moves in between, so
+// it's the start of the next used frame, or the end of the whole scheme.
+export function tokenPositionsAt(plan: PlaybackPlan, frame: number): Map<string, DiagramPoint> {
+  const next = plan.frames.find((value) => value >= frame)
+  return next !== undefined ? plan.startPositions.get(next)! : plan.endPositions
 }
 
 // Where a puck sits next to a player -- at the stick, left of the token
@@ -464,5 +474,5 @@ export function playbackPlan(diagram: DrillDiagram): PlaybackPlan {
     }
     moves.set(frame, frameMoves)
   }
-  return { frames, startPositions, moves }
+  return { frames, startPositions, endPositions: positions, moves }
 }

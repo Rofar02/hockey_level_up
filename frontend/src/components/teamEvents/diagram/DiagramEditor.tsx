@@ -25,10 +25,12 @@ import {
   emptyDiagram,
   isEmptyDiagram,
   newDiagramId,
+  playbackPlan,
   smoothStroke,
   snapToGoal,
   strokeLength,
   toRink,
+  tokenPositionsAt,
 } from '../../../utils/rinkDiagram'
 
 type Selection = { type: 'token'; id: string } | { type: 'arrow'; id: string } | null
@@ -44,6 +46,10 @@ interface DragState {
 }
 
 const ARROW_KINDS: DiagramArrowKind[] = ['pass', 'repass', 'shot', 'skate_puck', 'skate']
+
+function isSamePoint(a: DiagramPoint, b: DiagramPoint): boolean {
+  return Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6
+}
 
 // Full-screen scheme editor for one drill (captain only). Everything is
 // local until "Сохранить" sends the whole diagram in one PUT.
@@ -75,6 +81,19 @@ export function DiagramEditor({
   const [isAddingPlayer, setIsAddingPlayer] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  const frames = [...new Set([...diagramFrames(diagram), currentFrame])].sort((a, b) => a - b)
+  // Tokens stand where the current frame begins: a player who skated in
+  // frame 1 is at his arrow's end in frame 2, and new arrows start there.
+  const framePositions = frames.length > 1 ? tokenPositionsAt(playbackPlan(diagram), currentFrame) : null
+  function positionOf(token: DiagramToken): DiagramPoint {
+    return framePositions?.get(token.id) ?? { x: token.x, y: token.y }
+  }
+  // Moved by an earlier frame's arrow -- not at its own starting spot.
+  function hasMoved(token: DiagramToken): boolean {
+    const at = positionOf(token)
+    return !isSamePoint(at, token)
+  }
 
   useEffect(() => {
     lockBodyScroll()
@@ -134,10 +153,10 @@ export function DiagramEditor({
       if (token.id === drawing?.fromToken) {
         return false
       }
-      const center = toRink(token)
+      const center = toRink(positionOf(token))
       return Math.hypot(center.x - at.x, center.y - at.y) <= TOKEN_RADIUS.own + 3
     })
-    return hit !== undefined ? { x: hit.x, y: hit.y } : point
+    return hit !== undefined ? positionOf(hit) : point
   }
 
   // A tap (barely any movement) makes a straight arrow to that point, like
@@ -190,7 +209,7 @@ export function DiagramEditor({
     if (selection.type === 'token') {
       const token = diagram.tokens.find((candidate) => candidate.id === selection.id)
       if (token !== undefined) {
-        setDrawing({ kind, fromToken: token.id, start: { x: token.x, y: token.y } })
+        setDrawing({ kind, fromToken: token.id, start: positionOf(token) })
       }
     } else {
       const arrow = diagram.arrows.find((candidate) => candidate.id === selection.id)
@@ -264,8 +283,14 @@ export function DiagramEditor({
       return
     }
     setSelection({ type: 'token', id: token.id })
-    setDrag({ tokenId: token.id, before: diagram, moved: false })
-    capturePointer(event.pointerId)
+    // Dragging sets where a token starts the drill -- in a later frame, one
+    // an earlier arrow already moved stays where that arrow took it. (The
+    // rink hands over the token as drawn, at its frame position.)
+    const stored = diagram.tokens.find((candidate) => candidate.id === token.id)
+    if (stored !== undefined && !hasMoved(stored)) {
+      setDrag({ tokenId: token.id, before: diagram, moved: false })
+      capturePointer(event.pointerId)
+    }
   }
 
   function handleArrowPointerDown(arrow: DiagramArrow, event: ReactPointerEvent<SVGPathElement>) {
@@ -296,13 +321,19 @@ export function DiagramEditor({
       return
     }
     // Live update without history -- the whole drag becomes one undo step
-    // on pointer up. Arrows starting at the token move with it.
-    setDiagram((current) => ({
-      tokens: current.tokens.map((token) => (token.id === drag.tokenId ? { ...token, ...point } : token)),
-      arrows: current.arrows.map((arrow) =>
-        arrow.from_token === drag.tokenId ? { ...arrow, start: point } : arrow,
-      ),
-    }))
+    // on pointer up. Arrows leaving from the token's starting spot move with
+    // it; ones it takes later, from where an earlier arrow left it, don't.
+    setDiagram((current) => {
+      const dragged = current.tokens.find((token) => token.id === drag.tokenId)
+      return {
+        tokens: current.tokens.map((token) => (token.id === drag.tokenId ? { ...token, ...point } : token)),
+        arrows: current.arrows.map((arrow) =>
+          arrow.from_token === drag.tokenId && dragged !== undefined && isSamePoint(arrow.start, dragged)
+            ? { ...arrow, start: point }
+            : arrow,
+        ),
+      }
+    })
     if (!drag.moved) {
       setDrag({ ...drag, moved: true })
     }
@@ -346,8 +377,6 @@ export function DiagramEditor({
     }
   }
 
-  const frames = [...new Set([...diagramFrames(diagram), currentFrame])].sort((a, b) => a - b)
-
   const selectedToken =
     selection?.type === 'token' ? diagram.tokens.find((token) => token.id === selection.id) ?? null : null
   // A puck doesn't skate or pass on its own -- only players get arrows.
@@ -356,7 +385,7 @@ export function DiagramEditor({
   // would otherwise cover the selected player (it wraps to two rows on a
   // narrow phone and hides the whole bottom zone).
   const selectedArrow = selection?.type === 'arrow' ? diagram.arrows.find((arrow) => arrow.id === selection.id) : undefined
-  const focusY = selectedToken?.y ?? selectedArrow?.end.y ?? 0
+  const focusY = (selectedToken !== null ? positionOf(selectedToken).y : undefined) ?? selectedArrow?.end.y ?? 0
   const paletteAtTop = focusY > 0.55
 
   // Portaled to <body>: rendered in place it sits inside the page's own
@@ -426,6 +455,7 @@ export function DiagramEditor({
           draft={drawing !== null && stroke !== null ? { kind: drawing.kind, points: [drawing.start, ...stroke] } : null}
           frame={frames.length > 1 ? currentFrame : null}
           laterFrames="dim"
+          moveTokens
         />
 
         {isEmptyDiagram(diagram) && (

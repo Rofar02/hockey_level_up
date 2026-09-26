@@ -11,6 +11,7 @@ import {
   playbackPlan,
   pointOnArrow,
   toRink,
+  tokenPositionsAt,
   type PlaybackPlan,
 } from '../../../utils/rinkDiagram'
 
@@ -36,8 +37,8 @@ interface RinkDiagramProps {
   // players (and puck) ride them; a dot runs along any arrow nobody rides.
   // null = no animation.
   playKey?: number | null
-  // Players' view: tokens stand where each frame begins and ride their
-  // arrows while it plays. Off in the editor, where tokens stay put.
+  // Tokens stand where the focused frame begins (after the earlier frames'
+  // moves) and ride their arrows while it plays. Off = tokens stay put.
   moveTokens?: boolean
 }
 
@@ -73,7 +74,7 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
   const frames = frame !== null ? arrowSteps(diagram) : null
   const plan = useMemo(() => (moveTokens ? playbackPlan(diagram) : null), [moveTokens, diagram])
   const riding = useTokenRide(diagram, plan, frame, playKey)
-  const frameStart = plan !== null && frame !== null ? plan.startPositions.get(frame) : undefined
+  const frameStart = plan !== null && frame !== null ? tokenPositionsAt(plan, frame) : undefined
   const riddenArrows = new Set(
     playKey !== null && frame !== null ? (plan?.moves.get(frame) ?? []).map((move) => move.arrowId) : [],
   )
