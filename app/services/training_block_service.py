@@ -6,10 +6,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.training_block import (
-    SESSIONS_TO_ADVANCE_PHASE,
     is_macrocycle_deload_block,
     next_phase,
     phase_transition_due,
+    sessions_to_advance_phase,
 )
 from app.models.schedule import TrainingBlock
 from app.models.user import SeasonPeriod, User
@@ -35,11 +35,13 @@ class TrainingBlockService:
         # request, nothing else in this read path would otherwise persist it.
         await self._session.commit()
         sessions_completed = await self.count_sessions_completed_in_phase(block)
+        user = await self._session.get(User, user_id)
+        season_period = user.season_period if user is not None else SeasonPeriod.OFFSEASON
         return TrainingBlockRead(
             block_number=block.block_number,
             phase=block.phase,
             sessions_completed_in_phase=sessions_completed,
-            sessions_to_advance=SESSIONS_TO_ADVANCE_PHASE,
+            sessions_to_advance=sessions_to_advance_phase(block.phase, season_period),
             is_macrocycle_deload=block.is_macrocycle_deload,
         )
 
@@ -119,6 +121,7 @@ class TrainingBlockService:
                 sessions_completed_in_phase=sessions_completed,
                 weeks_since_phase_started=weeks_elapsed,
                 season_period=season_period,
+                phase=block.phase,
             ):
                 return block
             block = await self._advance(block, today, total_sessions)

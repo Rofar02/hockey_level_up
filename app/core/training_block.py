@@ -4,6 +4,7 @@ completed real sessions, not calendar weeks; see
 TrainingBlockService.resolve_active_block for the DB-querying/mutating side
 of this).
 """
+import math
 from collections.abc import Callable
 from datetime import date
 
@@ -182,19 +183,50 @@ _PHASE_CALENDAR_CEILING_WEEKS_BY_SEASON: dict[SeasonPeriod, int] = {
 }
 
 
+# DELOAD runs half as long as a working phase. With the same length as
+# accumulation/intensification it took a third of the year (18/17/17 weeks
+# in a year-long simulation, 2026-09-26); half puts it at ~20% (offseason
+# 6+6+3 sessions, season 4+4+2, playoffs 3+3+2), the usual share for a
+# recovery week in a mesocycle.
+_DELOAD_LENGTH_SHARE = 0.5
+
+
+def sessions_to_advance_phase(
+    phase: BlockPhase | None = None, season_period: SeasonPeriod = SeasonPeriod.OFFSEASON
+) -> int:
+    """Real sessions a phase runs before it advances -- the M in
+    phase_transition_due, also what the block card and the coach show as
+    "N из M"."""
+    sessions = _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON.get(season_period, SESSIONS_TO_ADVANCE_PHASE)
+    if phase == BlockPhase.DELOAD:
+        return math.ceil(sessions * _DELOAD_LENGTH_SHARE)
+    return sessions
+
+
+def phase_calendar_ceiling_weeks(
+    phase: BlockPhase | None = None, season_period: SeasonPeriod = SeasonPeriod.OFFSEASON
+) -> int:
+    weeks = _PHASE_CALENDAR_CEILING_WEEKS_BY_SEASON.get(season_period, PHASE_CALENDAR_CEILING_WEEKS)
+    if phase == BlockPhase.DELOAD:
+        return math.ceil(weeks * _DELOAD_LENGTH_SHARE)
+    return weeks
+
+
 def phase_transition_due(
     *,
     sessions_completed_in_phase: int,
     weeks_since_phase_started: int,
     season_period: SeasonPeriod = SeasonPeriod.OFFSEASON,
+    phase: BlockPhase | None = None,
 ) -> bool:
     """True once either M real sessions have completed since the phase
     started, or the phase has run longer than the calendar ceiling -- pure
     decision rule, no DB access, so it's unit-testable on its own (the
-    DB-querying/mutating side lives in TrainingBlockService).
+    DB-querying/mutating side lives in TrainingBlockService). `phase`
+    matters only for DELOAD, which is shorter (see _DELOAD_LENGTH_SHARE).
     """
-    sessions_threshold = _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON.get(season_period, SESSIONS_TO_ADVANCE_PHASE)
-    weeks_threshold = _PHASE_CALENDAR_CEILING_WEEKS_BY_SEASON.get(season_period, PHASE_CALENDAR_CEILING_WEEKS)
+    sessions_threshold = sessions_to_advance_phase(phase, season_period)
+    weeks_threshold = phase_calendar_ceiling_weeks(phase, season_period)
     return (
         sessions_completed_in_phase >= sessions_threshold
         or weeks_since_phase_started >= weeks_threshold

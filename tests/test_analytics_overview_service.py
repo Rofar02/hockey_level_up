@@ -280,3 +280,34 @@ async def test_decline_insight_names_the_skipped_blocks_and_asks_the_coach(db_se
     assert decline.detail == "Пропущено 1 блок на неё из 2."
     assert decline.action == "ask_coach"
     assert decline.coach_prompt is not None and "выносливость" in decline.coach_prompt
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("stat", "title", "pronoun", "prompt"),
+    [
+        (TargetStat.INTELLECT, "Интеллект просел на", "на него", "у меня просел интеллект"),
+        (TargetStat.PUCK_HANDLING, "Владение шайбой просело на", "на него", "у меня просело владение шайбой"),
+    ],
+)
+async def test_decline_wording_agrees_with_the_stat(db_session, stat, title, pronoun, prompt) -> None:
+    user = _user()
+    drill, drill_rows = _exercise("Упражнение", stat)
+    db_session.add_all([user, drill])
+    await db_session.flush()
+    db_session.add_all(drill_rows)
+    db_session.add_all(
+        [
+            UserStat(user_id=user.id, stat_type=stat, current_value=50.0, last_updated_at=NOW),
+            StatHistory(user_id=user.id, stat_type=stat, value=62.0, recorded_at=NOW - timedelta(days=31), reason="test"),
+            StatHistory(user_id=user.id, stat_type=stat, value=50.0, recorded_at=NOW, reason="test"),
+        ]
+    )
+    await _Plans(db_session, user).day(TODAY - timedelta(days=5), [(drill, "open")])
+
+    overview = await AnalyticsOverviewService(db_session).get_overview(user, 30)
+
+    decline = overview.insights[0]
+    assert decline.title.startswith(title)
+    assert pronoun in decline.detail
+    assert decline.coach_prompt is not None and prompt in decline.coach_prompt

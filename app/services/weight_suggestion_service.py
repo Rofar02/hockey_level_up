@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import EquipmentItem, Exercise, ExerciseType
+from app.models.schedule import TrainingBlock
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import FitnessTier, User
 from app.repositories.exercise_repository import ExerciseRepository
@@ -82,16 +83,44 @@ class WeightSuggestionService:
         if last_set is not None:
             if last_set.weight_kg is None:
                 return None
-            if await self._is_macrocycle_deload(user.id):
+            deload_block = await self._active_macrocycle_deload_block(user.id)
+            if deload_block is not None:
                 # Floor only -- not further modulated by this session's
                 # feedback or a separate staleness discount, see
-                # MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER.
-                return _round_to_step(
-                    last_set.weight_kg * MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER, step
+                # MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER. Taken once, from the
+                # weight before this block: sets logged inside it are
+                # already reduced, and reducing them again compounded the
+                # floor every session (21 -> 15 -> 10 -> 7 kg in a year
+                # simulation). An exercise first met inside the block just
+                # holds its weight.
+                before_block = await self._sets.get_last_for_user_exercise_outside_block(
+                    user.id, exercise.id, deload_block.id
                 )
+                if before_block is not None and before_block.weight_kg is not None:
+                    return _round_to_step(
+                        before_block.weight_kg * MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER, step
+                    )
+                return last_set.weight_kg
+            # Right after a deload block, go back to the working weight from
+            # before it -- the deload was a planned step back, not a new
+            # starting point. Building up from the reduced weight again lost
+            # ~30% per macrocycle (20 -> 10 kg over a simulated year).
+            working = await self._sets.get_last_for_user_exercise_outside_macrocycle_deloads(user.id, exercise.id)
+            if working is not None and working.id != last_set.id and working.weight_kg is not None:
+                detraining = _detraining_coefficient(last_set.completed_at)
+                return max(last_set.weight_kg, _round_to_step(working.weight_kg * detraining, step))
             adjustment = await self._feedback_adjustment(last_set, exercise)
             detraining = _detraining_coefficient(last_set.completed_at)
-            return _round_to_step(last_set.weight_kg * adjustment * detraining, step)
+            suggested = _round_to_step(last_set.weight_kg * adjustment * detraining, step)
+            # A due increase smaller than half a rounding step used to round
+            # straight back (7 kg * 1.05 = 7.35 -> 7), so light weights never
+            # grew. When progression is due, it's at least one step.
+            progression_due = adjustment > 1.0 and (
+                _has_rep_range(exercise) or last_set.feedback == SetFeedback.EASY
+            )
+            if progression_due and detraining == 1.0 and suggested <= last_set.weight_kg:
+                return last_set.weight_kg + step
+            return suggested
 
         if user.weight is None or exercise.bodyweight_ratio is None:
             return None
@@ -133,9 +162,10 @@ class WeightSuggestionService:
             return _FEEDBACK_ADJUSTMENT[SetFeedback.MAX]
         return 1.0
 
-    async def _is_macrocycle_deload(self, user_id: uuid.UUID) -> bool:
-        """Phase: П.2. A pure read (TrainingBlockRepository.get_active_for_user
-        never mutates/advances, unlike TrainingBlockService.resolve_active_block)
-        -- safe to call from this read-only suggestion path."""
+    async def _active_macrocycle_deload_block(self, user_id: uuid.UUID) -> TrainingBlock | None:
+        """Phase: П.2. The active block when it's a macrocycle deload. A pure
+        read (TrainingBlockRepository.get_active_for_user never mutates/
+        advances, unlike TrainingBlockService.resolve_active_block) -- safe to
+        call from this read-only suggestion path."""
         block = await self._blocks.get_active_for_user(user_id)
-        return block is not None and block.is_macrocycle_deload
+        return block if block is not None and block.is_macrocycle_deload else None

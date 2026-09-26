@@ -102,6 +102,6 @@ class RepsSuggestionService:
         return hit_top and good_feedback
 
     async def _is_macrocycle_deload(self, user_id: uuid.UUID) -> bool:
-        """Phase: П.2. Pure read, see WeightSuggestionService._is_macrocycle_deload."""
+        """Phase: П.2. Pure read, see WeightSuggestionService._active_macrocycle_deload_block."""
         block = await self._blocks.get_active_for_user(user_id)
         return block is not None and block.is_macrocycle_deload

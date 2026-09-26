@@ -85,6 +85,8 @@ async def _make_set_history(
     feedback: SetFeedback | None,
     reps_completed: int | None = None,
     completed_at: datetime | None = None,
+    training_block_id: uuid.UUID | None = None,
+    week_start: date | None = None,
 ) -> None:
     """A single prior SetCompletion for user+exercise, wired through a
     throwaway WeeklyPlan/DayPlan/TrainingSession chain to satisfy the FK."""
@@ -98,7 +100,11 @@ async def _make_set_history(
         training_session=TrainingSession(id=uuid.uuid4(), blocks=[session_block]),
     )
     weekly_plan = WeeklyPlan(
-        id=uuid.uuid4(), user_id=user.id, week_start_date=date.today(), day_plans=[day_plan]
+        id=uuid.uuid4(),
+        user_id=user.id,
+        week_start_date=week_start if week_start is not None else date.today(),
+        training_block_id=training_block_id,
+        day_plans=[day_plan],
     )
     db_session.add(weekly_plan)
     await db_session.flush()
@@ -121,16 +127,16 @@ async def _make_set_history(
 
 async def _make_active_block(
     db_session, user: User, *, is_macrocycle_deload: bool, block_number: int = 4
-) -> None:
-    db_session.add(
-        TrainingBlock(
-            user_id=user.id,
-            block_number=block_number,
-            phase=BlockPhase.ACCUMULATION,
-            is_macrocycle_deload=is_macrocycle_deload,
-        )
+) -> TrainingBlock:
+    block = TrainingBlock(
+        user_id=user.id,
+        block_number=block_number,
+        phase=BlockPhase.ACCUMULATION,
+        is_macrocycle_deload=is_macrocycle_deload,
     )
+    db_session.add(block)
     await db_session.flush()
+    return block
 
 
 @pytest.mark.asyncio
@@ -501,3 +507,151 @@ async def test_non_macrocycle_deload_block_is_unaffected(db_session) -> None:
 
     # Normal feedback path (no rep range configured): 40 * 1.05 = 42.0 -> 42.5
     assert result == 42.5
+
+
+@pytest.mark.asyncio
+async def test_macrocycle_deload_reduces_once_not_every_session(db_session) -> None:
+    """Regression (year simulation, 2026-09-26): inside the deload block the
+    last set is already reduced -- reducing it again every session took a
+    dumbbell exercise 21 -> 15 -> 10 -> 7 kg. The floor is 0.7 of the weight
+    before the block, however many sessions the block has."""
+    user = _make_user()
+    exercise = _make_exercise(db_session)
+    db_session.add(user)
+    await db_session.flush()
+    block = await _make_active_block(db_session, user, is_macrocycle_deload=True)
+    await _make_set_history(
+        db_session,
+        user,
+        exercise,
+        weight_kg=40.0,
+        feedback=SetFeedback.EASY,
+        completed_at=datetime.now(timezone.utc) - timedelta(days=10),
+        week_start=date.today() - timedelta(days=10),
+    )
+    await _make_set_history(
+        db_session, user, exercise, weight_kg=27.5, feedback=SetFeedback.EASY, training_block_id=block.id
+    )
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    assert result == 27.5
+
+
+@pytest.mark.asyncio
+async def test_macrocycle_deload_holds_an_exercise_first_met_inside_the_block(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise(db_session)
+    db_session.add(user)
+    await db_session.flush()
+    block = await _make_active_block(db_session, user, is_macrocycle_deload=True)
+    await _make_set_history(
+        db_session, user, exercise, weight_kg=20.0, feedback=SetFeedback.EASY, training_block_id=block.id
+    )
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    assert result == 20.0
+
+
+@pytest.mark.asyncio
+async def test_light_weight_grows_at_least_one_step_when_due(db_session) -> None:
+    """Regression: 7 kg * 1.05 = 7.35 rounded straight back to 7, so light
+    weights never grew. Easy feedback (no rep range) is due -> +1 step."""
+    user = _make_user()
+    exercise = _make_exercise(db_session, requires_barbell=False)
+    db_session.add(user)
+    await db_session.flush()
+    await _make_set_history(db_session, user, exercise, weight_kg=7.0, feedback=SetFeedback.EASY)
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    assert result == 8.0
+
+
+@pytest.mark.asyncio
+async def test_light_weight_rep_range_top_on_normal_grows_one_step(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise(
+        db_session, requires_barbell=False, exercise_type=ExerciseType.SETS_REPS, rep_range_min=10, rep_range_max=15
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await _make_set_history(
+        db_session, user, exercise, weight_kg=7.0, feedback=SetFeedback.NORMAL, reps_completed=15
+    )
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    assert result == 8.0
+
+
+@pytest.mark.asyncio
+async def test_light_weight_normal_without_rep_range_is_not_forced_up(db_session) -> None:
+    """"Normal" on an exercise with no rep range isn't a signal to progress
+    on its own -- the +2.5% nudge may round away, and that's fine."""
+    user = _make_user()
+    exercise = _make_exercise(db_session, requires_barbell=False)
+    db_session.add(user)
+    await db_session.flush()
+    await _make_set_history(db_session, user, exercise, weight_kg=7.0, feedback=SetFeedback.NORMAL)
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    assert result == 7.0
+
+
+@pytest.mark.asyncio
+async def test_barbell_rep_range_top_on_normal_grows_one_plate_step(db_session) -> None:
+    """Same stall on a barbell: 40 kg * 1.025 = 41 rounded back to 40 at a
+    2.5 kg step. At the top of the rep range that's due -> 42.5."""
+    user = _make_user()
+    exercise = _make_exercise(db_session, exercise_type=ExerciseType.SETS_REPS, rep_range_min=6, rep_range_max=10)
+    db_session.add(user)
+    await db_session.flush()
+    await _make_set_history(
+        db_session, user, exercise, weight_kg=40.0, feedback=SetFeedback.NORMAL, reps_completed=10
+    )
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    assert result == 42.5
+
+
+@pytest.mark.asyncio
+async def test_after_a_macrocycle_deload_block_resumes_the_working_weight(db_session) -> None:
+    """Regression (year simulation): after the deload block the next block
+    built up again from the reduced weight, losing ~30% per macrocycle. It
+    goes back to the weight from before the deload instead."""
+    user = _make_user()
+    exercise = _make_exercise(db_session)
+    db_session.add(user)
+    await db_session.flush()
+    deload = await _make_active_block(db_session, user, is_macrocycle_deload=True, block_number=4)
+    await _make_set_history(
+        db_session,
+        user,
+        exercise,
+        weight_kg=40.0,
+        feedback=SetFeedback.NORMAL,
+        completed_at=datetime.now(timezone.utc) - timedelta(days=20),
+        week_start=date.today() - timedelta(days=20),
+    )
+    await _make_set_history(
+        db_session,
+        user,
+        exercise,
+        weight_kg=27.5,
+        feedback=SetFeedback.EASY,
+        completed_at=datetime.now(timezone.utc) - timedelta(days=3),
+        week_start=date.today() - timedelta(days=3),
+        training_block_id=deload.id,
+    )
+    deload.is_macrocycle_deload = True
+    deload.phase = BlockPhase.DELOAD
+    await _make_active_block(db_session, user, is_macrocycle_deload=False, block_number=5)
+    await db_session.flush()
+
+    result = await WeightSuggestionService(db_session).suggest_weight(user, exercise)
+
+    assert result == 40.0

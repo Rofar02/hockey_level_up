@@ -39,7 +39,7 @@ from openai import APIError, AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.training_block import SESSIONS_TO_ADVANCE_PHASE
+from app.core.training_block import sessions_to_advance_phase
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.coach_chat_proposed_action import (
     CoachActionStatus,
@@ -1010,12 +1010,12 @@ class CoachChatService:
             phase_section = _format_phase_section(
                 block.phase,
                 sessions_completed,
-                SESSIONS_TO_ADVANCE_PHASE,
+                sessions_to_advance_phase(block.phase, user.season_period),
                 block.block_number,
                 block.is_macrocycle_deload,
             )
         else:
-            phase_section = _format_phase_section(None, 0, SESSIONS_TO_ADVANCE_PHASE, None, False)
+            phase_section = _format_phase_section(None, 0, sessions_to_advance_phase(None, user.season_period), None, False)
 
         recent_history = await self._progress.list_recent_history(user.id, RECENT_HISTORY_COUNT)
         history_section = _format_history_section(recent_history)
