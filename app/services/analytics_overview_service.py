@@ -88,7 +88,16 @@ HARD_SHARE_ALARM = 0.5
 BALANCE_RATIO = 1.5
 MIN_BLOCKS_FOR_BALANCE = 6
 
-RU_MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
+# Stat names differ in gender (интеллект, владение шайбой) -- the verb and
+# pronoun of "X просела, пропущено N блоков на неё" agree with each.
+STAT_DECLINE_WORDS: dict[TargetStat, tuple[str, str]] = {
+    TargetStat.STRENGTH: ("просела", "неё"),
+    TargetStat.AGILITY: ("просела", "неё"),
+    TargetStat.INTELLECT: ("просел", "него"),
+    TargetStat.ENDURANCE: ("просела", "неё"),
+    TargetStat.ON_ICE_SKATING: ("просела", "неё"),
+    TargetStat.PUCK_HANDLING: ("просело", "него"),
+}
 
 
 @dataclass
@@ -525,11 +534,12 @@ class AnalyticsOverviewService:
         decliner = min(stats, key=lambda stat: stat.delta)
         if decliner.delta <= -1:
             label = STAT_LABELS[TargetStat(decliner.stat)]
+            dropped, pronoun = STAT_DECLINE_WORDS[TargetStat(decliner.stat)]
             amount = _format_number(-decliner.delta)
             skipped = len(decliner.skipped_dates)
             if skipped > 0:
                 detail = (
-                    f"Пропущено {skipped} {_plural(skipped, ('блок', 'блока', 'блоков'))} на неё "
+                    f"Пропущено {skipped} {_plural(skipped, ('блок', 'блока', 'блоков'))} на {pronoun} "
                     f"из {decliner.planned_blocks}."
                 )
             else:
@@ -538,11 +548,11 @@ class AnalyticsOverviewService:
                 AnalyticsInsightRead(
                     kind="decline",
                     tone="warning",
-                    title=f"{label} просела на {amount}",
+                    title=f"{label} {dropped} на {amount}",
                     detail=detail,
                     action="ask_coach",
                     coach_prompt=(
-                        f"За последние {period} у меня просела {label.lower()} на {amount}. "
+                        f"За последние {period} у меня {dropped} {label.lower()} на {amount}. "
                         "Почему так и что мне поменять?"
                     ),
                 )
