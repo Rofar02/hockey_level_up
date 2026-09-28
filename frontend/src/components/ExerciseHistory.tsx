@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import * as exercisesApi from '../api/exercises'
 import type { ExerciseRead } from '../types/exercise'
 import { SET_FEEDBACK_LABELS } from '../types/setCompletion'
 import type { ExerciseHistorySession, SetCompletionSummary } from '../types/setCompletion'
@@ -26,6 +25,46 @@ function formatSessionDate(iso: string): string {
   return `${WEEKDAY_LABELS[(date.getDay() + 6) % 7]}, ${formatShortDate(date)}.${date.getFullYear()}`
 }
 
+// The set to beat for `setNumber` in the most recent past session -- the
+// same-numbered set when it exists, otherwise that session's last one
+// (fewer sets were done last time). Null when there's no past session.
+function lastTimeSet(
+  sessions: ExerciseHistorySession[] | null,
+  setNumber: number,
+): SetCompletionSummary | null {
+  const last = sessions?.[0]
+  if (last === undefined || last.sets.length === 0) {
+    return null
+  }
+  return last.sets.find((set) => set.set_number === setNumber) ?? last.sets[last.sets.length - 1]
+}
+
+// "В прошлый раз: 40 кг × 8" (user request 2026-09-28) -- the matching set
+// from the previous session of this exercise, right where the athlete is
+// choosing this set's numbers, so the target to beat needs no extra tap.
+// Renders nothing without history.
+export function LastTimeHint({
+  history,
+  setNumber,
+  tracksWeight,
+}: {
+  history: ExerciseHistorySession[] | null
+  setNumber: number
+  tracksWeight: boolean
+}) {
+  const set = lastTimeSet(history, setNumber)
+  const value = set !== null ? formatSet(set, tracksWeight) : null
+  if (value === null) {
+    return null
+  }
+  return (
+    <span className="flex items-center gap-1 text-xs text-text-secondary">
+      <i className="ti ti-history" aria-hidden="true" />
+      В прошлый раз: <span className="font-mono text-text-primary">{value}</span>
+    </span>
+  )
+}
+
 // "История выполнения" under the player (user request 2026-09-28, modelled
 // on a competitor's diary screen): the athlete's last few sessions of this
 // exercise, so what to beat is right there instead of only in Analytics.
@@ -35,40 +74,20 @@ function formatSessionDate(iso: string): string {
 // around) -- still fetched up front so that row can say when the exercise
 // was last done, and so it renders nothing at all until the first time
 // the exercise is logged rather than a toggle that opens onto nothing.
+// `sessions` is fetched once by ExerciseDetailBody (null while loading),
+// which also feeds the players' "В прошлый раз" line from the same list.
 export function ExerciseHistory({
   exercise,
-  trainingSessionId,
-  accessToken,
+  sessions,
 }: {
   exercise: ExerciseRead
-  trainingSessionId: string
-  accessToken: string
+  sessions: ExerciseHistorySession[] | null
 }) {
-  const [sessions, setSessions] = useState<ExerciseHistorySession[] | null>(null)
   const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
-    let cancelled = false
-    setSessions(null)
     setIsOpen(false)
-    exercisesApi
-      .getExerciseHistory(exercise.id, accessToken, trainingSessionId)
-      .then((history) => {
-        if (!cancelled) {
-          setSessions(history.sessions)
-        }
-      })
-      .catch(() => {
-        // Best-effort like the suggestion fetches -- the section just
-        // stays hidden.
-        if (!cancelled) {
-          setSessions([])
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [exercise.id, trainingSessionId, accessToken])
+  }, [exercise.id])
 
   if (sessions === null || sessions.length === 0) {
     return null

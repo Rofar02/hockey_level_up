@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ExerciseDetailBody } from './ExerciseDetailModal'
 import { ExerciseVideoStage } from './ExerciseVideoStage'
 import * as exercisesApi from '../api/exercises'
+import { formatElapsed } from '../hooks/useSessionClock'
 import type { SessionBlockRead } from '../types/schedule'
 import type { SkillSummaryRead } from '../types/skill'
 
@@ -16,6 +17,9 @@ import type { SkillSummaryRead } from '../types/skill'
 // visualization on top of it.
 export function ExerciseFocusScreen({
   block,
+  position,
+  totalCount,
+  elapsedSeconds,
   phaseLabel,
   phaseIcon,
   skills,
@@ -29,6 +33,15 @@ export function ExerciseFocusScreen({
   onSkip,
 }: {
   block: SessionBlockRead
+  // "3 / 14" across the whole session, in TrainingSessionPage's own
+  // warmup -> main -> cooldown -> puck order (user request 2026-09-28,
+  // modelled on a competitor's "1/9" header) -- same count the progress
+  // bar's "осталось N упражнений" is out of.
+  position: number
+  totalCount: number
+  // Workout clock from useSessionClock -- null hides it (not started yet,
+  // or the session is already finished).
+  elapsedSeconds: number | null
   // Разминка/Основная часть/Заминка -- shown as its own chip here too, not
   // just relying on TrainingSessionPage's own heading above this card
   // (icelevel_player_master_prompt.md, 2026-08-28: "должно быть явно,
@@ -119,7 +132,20 @@ export function ExerciseFocusScreen({
           Title sits above it as a normal heading rather than overlaid on
           top, since an overlay would sit on top of a real embed's own
           controls once video exists, not just this placeholder. */}
-      <h2 className="text-xl font-bold leading-tight text-text-primary">{exercise.name}</h2>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-3 font-mono text-xs text-text-secondary">
+          <span>
+            Упражнение <span className="font-semibold text-text-primary">{position}</span> из {totalCount}
+          </span>
+          {elapsedSeconds !== null && (
+            <span className="flex items-center gap-1" aria-label="Время тренировки">
+              <i className="ti ti-clock text-sm" aria-hidden="true" />
+              {formatElapsed(elapsedSeconds)}
+            </span>
+          )}
+        </div>
+        <h2 className="text-xl font-bold leading-tight text-text-primary">{exercise.name}</h2>
+      </div>
       <ExerciseVideoStage exercise={exercise} />
 
       {skillNames.length > 0 && <p className="text-xs text-text-secondary">Развивает: {skillNames.join(', ')}</p>}
