@@ -945,7 +945,7 @@ function ProfileDetailsModal({
                       <span className="flex min-w-0 items-center gap-1.5">
                         {isPreferred && (
                           <i
-                            className="ti ti-star-filled shrink-0 text-xs text-accent-persimmon"
+                            className="ti ti-star shrink-0 text-xs text-accent-persimmon"
                             aria-hidden="true"
                           />
                         )}

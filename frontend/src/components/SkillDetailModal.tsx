@@ -60,7 +60,7 @@ export function SkillDetailModal({
                 <div key={milestone.id} className="flex items-start gap-2">
                   <i
                     className={`ti mt-0.5 ${
-                      milestone.achieved ? 'ti-lock-open text-accent-ice' : 'ti-lock text-text-secondary'
+                      milestone.achieved ? 'ti-check text-accent-ice' : 'ti-lock text-text-secondary'
                     }`}
                     aria-hidden="true"
                   />
