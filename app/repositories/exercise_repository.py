@@ -1,5 +1,8 @@
+import contextlib
+import copy
 import uuid
 from collections import defaultdict
+from collections.abc import Awaitable, Callable, Iterator
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -29,6 +32,70 @@ from app.schemas.exercise import ExerciseCreate
 class ExerciseRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+        # See assembly_cache(). None = caching off (the default everywhere).
+        self._memo: dict | None = None
+        self._memo_depth = 0
+
+    @contextlib.contextmanager
+    def assembly_cache(self) -> Iterator[None]:
+        """Memoize the catalog/user lookups below for the duration of one
+        plan assembly. Building a week asked for the same user's equipment,
+        restrictions and the same exercises' tags over and over -- 122-214
+        statements and ~0.6 s of CPU per week (2026-09-28 profiling). Inside
+        one assembly none of that changes, and outside a scope nothing is
+        cached, so a restriction or equipment change is always seen by the
+        next assembly. Reentrant: nested scopes share the outer cache."""
+        if self._memo_depth == 0:
+            self._memo = {}
+        self._memo_depth += 1
+        try:
+            yield
+        finally:
+            self._memo_depth -= 1
+            if self._memo_depth == 0:
+                self._memo = None
+
+    def _drop_memo(self) -> None:
+        # A write through this repository inside a scope -- start over.
+        if self._memo is not None:
+            self._memo = {}
+
+    async def memoize(self, key: tuple, load: Callable[[], Awaitable]):
+        if self._memo is None:
+            return await load()
+        if key not in self._memo:
+            self._memo[key] = await load()
+        # Callers filter/extend what they get back -- never hand out the
+        # cached object itself.
+        return copy.copy(self._memo[key])
+
+    async def _memoized_by_exercise(
+        self,
+        name: str,
+        exercise_ids: list[uuid.UUID],
+        load: Callable[[list[uuid.UUID]], Awaitable[dict]],
+    ) -> dict:
+        """Per-exercise memo for the bulk *_by_exercise lookups: only ids not
+        seen yet in this assembly hit the database. Same result shape as the
+        uncached call (ids with no rows are absent)."""
+        if self._memo is None:
+            return await load(exercise_ids)
+        cache: dict = self._memo.setdefault(("by_exercise", name), {})
+        missing = [exercise_id for exercise_id in dict.fromkeys(exercise_ids) if exercise_id not in cache]
+        if missing:
+            loaded = await load(missing)
+            # Rows in the order the database returned them, then the ids it
+            # had nothing for -- the returned dict keeps the uncached call's
+            # key order, which callers' seeded random picks depend on.
+            cache.update(loaded)
+            for exercise_id in missing:
+                cache.setdefault(exercise_id, None)
+        requested = set(exercise_ids)
+        return {
+            exercise_id: copy.copy(value)
+            for exercise_id, value in cache.items()
+            if value is not None and exercise_id in requested
+        }
 
     async def list_exercises(
         self,
@@ -69,6 +136,11 @@ class ExerciseRepository:
     async def list_target_stats_by_exercise(
         self, exercise_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, list[TargetStat]]:
+        return await self._memoized_by_exercise("list_target_stats_by_exercise", exercise_ids, self._load_target_stats_by_exercise)
+
+    async def _load_target_stats_by_exercise(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[TargetStat]]:
         """Bulk read-side lookup, ordered per exercise -- for enriching
         ExerciseRead.target_stats without an N+1 query per exercise."""
         if not exercise_ids:
@@ -84,6 +156,11 @@ class ExerciseRepository:
         return dict(by_exercise)
 
     async def list_primary_target_stats(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, TargetStat]:
+        return await self._memoized_by_exercise("list_primary_target_stats", exercise_ids, self._load_primary_target_stats)
+
+    async def _load_primary_target_stats(
         self, exercise_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, TargetStat]:
         """Bulk order=0 lookup -- the diversity-bucketing key for
@@ -115,6 +192,7 @@ class ExerciseRepository:
         return set(result.scalars().all())
 
     async def replace_target_stats(self, exercise_id: uuid.UUID, stats: list[TargetStat]) -> None:
+        self._drop_memo()
         await self._session.execute(
             delete(ExerciseTargetStat).where(ExerciseTargetStat.exercise_id == exercise_id)
         )
@@ -133,6 +211,11 @@ class ExerciseRepository:
         return list(result.scalars().all())
 
     async def list_movement_patterns_by_exercise(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[MovementPattern]]:
+        return await self._memoized_by_exercise("list_movement_patterns_by_exercise", exercise_ids, self._load_movement_patterns_by_exercise)
+
+    async def _load_movement_patterns_by_exercise(
         self, exercise_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, list[MovementPattern]]:
         """Bulk lookup for ScheduleService's warmup/cooldown-to-main matching
@@ -154,6 +237,7 @@ class ExerciseRepository:
     async def replace_movement_patterns(
         self, exercise_id: uuid.UUID, patterns: list[MovementPattern]
     ) -> None:
+        self._drop_memo()
         await self._session.execute(
             delete(ExerciseMovementPattern).where(ExerciseMovementPattern.exercise_id == exercise_id)
         )
@@ -170,6 +254,11 @@ class ExerciseRepository:
         return list(result.scalars().all())
 
     async def list_muscle_groups_by_exercise(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, set[MuscleGroup]]:
+        return await self._memoized_by_exercise("list_muscle_groups_by_exercise", exercise_ids, self._load_muscle_groups_by_exercise)
+
+    async def _load_muscle_groups_by_exercise(
         self, exercise_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, set[MuscleGroup]]:
         """Bulk lookup for ScheduleService._apply_muscle_balance -- mirrors
@@ -191,6 +280,7 @@ class ExerciseRepository:
     async def replace_muscle_groups(
         self, exercise_id: uuid.UUID, weights: dict[MuscleGroup, float]
     ) -> None:
+        self._drop_memo()
         await self._session.execute(
             delete(ExerciseMuscleGroup).where(ExerciseMuscleGroup.exercise_id == exercise_id)
         )
@@ -211,6 +301,11 @@ class ExerciseRepository:
     async def list_equipment_items_by_exercise(
         self, exercise_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, set[EquipmentItem]]:
+        return await self._memoized_by_exercise("list_equipment_items_by_exercise", exercise_ids, self._load_equipment_items_by_exercise)
+
+    async def _load_equipment_items_by_exercise(
+        self, exercise_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, set[EquipmentItem]]:
         """Bulk lookup for ScheduleService.suggest_party_exercises' own
         per-member subset check -- mirrors list_muscle_groups_by_exercise's
         shape."""
@@ -229,6 +324,7 @@ class ExerciseRepository:
     async def replace_equipment_items(
         self, exercise_id: uuid.UUID, items: list[EquipmentItem]
     ) -> None:
+        self._drop_memo()
         await self._session.execute(
             delete(ExerciseEquipmentItem).where(ExerciseEquipmentItem.exercise_id == exercise_id)
         )
@@ -239,12 +335,20 @@ class ExerciseRepository:
         await self._session.flush()
 
     async def list_owned_equipment(self, user_id: uuid.UUID) -> set[EquipmentItem]:
+        return await self.memoize(("owned_equipment", user_id), lambda: self._load_owned_equipment(user_id))
+
+    async def _load_owned_equipment(self, user_id: uuid.UUID) -> set[EquipmentItem]:
         result = await self._session.execute(
             select(UserEquipmentItem.equipment_item).where(UserEquipmentItem.user_id == user_id)
         )
         return set(result.scalars().all())
 
     async def list_active_restricted_patterns(self, user: User) -> set[MovementPattern]:
+        return await self.memoize(
+            ("restricted_patterns", user.id), lambda: self._load_active_restricted_patterns(user)
+        )
+
+    async def _load_active_restricted_patterns(self, user: User) -> set[MovementPattern]:
         """Same self-contained, keyed-off-user shape as list_owned_equipment
         above -- called internally by list_for_assembly, not threaded in as
         a parameter from every caller. "Active" mirrors
@@ -273,6 +377,11 @@ class ExerciseRepository:
     # UserTemporaryRestriction's own docstring for why a restriction is one
     # or the other, never both).
     async def list_active_restricted_muscle_groups(self, user: User) -> set[MuscleGroup]:
+        return await self.memoize(
+            ("restricted_muscle_groups", user.id), lambda: self._load_active_restricted_muscle_groups(user)
+        )
+
+    async def _load_active_restricted_muscle_groups(self, user: User) -> set[MuscleGroup]:
         today = datetime.now(ZoneInfo(user.timezone)).date()
         result = await self._session.execute(
             select(UserTemporaryRestriction.muscle_group).where(
@@ -303,6 +412,7 @@ class ExerciseRepository:
         return dict(by_user)
 
     async def replace_owned_equipment(self, user_id: uuid.UUID, items: list[EquipmentItem]) -> None:
+        self._drop_memo()
         await self._session.execute(
             delete(UserEquipmentItem).where(UserEquipmentItem.user_id == user_id)
         )
@@ -314,18 +424,21 @@ class ExerciseRepository:
         return await self._session.get(Exercise, exercise_id)
 
     async def create(self, data: ExerciseCreate) -> Exercise:
+        self._drop_memo()
         exercise = Exercise(**data.model_dump())
         self._session.add(exercise)
         await self._session.flush()
         return exercise
 
     async def update(self, exercise: Exercise, updates: dict) -> Exercise:
+        self._drop_memo()
         for field, value in updates.items():
             setattr(exercise, field, value)
         await self._session.flush()
         return exercise
 
     async def delete(self, exercise: Exercise) -> None:
+        self._drop_memo()
         await self._session.delete(exercise)
         await self._session.flush()
 
@@ -335,6 +448,18 @@ class ExerciseRepository:
         user: User,
         category: ExerciseCategory | None = None,
         suitable_for_game_day: bool | None = None,
+    ) -> list[Exercise]:
+        return await self.memoize(
+            ("for_assembly", phase, user.id, user.has_gym_access, category, suitable_for_game_day),
+            lambda: self._load_for_assembly(phase, user, category, suitable_for_game_day),
+        )
+
+    async def _load_for_assembly(
+        self,
+        phase: TrainingPhase,
+        user: User,
+        category: ExerciseCategory | None,
+        suitable_for_game_day: bool | None,
     ) -> list[Exercise]:
         """Candidates for training-session assembly.
 

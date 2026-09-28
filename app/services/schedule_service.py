@@ -1,3 +1,4 @@
+import functools
 import itertools
 import logging
 import random
@@ -217,6 +218,19 @@ _PUCK_MODULE_MAX_EXERCISES = 4
 _GUARANTEED_SLOT_RNG = random.Random()
 
 
+def _assembly_scoped(method):
+    """Runs a plan-assembly entry point inside ExerciseRepository.assembly_cache
+    -- see its docstring. Reentrant, so entry points calling each other are
+    fine."""
+
+    @functools.wraps(method)
+    async def wrapper(self, *args, **kwargs):
+        with self._exercises.assembly_cache():
+            return await method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class ScheduleService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -230,6 +244,12 @@ class ScheduleService:
         self._overload_service = OverloadService(session)
         self._reps_suggestions = RepsSuggestionService(session)
         self._diary = TrainingDiaryRepository(session)
+
+    async def _list_user_stats(self, user_id: uuid.UUID) -> list[UserStat]:
+        # Stats don't change mid-assembly; read once per assembly scope.
+        return await self._exercises.memoize(
+            ("user_stats", user_id), lambda: self._progress.list_user_stats(user_id)
+        )
 
     @staticmethod
     def _choose_guaranteed_slot_dates(days: list[DayPlanIn]) -> tuple[date | None, date | None]:
@@ -270,6 +290,7 @@ class ScheduleService:
             return None, None
         return _GUARANTEED_SLOT_RNG.choice(off_ice_dates), _GUARANTEED_SLOT_RNG.choice(off_ice_dates)
 
+    @_assembly_scoped
     async def create_weekly_plan(self, user: User, payload: WeeklyPlanCreate) -> WeeklyPlanRead:
         dates = [day.date for day in payload.days]
         if len(set(dates)) != len(dates):
@@ -379,6 +400,7 @@ class ScheduleService:
         """
         return await self._patch_weekly_plan(user, payload, week_start_date=None)
 
+    @_assembly_scoped
     async def patch_weekly_plan(
         self, user: User, payload: WeeklyPlanPatch, week_start_date: date | None
     ) -> WeeklyPlanPatchResult:
@@ -463,6 +485,7 @@ class ScheduleService:
 
     # -- team events --
 
+    @_assembly_scoped
     async def apply_team_event_to_day(self, user: User, event: TeamEvent) -> bool:
         """The user marked `event` "going": their day on the event's local
         date becomes ON_ICE (training) or GAME, remembering what it was in
@@ -492,6 +515,7 @@ class ScheduleService:
         await self._session.flush()
         return True
 
+    @_assembly_scoped
     async def revert_team_event_days(self, user: User, team_event_id: uuid.UUID) -> None:
         """Undo apply_team_event_to_day -- "not going", attendance cleared,
         event cancelled or moved. Found by DayPlan.team_event_id, not by
@@ -1357,7 +1381,7 @@ class ScheduleService:
             [exercise.id for exercise in candidates]
         )
         user_stats = {
-            stat.stat_type: stat for stat in await self._progress.list_user_stats(user.id)
+            stat.stat_type: stat for stat in await self._list_user_stats(user.id)
         }
 
         # Bucketed by *every* movement_pattern an exercise is tagged with
@@ -2206,7 +2230,7 @@ class ScheduleService:
                 )
             if user_stats is None:
                 user_stats = {
-                    stat.stat_type: stat for stat in await self._progress.list_user_stats(user.id)
+                    stat.stat_type: stat for stat in await self._list_user_stats(user.id)
                 }
             now = datetime.now(timezone.utc)
             for exercise in off_ice:
@@ -2256,6 +2280,7 @@ class ScheduleService:
     # no party-specific storage, these are the exact same tables personal
     # plans use.
 
+    @_assembly_scoped
     async def suggest_party_exercises(self, members: list[User], count: int) -> list[Exercise]:
         """Off-ice, MAIN-phase candidates every member in `members` can both
         equip for and handle, spread across as many different
@@ -2323,7 +2348,7 @@ class ScheduleService:
             [exercise.id for exercise in eligible]
         )
         member_stats: list[dict[TargetStat, UserStat]] = [
-            {stat.stat_type: stat for stat in await self._progress.list_user_stats(member.id)}
+            {stat.stat_type: stat for stat in await self._list_user_stats(member.id)}
             for member in members
         ]
         now = datetime.now(timezone.utc)
@@ -2366,6 +2391,7 @@ class ScheduleService:
             picked_ids.add(choice.id)
         return picked
 
+    @_assembly_scoped
     async def ensure_day_plan_for_date(self, user: User, target_date: date) -> DayPlan:
         """Return the user's DayPlan for target_date, creating a brand-new
         WeeklyPlan for it from scratch if none exists yet (the
@@ -2410,6 +2436,7 @@ class ScheduleService:
         await self._schedule.save(weekly_plan)
         return next(dp for dp in weekly_plan.day_plans if dp.date == target_date)
 
+    @_assembly_scoped
     async def replace_day_plan_content(
         self, day_plan: DayPlan, exercise_ids: list[uuid.UUID], user: User
     ) -> None:
@@ -2475,6 +2502,7 @@ class ScheduleService:
         day_plan.training_session = TrainingSession(blocks=blocks)
         await self._session.flush()
 
+    @_assembly_scoped
     async def replace_block_exercise(self, block_id: uuid.UUID, user: User) -> SessionBlockRead:
         """Stage 1.5 (2026-08-20 planning session, "тренажёр занят"): a
         manual, single-slot swap -- not a session regenerate, the point is
@@ -2570,6 +2598,7 @@ class ScheduleService:
             )
         ]
 
+    @_assembly_scoped
     async def patch_week_for_eligibility_change(
         self, user: User, *, today: date | None = None
     ) -> int:
@@ -2733,6 +2762,7 @@ class ScheduleService:
             order += 1
         return len(puck_exercises)
 
+    @_assembly_scoped
     async def escalate_ceiling_variant_for_week(
         self, user: User, exercise: Exercise, *, today: date | None = None
     ) -> list[CeilingEscalationRead]:
