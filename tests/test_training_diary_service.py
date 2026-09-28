@@ -16,6 +16,7 @@ from app.models.schedule import DayPlan, DaySessionType, TrainingSession, Weekly
 from app.models.user import User
 from app.schemas.training_diary import TrainingDiaryEntryRead
 from app.services.training_diary_service import TrainingDiaryService
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -31,7 +32,7 @@ def _make_user() -> User:
 async def _make_session(
     db_session, user: User, session_type: DaySessionType, *, day: date | None = None
 ) -> TrainingSession:
-    day = day or date.today()
+    day = day or utc_today()
     training_session = TrainingSession(id=uuid.uuid4(), blocks=[])
     day_plan = DayPlan(
         id=uuid.uuid4(), date=day, session_type=session_type, training_session=training_session
@@ -199,7 +200,7 @@ async def test_list_entries_returns_newest_first_with_date_and_session_type(db_s
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
-    today = date.today()
+    today = utc_today()
     older_session = await _make_session(
         db_session, user, DaySessionType.ON_ICE, day=today - timedelta(days=7)
     )
@@ -229,7 +230,7 @@ async def test_list_entries_excludes_other_users_and_unwritten_sessions(db_sessi
     # Different day than `mine` -- same user, same day would collide on
     # WeeklyPlan's (user_id, week_start_date) unique constraint.
     await _make_session(
-        db_session, user, DaySessionType.ON_ICE, day=date.today() - timedelta(days=14)
+        db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=14)
     )  # never written to
 
     service = TrainingDiaryService(db_session)

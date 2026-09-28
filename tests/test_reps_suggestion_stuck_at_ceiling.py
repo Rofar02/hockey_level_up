@@ -8,15 +8,22 @@ hit-the-top + good-feedback condition as suggest_reps's own reset branch
 folded into a reps number.
 """
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from app.models.exercise import Exercise, ExerciseCategory, ExerciseType, TrainingPhase
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import User
 from app.services.reps_suggestion_service import RepsSuggestionService
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -64,12 +71,12 @@ async def _make_set_history(
     ]
     day_plan = DayPlan(
         id=uuid.uuid4(),
-        date=date.today(),
+        date=utc_today(),
         session_type=DaySessionType.OFF_ICE,
         training_session=TrainingSession(id=uuid.uuid4(), blocks=blocks),
     )
     weekly_plan = WeeklyPlan(
-        id=uuid.uuid4(), user_id=user.id, week_start_date=date.today(), day_plans=[day_plan]
+        id=uuid.uuid4(), user_id=user.id, week_start_date=utc_today(), day_plans=[day_plan]
     )
     db_session.add(weekly_plan)
     await db_session.flush()

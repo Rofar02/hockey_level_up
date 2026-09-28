@@ -17,13 +17,18 @@ from app.models.schedule import (
     TrainingSession,
     WeeklyPlan,
 )
-from app.models.team_event import TeamEventAbsenceReason, TeamEventAttendanceStatus, TeamEventType
+from app.models.team_event import (
+    TeamEventAbsenceReason,
+    TeamEventAttendanceStatus,
+    TeamEventType,
+)
 from app.models.user import User
 from app.repositories.schedule_repository import ScheduleRepository
 from app.schemas.schedule import DayPlanIn, WeeklyPlanCreate
 from app.services.schedule_service import ScheduleService
 from app.services.team_event_service import TeamEventService
 from app.services.team_service import TeamService
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -83,7 +88,7 @@ async def _day(db_session, user: User, day: date) -> DayPlan:
 
 
 def _event_day() -> date:
-    return date.today() + timedelta(days=2)
+    return utc_today() + timedelta(days=2)
 
 
 @pytest.mark.asyncio
@@ -211,7 +216,7 @@ async def test_started_day_is_left_alone(db_session) -> None:
 async def test_week_declared_after_going_starts_with_the_takeover(db_session) -> None:
     captain, player, team = await _make_team_with_player(db_session)
     # A week that isn't declared yet when the player answers.
-    monday = _monday_of(date.today()) + timedelta(days=7)
+    monday = _monday_of(utc_today()) + timedelta(days=7)
     event_day = monday + timedelta(days=2)
     events = TeamEventService(db_session)
     event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _noon_utc(event_day), None)

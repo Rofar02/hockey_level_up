@@ -32,14 +32,39 @@ from datetime import date, datetime, timedelta, timezone
 import httpx2
 import pytest
 from fastapi import HTTPException
-from openai import APIConnectionError, APIError, APITimeoutError, AuthenticationError, RateLimitError
+from openai import (
+    APIConnectionError,
+    APIError,
+    APITimeoutError,
+    AuthenticationError,
+    RateLimitError,
+)
 
 from app.core.config import Settings
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
-from app.models.exercise import Exercise, ExerciseCategory, MovementPattern, TargetStat, TrainingPhase
+from app.models.exercise import (
+    Exercise,
+    ExerciseCategory,
+    MovementPattern,
+    TargetStat,
+    TrainingPhase,
+)
 from app.models.progress import StatHistory, TrainingStreak, UserStat
-from app.models.schedule import BlockPhase, DayPlan, DaySessionType, TrainingBlock, TrainingSession, WeeklyPlan
-from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag, UserSkillPreference
+from app.models.schedule import (
+    BlockPhase,
+    DayPlan,
+    DaySessionType,
+    TrainingBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
+from app.models.skill import (
+    Skill,
+    SkillMilestone,
+    SkillStatWeight,
+    SkillTag,
+    UserSkillPreference,
+)
 from app.models.training_diary import TrainingDiaryEntry
 from app.models.user import CoachPersonality, User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
@@ -54,6 +79,7 @@ from app.services.coach_chat_service import (
     _call_zai,
 )
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
+from tests.dates import utc_today
 
 
 def _make_user(*, has_premium: bool = True, coach_personality: CoachPersonality | None = None) -> User:
@@ -593,7 +619,7 @@ async def test_system_prompt_includes_active_restriction(db_session, monkeypatch
             user_id=user.id,
             movement_pattern=MovementPattern.SHOULDER_MOBILITY,
             reason="побаливает плечо",
-            expires_at=date.today() + timedelta(days=10),
+            expires_at=utc_today() + timedelta(days=10),
         )
     )
     await db_session.flush()
@@ -656,7 +682,7 @@ async def test_system_prompt_includes_todays_session_when_it_exists(db_session, 
     db_session.add(user)
     await db_session.flush()
 
-    today = date.today()
+    today = utc_today()
     await _add_on_ice_day(
         db_session, user, on_date=today, week_start=today - timedelta(days=today.weekday()),
         main_exercise_names=["Слалом с шайбой"],
@@ -687,7 +713,7 @@ async def test_system_prompt_falls_back_to_next_real_session_when_today_has_none
     db_session.add(user)
     await db_session.flush()
 
-    today = date.today()
+    today = utc_today()
     upcoming_date = today + timedelta(days=3)
     await _add_on_ice_day(
         db_session, user, on_date=upcoming_date, week_start=today - timedelta(days=today.weekday()),
@@ -718,7 +744,7 @@ async def test_system_prompt_shows_todays_session_as_completed_and_finds_next(
     db_session.add(user)
     await db_session.flush()
 
-    today = date.today()
+    today = utc_today()
     week_start = today - timedelta(days=today.weekday())
     today_session = await _add_on_ice_day(
         db_session, user, on_date=today, week_start=week_start,
@@ -752,7 +778,7 @@ async def test_system_prompt_shows_todays_session_in_progress(db_session, monkey
     db_session.add(user)
     await db_session.flush()
 
-    today = date.today()
+    today = utc_today()
     today_session = await _add_on_ice_day(
         db_session, user, on_date=today, week_start=today - timedelta(days=today.weekday()),
         main_exercise_names=["Слалом с шайбой", "Броски по воротам"],
@@ -776,7 +802,7 @@ async def test_system_prompt_shows_rest_day_and_finds_next_session(db_session, m
     db_session.add(user)
     await db_session.flush()
 
-    today = date.today()
+    today = utc_today()
     week_start = today - timedelta(days=today.weekday())
     weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=week_start)
     weekly_plan.day_plans.append(
@@ -808,7 +834,7 @@ async def test_system_prompt_includes_tournament_date_with_days_remaining(db_ses
     set_tournament_date but never got to see the value itself once set --
     it could set the date but never explain a taper in terms of it."""
     user = _make_user()
-    user.tournament_date = date.today() + timedelta(days=5)
+    user.tournament_date = utc_today() + timedelta(days=5)
     db_session.add(user)
     await db_session.flush()
 
@@ -847,7 +873,7 @@ async def test_system_prompt_includes_a_full_week_overview(db_session, monkeypat
     db_session.add(user)
     await db_session.flush()
 
-    today = date.today()
+    today = utc_today()
     week_start = today - timedelta(days=today.weekday())
     weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=week_start)
     weekly_plan.day_plans.append(
@@ -895,7 +921,7 @@ async def test_system_prompt_includes_last_and_next_week_plans(db_session, monke
     db_session.add(user)
     await db_session.flush()
 
-    today = date.today()
+    today = utc_today()
     week_start = today - timedelta(days=today.weekday())
 
     await _add_on_ice_day(
@@ -959,7 +985,7 @@ async def test_system_prompt_shows_weight_progression_for_a_recurring_exercise(
     db_session.add(user)
     await db_session.flush()
 
-    today = date.today()
+    today = utc_today()
     week_start = today - timedelta(days=today.weekday())
     exercise = Exercise(
         id=uuid.uuid4(), name="Жим лёжа", category=ExerciseCategory.OFF_ICE,
@@ -1118,7 +1144,7 @@ async def test_system_prompt_includes_resolved_restriction_history(db_session, m
             id=uuid.uuid4(),
             user_id=user.id,
             movement_pattern=MovementPattern.SHOULDER_MOBILITY,
-            expires_at=date.today() - timedelta(days=5),  # already expired -- resolved, not active
+            expires_at=utc_today() - timedelta(days=5),  # already expired -- resolved, not active
         )
     )
     await db_session.flush()
@@ -1149,7 +1175,7 @@ async def test_system_prompt_includes_priority_skill_focus_for_upcoming_session(
     await db_session.flush()
     db_session.add(UserSkillPreference(user_id=user.id, skill_id=skill.id))
 
-    today = date.today()
+    today = utc_today()
     session = await _add_on_ice_day(
         db_session,
         user,

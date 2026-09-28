@@ -28,10 +28,19 @@ from app.models.exercise import (
     UserMovementPatternVariant,
 )
 from app.models.progress import UserStat
-from app.models.schedule import BlockPhase, DayPlan, DaySessionType, SessionBlock, TrainingBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    BlockPhase,
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
+from tests.dates import utc_today
 
 TODAY = date(2026, 8, 20)
 
@@ -97,12 +106,12 @@ async def _make_stuck_history(db_session, user: User, exercise: Exercise) -> Non
     blocks = [SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0)]
     day_plan = DayPlan(
         id=uuid.uuid4(),
-        date=date.today(),
+        date=utc_today(),
         session_type=DaySessionType.OFF_ICE,
         training_session=TrainingSession(id=uuid.uuid4(), blocks=blocks),
     )
     weekly_plan = WeeklyPlan(
-        id=uuid.uuid4(), user_id=user.id, week_start_date=date.today(), day_plans=[day_plan]
+        id=uuid.uuid4(), user_id=user.id, week_start_date=utc_today(), day_plans=[day_plan]
     )
     db_session.add(weekly_plan)
     await db_session.flush()

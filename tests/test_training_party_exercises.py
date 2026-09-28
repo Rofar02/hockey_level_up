@@ -17,13 +17,20 @@ from app.models.exercise import (
     TrainingPhase,
     WarmupStage,
 )
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.user import User
 from app.schemas.training_party import TrainingPartyCreate
 from app.services.friend_service import FriendService
 from app.services.training_party_service import TrainingPartyService
+from tests.dates import utc_today
 
-TODAY = date.today()
+TODAY = utc_today()
 TOMORROW = TODAY + timedelta(days=1)
 
 

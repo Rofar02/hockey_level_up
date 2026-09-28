@@ -15,10 +15,17 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import FitnessTier, User
 from app.services.set_completion_service import SetCompletionService
+from tests.dates import utc_today
 
 
 def _make_user(*, weight: float | None = 80.0) -> User:
@@ -55,12 +62,12 @@ async def _make_session_with_block(db_session, user: User, exercise: Exercise) -
     training_session = TrainingSession(id=uuid.uuid4(), blocks=[session_block])
     day_plan = DayPlan(
         id=uuid.uuid4(),
-        date=date.today(),
+        date=utc_today(),
         session_type=DaySessionType.OFF_ICE,
         training_session=training_session,
     )
     weekly_plan = WeeklyPlan(
-        id=uuid.uuid4(), user_id=user.id, week_start_date=date.today(), day_plans=[day_plan]
+        id=uuid.uuid4(), user_id=user.id, week_start_date=utc_today(), day_plans=[day_plan]
     )
     db_session.add(weekly_plan)
     await db_session.flush()

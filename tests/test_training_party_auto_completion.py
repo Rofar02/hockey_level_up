@@ -5,22 +5,32 @@ publishes one party_completed outbox event per trainer) exactly when every
 never block it, and it stays pending while anyone's still mid-session.
 """
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import select
 
 from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.outbox import OutboxEvent
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.user import User
 from app.schemas.training_party import TrainingPartyCreate
 from app.services.friend_activity_service import FriendActivityService
 from app.services.friend_service import FriendService
 from app.services.session_block_service import SessionBlockService
-from app.services.training_party_service import PARTY_COMPLETED_EVENT, TrainingPartyService
+from app.services.training_party_service import (
+    PARTY_COMPLETED_EVENT,
+    TrainingPartyService,
+)
+from tests.dates import utc_today
 
-TOMORROW = date.today() + timedelta(days=1)
+TOMORROW = utc_today() + timedelta(days=1)
 
 
 def _make_user(**overrides) -> User:

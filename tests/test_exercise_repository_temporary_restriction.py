@@ -8,7 +8,7 @@ carries an unrestricted pattern/group (whole-exercise exclusion, not
 per-tag).
 """
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 
@@ -24,6 +24,7 @@ from app.models.exercise import (
 from app.models.user import User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
 from app.repositories.exercise_repository import ExerciseRepository
+from tests.dates import utc_today
 
 
 def _make_user(**overrides) -> User:
@@ -55,7 +56,7 @@ def _make_exercise(**overrides) -> Exercise:
 
 def _restriction(user_id: uuid.UUID, pattern: MovementPattern, **overrides) -> UserTemporaryRestriction:
     defaults = dict(
-        user_id=user_id, movement_pattern=pattern, expires_at=date.today() + timedelta(days=14)
+        user_id=user_id, movement_pattern=pattern, expires_at=utc_today() + timedelta(days=14)
     )
     defaults.update(overrides)
     return UserTemporaryRestriction(**defaults)
@@ -66,7 +67,7 @@ def _muscle_restriction(
 ) -> UserTemporaryRestriction:
     defaults = dict(
         user_id=user_id, movement_pattern=None, muscle_group=group,
-        expires_at=date.today() + timedelta(days=14),
+        expires_at=utc_today() + timedelta(days=14),
     )
     defaults.update(overrides)
     return UserTemporaryRestriction(**defaults)
@@ -159,7 +160,7 @@ async def test_expired_restriction_excludes_nothing(db_session) -> None:
         user,
         exercise,
         ExerciseMovementPattern(exercise_id=exercise.id, movement_pattern=MovementPattern.SQUAT),
-        _restriction(user.id, MovementPattern.SQUAT, expires_at=date.today() - timedelta(days=1)),
+        _restriction(user.id, MovementPattern.SQUAT, expires_at=utc_today() - timedelta(days=1)),
     ])
     await db_session.flush()
 

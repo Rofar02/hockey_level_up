@@ -10,7 +10,7 @@ Verifies:
      untouched (they now delegate internally, but their own tests already
      cover them; this file only checks the new aliasing path matches).
   3. Patching an explicit week works for a week that is NOT "current" by
-     date.today() -- get_current's range check would never find it, which
+     utc_today() -- get_current's range check would never find it, which
      is exactly the gap this feature closes.
 """
 import uuid
@@ -33,6 +33,7 @@ from app.models.user import User
 from app.schemas.schedule import DayPlanIn, WeeklyPlanCreate, WeeklyPlanPatch
 from app.services.schedule_service import ScheduleService
 from app.services.training_block_service import TrainingBlockService
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -119,7 +120,7 @@ async def test_get_weekly_plan_with_explicit_week_start_date_returns_that_week(d
     db_session.add(user)
     await db_session.flush()
 
-    this_monday = _monday_of(date.today())
+    this_monday = _monday_of(utc_today())
     next_monday = this_monday + timedelta(days=7)
 
     await _make_weekly_plan(db_session, user, this_monday, block_number=1)
@@ -138,7 +139,7 @@ async def test_get_weekly_plan_with_explicit_week_start_date_404s_when_absent(db
     db_session.add(user)
     await db_session.flush()
 
-    this_monday = _monday_of(date.today())
+    this_monday = _monday_of(utc_today())
     # Only the current week exists -- next week was never declared.
     await _make_weekly_plan(db_session, user, this_monday, block_number=1)
 
@@ -161,7 +162,7 @@ async def test_get_weekly_plan_without_param_matches_get_current(db_session) -> 
     db_session.add(user)
     await db_session.flush()
 
-    this_monday = _monday_of(date.today())
+    this_monday = _monday_of(utc_today())
     await _make_weekly_plan(db_session, user, this_monday, block_number=1)
 
     service = ScheduleService(db_session)
@@ -192,13 +193,13 @@ async def test_get_weekly_plan_without_param_404s_like_get_current(db_session) -
 @pytest.mark.asyncio
 async def test_patch_weekly_plan_with_explicit_week_start_date_patches_that_week(db_session) -> None:
     """The whole point of this feature: patching a week that is NOT
-    date.today()'s current week -- get_current's range check would never
+    utc_today()'s current week -- get_current's range check would never
     find it at all."""
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
 
-    this_monday = _monday_of(date.today())
+    this_monday = _monday_of(utc_today())
     next_monday = this_monday + timedelta(days=7)
 
     await _make_weekly_plan(db_session, user, this_monday, block_number=1)
@@ -229,7 +230,7 @@ async def test_patch_weekly_plan_with_explicit_week_start_date_404s_when_absent(
     db_session.add(user)
     await db_session.flush()
 
-    this_monday = _monday_of(date.today())
+    this_monday = _monday_of(utc_today())
     next_monday = this_monday + timedelta(days=7)
     await _make_weekly_plan(db_session, user, this_monday, block_number=1)
 
@@ -251,7 +252,7 @@ async def test_patch_weekly_plan_without_param_matches_patch_current(db_session)
     db_session.add(user)
     await db_session.flush()
 
-    this_monday = _monday_of(date.today())
+    this_monday = _monday_of(utc_today())
     await _make_weekly_plan(db_session, user, this_monday, block_number=1)
     target_date = this_monday + timedelta(days=2)
 
@@ -276,7 +277,7 @@ async def test_patch_weekly_plan_without_param_404s_like_patch_current(db_sessio
     with pytest.raises(HTTPException) as exc_info:
         await service.patch_weekly_plan(
             user,
-            WeeklyPlanPatch(days=[DayPlanIn(date=date.today(), session_type=DaySessionType.REST)]),
+            WeeklyPlanPatch(days=[DayPlanIn(date=utc_today(), session_type=DaySessionType.REST)]),
             None,
         )
 
@@ -316,7 +317,7 @@ async def test_create_current_then_next_week_does_not_advance_periodization_and_
     schedule = ScheduleService(db_session)
     blocks = TrainingBlockService(db_session)
 
-    this_monday = _monday_of(date.today())
+    this_monday = _monday_of(utc_today())
     next_monday = this_monday + timedelta(days=7)
 
     await schedule.create_weekly_plan(user, _full_week_payload(this_monday))

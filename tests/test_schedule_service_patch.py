@@ -5,7 +5,7 @@ untouched -- patching both in one request must change only Tuesday and
 report a conflict for Monday, without rolling back Tuesday's change.
 """
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -21,6 +21,7 @@ from app.models.schedule import (
 from app.models.user import User
 from app.schemas.schedule import DayPlanIn, WeeklyPlanPatch
 from app.services.schedule_service import ScheduleService
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -53,7 +54,7 @@ async def test_patch_partial_success_skips_started_day_but_applies_the_rest(db_s
     db_session.add(block)
     await db_session.flush()
 
-    monday = date.today() - timedelta(days=date.today().weekday())
+    monday = utc_today() - timedelta(days=utc_today().weekday())
     tuesday = monday + timedelta(days=1)
 
     monday_exercise = _make_exercise(ExerciseCategory.ON_ICE)
@@ -156,6 +157,6 @@ async def test_patch_no_current_weekly_plan_raises_404(db_session) -> None:
     with pytest.raises(HTTPException) as exc_info:
         await service.patch_current_weekly_plan(
             user,
-            WeeklyPlanPatch(days=[DayPlanIn(date=date.today(), session_type=DaySessionType.REST)]),
+            WeeklyPlanPatch(days=[DayPlanIn(date=utc_today(), session_type=DaySessionType.REST)]),
         )
     assert exc_info.value.status_code == 404

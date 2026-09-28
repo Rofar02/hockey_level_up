@@ -8,7 +8,14 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from app.models.exercise import EquipmentItem, Exercise, ExerciseCategory, ExerciseEquipmentItem, ExerciseType, TrainingPhase
+from app.models.exercise import (
+    EquipmentItem,
+    Exercise,
+    ExerciseCategory,
+    ExerciseEquipmentItem,
+    ExerciseType,
+    TrainingPhase,
+)
 from app.models.schedule import (
     BlockPhase,
     DayPlan,
@@ -24,6 +31,7 @@ from app.services.weight_suggestion_service import (
     MACROCYCLE_DELOAD_WEIGHT_MULTIPLIER,
     WeightSuggestionService,
 )
+from tests.dates import utc_today
 
 
 def _make_user(
@@ -95,14 +103,14 @@ async def _make_set_history(
     )
     day_plan = DayPlan(
         id=uuid.uuid4(),
-        date=date.today(),
+        date=utc_today(),
         session_type=DaySessionType.OFF_ICE,
         training_session=TrainingSession(id=uuid.uuid4(), blocks=[session_block]),
     )
     weekly_plan = WeeklyPlan(
         id=uuid.uuid4(),
         user_id=user.id,
-        week_start_date=week_start if week_start is not None else date.today(),
+        week_start_date=week_start if week_start is not None else utc_today(),
         training_block_id=training_block_id,
         day_plans=[day_plan],
     )
@@ -527,7 +535,7 @@ async def test_macrocycle_deload_reduces_once_not_every_session(db_session) -> N
         weight_kg=40.0,
         feedback=SetFeedback.EASY,
         completed_at=datetime.now(timezone.utc) - timedelta(days=10),
-        week_start=date.today() - timedelta(days=10),
+        week_start=utc_today() - timedelta(days=10),
     )
     await _make_set_history(
         db_session, user, exercise, weight_kg=27.5, feedback=SetFeedback.EASY, training_block_id=block.id
@@ -635,7 +643,7 @@ async def test_after_a_macrocycle_deload_block_resumes_the_working_weight(db_ses
         weight_kg=40.0,
         feedback=SetFeedback.NORMAL,
         completed_at=datetime.now(timezone.utc) - timedelta(days=20),
-        week_start=date.today() - timedelta(days=20),
+        week_start=utc_today() - timedelta(days=20),
     )
     await _make_set_history(
         db_session,
@@ -644,7 +652,7 @@ async def test_after_a_macrocycle_deload_block_resumes_the_working_weight(db_ses
         weight_kg=27.5,
         feedback=SetFeedback.EASY,
         completed_at=datetime.now(timezone.utc) - timedelta(days=3),
-        week_start=date.today() - timedelta(days=3),
+        week_start=utc_today() - timedelta(days=3),
         training_block_id=deload.id,
     )
     deload.is_macrocycle_deload = True

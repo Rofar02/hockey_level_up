@@ -5,7 +5,7 @@ report/list/lift, the upsert-extend-on-repeat-report behavior, and the
 exactly-one-target validation.
 """
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 from fastapi import HTTPException
@@ -17,6 +17,7 @@ from app.services.user_temporary_restriction_service import (
     DEFAULT_RESTRICTION_DAYS,
     UserTemporaryRestrictionService,
 )
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -41,7 +42,7 @@ async def test_report_creates_a_restriction_expiring_in_default_days(db_session)
     assert restriction.movement_pattern == MovementPattern.SQUAT
     assert restriction.muscle_group is None
     assert restriction.reason == "колено болит"
-    assert restriction.expires_at == date.today() + timedelta(days=DEFAULT_RESTRICTION_DAYS)
+    assert restriction.expires_at == utc_today() + timedelta(days=DEFAULT_RESTRICTION_DAYS)
     assert restriction.lifted_at is None
 
 
@@ -195,7 +196,7 @@ async def test_list_active_excludes_expired_restrictions(db_session) -> None:
     expired = UserTemporaryRestriction(
         user_id=user.id,
         movement_pattern=MovementPattern.SQUAT,
-        expires_at=date.today() - timedelta(days=1),
+        expires_at=utc_today() - timedelta(days=1),
     )
     db_session.add(expired)
     await db_session.flush()

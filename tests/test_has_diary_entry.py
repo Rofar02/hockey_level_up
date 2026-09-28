@@ -23,6 +23,7 @@ from app.models.schedule import (
 from app.models.training_diary import TrainingDiaryEntry
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -50,7 +51,7 @@ def _monday_of(reference: date) -> date:
 
 
 async def _seed_week(db_session, user: User, session_type: DaySessionType) -> tuple[WeeklyPlan, TrainingSession]:
-    monday = _monday_of(date.today()) - timedelta(days=14)
+    monday = _monday_of(utc_today()) - timedelta(days=14)
     block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1, phase_started_at=monday)
     db_session.add(block)
     await db_session.flush()
