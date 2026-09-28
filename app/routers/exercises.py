@@ -22,9 +22,11 @@ from app.schemas.exercise import (
     SuggestedWeightRead,
     TargetStatsReplace,
 )
+from app.schemas.set_completion import ExerciseHistoryRead, ExerciseHistorySession, SetCompletionSummary
 from app.schemas.skill import SkillTagRead
 from app.services.exercise_service import ExerciseService
 from app.services.reps_suggestion_service import RepsSuggestionService
+from app.services.set_completion_service import SetCompletionService
 from app.services.skill_service import SkillService
 from app.services.weight_suggestion_service import WeightSuggestionService
 
@@ -217,6 +219,31 @@ async def get_suggested_reps(
     exercise = await ExerciseService(session).get_exercise(exercise_id)
     suggested = await RepsSuggestionService(session).suggest_reps(current_user, exercise)
     return SuggestedRepsRead(suggested_reps=suggested)
+
+
+@router.get("/{exercise_id}/history", response_model=ExerciseHistoryRead)
+async def get_exercise_history(
+    exercise_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    exclude_session_id: uuid.UUID | None = None,
+    sessions: Annotated[int, Query(ge=1, le=10)] = 3,
+):
+    await ExerciseService(session).get_exercise(exercise_id)
+    history = await SetCompletionService(session).get_history(
+        current_user, exercise_id, sessions, exclude_session_id
+    )
+    return ExerciseHistoryRead(
+        sessions=[
+            ExerciseHistorySession(
+                training_session_id=training_session_id,
+                performed_at=min(set_completion.completed_at for set_completion in sets),
+                sets=[SetCompletionSummary.model_validate(set_completion) for set_completion in sets],
+                feedback=next((s.feedback for s in sets if s.feedback is not None), None),
+            )
+            for training_session_id, sets in history
+        ]
+    )
 
 
 @router.post("", response_model=ExerciseRead, status_code=status.HTTP_201_CREATED)

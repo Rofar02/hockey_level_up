@@ -149,3 +149,23 @@ class SetCompletionService:
         last_set.feedback = feedback
         await self._session.commit()
         return last_set
+
+    async def get_history(
+        self,
+        user: User,
+        exercise_id: uuid.UUID,
+        session_limit: int,
+        exclude_session_id: uuid.UUID | None = None,
+    ) -> list[tuple[uuid.UUID, list[SetCompletion]]]:
+        """The athlete's own past sessions of this exercise, newest first,
+        each with its sets -- what the player's "История выполнения" shows
+        under the logger so the athlete can see what to beat. Scoped to
+        user_id in the query itself, so no session-ownership check is
+        needed: exclude_session_id only ever narrows the user's own rows."""
+        sets = await self._sets.list_for_recent_sessions(
+            user.id, exercise_id, session_limit, exclude_session_id
+        )
+        grouped: dict[uuid.UUID, list[SetCompletion]] = {}
+        for set_completion in sets:
+            grouped.setdefault(set_completion.training_session_id, []).append(set_completion)
+        return list(grouped.items())

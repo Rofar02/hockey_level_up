@@ -57,3 +57,17 @@ class ExerciseSetsRead(BaseModel):
     # docstring), not per set -- surfaced here separately from the list
     # rather than repeated on every row.
     feedback: SetFeedback | None
+
+
+class ExerciseHistorySession(BaseModel):
+    training_session_id: uuid.UUID
+    # When the session's first set of this exercise was logged -- the
+    # client formats it in the athlete's own timezone.
+    performed_at: datetime
+    sets: list[SetCompletionSummary]
+    feedback: SetFeedback | None
+
+
+class ExerciseHistoryRead(BaseModel):
+    # Newest session first.
+    sessions: list[ExerciseHistorySession]

@@ -11,7 +11,7 @@ import type {
   TargetStat,
 } from '../types/exercise'
 import type { TrainingPhase } from '../types/schedule'
-import type { SuggestedRepsRead, SuggestedWeightRead } from '../types/setCompletion'
+import type { ExerciseHistoryRead, SuggestedRepsRead, SuggestedWeightRead } from '../types/setCompletion'
 import type { SkillTagRead } from '../types/skill'
 
 export function getSuggestedWeight(
@@ -19,6 +19,17 @@ export function getSuggestedWeight(
   accessToken: string,
 ): Promise<SuggestedWeightRead> {
   return apiGet<SuggestedWeightRead>(`/exercises/${exerciseId}/suggested-weight`, accessToken)
+}
+
+// Past sessions only when excludeSessionId is the session being played --
+// its own sets are already on screen in SetLogger/TimerPlayer.
+export function getExerciseHistory(
+  exerciseId: string,
+  accessToken: string,
+  excludeSessionId?: string,
+): Promise<ExerciseHistoryRead> {
+  const query = excludeSessionId !== undefined ? `?exclude_session_id=${excludeSessionId}` : ''
+  return apiGet<ExerciseHistoryRead>(`/exercises/${exerciseId}/history${query}`, accessToken)
 }
 
 export function getSuggestedReps(

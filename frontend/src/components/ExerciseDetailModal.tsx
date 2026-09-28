@@ -6,6 +6,7 @@ import { CountdownRing } from './ui/CountdownRing'
 import { FormError } from './ui/FormError'
 import { Modal } from './ui/Modal'
 import { Stepper } from './ui/Stepper'
+import { ExerciseHistory } from './ExerciseHistory'
 import { ExerciseTechnique } from './ExerciseTechnique'
 import { TimerPlayer } from './TimerPlayer'
 import * as exercisesApi from '../api/exercises'
@@ -348,6 +349,13 @@ export function ExerciseDetailBody({
                 </Button>
               )}
             </div>
+          )}
+          {mode !== 'none' && (
+            <ExerciseHistory
+              exercise={exercise}
+              trainingSessionId={trainingSessionId}
+              accessToken={accessToken}
+            />
           )}
         </div>
 

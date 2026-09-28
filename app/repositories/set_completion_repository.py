@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.schedule import DayPlan, TrainingBlock, TrainingSession, WeeklyPlan
@@ -79,6 +79,40 @@ class SetCompletionRepository:
             .where(SetCompletion.user_id == user_id, SetCompletion.exercise_id == exercise_id)
             .order_by(SetCompletion.completed_at.desc())
             .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def list_for_recent_sessions(
+        self,
+        user_id: uuid.UUID,
+        exercise_id: uuid.UUID,
+        session_limit: int,
+        exclude_session_id: uuid.UUID | None = None,
+    ) -> list[SetCompletion]:
+        """Every set of this user+exercise from the `session_limit` most
+        recent sessions it was logged in (optionally skipping one -- the
+        session currently open, whose sets the player already shows).
+        Unlike list_recent_for_user_exercise, the cut is by whole sessions,
+        so a session is never returned half-listed. Newest session first,
+        sets within a session by set_number."""
+        conditions = [SetCompletion.user_id == user_id, SetCompletion.exercise_id == exercise_id]
+        if exclude_session_id is not None:
+            conditions.append(SetCompletion.training_session_id != exclude_session_id)
+
+        last_logged_at = func.max(SetCompletion.completed_at).label("last_logged_at")
+        recent_sessions = (
+            select(SetCompletion.training_session_id, last_logged_at)
+            .where(*conditions)
+            .group_by(SetCompletion.training_session_id)
+            .order_by(last_logged_at.desc())
+            .limit(session_limit)
+            .subquery()
+        )
+        result = await self._session.execute(
+            select(SetCompletion)
+            .join(recent_sessions, recent_sessions.c.training_session_id == SetCompletion.training_session_id)
+            .where(*conditions)
+            .order_by(recent_sessions.c.last_logged_at.desc(), SetCompletion.set_number)
         )
         return list(result.scalars().all())
 

@@ -8,7 +8,7 @@ endpoint. Does not touch block_completed/stat_consumer/xp_consumer at all --
 those stay driven purely by SessionBlock.completed_at.
 """
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
@@ -404,3 +404,103 @@ async def test_list_sets_returns_sets_ordered_with_feedback_on_its_row(db_sessio
     # time save_feedback ran (see get_last_in_session_for_exercise).
     assert result[1].feedback == SetFeedback.NORMAL
     assert result[0].feedback is None
+
+
+async def _make_logged_session(
+    db_session, user: User, exercise: Exercise, week_start: date, logged_at, reps: list[int]
+) -> TrainingSession:
+    """A past session with `reps` already logged as sets 1..N at `logged_at`
+    (+1 minute per set) -- written directly, bypassing save_set, so the
+    history tests control completed_at exactly."""
+    session_block = SessionBlock(
+        id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0
+    )
+    training_session = TrainingSession(id=uuid.uuid4(), blocks=[session_block])
+    db_session.add(
+        WeeklyPlan(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            week_start_date=week_start,
+            day_plans=[
+                DayPlan(
+                    id=uuid.uuid4(),
+                    date=week_start,
+                    session_type=DaySessionType.OFF_ICE,
+                    training_session=training_session,
+                )
+            ],
+        )
+    )
+    await db_session.flush()
+    for index, rep_count in enumerate(reps):
+        db_session.add(
+            SetCompletion(
+                user_id=user.id,
+                exercise_id=exercise.id,
+                training_session_id=training_session.id,
+                set_number=index + 1,
+                weight_kg=40.0,
+                reps_completed=rep_count,
+                completed_at=logged_at + timedelta(minutes=index),
+            )
+        )
+    await db_session.flush()
+    return training_session
+
+
+@pytest.mark.asyncio
+async def test_get_history_returns_whole_recent_sessions_newest_first(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise()
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    start = datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc)
+    oldest = await _make_logged_session(db_session, user, exercise, date(2026, 8, 31), start, [8, 8])
+    middle = await _make_logged_session(
+        db_session, user, exercise, date(2026, 9, 7), start + timedelta(days=7), [9, 8, 7]
+    )
+    newest = await _make_logged_session(
+        db_session, user, exercise, date(2026, 9, 14), start + timedelta(days=14), [10]
+    )
+
+    history = await SetCompletionService(db_session).get_history(user, exercise.id, session_limit=2)
+
+    assert [session_id for session_id, _ in history] == [newest.id, middle.id]
+    # The cut is by session, not by row -- middle keeps all three sets.
+    assert [s.set_number for s in history[1][1]] == [1, 2, 3]
+    assert [s.reps_completed for s in history[1][1]] == [9, 8, 7]
+    assert oldest.id not in {session_id for session_id, _ in history}
+
+
+@pytest.mark.asyncio
+async def test_get_history_excludes_current_session_and_other_users(db_session) -> None:
+    user = _make_user()
+    other_user = _make_user()
+    exercise = _make_exercise()
+    db_session.add_all([user, other_user, exercise])
+    await db_session.flush()
+    start = datetime(2026, 9, 1, 18, 0, tzinfo=timezone.utc)
+    past = await _make_logged_session(db_session, user, exercise, date(2026, 8, 31), start, [8])
+    current = await _make_logged_session(
+        db_session, user, exercise, date(2026, 9, 7), start + timedelta(days=7), [9]
+    )
+    await _make_logged_session(
+        db_session, other_user, exercise, date(2026, 9, 14), start + timedelta(days=14), [12]
+    )
+
+    history = await SetCompletionService(db_session).get_history(
+        user, exercise.id, session_limit=3, exclude_session_id=current.id
+    )
+
+    assert [session_id for session_id, _ in history] == [past.id]
+
+
+@pytest.mark.asyncio
+async def test_get_history_empty_for_never_logged_exercise(db_session) -> None:
+    user = _make_user()
+    exercise = _make_exercise()
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+
+    assert await SetCompletionService(db_session).get_history(user, exercise.id, session_limit=3) == []
+
