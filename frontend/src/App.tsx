@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { AdminRoute } from './components/AdminRoute'
 import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -141,7 +142,7 @@ const AdminReferenceArticlesPage = lazy(() =>
 
 function App() {
   return (
-    <>
+    <AppErrorBoundary>
       <ScrollToTop />
       <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -260,7 +261,7 @@ function App() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </>
+    </AppErrorBoundary>
   )
 }
 
