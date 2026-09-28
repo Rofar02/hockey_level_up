@@ -20,6 +20,7 @@ import * as trainingBlockApi from '../api/trainingBlock'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useSessionClock } from '../hooks/useSessionClock'
 import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
@@ -555,6 +556,16 @@ export function TrainingSessionPage() {
     setSelectedExercise(updated.exercise)
   }
 
+  // Ticks only while an exercise is open and something is still left to
+  // do -- see useSessionClock for where the start time comes from.
+  const sessionElapsedSeconds = useSessionClock(
+    trainingSessionId,
+    blocks ?? [],
+    selectedExercise !== null &&
+      blocks !== null &&
+      blocks.some((block) => !isExerciseDone(block, setCompletionCounts)),
+  )
+
   if (loadError !== null) {
     return (
       <div className="relative min-h-svh overflow-hidden">
@@ -862,6 +873,9 @@ export function TrainingSessionPage() {
                   // starting fresh.
                   key={selectedBlock.id}
                   block={selectedBlock}
+                  position={orderedBlocks.findIndex((block) => block.id === selectedBlock.id) + 1}
+                  totalCount={orderedBlocks.length}
+                  elapsedSeconds={sessionElapsedSeconds}
                   phaseLabel={PHASE_LABELS[currentPhase]}
                   phaseIcon={PHASE_ICONS[currentPhase]}
                   skills={skills}

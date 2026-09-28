@@ -731,7 +731,7 @@ function MemberStatusRow({
     case 'completed':
       return (
         <span className="flex items-center gap-1 text-xs font-medium text-accent-ice">
-          <i className="ti ti-circle-check-filled" aria-hidden="true" />
+          <i className="ti ti-circle-check" aria-hidden="true" />
           Завершил(а) тренировку
         </span>
       )

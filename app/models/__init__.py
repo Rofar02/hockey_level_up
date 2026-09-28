@@ -1,3 +1,4 @@
+from app.models.auth_token import AuthToken, AuthTokenPurpose
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.coach_chat_proposed_action import (
     CoachActionStatus,
@@ -58,6 +59,8 @@ from app.models.user import User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
 
 __all__ = [
+    "AuthToken",
+    "AuthTokenPurpose",
     "CoachActionStatus",
     "CoachActionType",
     "CoachChatMessage",

@@ -16,12 +16,19 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.team import Team, TeamMembership
 from app.models.user import User
 from app.services.team_rating_service import TeamRatingService
+from tests.dates import utc_today
 
-TODAY = date.today()
+TODAY = utc_today()
 
 
 def _make_user(xp: int) -> User:

@@ -72,7 +72,7 @@ export function VerifyEmailPage() {
         )}
         {status === 'success' && (
           <>
-            <i className="ti ti-circle-check-filled mb-3 block text-3xl text-accent-ice" aria-hidden="true" />
+            <i className="ti ti-circle-check mb-3 block text-3xl text-accent-ice" aria-hidden="true" />
             <h1 className="mb-2 text-xl font-semibold">Email подтверждён</h1>
             <p className="text-sm text-text-secondary">{message}</p>
           </>

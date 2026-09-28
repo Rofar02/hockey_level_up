@@ -17,7 +17,7 @@ two genuinely different events both apply in full; and two different
 handlers claiming the same event_id don't block each other.
 """
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 import pytest
 import pytest_asyncio
@@ -36,8 +36,15 @@ from app.events.handlers.block_completed import (
 from app.models.exercise import Exercise, ExerciseCategory, TargetStat, TrainingPhase
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import StatHistory, TrainingStreak, UserStat
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.user import User
+from tests.dates import utc_today
 
 
 def _payload(
@@ -138,13 +145,13 @@ async def _seed_fully_completed_session(user_id: uuid.UUID) -> tuple[uuid.UUID, 
     185 such orphaned "Exercise <hex>" rows had accumulated in the real
     dev DB from exactly this leak, going back who knows how many sessions)."""
     async with AsyncSessionLocal() as session:
-        weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user_id, week_start_date=date.today())
+        weekly_plan = WeeklyPlan(id=uuid.uuid4(), user_id=user_id, week_start_date=utc_today())
         session.add(weekly_plan)
         await session.flush()
         day_plan = DayPlan(
             id=uuid.uuid4(),
             weekly_plan_id=weekly_plan.id,
-            date=date.today(),
+            date=utc_today(),
             session_type=DaySessionType.OFF_ICE,
         )
         session.add(day_plan)

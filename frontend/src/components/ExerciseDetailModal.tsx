@@ -6,6 +6,7 @@ import { CountdownRing } from './ui/CountdownRing'
 import { FormError } from './ui/FormError'
 import { Modal } from './ui/Modal'
 import { Stepper } from './ui/Stepper'
+import { ExerciseHistory, LastTimeHint } from './ExerciseHistory'
 import { ExerciseTechnique } from './ExerciseTechnique'
 import { TimerPlayer } from './TimerPlayer'
 import * as exercisesApi from '../api/exercises'
@@ -20,7 +21,7 @@ import { useAuth } from '../hooks/useAuth'
 import type { ExerciseRead } from '../types/exercise'
 import type { SessionBlockRead } from '../types/schedule'
 import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletion'
-import type { SetCompletionSummary, SetFeedback } from '../types/setCompletion'
+import type { ExerciseHistorySession, SetCompletionSummary, SetFeedback } from '../types/setCompletion'
 import type { SkillTagRead } from '../types/skill'
 import { exercisePlayerMode } from '../utils/exercisePlayerMode'
 import { hasExerciseDescription, hasExerciseTechnique } from '../utils/exerciseTechnique'
@@ -168,6 +169,36 @@ export function ExerciseDetailBody({
   // phase the tab can't show for.
   const showTransferTab = exercise.phase === 'main' || exercise.phase === 'puck'
 
+  // Past sessions of this exercise (not this one) -- one fetch feeding both
+  // the collapsible "История выполнения" and the players' "В прошлый раз"
+  // line. null while loading; [] on failure or no history, which simply
+  // hides both.
+  const [history, setHistory] = useState<ExerciseHistorySession[] | null>(null)
+  const hasPlayer = exercisePlayerMode(exercise) !== 'none'
+
+  useEffect(() => {
+    if (!hasPlayer) {
+      return
+    }
+    let cancelled = false
+    setHistory(null)
+    exercisesApi
+      .getExerciseHistory(exercise.id, accessToken, trainingSessionId)
+      .then((result) => {
+        if (!cancelled) {
+          setHistory(result.sessions)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHistory([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exercise.id, trainingSessionId, accessToken, hasPlayer])
+
   useEffect(() => {
     if (!showTransferTab) {
       return
@@ -294,6 +325,7 @@ export function ExerciseDetailBody({
               exercise={exercise}
               trainingSessionId={trainingSessionId}
               accessToken={accessToken}
+              history={history}
               onLastSetCompleted={onLastSetCompleted}
               onSettled={onSettled}
             />
@@ -303,6 +335,7 @@ export function ExerciseDetailBody({
               trainingSessionId={trainingSessionId}
               accessToken={accessToken}
               durationSeconds={exercise.target_duration_seconds!}
+              history={history}
               rounds={exercise.target_sets ?? 1}
               isDone={onLastSetCompleted === undefined}
               onComplete={onLastSetCompleted}
@@ -348,6 +381,9 @@ export function ExerciseDetailBody({
                 </Button>
               )}
             </div>
+          )}
+          {mode !== 'none' && (
+            <ExerciseHistory exercise={exercise} sessions={history} />
           )}
         </div>
 
@@ -552,10 +588,12 @@ function SetLogger({
   accessToken,
   onLastSetCompleted,
   onSettled,
+  history,
 }: {
   exercise: ExerciseRead
   trainingSessionId: string
   accessToken: string
+  history: ExerciseHistorySession[] | null
   onLastSetCompleted?: () => void
   // Fires once the feedback prompt below is answered (icelevel_player_
   // master_prompt.md, 2026-08-28: auto-advance to the next exercise) --
@@ -958,11 +996,14 @@ function SetLogger({
                   </div>
                 )}
                 <div className="flex flex-col gap-2 rounded-md border-2 border-accent-persimmon bg-dark-card px-3 py-2.5">
-                  <span className="font-display text-sm font-semibold text-text-primary">
-                    Подход {setNumber}
-                    {isEditingThis && (
-                      <span className="ml-2 text-xs font-normal text-text-secondary">(исправление)</span>
-                    )}
+                  <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                    <span className="font-display text-sm font-semibold text-text-primary">
+                      Подход {setNumber}
+                      {isEditingThis && (
+                        <span className="ml-2 text-xs font-normal text-text-secondary">(исправление)</span>
+                      )}
+                    </span>
+                    <LastTimeHint history={history} setNumber={setNumber} tracksWeight={exercise.tracks_weight} />
                   </span>
                   {/* Own row, wrapping if needed -- both steppers side by
                       side previously squeezed this row's label down to

@@ -31,9 +31,9 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.training_block import (
+    _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON,
     PHASE_CALENDAR_CEILING_WEEKS,
     SESSIONS_TO_ADVANCE_PHASE,
-    _SESSIONS_TO_ADVANCE_PHASE_BY_SEASON,
 )
 from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
 from app.models.schedule import (
@@ -49,6 +49,7 @@ from app.models.user import SeasonPeriod, User
 from app.schemas.schedule import DayPlanIn, WeeklyPlanCreate
 from app.services.schedule_service import ScheduleService
 from app.services.training_block_service import TrainingBlockService
+from tests.dates import utc_today
 
 
 class _Clock:
@@ -330,7 +331,7 @@ async def test_calendar_ceiling_advances_phase_with_zero_completed_sessions(db_s
     db_session.add(user)
     await db_session.flush()
 
-    stale_start = date.today() - timedelta(weeks=PHASE_CALENDAR_CEILING_WEEKS + 1)
+    stale_start = utc_today() - timedelta(weeks=PHASE_CALENDAR_CEILING_WEEKS + 1)
     block = TrainingBlock(
         user_id=user.id, block_number=1, phase=BlockPhase.ACCUMULATION, phase_started_at=stale_start
     )
@@ -341,7 +342,7 @@ async def test_calendar_ceiling_advances_phase_with_zero_completed_sessions(db_s
     resolved = await blocks.resolve_active_block(user.id)
 
     assert resolved.phase == BlockPhase.INTENSIFICATION
-    assert resolved.phase_started_at == date.today()
+    assert resolved.phase_started_at == utc_today()
 
 
 @pytest.mark.asyncio

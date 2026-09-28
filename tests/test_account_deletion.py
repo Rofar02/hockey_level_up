@@ -6,7 +6,6 @@ point of these tests is to catch a table that's missing CASCADE just as much
 as a bug in the service method itself.
 """
 import uuid
-from datetime import date
 from pathlib import Path
 
 import pytest
@@ -23,13 +22,21 @@ from app.models.exercise import (
 )
 from app.models.progress import StatHistory, TrainingStreak, UserStat
 from app.models.push_subscription import PushSubscription
-from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    SessionBlock,
+    TrainingBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.set_completion import SetCompletion
 from app.models.skill import Skill, UserSkillPreference
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
 from app.services.user_service import UserService
+from tests.dates import utc_today
 
 PASSWORD = "correct-horse-battery"
 
@@ -67,12 +74,12 @@ async def _seed_full_graph(db_session, user: User) -> dict:
     training_session = TrainingSession(id=uuid.uuid4(), blocks=[session_block])
     day_plan = DayPlan(
         id=uuid.uuid4(),
-        date=date.today(),
+        date=utc_today(),
         session_type=DaySessionType.OFF_ICE,
         training_session=training_session,
     )
     weekly_plan = WeeklyPlan(
-        id=uuid.uuid4(), user_id=user.id, week_start_date=date.today(), day_plans=[day_plan]
+        id=uuid.uuid4(), user_id=user.id, week_start_date=utc_today(), day_plans=[day_plan]
     )
     training_block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1)
     user_stat = UserStat(id=uuid.uuid4(), user_id=user.id, stat_type=TargetStat.STRENGTH)

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -123,7 +123,7 @@ class TeamRatingService:
         # below groups across *every* team in one query, where it isn't
         # even well-defined -- whose timezone would the boundary use?).
         # UTC is an intentional, understood choice here, not the same bug.
-        since = date.today() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)  # noqa: DTZ011
+        since = datetime.now(timezone.utc).date() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)
         result = await self._session.execute(
             select(func.count(DayPlan.id))
             .select_from(DayPlan)
@@ -142,7 +142,7 @@ class TeamRatingService:
         # Same intentional UTC choice as _completed_trainings_count above --
         # this one groups across *every* team in a single query, where a
         # per-user timezone isn't even well-defined to begin with.
-        since = date.today() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)  # noqa: DTZ011
+        since = datetime.now(timezone.utc).date() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)
         result = await self._session.execute(
             select(TeamMembership.team_id, func.count(DayPlan.id))
             .select_from(DayPlan)

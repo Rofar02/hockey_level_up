@@ -6,14 +6,20 @@ day or a player who left the team get nothing; a player already rewarded
 through the old team diary isn't rewarded again.
 """
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import delete, select
 
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, UserStat
-from app.models.schedule import DaySessionType, DayPlan, TrainingBlock, TrainingSession, WeeklyPlan
+from app.models.schedule import (
+    DayPlan,
+    DaySessionType,
+    TrainingBlock,
+    TrainingSession,
+    WeeklyPlan,
+)
 from app.models.team import TeamMembership
 from app.models.team_event import TeamEventType
 from app.models.user import User
@@ -21,6 +27,7 @@ from app.repositories.team_event_repository import TeamEventRepository
 from app.services.team_event_service import TEAM_TRAINING_XP_BONUS, TeamEventService
 from app.services.team_service import TeamService
 from app.services.training_diary_service import TrainingDiaryService
+from tests.dates import utc_today
 
 
 def _make_user(**overrides) -> User:
@@ -61,7 +68,7 @@ async def _day(
 ) -> TrainingSession:
     """One day of the user's own week, optionally taken over by a team
     event -- what the diary is written against."""
-    monday = date.today() - timedelta(days=date.today().weekday()) + timedelta(weeks=block_number - 1)
+    monday = utc_today() - timedelta(days=utc_today().weekday()) + timedelta(weeks=block_number - 1)
     block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=block_number, phase_started_at=monday)
     db_session.add(block)
     await db_session.flush()

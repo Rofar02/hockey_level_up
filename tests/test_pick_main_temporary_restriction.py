@@ -9,7 +9,7 @@ NOT mock list_for_assembly, since that's exactly the code path being
 verified here.
 """
 import uuid
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 
@@ -19,6 +19,7 @@ from app.models.user import User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
 from app.repositories.exercise_repository import ExerciseRepository
 from app.services.schedule_service import ScheduleService
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -40,7 +41,7 @@ async def test_restricted_pattern_never_appears_in_a_real_off_ice_main_block(db_
         UserTemporaryRestriction(
             user_id=user.id,
             movement_pattern=MovementPattern.SQUAT,
-            expires_at=date.today() + timedelta(days=14),
+            expires_at=utc_today() + timedelta(days=14),
         )
     )
     await db_session.flush()

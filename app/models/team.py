@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,6 +12,12 @@ from app.db.enum_column import enum_column
 
 class Team(Base):
     __tablename__ = "teams"
+    # Mirrors what migration 126b15a1dd07 actually created: a UNIQUE
+    # constraint (teams_invite_code_key) plus a separate plain index.
+    # Declaring `unique=True, index=True` on the column instead describes a
+    # single unique index, which made every `alembic --autogenerate` propose
+    # swapping one for the other (drift noticed 2026-08-27, fixed 2026-09-28).
+    __table_args__ = (Index("ix_teams_invite_code", "invite_code"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -20,7 +26,7 @@ class Team(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
-    invite_code: Mapped[str] = mapped_column(String(16), unique=True, index=True, nullable=False)
+    invite_code: Mapped[str] = mapped_column(String(16), unique=True, nullable=False)
     # Server-generated filename under settings.team_logo_upload_dir -- same
     # pattern as User.avatar_path (see TeamService.update_logo /
     # app/services/image_processing.py). Nullable: most teams start without

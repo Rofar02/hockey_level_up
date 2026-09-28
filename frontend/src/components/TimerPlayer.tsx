@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { CountdownRing } from './ui/CountdownRing'
 import { Stepper } from './ui/Stepper'
 import { ExerciseFeedbackPrompt } from './ExerciseFeedbackPrompt'
+import { LastTimeHint } from './ExerciseHistory'
 import * as progressApi from '../api/progress'
 import * as setCompletionsApi from '../api/setCompletions'
 import type { ExerciseRead } from '../types/exercise'
+import type { ExerciseHistorySession } from '../types/setCompletion'
 import {
   alertTimerDone,
   ensureNotificationPermission,
@@ -28,6 +30,7 @@ export function TimerPlayer({
   trainingSessionId,
   accessToken,
   durationSeconds,
+  history,
   rounds,
   isDone,
   onComplete,
@@ -37,6 +40,9 @@ export function TimerPlayer({
   trainingSessionId: string
   accessToken: string
   durationSeconds: number
+  // Past sessions (ExerciseDetailBody's single fetch) -- only for the
+  // "В прошлый раз" line under the ring.
+  history: ExerciseHistorySession[] | null
   rounds: number
   isDone: boolean
   onComplete?: () => void
@@ -291,6 +297,7 @@ export function TimerPlayer({
               })
             }
           />
+          <LastTimeHint history={history} setNumber={completedRounds + 1} tracksWeight={false} />
           {manualSeconds !== null && (
             <div className="flex flex-col items-center gap-2">
               <span className="text-xs text-text-secondary">Сколько сек. реально сделали</span>

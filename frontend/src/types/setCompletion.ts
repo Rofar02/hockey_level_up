@@ -57,3 +57,14 @@ export interface ExerciseSetsRead {
   sets: SetCompletionSummary[]
   feedback: SetFeedback | null
 }
+
+export interface ExerciseHistorySession {
+  training_session_id: string
+  performed_at: string
+  sets: SetCompletionSummary[]
+  feedback: SetFeedback | null
+}
+
+export interface ExerciseHistoryRead {
+  sessions: ExerciseHistorySession[]
+}

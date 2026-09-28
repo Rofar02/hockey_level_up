@@ -6,6 +6,7 @@ import { AuthProvider } from './context/AuthContext.tsx'
 import { registerServiceWorker } from './push.ts'
 import { installForegroundReflowFix, resetStaleBodyScrollLock } from './utils/bodyScrollLock.ts'
 import { installAudioUnlockOnFirstGesture } from './utils/restNotification.ts'
+import './assets/tabler-icons/tabler-icons.min.css'
 import './index.css'
 
 registerServiceWorker()

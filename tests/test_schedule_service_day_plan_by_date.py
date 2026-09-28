@@ -25,6 +25,7 @@ from app.models.schedule import (
 )
 from app.models.user import User
 from app.services.schedule_service import ScheduleService
+from tests.dates import utc_today
 
 
 def _make_user() -> User:
@@ -61,7 +62,7 @@ async def test_get_day_plan_for_date_returns_blocks_for_a_week_outside_current(d
     # (both scoped to a whole WeeklyPlan by week_start_date) would never
     # surface this on their own; the calendar can still show it as a past
     # activity day via GET /users/me/activity-calendar.
-    last_monday = _monday_of(date.today()) - timedelta(days=21)
+    last_monday = _monday_of(utc_today()) - timedelta(days=21)
 
     block = TrainingBlock(
         id=uuid.uuid4(), user_id=user.id, block_number=1, phase_started_at=last_monday
@@ -81,7 +82,7 @@ async def test_get_day_plan_for_date_returns_blocks_for_a_week_outside_current(d
         phase=TrainingPhase.MAIN,
         exercise_id=exercise.id,
         order=0,
-        completed_at=date.today(),
+        completed_at=utc_today(),
     )
     weekly_plan.day_plans.append(
         DayPlan(
@@ -112,7 +113,7 @@ async def test_get_day_plan_for_date_404s_when_no_day_plan_exists(db_session) ->
     await db_session.flush()
 
     service = ScheduleService(db_session)
-    target = date.today() - timedelta(days=100)
+    target = utc_today() - timedelta(days=100)
     with pytest.raises(HTTPException) as exc_info:
         await service.get_day_plan_for_date(user, target)
 
@@ -126,7 +127,7 @@ async def test_get_day_plan_for_date_rest_day_has_no_training_session(db_session
     db_session.add(user)
     await db_session.flush()
 
-    monday = _monday_of(date.today()) - timedelta(days=7)
+    monday = _monday_of(utc_today()) - timedelta(days=7)
     block = TrainingBlock(id=uuid.uuid4(), user_id=user.id, block_number=1, phase_started_at=monday)
     db_session.add(block)
     await db_session.flush()
@@ -157,7 +158,7 @@ async def test_get_day_plan_by_id_finds_a_day_weeks_in_the_past(db_session) -> N
     db_session.add(user)
     await db_session.flush()
 
-    old_monday = _monday_of(date.today()) - timedelta(days=28)
+    old_monday = _monday_of(utc_today()) - timedelta(days=28)
     block = TrainingBlock(
         id=uuid.uuid4(), user_id=user.id, block_number=1, phase_started_at=old_monday
     )
@@ -201,7 +202,7 @@ async def test_get_day_plan_by_id_404s_for_another_users_day(db_session) -> None
     db_session.add_all([owner, intruder])
     await db_session.flush()
 
-    monday = _monday_of(date.today())
+    monday = _monday_of(utc_today())
     block = TrainingBlock(id=uuid.uuid4(), user_id=owner.id, block_number=1, phase_started_at=monday)
     db_session.add(block)
     await db_session.flush()
