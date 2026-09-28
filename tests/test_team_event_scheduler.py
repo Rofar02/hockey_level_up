@@ -10,7 +10,7 @@ import pytest
 from app.models.push_subscription import PushSubscription
 from app.models.team_event import TeamEventAttendanceStatus, TeamEventType
 from app.models.user import User
-from app.services import push_service
+from app.services import push_service, team_event_scheduler
 from app.services.team_event_scheduler import _run_tick
 from app.services.team_event_service import TeamEventService
 from app.services.team_service import TeamService
@@ -63,10 +63,23 @@ async def _make_team_with_player(db_session):
     return captain, player, team
 
 
+def _disable_board_not_ready(monkeypatch) -> None:
+    """The attendance tests run at the real wall clock, and the same tick
+    also sends "board not ready" in a 9:00-9:05 captain-local window -- a
+    run that happened to start at 09:0x UTC got an extra push (found
+    2026-09-28). The board tests pin their own times instead."""
+
+    async def _none(session):
+        return []
+
+    monkeypatch.setattr(team_event_scheduler, "_due_board_not_ready_events", _none)
+
+
 @pytest.mark.asyncio
 async def test_attendance_summary_sent_once_at_deadline(db_session, monkeypatch) -> None:
     calls: list = []
     monkeypatch.setattr(push_service, "webpush_async", _counting_webpush(calls))
+    _disable_board_not_ready(monkeypatch)
     captain, player, team = await _make_team_with_player(db_session)
     events = TeamEventService(db_session)
 
@@ -94,6 +107,7 @@ async def test_attendance_summary_sent_once_at_deadline(db_session, monkeypatch)
 async def test_attendance_summary_not_due_before_deadline(db_session, monkeypatch) -> None:
     calls: list = []
     monkeypatch.setattr(push_service, "webpush_async", _counting_webpush(calls))
+    _disable_board_not_ready(monkeypatch)
     captain, player, team = await _make_team_with_player(db_session)
     events = TeamEventService(db_session)
 

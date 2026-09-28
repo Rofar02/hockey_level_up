@@ -112,6 +112,13 @@ services:
       # above, it needs no docker-network rewrite, so it flows straight
       # through from .env via env_file below, same as ZAI_API_KEY/
       # RESEND_API_KEY already do.
+      # 2026-09-28: two uvicorn processes (uvicorn reads WEB_CONCURRENCY),
+      # one per core -- a single process pinned one core at 100% under 20
+      # concurrent players while the DB sat idle. The consumer/relay/
+      # schedulers moved to the `worker` service below so they still run
+      # exactly once.
+      WEB_CONCURRENCY: "2"
+      RUN_BACKGROUND_TASKS: "false"
     volumes:
       # Named, not bind-mounted: Dockerfile.prod creates+chowns these paths
       # for the non-root `appuser` before the volume is attached, so a
@@ -137,6 +144,33 @@ services:
     logging: *default-logging
     # No `ports:` -- only the edge nginx talks to this, over the compose
     # network at http://backend:8000.
+
+  # RabbitMQ consumer (XP/stats/streak), outbox relay and the reminder/
+  # check-in/team-event schedulers -- one process, so nothing runs twice
+  # now that `backend` has two workers. Same image; no migrations here
+  # (backend's CMD owns `alembic upgrade head`), so it waits for backend to
+  # be up first.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: ["python", "-m", "app.background"]
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+    depends_on:
+      # Same hard requirement as backend: the consumer's first connect
+      # gives up for good if RabbitMQ isn't healthy yet.
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    logging: *default-logging
 
   frontend:
     build:

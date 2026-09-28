@@ -13,8 +13,8 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
-    hash_password,
-    verify_password,
+    hash_password_async,
+    verify_password_async,
 )
 from app.models.auth_token import AuthTokenPurpose
 from app.models.user import User
@@ -70,7 +70,7 @@ class AuthService:
 
         username = await self._generate_username(user_in.email)
         friend_code = await self._generate_friend_code()
-        user = await self._users.create(user_in, hash_password(user_in.password), username, friend_code)
+        user = await self._users.create(user_in, await hash_password_async(user_in.password), username, friend_code)
         await self._session.commit()
 
         # Best-effort: a failure here (no RESEND_API_KEY in dev, Resend
@@ -159,7 +159,7 @@ class AuthService:
 
     async def confirm_password_reset(self, raw_token: str, new_password: str) -> None:
         user = await self._tokens.consume_token(raw_token, AuthTokenPurpose.PASSWORD_RESET)
-        user.password_hash = hash_password(new_password)
+        user.password_hash = await hash_password_async(new_password)
         await self._session.commit()
 
     async def _generate_username(self, email: str) -> str:
@@ -193,7 +193,7 @@ class AuthService:
         user = await self._users.get_by_username(identifier)
         if user is None:
             user = await self._users.get_by_email(identifier)
-        if user is None or not verify_password(password, user.password_hash):
+        if user is None or not await verify_password_async(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username/email or password",

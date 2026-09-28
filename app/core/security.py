@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Any
@@ -23,6 +24,19 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, password_hash: str) -> bool:
     return pwd_context.verify(plain_password, password_hash)
+
+
+# bcrypt is deliberately slow (~0.3-0.4 s of pure CPU per call) and releases
+# the GIL, so request handlers run it in a worker thread. Called inline, it
+# froze the whole event loop for every login/registration -- found in a
+# 2026-09-28 load test: 20 concurrent players pushed login to 2 s and week
+# generation to 10 s, with the database idle the whole time.
+async def hash_password_async(password: str) -> str:
+    return await asyncio.to_thread(hash_password, password)
+
+
+async def verify_password_async(plain_password: str, password_hash: str) -> bool:
+    return await asyncio.to_thread(verify_password, plain_password, password_hash)
 
 
 def _create_token(subject: str, token_type: TokenType, expires_delta: timedelta) -> str:
