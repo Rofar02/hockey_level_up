@@ -106,6 +106,14 @@ class Settings(BaseSettings):
     # glitchtip_web's own port-binding comment for why it's never public).
     glitchtip_dsn: str | None = None
 
+    # Whether this process runs the RabbitMQ consumer, the outbox relay and
+    # the three schedulers alongside the API. True keeps local dev a single
+    # process. Prod sets it False on the multi-worker `backend` service and
+    # runs them once in the separate `worker` service (python -m
+    # app.background) -- with two uvicorn workers each would otherwise start
+    # its own copy and every reminder/check-in would go out twice.
+    run_background_tasks: bool = True
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -8,9 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.background import start_background_tasks, stop_background_tasks
 from app.core.config import get_settings
-from app.events.consumer import run_consumer
-from app.events.outbox_relay import run_outbox_relay
 from app.events.publisher import close_publisher
 from app.routers import (
     admin_users,
@@ -35,9 +33,6 @@ from app.routers import (
     training_sessions,
     users,
 )
-from app.services.checkin_scheduler import run_checkin_scheduler
-from app.services.reminder_scheduler import run_reminder_scheduler
-from app.services.team_event_scheduler import run_team_event_scheduler
 
 settings = get_settings()
 
@@ -52,27 +47,10 @@ if settings.glitchtip_dsn:
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    consumer_task = asyncio.create_task(run_consumer())
-    relay_task = asyncio.create_task(run_outbox_relay())
-    reminder_task = asyncio.create_task(run_reminder_scheduler())
-    checkin_task = asyncio.create_task(run_checkin_scheduler())
-    team_event_task = asyncio.create_task(run_team_event_scheduler())
+    # Off on prod's multi-worker backend -- see Settings.run_background_tasks.
+    tasks = start_background_tasks() if settings.run_background_tasks else []
     yield
-    consumer_task.cancel()
-    relay_task.cancel()
-    reminder_task.cancel()
-    checkin_task.cancel()
-    team_event_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await consumer_task
-    with contextlib.suppress(asyncio.CancelledError):
-        await relay_task
-    with contextlib.suppress(asyncio.CancelledError):
-        await reminder_task
-    with contextlib.suppress(asyncio.CancelledError):
-        await checkin_task
-    with contextlib.suppress(asyncio.CancelledError):
-        await team_event_task
+    await stop_background_tasks(tasks)
     await close_publisher()
 
 

@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.level_unlocks import has_avatar_ring_choice, has_jersey_color_choice
-from app.core.security import verify_password
+from app.core.security import verify_password_async
 from app.models.exercise import EquipmentItem
 from app.models.team import TeamMembership
 from app.models.user import User
@@ -132,7 +132,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required"
             )
-        if not verify_password(password, user.password_hash):
+        if not await verify_password_async(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect password"
             )

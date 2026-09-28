@@ -6,10 +6,12 @@ import { AuthProvider } from './context/AuthContext.tsx'
 import { registerServiceWorker } from './push.ts'
 import { installForegroundReflowFix, resetStaleBodyScrollLock } from './utils/bodyScrollLock.ts'
 import { installAudioUnlockOnFirstGesture } from './utils/restNotification.ts'
+import { installStaleChunkReload } from './utils/staleChunkReload.ts'
 import './assets/tabler-icons/tabler-icons.min.css'
 import './index.css'
 
 registerServiceWorker()
+installStaleChunkReload()
 
 // 2026-09-17 fix (audit item #8): must run before anything in the app tree
 // gets a chance to call lockBodyScroll for real -- see

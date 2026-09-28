@@ -51,6 +51,12 @@ class ScheduleRepository:
             .where(WeeklyPlan.user_id == user_id, WeeklyPlan.week_start_date <= today)
             .options(*_EAGER_LOAD_OPTIONS)
             .order_by(WeeklyPlan.week_start_date.desc())
+            # Only the newest week can be "current". Without the limit every
+            # past week was eager-loaded (days, sessions, blocks, exercises)
+            # just to keep the first -- 163 ms for a player with a year of
+            # history vs 16 ms with it (2026-09-28), growing every week.
+            # Safe with selectinload: the limit applies to the parent query.
+            .limit(1)
         )
         result = await self._session.execute(query)
         candidate = result.unique().scalars().first()
