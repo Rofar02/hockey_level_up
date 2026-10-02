@@ -135,8 +135,10 @@ function drawTexts(ctx: CanvasRenderingContext2D, root: HTMLElement, origin: DOM
   }
 }
 
-function drawJersey(ctx: CanvasRenderingContext2D, svg: Element, origin: DOMRect, look: TierLook) {
+function drawJersey(ctx: CanvasRenderingContext2D, svg: Element, origin: DOMRect) {
   const box = boxOf(svg, origin)
+  // The jersey is drawn in the number's colour (PlayerCard sets it on the svg).
+  const color = getComputedStyle(svg).color
   const unit = box.w / 130
   const [surnameText, numberText] = Array.from(svg.querySelectorAll('text'))
   ctx.save()
@@ -145,13 +147,13 @@ function drawJersey(ctx: CanvasRenderingContext2D, svg: Element, origin: DOMRect
   ctx.scale(unit, unit)
   ctx.lineJoin = 'round'
   ctx.lineWidth = 1.5
-  ctx.strokeStyle = look.accent
+  ctx.strokeStyle = color
   ctx.fillStyle = 'rgba(14,21,36,0.55)'
   const jersey = new Path2D(JERSEY_PATH)
   ctx.fill(jersey)
   ctx.stroke(jersey)
   ctx.stroke(new Path2D(COLLAR_PATH))
-  ctx.fillStyle = look.accent
+  ctx.fillStyle = color
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
   ctx.font = '600 10px Oswald'
@@ -329,7 +331,7 @@ export async function renderCardImage(frame: HTMLElement, look: TierLook): Promi
   }
   const jersey = frame.querySelector('[data-card="jersey"]')
   if (jersey !== null) {
-    drawJersey(ctx, jersey, origin, look)
+    drawJersey(ctx, jersey, origin)
   }
   if (frame.querySelector('[data-card="scrim"]') !== null) {
     ctx.fillStyle = horizontal(ctx, card, [

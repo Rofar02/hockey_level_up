@@ -55,14 +55,17 @@ export function getAvatarTierStyle(
   level: number,
   ringAccent?: AvatarRingAccent | null,
 ): AvatarTierStyle {
-  if (level >= AVATAR_TIER_LEVEL_THRESHOLDS.TOP) {
-    return { tier: 3, style: GRADIENT_RING_STYLE }
-  }
+  const tier = level >= AVATAR_TIER_LEVEL_THRESHOLDS.TOP ? 3 : 2
+  // The player's own pick wins at every level it's unlocked at -- at 15+ it
+  // used to be overridden by the gradient, so the setting did nothing there.
   if (hasAvatarRingChoice(level) && ringAccent != null) {
     if (ringAccent === 'mix') {
-      return { tier: 2, style: GRADIENT_RING_STYLE }
+      return { tier, style: GRADIENT_RING_STYLE }
     }
-    return { tier: 2, style: solidRingStyle(ringAccent === 'persimmon' ? PERSIMMON : ICE) }
+    return { tier, style: solidRingStyle(ringAccent === 'persimmon' ? PERSIMMON : ICE) }
+  }
+  if (level >= AVATAR_TIER_LEVEL_THRESHOLDS.TOP) {
+    return { tier: 3, style: GRADIENT_RING_STYLE }
   }
   if (level >= AVATAR_TIER_LEVEL_THRESHOLDS.MID) {
     return { tier: 2, style: solidRingStyle(ICE) }
