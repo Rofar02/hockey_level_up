@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,11 @@ class ProcessedEvent(Base):
     """
 
     __tablename__ = "processed_events"
+    __table_args__ = (
+        # The daily retention purge (app/services/event_retention.py)
+        # deletes by processed_at; the primary key doesn't cover it.
+        Index("ix_processed_events_processed_at", "processed_at"),
+    )
 
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     handler_name: Mapped[str] = mapped_column(String(255), primary_key=True)
