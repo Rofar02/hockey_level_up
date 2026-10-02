@@ -55,5 +55,6 @@ EXPOSE 8000
 # "https" instead of "http" behind the proxy. `exec` replaces the shell so
 # SIGTERM reaches uvicorn directly for a clean lifespan shutdown (stops the
 # outbox relay / RabbitMQ consumer / reminder scheduler tasks properly
-# instead of being killed mid-flight).
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --root-path /api --proxy-headers --forwarded-allow-ips=*"]
+# instead of being killed mid-flight). Migrations are NOT run here -- the
+# compose `migrate` service runs them once, before backend and worker start.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --root-path /api --proxy-headers --forwarded-allow-ips=*"]

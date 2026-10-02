@@ -95,6 +95,27 @@ services:
     # internet. Use `docker compose exec rabbitmq rabbitmqctl ...` or an
     # SSH tunnel if you need to look inside it.
 
+  # One-shot: `alembic upgrade head`, then exits. backend and worker both
+  # wait for it via service_completed_successfully, so neither ever runs
+  # against a half-migrated schema (2026-10-02: the worker used to wait only
+  # for backend to *start*, i.e. while backend's own CMD was still
+  # migrating). A failed migration fails `docker compose up` itself and
+  # leaves the old backend/worker running. Re-runs on every deploy that
+  # rebuilds the image -- harmless when there's nothing to apply.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *default-logging
+
   backend:
     build:
       context: .
@@ -141,15 +162,16 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     logging: *default-logging
     # No `ports:` -- only the edge nginx talks to this, over the compose
     # network at http://backend:8000.
 
   # RabbitMQ consumer (XP/stats/streak), outbox relay and the reminder/
   # check-in/team-event schedulers -- one process, so nothing runs twice
-  # now that `backend` has two workers. Same image; no migrations here
-  # (backend's CMD owns `alembic upgrade head`), so it waits for backend to
-  # be up first.
+  # now that `backend` has two workers. Same image; migrations are the
+  # `migrate` service's job, so this starts only once they've finished.
   worker:
     build:
       context: .
@@ -168,8 +190,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
-      backend:
-        condition: service_started
+      migrate:
+        condition: service_completed_successfully
     logging: *default-logging
 
   frontend:
