@@ -5,8 +5,10 @@
 #
 #   cd /opt/icelevel && ./deploy/deploy.sh
 #
-# Migrations run automatically (see Dockerfile.prod's CMD) as part of the
-# backend container starting -- there's no separate migration step here.
+# Migrations run automatically: the one-shot `migrate` service in
+# docker-compose.prod.yml applies them before backend/worker start. If one
+# fails, `up` below fails (set -e stops the script) and the old containers
+# keep serving.
 
 set -euo pipefail
 
@@ -32,6 +34,8 @@ docker compose -f docker-compose.prod.yml restart nginx
 echo "==> pruning dangling images"
 docker image prune -f
 
-echo "==> backend logs (Ctrl+C to stop watching -- containers keep running)"
-echo "    A failing migration crash-loops the backend container; check here first."
-docker compose -f docker-compose.prod.yml logs --tail=50 -f backend
+echo "==> migration log"
+docker compose -f docker-compose.prod.yml logs --tail=20 migrate
+
+echo "==> backend + worker logs (Ctrl+C to stop watching -- containers keep running)"
+docker compose -f docker-compose.prod.yml logs --tail=50 -f backend worker

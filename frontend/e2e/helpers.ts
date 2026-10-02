@@ -41,7 +41,7 @@ export async function api<T = unknown>(
   return (text === '' ? undefined : JSON.parse(text)) as T
 }
 
-const HINT_IDS = ['home-skill-milestones', 'schedule-week-day-tap', 'profile-stat-unlocks']
+const HINT_IDS = ['home-skill-milestones', 'schedule-week-day-tap', 'profile-stat-unlocks', 'nav-team-tab']
 
 export async function createUser(role: string, jersey: number, position: 'forward' | 'defense' | 'goalie'): Promise<TestUser> {
   const email = `e2e_${role}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}@example.com`
@@ -215,7 +215,7 @@ export async function expectBottomNotHiddenByNav(page: Page): Promise<void> {
     await page.waitForTimeout(350)
   }
   const result = await page.evaluate(() => {
-    const nav = document.querySelector('nav a[href="/more"]')?.closest('nav')
+    const nav = document.querySelector('[data-app-bottom-nav]')
     if (!nav) {
       return null
     }

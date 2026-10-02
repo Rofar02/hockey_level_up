@@ -149,7 +149,7 @@ export function SettingsProfilePage() {
     }
   }
 
-  // Save-on-tap, same convention as SettingsEquipmentPage's
+  // Save-on-tap, same convention as InventoryPage's
   // handleGymAccessSelect/SettingsTrainingPage's handleSeasonPeriodSelect --
   // a single swatch pick has nothing else to batch with, so a separate
   // "Сохранить" step would just be an extra tap for no reason.

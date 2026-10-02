@@ -24,6 +24,14 @@ class OutboxEvent(Base):
             "created_at",
             postgresql_where=text("published_at IS NULL"),
         ),
+        # The daily retention purge (app/services/event_retention.py)
+        # deletes published rows by published_at -- the mirror image of the
+        # index above.
+        Index(
+            "ix_outbox_events_published_at",
+            "published_at",
+            postgresql_where=text("published_at IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

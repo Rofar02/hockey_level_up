@@ -60,10 +60,10 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await reminder.getByRole('button', { name: 'Завершить план' }).click()
   await expect(page).toHaveURL(new RegExp(`/events/${eventId}\\?tab=board`))
 
-  // Discoverability: Ещё -> Команда -> team -> "Ближайшее" -> plan.
-  await page.goto('/more')
-  await page.getByText('Команда', { exact: true }).click()
-  await page.getByText(setup.teamName).click()
+  // Discoverability: the "Команда" tab opens straight onto "Ближайшее" -> plan.
+  await page.goto('/')
+  await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'Команда' }).click()
+  await expect(page.getByRole('heading', { name: setup.teamName })).toBeVisible()
   const nextCard = page.getByRole('region', { name: 'Тренировки и игры' })
   await expect(nextCard.getByText('План не составлен')).toBeVisible()
   await shot(page, '01-team-page-next-event')
@@ -343,7 +343,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
 
   // Published: the home-screen nudge is gone.
   await page.goto('/')
-  await expect(page.getByText('Командная тренировка').or(page.getByText('Нет плана на сегодня')).first()).toBeVisible()
+  await expect(page.getByText('Командная тренировка').or(page.getByText('Нет плана на сегодня')).or(page.getByText('Неделя ещё не спланирована')).first()).toBeVisible()
   await expect(page.getByRole('region', { name: 'Завершите план тренировки' })).toHaveCount(0)
 
   // The events list now says the plan is ready.
@@ -410,7 +410,7 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await expect(modal).toBeHidden()
 
   // The week screen shows the team day and the same plan.
-  await page.getByRole('link', { name: 'Неделя' }).click()
+  await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'План', exact: true }).click()
   await expect(page).toHaveURL(/\/schedule\/new$/)
   await expect(page.getByText('Командная тренировка')).toBeVisible()
   await expect(page.getByText(/План · 25 мин · 1 схема/)).toBeVisible()

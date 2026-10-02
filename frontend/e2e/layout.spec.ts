@@ -142,7 +142,7 @@ test('floating tab bar: all tabs on screen, coach in the middle opens the chat',
   const coachLink = nav.locator('a[href="/coach"]')
   await expect(coachLink).toHaveAttribute('data-attention', 'first_visit')
   await expect(coachLink.locator('.coach-glow')).toHaveCount(1)
-  const labels = ['Главная', 'Неделя', /ИИ-тренер/, 'Профиль', 'Ещё']
+  const labels = ['Сегодня', 'План', /ИИ-тренер/, 'Команда', 'Профиль']
   for (const name of labels) {
     await expect(nav.getByRole('link', { name })).toBeInViewport({ ratio: 1 })
   }

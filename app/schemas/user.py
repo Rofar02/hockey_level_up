@@ -4,6 +4,7 @@ from zoneinfo import available_timezones
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.models.exercise import TargetStat
 from app.models.user import (
     AvatarRingAccent,
     CoachPersonality,
@@ -87,6 +88,14 @@ class UserRead(UserBase):
     created_at: datetime
 
 
+class PublicStatRead(BaseModel):
+    """One stat on someone else's player card -- just the value, none of the
+    decay bookkeeping UserStatRead carries for the owner."""
+
+    stat_type: TargetStat
+    effective_value: float
+
+
 class UserPublicRead(BaseModel):
     """What a friend or teammate can see about another user -- see
     UserService.get_public_profile for the friend-or-teammate 403 gate.
@@ -113,6 +122,9 @@ class UserPublicRead(BaseModel):
     level: int
     xp: int
     created_at: datetime
+    # The six stats' current values, so a friend or teammate sees the same
+    # player card the owner does. Filled in by the router (not a column).
+    stats: list[PublicStatRead] = []
 
 
 class UserUpdate(BaseModel):
@@ -172,3 +184,11 @@ class UserAdminRead(BaseModel):
 class UserAdminUpdate(BaseModel):
     is_admin: bool | None = None
     has_premium: bool | None = None
+
+
+class TeamAttentionRead(BaseModel):
+    """What's waiting on the "Команда" tab -- see TeamAttentionService."""
+
+    friend_requests: int
+    party_invites: int
+    team_join_requests: int

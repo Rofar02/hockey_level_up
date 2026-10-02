@@ -35,7 +35,14 @@ from app.schemas.push_subscription import (
 )
 from app.schemas.skill import UserSkillPreferenceRead, UserSkillPreferencesReplace
 from app.schemas.training_diary import TrainingDiaryEntryListItem
-from app.schemas.user import UserDeleteRequest, UserPublicRead, UserRead, UserUpdate
+from app.schemas.user import (
+    PublicStatRead,
+    TeamAttentionRead,
+    UserDeleteRequest,
+    UserPublicRead,
+    UserRead,
+    UserUpdate,
+)
 from app.schemas.user_temporary_restriction import (
     UserTemporaryRestrictionIn,
     UserTemporaryRestrictionRead,
@@ -49,6 +56,7 @@ from app.services.coachmark_service import CoachmarkService
 from app.services.progress_service import ProgressService
 from app.services.push_subscription_service import PushSubscriptionService
 from app.services.skill_service import SkillService
+from app.services.team_attention_service import TeamAttentionService
 from app.services.training_diary_service import TrainingDiaryService
 from app.services.user_service import UserService
 from app.services.user_temporary_restriction_service import UserTemporaryRestrictionService
@@ -98,6 +106,15 @@ async def get_coach_attention(
     """Whether (and why) the tab bar's AI coach button should glow."""
     reason = await CoachAttentionService(session).get_reason(current_user)
     return CoachAttentionRead(reason=reason)
+
+
+@router.get("/me/team-attention", response_model=TeamAttentionRead)
+async def get_team_attention(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """What's waiting on the "Команда" tab (its dot and the hub's top rows)."""
+    return await TeamAttentionService(session).get(current_user)
 
 
 @router.get("/me/coachmarks-seen", response_model=list[str])
@@ -451,4 +468,13 @@ async def get_user_public_profile(
     other /{user_id}-shaped route exists on this router yet, so there's no
     "/me"-style ordering landmine to worry about here today.
     """
-    return await UserService(session).get_public_profile(current_user, user_id)
+    profile = await UserService(session).get_public_profile(current_user, user_id)
+    stats = await ProgressService(session).list_user_stats(profile.id)
+    return UserPublicRead.model_validate(profile).model_copy(
+        update={
+            "stats": [
+                PublicStatRead(stat_type=stat.stat_type, effective_value=stat.effective_value)
+                for stat in stats
+            ]
+        }
+    )

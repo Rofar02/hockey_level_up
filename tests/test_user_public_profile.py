@@ -125,3 +125,36 @@ async def test_unknown_user_id_404s(db_session) -> None:
     with pytest.raises(HTTPException) as exc_info:
         await UserService(db_session).get_public_profile(me, uuid.uuid4())
     assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_public_profile_route_carries_the_stats_for_the_player_card(db_session) -> None:
+    from datetime import datetime, timezone
+
+    from app.models.exercise import TargetStat
+    from app.models.progress import UserStat
+    from app.routers.users import get_user_public_profile
+
+    me = _make_user()
+    friend = _make_user()
+    db_session.add_all([me, friend])
+    await db_session.flush()
+    friends_service = FriendService(db_session)
+    sent = await friends_service.send_request_by_code(me, friend.friend_code)
+    await friends_service.respond_to_request(friend, sent.id, accept=True)
+    db_session.add(
+        UserStat(
+            user_id=friend.id,
+            stat_type=TargetStat.STRENGTH,
+            current_value=42.0,
+            last_updated_at=datetime.now(timezone.utc),
+        )
+    )
+    await db_session.flush()
+
+    public = await get_user_public_profile(friend.id, me, db_session)
+
+    assert [(stat.stat_type, round(stat.effective_value)) for stat in public.stats] == [(TargetStat.STRENGTH, 42)]
+    dumped = public.model_dump()
+    assert "weight" not in dumped
+    assert "email" not in dumped

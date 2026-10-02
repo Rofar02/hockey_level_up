@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { NextEventCard } from '../components/teamEvents/NextEventCard'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
@@ -18,6 +18,7 @@ import type { LeaderboardEntryRead } from '../types/leaderboard'
 import type { TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamScoreRead } from '../types/team'
 import { POSITION_LABELS } from '../types/user'
 import { getDisplayName } from '../utils/displayName'
+import { copyText } from '../utils/clipboard'
 
 type DetailTab = 'members' | 'leaderboard' | 'requests'
 
@@ -35,29 +36,6 @@ function formatTeamScore(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
 }
 
-// navigator.clipboard is only defined in a secure context (https, or
-// localhost) -- a phone hitting the dev server over plain http at the PC's
-// LAN IP (see README) doesn't get it at all, so `handleCopyInviteCode`
-// falls back to this old-but-universal execCommand trick rather than
-// silently doing nothing.
-function copyTextFallback(text: string): boolean {
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.style.position = 'fixed'
-  textarea.style.opacity = '0'
-  document.body.appendChild(textarea)
-  textarea.focus()
-  textarea.select()
-  let succeeded = false
-  try {
-    succeeded = document.execCommand('copy')
-  } catch {
-    succeeded = false
-  }
-  document.body.removeChild(textarea)
-  return succeeded
-}
-
 export function TeamDetailPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const navigate = useNavigate()
@@ -69,7 +47,9 @@ export function TeamDetailPage() {
   const [teamScore, setTeamScore] = useState<TeamScoreRead | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<DetailTab>('members')
+  // ?tab=requests -- the team hub links a captain straight to join requests.
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<DetailTab>(searchParams.get('tab') === 'requests' ? 'requests' : 'members')
 
   const [actionError, setActionError] = useState<string | null>(null)
   const [isLeaving, setIsLeaving] = useState(false)
@@ -149,19 +129,7 @@ export function TeamDetailPage() {
       return
     }
     setCopyError(null)
-    let succeeded = false
-    if (navigator.clipboard !== undefined && window.isSecureContext) {
-      try {
-        await navigator.clipboard.writeText(team.invite_code)
-        succeeded = true
-      } catch {
-        succeeded = false
-      }
-    }
-    if (!succeeded) {
-      succeeded = copyTextFallback(team.invite_code)
-    }
-    if (succeeded) {
+    if (await copyText(team.invite_code)) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } else {

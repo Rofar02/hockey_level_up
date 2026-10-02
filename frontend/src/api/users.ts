@@ -14,6 +14,7 @@ import type {
   Position,
   ReminderPreference,
   SeasonPeriod,
+  TeamAttentionRead,
   UserPublicRead,
   UserRead,
 } from '../types/user'
@@ -119,4 +120,8 @@ export function replaceMyEquipmentItems(
     { equipment_items: items },
     accessToken,
   )
+}
+
+export function getTeamAttention(accessToken: string): Promise<TeamAttentionRead> {
+  return apiGet<TeamAttentionRead>('/users/me/team-attention', accessToken)
 }

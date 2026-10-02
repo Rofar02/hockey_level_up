@@ -156,10 +156,13 @@ docker compose -f docker-compose.prod.yml restart nginx
 docker compose -f docker-compose.prod.yml logs -f backend
 ```
 
-Миграции (`alembic upgrade head`) применяются автоматически при старте
-контейнера — смотреть здесь. Если контейнер уходит в crash-loop
-(`restart: unless-stopped` будет пытаться снова и снова) — тут же видно,
-на какой миграции упало.
+Миграции (`alembic upgrade head`) применяет одноразовый сервис `migrate`
+до старта `backend` и `worker`. Если миграция упала, `docker compose up`
+завершится ошибкой, а старые контейнеры продолжат работать. Лог миграций:
+
+```bash
+docker compose -f docker-compose.prod.yml logs migrate
+```
 
 ## 8. Сидирование базы
 
