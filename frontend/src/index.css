@@ -104,6 +104,40 @@
    player (see useCoachAttention): a soft ring that swells out and fades
    every few seconds -- draws the eye without flashing.
    Off for anyone who asked their OS for less motion. */
+/* Player card sheen (PlayerCard, level 20+): a soft diagonal band of light
+   sweeps across the whole card in ~2 s, then rests ~4 s. "screen" only ever
+   brightens, so text and photo stay readable under it. */
+@keyframes card-shine {
+  0% {
+    background-position: 160% 0;
+  }
+  35%,
+  100% {
+    background-position: -60% 0;
+  }
+}
+
+.card-shine {
+  background: linear-gradient(
+    110deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.08) 44%,
+    rgba(255, 255, 255, 0.32) 50%,
+    rgba(255, 255, 255, 0.08) 56%,
+    transparent 62%
+  );
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+  animation: card-shine 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-shine {
+    display: none;
+  }
+}
+
 @keyframes coach-glow {
   0% {
     box-shadow:

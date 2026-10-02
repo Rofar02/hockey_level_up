@@ -1,10 +1,11 @@
 import type { CSSProperties, Ref } from 'react'
 import { COLLAR_PATH, JERSEY_PATH } from './ui/JerseyBadge'
-import type { AvatarTier } from '../utils/avatarTier'
-import { getPlayerCardLook } from './playerCardLook'
+import { JERSEY_NUMBER_COLORS, getPlayerCardLook } from './playerCardLook'
+import type { CardStyle } from './playerCardLook'
+import { hasCardShine } from '../utils/levelUnlocks'
 import { xpToNextLevel } from '../utils/xpProgress'
 import type { TargetStat } from '../types/exercise'
-import type { Position } from '../types/user'
+import type { JerseyColor, Position } from '../types/user'
 
 // The profile's hero, styled after a hockey video game's player card: big
 // overall rating and position on the left, the photo on the right, the
@@ -40,7 +41,10 @@ export interface PlayerCardStat {
 }
 
 interface PlayerCardProps {
-  tier: AvatarTier
+  // From cardStyleFor -- the same level/ring-accent rules as the avatar ring.
+  cardStyle: CardStyle
+  // The jersey number's colour (level 15+); null keeps the card's accent.
+  jerseyColor: JerseyColor | null
   rating: number | null
   position: Position | null
   jerseyNumber: number | null
@@ -62,7 +66,8 @@ interface PlayerCardProps {
 }
 
 export function PlayerCard({
-  tier,
+  cardStyle,
+  jerseyColor,
   rating,
   position,
   jerseyNumber,
@@ -80,8 +85,9 @@ export function PlayerCard({
   onLevelClick,
   onStatClick,
 }: PlayerCardProps) {
-  const look = getPlayerCardLook(tier)
+  const look = getPlayerCardLook(cardStyle)
   const accent: CSSProperties = { color: look.accent, ...TEXT_SHADOW }
+  const numberColor = jerseyColor !== null ? JERSEY_NUMBER_COLORS[jerseyColor] : look.accent
   const xpNext = xpToNextLevel(level)
   const xpPercent = xpNext > 0 ? Math.max(0, Math.min(100, (xp / xpNext) * 100)) : 0
 
@@ -97,7 +103,7 @@ export function PlayerCard({
         />
       ) : (
         // No photo yet: the player's own jersey stands in for them.
-        <svg data-card="jersey" viewBox="0 0 130 110" className="mb-14 ml-auto mr-6 w-[196px] opacity-90" aria-hidden="true" style={{ color: look.accent }}>
+        <svg data-card="jersey" viewBox="0 0 130 110" className="mb-[92px] ml-auto mr-6 w-[196px] opacity-90" aria-hidden="true" style={{ color: numberColor }}>
           <path d={JERSEY_PATH} fill="rgba(14,21,36,0.55)" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" />
           <path d={COLLAR_PATH} fill="none" stroke="currentColor" strokeWidth={1.5} />
           <text x={65} y={34} textAnchor="middle" fontSize={10} letterSpacing={0.5} fill="currentColor" className="font-display font-semibold uppercase">
@@ -117,7 +123,11 @@ export function PlayerCard({
   )
 
   return (
-    <div data-card="frame" className="rounded-2xl p-[3px]" style={{ background: look.frame, boxShadow: look.glow }}>
+    <div
+      data-card="frame"
+      className="relative overflow-hidden rounded-2xl p-[3px]"
+      style={{ background: look.frame, boxShadow: look.glow }}
+    >
       <div data-card="inner" className="relative h-[478px] overflow-hidden rounded-[13px] bg-[#0E1524]">
         <img
           data-card="arena"
@@ -146,7 +156,7 @@ export function PlayerCard({
           {jerseyNumber !== null && (
             <>
               <span data-card="rule" className="my-1 h-px w-[34px] bg-white/25" />
-              <span data-card-text className="font-display text-xl font-semibold" style={accent}>
+              <span data-card-text className="font-display text-xl font-semibold" style={{ ...TEXT_SHADOW, color: numberColor }}>
                 #{jerseyNumber}
               </span>
             </>
@@ -245,6 +255,12 @@ export function PlayerCard({
           </span>
         </button>
       </div>
+      {/* From LEVEL_CARD_SHINE: a sheen sweeps across the whole card now and
+          then, like a rare card in the games. Over everything, never tappable;
+          the shared picture (utils/cardImage) is a still and leaves it out. */}
+      {hasCardShine(level) && (
+        <span className="card-shine pointer-events-none absolute inset-0 z-[5] rounded-2xl" aria-hidden="true" />
+      )}
     </div>
   )
 }

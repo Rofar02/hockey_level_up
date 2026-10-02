@@ -10,9 +10,9 @@ import { LevelUnlocksModal } from '../components/ui/LevelUnlocksModal'
 import { Modal } from '../components/ui/Modal'
 import { AvatarCropModal } from '../components/AvatarCropModal'
 import { PlayerCard } from '../components/PlayerCard'
-import { getPlayerCardLook } from '../components/playerCardLook'
+import { cardStatsFrom, overallRatingOf } from '../components/playerCardStats'
+import { cardStyleFor, getPlayerCardLook } from '../components/playerCardLook'
 import { ShareCardModal } from '../components/ShareCardModal'
-import type { PlayerCardStat } from '../components/PlayerCard'
 import * as authApi from '../api/auth'
 import * as exercisesApi from '../api/exercises'
 import * as progressApi from '../api/progress'
@@ -29,28 +29,8 @@ import type { UserStatRead } from '../types/progress'
 import type { SkillSummaryRead } from '../types/skill'
 import type { UserTemporaryRestrictionRead } from '../types/userTemporaryRestriction'
 import type { UserPublicRead } from '../types/user'
-import { getAvatarTierStyle } from '../utils/avatarTier'
 import { renderCardImage } from '../utils/cardImage'
 import { countAvailableExercises } from '../utils/equipmentAvailability'
-
-const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
-  strength: 'СИЛ',
-  agility: 'ЛОВ',
-  intellect: 'ИНТ',
-  endurance: 'ВЫН',
-  on_ice_skating: 'ЛЁД',
-  puck_handling: 'ШАЙ',
-}
-
-// Two columns on the player card, read row by row: СИЛ/ВЫН, ЛОВ/ЛЁД, ИНТ/ШАЙ.
-const PLAYER_CARD_STAT_ORDER: TargetStat[] = [
-  'strength',
-  'endurance',
-  'agility',
-  'on_ice_skating',
-  'intellect',
-  'puck_handling',
-]
 
 // Thin dispatcher: /profile (no :userId, or :userId === your own id) keeps
 // the existing full self-view (stats, skills, avatar upload -- all of it
@@ -216,7 +196,9 @@ function OwnProfileView() {
       if (frame === null) {
         throw new Error('card not found')
       }
-      setSharedCardImage(await renderCardImage(frame, getPlayerCardLook(avatarTierStyle.tier)))
+      setSharedCardImage(
+        await renderCardImage(frame, getPlayerCardLook(cardStyleFor(user?.level ?? 1, user?.avatar_ring_accent))),
+      )
     } catch (err) {
       // The error's name goes on screen: there's no console to look at on a phone.
       setShareError(
@@ -274,13 +256,7 @@ function OwnProfileView() {
   }
 
   const statsByType = new Map(stats?.map((stat) => [stat.stat_type, stat]))
-  // The card's big number: the average of the six stats. Not the
-  // leaderboard's "рейтинг" (excess over the age/experience norm) -- the
-  // card calls it "ОБЩИЙ" so the two never read as the same thing.
-  const overallRating =
-    stats !== null && stats.length > 0
-      ? Math.round(stats.reduce((sum, stat) => sum + stat.effective_value, 0) / stats.length)
-      : null
+  const overallRating = overallRatingOf(stats ?? [])
   const selectedStat = selectedStatType !== null ? statsByType.get(selectedStatType) : undefined
 
   const ageExperienceParts = [
@@ -288,13 +264,8 @@ function OwnProfileView() {
     user?.years_of_experience != null ? `${user.years_of_experience} лет стажа` : null,
   ].filter((part): part is string => part !== null)
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
-  const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1, user?.avatar_ring_accent)
 
-  const cardStats: PlayerCardStat[] = PLAYER_CARD_STAT_ORDER.map((statType) => ({
-    type: statType,
-    label: STAT_ABBREVIATIONS[statType],
-    value: statsByType.get(statType)?.effective_value ?? null,
-  }))
+  const cardStats = cardStatsFrom(stats ?? [])
   const cardSubtitle = [user?.first_name ?? null, ...ageExperienceParts].filter(Boolean).join(' · ')
   const nearMilestoneCount =
     skills?.filter(
@@ -333,7 +304,8 @@ function OwnProfileView() {
         <div className="mx-auto flex w-full max-w-[360px] flex-col gap-3">
           <div ref={cardRef}>
           <PlayerCard
-            tier={avatarTierStyle.tier}
+            cardStyle={cardStyleFor(user?.level ?? 1, user?.avatar_ring_accent)}
+            jerseyColor={user?.jersey_color ?? null}
             rating={overallRating}
             position={user?.position ?? null}
             jerseyNumber={user?.jersey_number ?? null}
@@ -516,18 +488,9 @@ function OtherUserProfileView({ userId }: { userId: string }) {
     }
   }, [accessToken, userId])
 
-  const avatarTierStyle = getAvatarTierStyle(profile?.level ?? 1, profile?.avatar_ring_accent)
   const avatarUrl = profile?.avatar_url != null ? `${API_BASE_URL}${profile.avatar_url}` : null
-  const statsByType = new Map(profile?.stats.map((stat) => [stat.stat_type, stat.effective_value]))
-  const cardStats: PlayerCardStat[] = PLAYER_CARD_STAT_ORDER.map((statType) => ({
-    type: statType,
-    label: STAT_ABBREVIATIONS[statType],
-    value: statsByType.get(statType) ?? null,
-  }))
-  const overallRating =
-    profile !== null && profile.stats.length > 0
-      ? Math.round(profile.stats.reduce((sum, stat) => sum + stat.effective_value, 0) / profile.stats.length)
-      : null
+  const cardStats = cardStatsFrom(profile?.stats ?? [])
+  const overallRating = overallRatingOf(profile?.stats ?? [])
   const subtitle = [
     profile?.first_name ?? null,
     profile?.years_of_experience != null ? `${profile.years_of_experience} лет стажа` : null,
@@ -556,7 +519,8 @@ function OtherUserProfileView({ userId }: { userId: string }) {
         {profile !== null && (
           <div className="mx-auto w-full max-w-[360px]">
             <PlayerCard
-              tier={avatarTierStyle.tier}
+              cardStyle={cardStyleFor(profile.level, profile.avatar_ring_accent)}
+              jerseyColor={profile.jersey_color}
               rating={overallRating}
               position={profile.position}
               jerseyNumber={profile.jersey_number}

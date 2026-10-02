@@ -2,9 +2,16 @@
 // as skillPreferenceLimit.ts's own mirror of the skill-slot tiers.
 export const LEVEL_AVATAR_RING_CHOICE = 10
 export const LEVEL_JERSEY_COLOR_CHOICE = 15
+// Frontend-only cosmetic (no backend mirror needed): the player card's frame
+// starts to glint.
+export const LEVEL_CARD_SHINE = 20
 
 export function hasAvatarRingChoice(level: number): boolean {
   return level >= LEVEL_AVATAR_RING_CHOICE
+}
+
+export function hasCardShine(level: number): boolean {
+  return level >= LEVEL_CARD_SHINE
 }
 
 export function hasJerseyColorChoice(level: number): boolean {
@@ -26,4 +33,5 @@ export const LEVEL_MILESTONES: LevelMilestone[] = [
   { level: 5, label: '4-й слот под приоритетный навык' },
   { level: 10, label: '5-й слот, выбор акцента кольца аватарки' },
   { level: 15, label: '6-й слот (максимум), выбор цвета номера на джерси' },
+  { level: 20, label: 'Живая рамка карточки игрока' },
 ]

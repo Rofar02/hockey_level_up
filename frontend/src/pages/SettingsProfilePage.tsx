@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
+import { PlayerCard } from '../components/PlayerCard'
+import { cardStyleFor } from '../components/playerCardLook'
+import { cardStatsFrom, overallRatingOf } from '../components/playerCardStats'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { SelectField } from '../components/ui/SelectField'
 import { TextField } from '../components/ui/TextField'
+import * as progressApi from '../api/progress'
 import * as usersApi from '../api/users'
-import { ApiError } from '../api/client'
+import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import {
   AVATAR_RING_ACCENTS,
@@ -17,6 +21,7 @@ import {
   POSITIONS,
   POSITION_LABELS,
 } from '../types/user'
+import type { UserStatRead } from '../types/progress'
 import type { AvatarRingAccent, JerseyColor, Position } from '../types/user'
 import { LEVEL_AVATAR_RING_CHOICE, LEVEL_JERSEY_COLOR_CHOICE, hasAvatarRingChoice, hasJerseyColorChoice } from '../utils/levelUnlocks'
 
@@ -77,6 +82,22 @@ export function SettingsProfilePage() {
   const [jerseyColor, setJerseyColor] = useState(user?.jersey_color ?? null)
   const [isSavingJerseyColor, setIsSavingJerseyColor] = useState(false)
   const [jerseyColorError, setJerseyColorError] = useState<string | null>(null)
+
+  // For the card preview above the colour pickers -- best-effort.
+  const [stats, setStats] = useState<UserStatRead[] | null>(null)
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    progressApi
+      .getMyStats(accessToken)
+      .then((result) => !cancelled && setStats(result))
+      .catch(() => !cancelled && setStats([]))
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
 
   async function handleProfileSave(event: FormEvent) {
     event.preventDefault()
@@ -291,6 +312,34 @@ export function SettingsProfilePage() {
             Сохранить
           </Button>
         </form>
+
+        {/* The player card as it will look -- follows the colour picks below
+            (and the name, number and position above) as they change. */}
+        <section className="flex flex-col gap-4">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+            <i className="ti ti-id-badge-2 text-accent-ice" aria-hidden="true" />
+            Ваша карточка
+            <span className="h-px flex-1 bg-white/10" aria-hidden="true" />
+          </h2>
+          {stats !== null && (
+            <div className="mx-auto w-full max-w-[360px]">
+              <PlayerCard
+                cardStyle={cardStyleFor(userLevel, avatarRingAccent)}
+                jerseyColor={jerseyColor}
+                rating={overallRatingOf(stats)}
+                position={position === '' ? null : position}
+                jerseyNumber={/^\d+$/.test(jerseyNumber) ? Number(jerseyNumber) : null}
+                surname={lastName || firstName}
+                subtitle={[firstName, age !== '' ? `${age} лет` : null].filter(Boolean).join(' · ')}
+                level={userLevel}
+                xp={user?.xp ?? 0}
+                avatarUrl={user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null}
+                teamLogoUrl={null}
+                stats={cardStatsFrom(stats)}
+              />
+            </div>
+          )}
+        </section>
 
         <section className="flex flex-col gap-4">
           <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
