@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_BORDER } from '../components/ui/cardStyle'
@@ -195,7 +195,9 @@ export function NewSchedulePage() {
   const { accessToken } = useAuth()
   const navigate = useNavigate()
 
-  const [selectedWeek, setSelectedWeek] = useState<WeekSlot>('current')
+  // ?week=next -- the "plan next week" reminder on Сегодня lands straight on it.
+  const [searchParams] = useSearchParams()
+  const [selectedWeek, setSelectedWeek] = useState<WeekSlot>(searchParams.get('week') === 'next' ? 'next' : 'current')
   const [weekStatus, setWeekStatus] = useState<WeekStatus>('loading')
   const [rows, setRows] = useState<DayRow[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)

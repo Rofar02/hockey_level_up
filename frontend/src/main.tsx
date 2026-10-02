@@ -7,6 +7,21 @@ import { registerServiceWorker } from './push.ts'
 import { installForegroundReflowFix, resetStaleBodyScrollLock } from './utils/bodyScrollLock.ts'
 import { installAudioUnlockOnFirstGesture } from './utils/restNotification.ts'
 import { installStaleChunkReload } from './utils/staleChunkReload.ts'
+// Self-hosted fonts (were Google Fonts): static files per weight, served
+// with the app -- no third-party request, and the shared player card renders
+// the right weights in Safari (Google serves one variable file for every
+// weight, which WebKit draws at the default weight in a snapshot).
+import '@fontsource/inter/400.css'
+import '@fontsource/inter/500.css'
+import '@fontsource/inter/600.css'
+import '@fontsource/inter/700.css'
+import '@fontsource/jetbrains-mono/400.css'
+import '@fontsource/jetbrains-mono/500.css'
+import '@fontsource/jetbrains-mono/600.css'
+import '@fontsource/jetbrains-mono/700.css'
+import '@fontsource/oswald/500.css'
+import '@fontsource/oswald/600.css'
+import '@fontsource/oswald/700.css'
 import './assets/tabler-icons/tabler-icons.min.css'
 import './index.css'
 

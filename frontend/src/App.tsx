@@ -37,7 +37,6 @@ const TrainingDiaryPage = lazy(() =>
   import('./pages/TrainingDiaryPage').then((m) => ({ default: m.TrainingDiaryPage })),
 )
 const DiaryPage = lazy(() => import('./pages/DiaryPage').then((m) => ({ default: m.DiaryPage })))
-const MorePage = lazy(() => import('./pages/MorePage').then((m) => ({ default: m.MorePage })))
 const RestrictionsPage = lazy(() =>
   import('./pages/RestrictionsPage').then((m) => ({ default: m.RestrictionsPage })),
 )
@@ -55,9 +54,9 @@ const SettingsPage = lazy(() =>
 const SettingsProfilePage = lazy(() =>
   import('./pages/SettingsProfilePage').then((m) => ({ default: m.SettingsProfilePage })),
 )
-const SettingsEquipmentPage = lazy(() =>
-  import('./pages/SettingsEquipmentPage').then((m) => ({ default: m.SettingsEquipmentPage })),
-)
+const InventoryPage = lazy(() => import('./pages/InventoryPage').then((m) => ({ default: m.InventoryPage })))
+const SkillsPage = lazy(() => import('./pages/SkillsPage').then((m) => ({ default: m.SkillsPage })))
+const MuscleLoadPage = lazy(() => import('./pages/MuscleLoadPage').then((m) => ({ default: m.MuscleLoadPage })))
 const SettingsTrainingPage = lazy(() =>
   import('./pages/SettingsTrainingPage').then((m) => ({ default: m.SettingsTrainingPage })),
 )
@@ -76,6 +75,7 @@ const LeaderboardPage = lazy(() =>
   import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })),
 )
 const TeamsPage = lazy(() => import('./pages/TeamsPage').then((m) => ({ default: m.TeamsPage })))
+const TeamHubPage = lazy(() => import('./pages/TeamHubPage').then((m) => ({ default: m.TeamHubPage })))
 const TeamRankingPage = lazy(() =>
   import('./pages/TeamRankingPage').then((m) => ({ default: m.TeamRankingPage })),
 )
@@ -180,7 +180,8 @@ function App() {
         <Route path="/training/:dayPlanId" element={<TrainingSessionPage />} />
         <Route path="/training/:dayPlanId/diary" element={<TrainingDiaryPage />} />
         <Route path="/diary" element={<DiaryPage />} />
-        <Route path="/more" element={<MorePage />} />
+        {/* "Ещё" is gone from the tab bar; its items now live under Команда and Профиль. */}
+        <Route path="/more" element={<Navigate to="/profile" replace />} />
         <Route path="/restrictions" element={<RestrictionsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/:userId" element={<ProfilePage />} />
@@ -189,12 +190,17 @@ function App() {
         <Route path="/training-parties/:partyId" element={<TrainingPartyDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/profile" element={<SettingsProfilePage />} />
-        <Route path="/settings/equipment" element={<SettingsEquipmentPage />} />
+        <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/skills" element={<SkillsPage />} />
+        <Route path="/muscle-load" element={<MuscleLoadPage />} />
+        {/* Old address of the equipment settings, now merged into /inventory. */}
+        <Route path="/settings/equipment" element={<Navigate to="/inventory" replace />} />
         <Route path="/settings/training" element={<SettingsTrainingPage />} />
         <Route path="/settings/assessments" element={<SettingsAssessmentsPage />} />
         <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
         <Route path="/settings/account" element={<SettingsAccountPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/team" element={<TeamHubPage />} />
         <Route path="/teams" element={<TeamsPage />} />
         <Route path="/teams/leaderboard" element={<TeamRankingPage />} />
         <Route path="/teams/:teamId" element={<TeamDetailPage />} />

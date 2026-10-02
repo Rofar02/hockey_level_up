@@ -1,3 +1,5 @@
+import type { TargetStat } from './exercise'
+
 export const POSITIONS = ['goalie', 'defense', 'forward'] as const
 export type Position = (typeof POSITIONS)[number]
 
@@ -125,6 +127,20 @@ export interface UserPublicRead {
   level: number
   xp: number
   created_at: string
+  // The six stats' current values, for the read-only player card.
+  stats: PublicStatRead[]
+}
+
+export interface PublicStatRead {
+  stat_type: TargetStat
+  effective_value: number
+}
+
+// GET /users/me/team-attention -- what's waiting on the "Команда" tab.
+export interface TeamAttentionRead {
+  friend_requests: number
+  party_invites: number
+  team_join_requests: number
 }
 
 export interface UserAdminRead {

@@ -30,12 +30,6 @@ const GROUPS: SettingsGroup[] = [
     items: [
       { icon: 'ti-user', label: 'Профиль', description: 'Имя, фамилия, игровой номер', to: '/settings/profile' },
       {
-        icon: 'ti-barbell',
-        label: 'Оборудование',
-        description: 'Доступ в зал и свой инвентарь',
-        to: '/settings/equipment',
-      },
-      {
         icon: 'ti-adjustments-horizontal',
         label: 'Тренировочный процесс',
         description: 'Период сезона, дата турнира, навыки, тон тренера',

@@ -13,11 +13,9 @@ import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { LevelUnlocksModal } from '../components/ui/LevelUnlocksModal'
 import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
-import { RankBadge } from '../components/ui/RankBadge'
-import { StatIcon } from '../components/ui/StatIcon'
 import { XpBar } from '../components/ui/XpBar'
 import { API_BASE_URL, ApiError } from '../api/client'
-import * as leaderboardApi from '../api/leaderboard'
+import * as questsApi from '../api/quests'
 import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
 import * as skillsApi from '../api/skills'
@@ -26,9 +24,9 @@ import * as usersApi from '../api/users'
 import { useAuth } from '../hooks/useAuth'
 import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
 import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
-import { TARGET_STATS, TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
+import { TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
-import type { LeaderboardMeRead } from '../types/leaderboard'
+import type { QuestStatusRead } from '../types/quest'
 import type { ActivityCalendarDayRead, TrainingStreakRead, UserStatRead } from '../types/progress'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type {
@@ -45,17 +43,8 @@ import type { BlockPhase, TrainingBlockRead } from '../types/trainingBlock'
 import { POSITION_LABELS } from '../types/user'
 import { getAvatarTierStyle } from '../utils/avatarTier'
 import { getDisplayName } from '../utils/displayName'
-import { WEEKDAY_LABELS, formatShortDate, parseIsoDate, toIsoDate } from '../utils/date'
+import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
-
-const STAT_ABBREVIATIONS: Record<TargetStat, string> = {
-  strength: 'СИЛ',
-  agility: 'ЛОВ',
-  intellect: 'ИНТ',
-  endurance: 'ВЫН',
-  on_ice_skating: 'ЛЁД',
-  puck_handling: 'ШАЙ',
-}
 
 const MONTH_LABELS = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
@@ -205,7 +194,6 @@ export function HomePage() {
   const [streak, setStreak] = useState<TrainingStreakRead | null>(null)
   const [stats, setStats] = useState<UserStatRead[] | null>(null)
   const [skills, setSkills] = useState<SkillSummaryRead[] | null>(null)
-  const [leaderboardMe, setLeaderboardMe] = useState<LeaderboardMeRead | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -243,19 +231,8 @@ export function HomePage() {
       progressApi.getMyStreak(accessToken),
       progressApi.getMyStats(accessToken),
       skillsApi.listSkills(accessToken),
-      // Rating excess needs an age-based expected baseline, and age is
-      // genuinely optional (never collected anywhere in onboarding or
-      // registration) -- the backend 400s without it. That must not take
-      // down the rest of the dashboard the way an unguarded Promise.all
-      // member would (Promise.all rejects whole -- weeklyPlan/streak/stats
-      // would all silently fail to ever reach state, leaving the entire
-      // dashboard blank behind a single raw backend error string). Caught
-      // locally instead of routed through loadOptional (that helper's
-      // contract is specifically "404 means not-yet-declared" -- this is a
-      // different, 400, "not eligible" case).
-      leaderboardApi.getMyLeaderboardPosition(accessToken).catch(() => null),
     ])
-      .then(([block, plan, streakResult, statsResult, skillsResult, leaderboardMeResult]) => {
+      .then(([block, plan, streakResult, statsResult, skillsResult]) => {
         if (cancelled) {
           return
         }
@@ -264,7 +241,6 @@ export function HomePage() {
         setStreak(streakResult)
         setStats(statsResult)
         setSkills(skillsResult)
-        setLeaderboardMe(leaderboardMeResult)
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -523,6 +499,7 @@ export function HomePage() {
                   phase={trainingBlock !== null ? trainingBlock.phase : null}
                   onStart={() => today !== null && navigate(`/training/${today.id}`)}
                   onFillDiary={() => today !== null && navigate(`/training/${today.id}/diary`)}
+                  onPlanWeek={() => navigate('/schedule/new')}
                 />
               )
               if (today === null || today.team_event_id === null) {
@@ -539,7 +516,9 @@ export function HomePage() {
               )
             })()}
 
-            {stats !== null && <StatsRow stats={stats} onSelect={setSelectedStatType} />}
+            <NextWeekPlanCard onPlan={() => navigate('/schedule/new?week=next')} />
+
+            <WeeklyQuestsCard onOpen={() => navigate('/quests')} />
 
             {skills !== null && (
               <SkillsNearMilestoneCard skills={skills} onSelectSkill={openSkillModal} />
@@ -549,9 +528,6 @@ export function HomePage() {
 
             {user !== null && <TournamentTaperBanner tournamentDate={user.tournament_date} />}
 
-            {leaderboardMe !== null && (
-              <RatingRow me={leaderboardMe} onClick={() => navigate('/leaderboard')} />
-            )}
           </div>
         )}
       </div>
@@ -608,12 +584,14 @@ function TodayCard({
   phase,
   onStart,
   onFillDiary,
+  onPlanWeek,
 }: {
   day: DayPlanRead | null
   phaseLabel: string | null
   phase: BlockPhase | null
   onStart: () => void
   onFillDiary: () => void
+  onPlanWeek: () => void
 }) {
   const weekday = day !== null ? WEEKDAY_LABELS[(parseIsoDate(day.date).getDay() + 6) % 7] : null
   const eyebrow = [weekday, phaseLabel].filter(Boolean).join(' · ')
@@ -638,10 +616,23 @@ function TodayCard({
           <div>
             {eyebrow !== '' && <p className="mb-1 text-xs uppercase tracking-wide text-[#8A94A6]">{eyebrow}</p>}
             <p className="text-lg font-semibold text-[#F5F7FA]">
-              {isRestDay ? getRestDayHint(phase) : 'Нет плана на сегодня'}
+              {isRestDay ? getRestDayHint(phase) : day === null ? 'Неделя ещё не спланирована' : 'Нет плана на сегодня'}
             </p>
           </div>
         </div>
+        {/* No day at all means this week has no plan -- the only fix is the
+            week planner, so the card leads straight there instead of being
+            a dead end. */}
+        {day === null && (
+          <div className="relative mt-4 flex flex-col gap-3">
+            <p className="text-sm leading-relaxed text-[#C9D2DE]">
+              Отметьте, в какие дни лёд, игра, сухая или отдых — тренировки подберутся под ваш уровень.
+            </p>
+            <Button onClick={onPlanWeek} className="w-full">
+              Спланировать неделю
+            </Button>
+          </div>
+        )}
       </div>
     )
   }
@@ -683,37 +674,6 @@ function TodayCard({
           </Button>
         )}
       </div>
-    </div>
-  )
-}
-
-function StatsRow({ stats, onSelect }: { stats: UserStatRead[]; onSelect: (statType: TargetStat) => void }) {
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      {TARGET_STATS.map((statType) => {
-        const stat = stats.find((candidate) => candidate.stat_type === statType)
-        if (stat === undefined) {
-          return null
-        }
-        return (
-          <button
-            key={statType}
-            type="button"
-            onClick={() => onSelect(statType)}
-            className={`flex flex-col items-center gap-1.5 px-2 py-3 transition-colors hover:border-white/20 ${CARD_CLASS}`}
-          >
-            <StatIcon stat={statType} size={18} className="text-accent-ice" />
-            <span className="text-[11px] text-[#8A94A6]">{STAT_ABBREVIATIONS[statType]}</span>
-            <span className="font-display text-xl font-bold text-accent-ice">{Math.round(stat.current_value)}</span>
-            <i
-              className={`ti text-sm ${
-                stat.trend === 'up' ? 'ti-trending-up text-accent-ice' : 'ti-trending-down text-[#8A94A6]'
-              }`}
-              aria-hidden="true"
-            />
-          </button>
-        )
-      })}
     </div>
   )
 }
@@ -893,31 +853,106 @@ function PeriodizationCard({ block }: { block: TrainingBlockRead }) {
   )
 }
 
-function RatingRow({ me, onClick }: { me: LeaderboardMeRead; onClick: () => void }) {
-  const sign = me.rating_excess > 0 ? '+' : ''
+// From Friday on, if next week has no plan yet: the week planner is a manual
+// step every week, and forgetting it means Monday opens on an empty day.
+const NEXT_WEEK_REMINDER_FROM_WEEKDAY = 4 // Monday = 0, so Friday
+
+function NextWeekPlanCard({ onPlan }: { onPlan: () => void }) {
+  const { accessToken } = useAuth()
+  const [needsPlan, setNeedsPlan] = useState(false)
+  const weekdayIndex = (new Date().getDay() + 6) % 7
+
+  useEffect(() => {
+    if (accessToken === null || weekdayIndex < NEXT_WEEK_REMINDER_FROM_WEEKDAY) {
+      return
+    }
+    let cancelled = false
+    const nextMondayIso = toIsoDate(addDays(getMondayOfCurrentWeek(), 7))
+    loadOptional(scheduleApi.getWeeklyPlan(nextMondayIso, accessToken))
+      .then((plan) => !cancelled && setNeedsPlan(plan === null))
+      .catch(() => {
+        // Best-effort -- no reminder on an error.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, weekdayIndex])
+
+  if (!needsPlan) {
+    return null
+  }
   return (
     <button
       type="button"
-      onClick={onClick}
-      className={`group flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
+      onClick={onPlan}
+      className="flex items-center gap-3 rounded-md border border-dashed border-accent-ice/35 bg-accent-ice/[0.05] p-4 text-left"
     >
-      <div className="flex items-center gap-3">
-        <RankBadge rank={me.rank} />
-        <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-[#F5F7FA]">Рейтинг</span>
-          {/* Same explanation LeaderboardPage gives for rating_excess, trimmed to fit a one-line subtitle. */}
-          <span className="text-xs text-[#8A94A6]">Относительно вашего возраста и стажа</span>
-        </div>
-      </div>
-      <span className="flex shrink-0 items-center gap-2">
-        <span className="font-display text-lg font-semibold text-accent-ice">{sign}{me.rating_excess.toFixed(1)}</span>
-        {/* Discoverability pass, 2026-08-30 -- a CARD_CLASS row that
-            navigates needs the same chevron cue /more and /reference's rows
-            already carry, not just "it's a button" left implicit. */}
-        <i
-          className="ti ti-chevron-right text-lg text-[#8A94A6] transition-all group-hover:translate-x-0.5 group-hover:text-accent-ice"
-          aria-hidden="true"
-        /></span>
+      <i className="ti ti-calendar-plus text-2xl text-accent-ice" aria-hidden="true" />
+      <span className="flex flex-1 flex-col gap-0.5">
+        <span className="text-sm font-medium text-[#F5F7FA]">Следующая неделя не спланирована</span>
+        <span className="text-xs text-[#8A94A6]">Отметьте лёд, игры и отдых — займёт минуту</span>
+      </span>
+      <span className="text-sm font-semibold text-accent-ice">Спланировать</span>
+    </button>
+  )
+}
+
+// This week's quests at a glance -- the whole list used to sit under
+// "Ещё", out of sight; a reward waiting to be claimed is called out.
+function WeeklyQuestsCard({ onOpen }: { onOpen: () => void }) {
+  const { accessToken } = useAuth()
+  const [quests, setQuests] = useState<QuestStatusRead[] | null>(null)
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    questsApi
+      .getQuestStatus(accessToken)
+      .then((result) => !cancelled && setQuests(result))
+      .catch(() => {
+        // Best-effort -- the card just doesn't render.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
+  if (quests === null) {
+    return null
+  }
+  const weekly = quests.filter((quest) => quest.type === 'weekly')
+  const claimable = quests.filter((quest) => quest.claimable).length
+  if (weekly.length === 0 && claimable === 0) {
+    return null
+  }
+
+  return (
+    <button type="button" onClick={onOpen} className={`flex flex-col gap-3 p-4 text-left ${CARD_CLASS}`}>
+      <span className="flex items-center gap-2">
+        <span className="flex-1 text-xs font-semibold uppercase tracking-wide text-[#8A94A6]">Задания недели</span>
+        {claimable > 0 && (
+          <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-xs font-semibold text-[#FF8A6B]">
+            {claimable === 1 ? '1 награда ждёт' : `Наград ждёт: ${claimable}`}
+          </span>
+        )}
+      </span>
+      {weekly.map((quest) => (
+        <span key={quest.id} className="flex items-center gap-2.5">
+          <span
+            className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded ${
+              quest.completed || quest.claimable ? 'bg-accent-ice text-dark-bg' : 'border-[1.5px] border-white/25'
+            }`}
+          >
+            {(quest.completed || quest.claimable) && <i className="ti ti-check text-xs" aria-hidden="true" />}
+          </span>
+          <span className={`flex-1 text-sm ${quest.completed ? 'text-[#8A94A6] line-through' : 'text-[#F5F7FA]'}`}>
+            {quest.title}
+          </span>
+          <span className="font-display text-sm text-accent-persimmon">+{quest.xp_reward}</span>
+        </span>
+      ))}
     </button>
   )
 }

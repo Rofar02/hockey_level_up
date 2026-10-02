@@ -1,28 +1,62 @@
 import { useEffect, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import * as coachChatApi from '../api/coachChat'
+import * as usersApi from '../api/users'
 import { useAuth } from '../hooks/useAuth'
+import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
 import type { CoachAttentionReason } from '../types/coachChat'
 
 interface Tab {
   to: string
   icon: string
   label: string
-  end?: boolean
+  // Path prefixes that also light this tab up, so it stays active on the
+  // screens reached from it (a team's events, a friend's profile...).
+  match: string[]
+  // Shows a dot -- something on that tab is waiting for the player.
+  attention?: 'team'
 }
 
 const LEFT_TABS: Tab[] = [
-  { to: '/', icon: 'ti-home', label: 'Главная', end: true },
-  { to: '/schedule/new', icon: 'ti-calendar', label: 'Неделя' },
+  { to: '/', icon: 'ti-home', label: 'Сегодня', match: ['/quests'] },
+  { to: '/schedule/new', icon: 'ti-calendar', label: 'План', match: ['/schedule'] },
 ]
 
 const RIGHT_TABS: Tab[] = [
-  { to: '/profile', icon: 'ti-user', label: 'Профиль' },
-  // Its own route (/more, see MorePage) rather than a popup opened in place
-  // -- a plain NavLink like the other tabs, so it's reachable by
-  // back/forward and a direct link, not just a tap on this button.
-  { to: '/more', icon: 'ti-dots', label: 'Ещё' },
+  {
+    to: '/team',
+    icon: 'ti-users',
+    label: 'Команда',
+    attention: 'team',
+    // '/profile/' with the slash: someone else's profile, reached from here.
+    match: ['/team', '/teams', '/friends', '/training-parties', '/leaderboard', '/profile/'],
+  },
+  {
+    to: '/profile',
+    icon: 'ti-user',
+    label: 'Профиль',
+    match: [
+      '/settings',
+      '/analytics',
+      '/diary',
+      '/restrictions',
+      '/reference',
+      '/exercise-catalog',
+      '/inventory',
+      '/skills',
+      '/muscle-load',
+    ],
+  },
 ]
+
+function isTabActive(tab: Tab, pathname: string): boolean {
+  if (pathname === tab.to) {
+    return true
+  }
+  return tab.match.some((prefix) =>
+    prefix.endsWith('/') ? pathname.startsWith(prefix) : pathname === prefix || pathname.startsWith(`${prefix}/`),
+  )
+}
 
 // The on-screen keyboard shrinks the visual viewport; on Android a fixed
 // bar then rides up above the keyboard and covers the field being typed
@@ -51,6 +85,7 @@ function useKeyboardOpen(): boolean {
 // clear of it, so its box must be the full strip, raised button included.
 export function BottomNav() {
   const isKeyboardOpen = useKeyboardOpen()
+  const teamAttention = useTeamAttention()
 
   return (
     <nav
@@ -77,37 +112,45 @@ export function BottomNav() {
         ))}
         <CoachButton />
         {RIGHT_TABS.map((tab) => (
-          <TabLink key={tab.to} tab={tab} />
+          <TabLink key={tab.to} tab={tab} hasAttention={tab.attention === 'team' && teamAttention} />
         ))}
       </div>
     </nav>
   )
 }
 
-function TabLink({ tab }: { tab: Tab }) {
+function TabLink({ tab, hasAttention = false }: { tab: Tab; hasAttention?: boolean }) {
+  const { pathname } = useLocation()
+  const isActive = isTabActive(tab, pathname)
+  // One-time pointer for players who knew the old "Ещё" menu (and a fine
+  // first hint for new ones): where its items went.
+  const teamHintRef = useCoachmarkStep(
+    'nav-team-tab',
+    'Команда, друзья, совместные тренировки и рейтинги — здесь. Дневник, справочник и инвентарь — в профиле.',
+    'ti-users',
+  )
   return (
-    <NavLink
+    <Link
+      ref={tab.attention === 'team' ? teamHintRef : undefined}
       to={tab.to}
-      end={tab.end}
-      className={({ isActive }) =>
-        `group flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
-          isActive ? 'text-accent-ice' : 'text-text-secondary hover:text-text-primary'
-        }`
-      }
+      aria-label={hasAttention ? `${tab.label}: есть новое` : undefined}
+      aria-current={isActive ? 'page' : undefined}
+      className={`group flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
+        isActive ? 'text-accent-ice' : 'text-text-secondary hover:text-text-primary'
+      }`}
     >
-      {({ isActive }) => (
-        <>
-          <span
-            className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors ${
-              isActive ? 'bg-accent-ice/15' : ''
-            }`}
-          >
-            <i className={`ti ${tab.icon} text-xl`} aria-hidden="true" />
-          </span>
-          <span className="truncate">{tab.label}</span>
-        </>
-      )}
-    </NavLink>
+      <span
+        className={`relative flex h-7 w-12 items-center justify-center rounded-full transition-colors ${
+          isActive ? 'bg-accent-ice/15' : ''
+        }`}
+      >
+        <i className={`ti ${tab.icon} text-xl`} aria-hidden="true" />
+        {hasAttention && (
+          <span className="absolute right-2.5 top-0.5 h-2 w-2 rounded-full border-2 border-[#121820] bg-accent-persimmon box-content" />
+        )}
+      </span>
+      <span className="truncate">{tab.label}</span>
+    </Link>
   )
 }
 
@@ -137,6 +180,34 @@ function useCoachAttention(): CoachAttentionReason | null {
     }
   }, [accessToken, pathname])
   return reason
+}
+
+// Same re-check-on-navigation approach as the coach glow below: the dot
+// goes out as soon as the player has dealt with whatever was waiting.
+function useTeamAttention(): boolean {
+  const { accessToken } = useAuth()
+  const { pathname } = useLocation()
+  const [hasAttention, setHasAttention] = useState(false)
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    usersApi
+      .getTeamAttention(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setHasAttention(result.friend_requests + result.party_invites + result.team_join_requests > 0)
+        }
+      })
+      .catch(() => {
+        // Best-effort: no dot is the safe default.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, pathname])
+  return hasAttention
 }
 
 const ATTENTION_LABELS: Record<CoachAttentionReason, string> = {

@@ -22,6 +22,8 @@ from app.services.schedule_service import ScheduleService
 
 MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
 AVATAR_TARGET_SIZE = 400
+# Share of a tall photo's extra height cut from the top (the rest from the bottom).
+AVATAR_PORTRAIT_TOP_BIAS = 0.1
 
 
 class UserService:
@@ -102,7 +104,11 @@ class UserService:
         width, height = image.size
         side = min(width, height)
         left = (width - side) // 2
-        top = (height - side) // 2
+        # A tall photo keeps its upper part: the face is near the top, and a
+        # centred square used to cut the head off a full-length shot (the
+        # player card shows the avatar large, fading out at the bottom, so
+        # losing the feet costs nothing).
+        top = round((height - side) * AVATAR_PORTRAIT_TOP_BIAS)
         image = image.crop((left, top, left + side, top + side))
 
         # Only ever shrink -- upscaling a sub-400px source would just add

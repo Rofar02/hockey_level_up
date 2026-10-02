@@ -18,6 +18,7 @@ import type { ActivityFeedEntryRead } from '../types/friendActivity'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
 import { getDisplayName } from '../utils/displayName'
+import { copyText } from '../utils/clipboard'
 
 type FriendsTab = 'friends' | 'add' | 'feed' | 'leaderboard'
 
@@ -55,27 +56,6 @@ function formatActivityDate(value: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-// Same fallback as TeamDetailPage.copyTextFallback -- navigator.clipboard is
-// only defined in a secure context, and a phone hitting the dev server over
-// plain http at the PC's LAN IP doesn't get it at all.
-function copyTextFallback(text: string): boolean {
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.style.position = 'fixed'
-  textarea.style.opacity = '0'
-  document.body.appendChild(textarea)
-  textarea.focus()
-  textarea.select()
-  let succeeded = false
-  try {
-    succeeded = document.execCommand('copy')
-  } catch {
-    succeeded = false
-  }
-  document.body.removeChild(textarea)
-  return succeeded
 }
 
 export function FriendsPage() {
@@ -241,19 +221,7 @@ export function FriendsPage() {
       return
     }
     setCopyError(null)
-    let succeeded = false
-    if (navigator.clipboard !== undefined && window.isSecureContext) {
-      try {
-        await navigator.clipboard.writeText(user.friend_code)
-        succeeded = true
-      } catch {
-        succeeded = false
-      }
-    }
-    if (!succeeded) {
-      succeeded = copyTextFallback(user.friend_code)
-    }
-    if (succeeded) {
+    if (await copyText(user.friend_code)) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } else {

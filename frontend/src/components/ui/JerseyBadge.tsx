@@ -68,9 +68,9 @@ function SurnameText({ surname }: { surname: string }) {
   )
 }
 
-const JERSEY_PATH =
+export const JERSEY_PATH =
   'M46 4 L38 12 L10 21 C5 23 4 27 6 32 L17 50 C19 53 24 54 27 52 L38 46 L38 96 C38 98 40 100 42 100 L88 100 C90 100 92 98 92 96 L92 46 L103 52 C106 54 111 53 113 50 L124 32 C126 27 125 23 120 21 L92 12 L84 4 C80 8 72 10 65 10 C58 10 50 8 46 4 Z'
-const COLLAR_PATH = 'M48 6 C53 9 58 10.5 65 10.5 C72 10.5 77 9 82 6'
+export const COLLAR_PATH = 'M48 6 C53 9 58 10.5 65 10.5 C72 10.5 77 9 82 6'
 
 // Fixed hockey-jersey silhouette (round collar, no stripes, rectangular
 // torso with raglan sleeves), scaled to whatever size the wrapping div is

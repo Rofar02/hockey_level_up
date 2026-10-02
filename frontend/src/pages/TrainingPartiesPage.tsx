@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_CLASS } from '../components/ui/cardStyle'
@@ -43,7 +43,9 @@ export function TrainingPartiesPage() {
   const navigate = useNavigate()
   const { accessToken } = useAuth()
 
-  const [activeTab, setActiveTab] = useState<PartiesTab>('mine')
+  // ?tab=invites -- the team hub links straight to pending invitations.
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<PartiesTab>(searchParams.get('tab') === 'invites' ? 'invites' : 'mine')
 
   const [parties, setParties] = useState<TrainingPartySummaryRead[] | null>(null)
   const [invites, setInvites] = useState<TrainingPartyInviteRead[] | null>(null)
