@@ -1,5 +1,5 @@
 {
- "comment": "Self-hosted exercise clips (2026-10-03): 32 new exercises + video bindings for existing ones. Consumed by scripts/import_exercise_videos.py.",
+ "comment": "Self-hosted exercise clips (2026-10-03): 32 new exercises + video bindings for existing ones. Bindings exclude pairs the product owner marked wrong/doubtful and the duplicates archived by scripts/archive_duplicate_exercises.py. Consumed by scripts/import_exercise_videos.py.",
  "new_exercises": [
   {
    "name": "Боковая тяга саней",
@@ -1295,28 +1295,12 @@
    "video_source_id": "h-cBnAqehWw"
   },
   {
-   "name": "90/90 наружная ротация",
-   "video_source_id": "2z-PcxEp9dA"
-  },
-  {
    "name": "A-скип",
    "video_source_id": "-O9H15yVc8s"
   },
   {
-   "name": "Face pull",
-   "video_source_id": "LKZkugOZufU"
-  },
-  {
-   "name": "Lateral band walk",
-   "video_source_id": "N4tkpDMlqCQ"
-  },
-  {
    "name": "Spiderman + ротация грудного отдела",
    "video_source_id": "TMPoG9XprVA"
-  },
-  {
-   "name": "Wall slides",
-   "video_source_id": "1mTNn-im1A4"
   },
   {
    "name": "Активация передней зубчатой мышцы",
@@ -1331,20 +1315,12 @@
    "video_source_id": "4CfuTvicPz4"
   },
   {
-   "name": "Антиротационный жим сидя на коленях",
-   "video_source_id": "HZe5g-JyNTU"
-  },
-  {
    "name": "Антиротационный жим стоя",
    "video_source_id": "G5dHZNsYrLk"
   },
   {
    "name": "Ассальт-байк интервалы",
    "video_source_id": "EJcsyGefpKI"
-  },
-  {
-   "name": "Боковая планка (базовая)",
-   "video_source_id": "rCDvpapUd1E"
   },
   {
    "name": "Боковая планка (нога на лавочке)",
@@ -1355,16 +1331,8 @@
    "video_source_id": "XUjqzun5ztg"
   },
   {
-   "name": "Боковая планка с подъёмом верхней ноги",
-   "video_source_id": "gs4WzlSyL44"
-  },
-  {
    "name": "Боковая поверхность бедра - ролл",
    "video_source_id": "afUacWtoS9g"
-  },
-  {
-   "name": "Боковая ходьба с мини-бэндом",
-   "video_source_id": "N4tkpDMlqCQ"
   },
   {
    "name": "Боковой кроссовер скип",
@@ -1403,10 +1371,6 @@
    "video_source_id": "IMSPotyAV-U"
   },
   {
-   "name": "Бросок набивного мяча от груди",
-   "video_source_id": "APVZh3CVLtM"
-  },
-  {
    "name": "Бёрдог",
    "video_source_id": "5_gmsBtEN1M"
   },
@@ -1443,10 +1407,6 @@
    "video_source_id": "jLt7fiKhI1g"
   },
   {
-   "name": "Голеностоп ПНФ",
-   "video_source_id": "JH5V3A9uIa8"
-  },
-  {
    "name": "Голеностоп у стены (ПНФ)",
    "video_source_id": "qHFGTUUUjhs"
   },
@@ -1469,10 +1429,6 @@
   {
    "name": "Грудь у стены - мяч",
    "video_source_id": "XEEpjDEgMsg"
-  },
-  {
-   "name": "Депт-джамп с тумбы",
-   "video_source_id": "F3MYw4oZ4MU"
   },
   {
    "name": "Диагональная дуга рукой лёжа на боку",
@@ -1523,19 +1479,7 @@
    "video_source_id": "fMEsvtAQZrU"
   },
   {
-   "name": "Жим лёжа гантели",
-   "video_source_id": "jTccpKcbmSc"
-  },
-  {
    "name": "Жим лёжа гриф",
-   "video_source_id": "tmfg74nUbnk"
-  },
-  {
-   "name": "Жим лёжа со штангой",
-   "video_source_id": "tmfg74nUbnk"
-  },
-  {
-   "name": "Жим штанги лёжа классический",
    "video_source_id": "tmfg74nUbnk"
   },
   {
@@ -1599,10 +1543,6 @@
    "video_source_id": "dTarZU6OsIc"
   },
   {
-   "name": "Кёрцевой выпад",
-   "video_source_id": "BuT__mWg3Xs"
-  },
-  {
    "name": "Латеральный бокс-джамп",
    "video_source_id": "1lyt9WFPUdg"
   },
@@ -1621,10 +1561,6 @@
   {
    "name": "Лежачее подтягивание поясничной мышцы с мини-бэндом",
    "video_source_id": "k1B478QT0eU"
-  },
-  {
-   "name": "Лестница для ног (agility ladder)",
-   "video_source_id": "j__xodK6rtU"
   },
   {
    "name": "Лестница ловкости приставные шаги",
@@ -1651,15 +1587,7 @@
    "video_source_id": "yMis3pw_B3I"
   },
   {
-   "name": "Мобилизация голеностопа колено к стене",
-   "video_source_id": "h-eUWofzIyw"
-  },
-  {
    "name": "Мобилизация грудного отдела на валике",
-   "video_source_id": "hHs-r38gRjg"
-  },
-  {
-   "name": "Мобилизация грудного отдела с роликом под лопатками",
    "video_source_id": "hHs-r38gRjg"
   },
   {
@@ -1687,10 +1615,6 @@
    "video_source_id": "nW2hCU1Pn3Q"
   },
   {
-   "name": "Нордическое сгибание голени",
-   "video_source_id": "nW2hCU1Pn3Q"
-  },
-  {
    "name": "Отжимания классические",
    "video_source_id": "18L71r1nKQk"
   },
@@ -1699,16 +1623,8 @@
    "video_source_id": "4tAc9usIv8E"
   },
   {
-   "name": "Перевёрнутый reach (перевёрнутая тяга)",
-   "video_source_id": "w9TK87k-eRo"
-  },
-  {
    "name": "Передняя поверхность бедра (квадрицепс) - ролл",
    "video_source_id": "M9VzCIeO8Pw"
-  },
-  {
-   "name": "Пистолетик",
-   "video_source_id": "hdwO0umlIhw"
   },
   {
    "name": "Планка",
@@ -1731,32 +1647,12 @@
    "video_source_id": "YVhtkpPpSvs"
   },
   {
-   "name": "Полумостик с удержанием на 1 ноге",
-   "video_source_id": "pp4HOUNZmYE"
-  },
-  {
    "name": "Поясница - ролл",
    "video_source_id": "XxA2QQBgJ0U"
   },
   {
-   "name": "Пресс Паллофа",
-   "video_source_id": "Wyn0S-dzR1w"
-  },
-  {
    "name": "Пресс Паллофа с удержанием",
    "video_source_id": "4CfuTvicPz4"
-  },
-  {
-   "name": "Привод ПНФ",
-   "video_source_id": "5VpXk_ZcRA8"
-  },
-  {
-   "name": "Приводящие в длинной позиции (ПНФ)",
-   "video_source_id": "5VpXk_ZcRA8"
-  },
-  {
-   "name": "Приводящие мышцы - ролл",
-   "video_source_id": "36MANCcIs-o"
   },
   {
    "name": "Присед на 1 ноге с опорой",
@@ -1807,32 +1703,12 @@
    "video_source_id": "s0fRi6x-1Og"
   },
   {
-   "name": "Прыжки на тумбу",
-   "video_source_id": "y_gBMNZgrus"
-  },
-  {
-   "name": "Прыжок в глубину с последующим спринтом",
-   "video_source_id": "F3MYw4oZ4MU"
-  },
-  {
    "name": "Прыжок на бокс на 1 ноге",
    "video_source_id": "YHeVBdfJ_kk"
   },
   {
-   "name": "Прыжок на тумбу",
-   "video_source_id": "y_gBMNZgrus"
-  },
-  {
    "name": "Прыжок на тумбу 1 нога боком",
    "video_source_id": "1lyt9WFPUdg"
-  },
-  {
-   "name": "Прыжок на тумбу 1 нога лицом",
-   "video_source_id": "YHeVBdfJ_kk"
-  },
-  {
-   "name": "Прыжок тумба 1 нога",
-   "video_source_id": "YHeVBdfJ_kk"
   },
   {
    "name": "Прыжок через барьер 1 нога боком",
@@ -1851,10 +1727,6 @@
    "video_source_id": "zqK5Z_ufjLE"
   },
   {
-   "name": "Прямая планка",
-   "video_source_id": "0ol3YFpOrTs"
-  },
-  {
    "name": "Раскрытие грудного отдела в шаге",
    "video_source_id": "TMPoG9XprVA"
   },
@@ -1863,16 +1735,8 @@
    "video_source_id": "wfkqJ6WGy8o"
   },
   {
-   "name": "Растяжка грушевидной мышцы",
-   "video_source_id": "9Z3z62QqIOY"
-  },
-  {
    "name": "Растяжка квадрицепса стоя",
    "video_source_id": "UqZIKzqywY8"
-  },
-  {
-   "name": "Растяжка кушетка",
-   "video_source_id": "fMZh78bIiIw"
   },
   {
    "name": "Растяжка передней поверхности бедра стоя",
@@ -1881,10 +1745,6 @@
   {
    "name": "Растяжка сгибателя бедра в полуприседе на колене",
    "video_source_id": "nxCwu20bS_0"
-  },
-  {
-   "name": "Реактивное приземление с немедленным повторным прыжком",
-   "video_source_id": "F3MYw4oZ4MU"
   },
   {
    "name": "Реактивные прыжки на месте",
@@ -1903,14 +1763,6 @@
    "video_source_id": "ziQ1F4nJQ7s"
   },
   {
-   "name": "Ротационный бросок мяча с шагом",
-   "video_source_id": "txj8TLWacOE"
-  },
-  {
-   "name": "Ротационный бросок мяча стоя",
-   "video_source_id": "jQZ4c4f10DY"
-  },
-  {
    "name": "Румынская тяга",
    "video_source_id": "JCg4y3yy2Ic"
   },
@@ -1921,14 +1773,6 @@
   {
    "name": "Румынская тяга гриф/гантели",
    "video_source_id": "L-BDolRRNys"
-  },
-  {
-   "name": "Румынская тяга на одной ноге без веса",
-   "video_source_id": "MjW0Id6UzO4"
-  },
-  {
-   "name": "Сведение лопаток с резиной в полуприседе на колене",
-   "video_source_id": "AZaOsheWUi8"
   },
   {
    "name": "Свинг гирей",
@@ -1951,20 +1795,12 @@
    "video_source_id": "GgxdiYQ4CmY"
   },
   {
-   "name": "Скейтер-прыжки непрерывной серией",
-   "video_source_id": "s0fRi6x-1Og"
-  },
-  {
    "name": "Скейтер-прыжок",
    "video_source_id": "XR1Edqlenlg"
   },
   {
    "name": "Скип с высоким подъёмом бедра и захлёстом",
    "video_source_id": "-O9H15yVc8s"
-  },
-  {
-   "name": "Скрестный шаг",
-   "video_source_id": "dTarZU6OsIc"
   },
   {
    "name": "Слайд лопаток у стены",
@@ -2003,48 +1839,16 @@
    "video_source_id": "fowwFggA9vE"
   },
   {
-   "name": "Спринт 2 точки",
-   "video_source_id": "ykjgTURojqw"
-  },
-  {
-   "name": "Спринт 5-10-5",
-   "video_source_id": "NYUgOGaRwMQ"
-  },
-  {
-   "name": "Спринт из положения полуколена",
-   "video_source_id": "y1rIsksOVYc"
-  },
-  {
    "name": "Спринт с низкого старта из положения лёжа",
    "video_source_id": "mXXTVsK03Sc"
-  },
-  {
-   "name": "Становая тяга на прямых ногах",
-   "video_source_id": "AvrNgJ0DSDU"
   },
   {
    "name": "Степ-ап прыжок",
    "video_source_id": "xsRUi0Z_VsE"
   },
   {
-   "name": "Темповый бег",
-   "video_source_id": "ydeUUd5SJTQ"
-  },
-  {
-   "name": "Толкание саней",
-   "video_source_id": "dYhnrdUQGNg"
-  },
-  {
-   "name": "Трёхпозиционное сжатие приводящих (статика)",
-   "video_source_id": "sfh4dPiid-s"
-  },
-  {
    "name": "Тяга гантели в наклоне",
    "video_source_id": "qnm7M1z-1yA"
-  },
-  {
-   "name": "Тяга гантели в наклоне на одной ноге",
-   "video_source_id": "sD-MN6z9ljA"
   },
   {
    "name": "Тяга гантели в наклоне с паузой в верхней точке",
@@ -2059,10 +1863,6 @@
    "video_source_id": "LKZkugOZufU"
   },
   {
-   "name": "Тяга нижнего блока сидя",
-   "video_source_id": "ib4FG9yD43c"
-  },
-  {
    "name": "Тяга резины на разведение лопаток",
    "video_source_id": "AZaOsheWUi8"
   },
@@ -2071,16 +1871,8 @@
    "video_source_id": "8_jqIYRC-40"
   },
   {
-   "name": "Тяга сидя на одном колене (горизонтальная)",
-   "video_source_id": "t-yI8H49JEg"
-  },
-  {
    "name": "Фронтальный/гоблет присед",
    "video_source_id": "y4qwZhNf-qo"
-  },
-  {
-   "name": "Хлопок в отжимании",
-   "video_source_id": "Fn9USz76_NY"
   },
   {
    "name": "Ходьба выпадами с гантелями",
@@ -2093,18 +1885,6 @@
   {
    "name": "Ходьба через барьеры спиной",
    "video_source_id": "cBEsn74esVg"
-  },
-  {
-   "name": "Чемоданная переноска",
-   "video_source_id": "bAnCoDrvXc4"
-  },
-  {
-   "name": "Шаттл-раны на выносливость",
-   "video_source_id": "gXDrHEzrPfg"
-  },
-  {
-   "name": "Широчайшая + рука под себя",
-   "video_source_id": "o82pxdVxUjk"
   },
   {
    "name": "Широчайшая в висе",
