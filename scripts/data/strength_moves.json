@@ -1,0 +1,14 @@
+[
+ {"name": "Степ-даун с контролем", "changes": {
+   "phase": {"old": "cooldown", "new": "main"},
+   "stimulus_type": {"old": "mobility", "new": "strength"}}},
+ {"name": "Присед 1 нога у стены+палец в пол", "changes": {
+   "phase": {"old": "cooldown", "new": "main"},
+   "stimulus_type": {"old": "mobility", "new": "strength"}}},
+ {"name": "Контролируемый спуск со ступеньки", "changes": {
+   "is_archived": {"old": false, "new": true}}},
+ {"name": "Эксцентрическое приведение бедра на слайд-диске", "changes": {
+   "phase": {"old": "cooldown", "new": "warmup"},
+   "warmup_stage": {"old": null, "new": "activation"},
+   "sets_reps": {"old": [3, 8, 10], "new": [2, 8, 10]}}}
+]
