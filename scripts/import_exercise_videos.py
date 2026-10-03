@@ -30,6 +30,10 @@ Usage (on the server, from the project root):
         python scripts/import_exercise_videos.py            # dry run
     docker compose -f docker-compose.prod.yml exec backend \
         python scripts/import_exercise_videos.py --apply
+
+Add --bindings-only to attach clips ONLY (no new exercises, no other field
+touched) -- the safe mode when the target catalog has admin edits you must
+not disturb.
 """
 import argparse
 import asyncio
@@ -82,7 +86,8 @@ async def main(args: argparse.Namespace) -> int:
         # anything is written, not halfway through.
         skill_ids = {}
         missing_skills = set()
-        for entry in new_exercises:
+        # --bindings-only never creates anything, so it needs no skills.
+        for entry in [] if args.bindings_only else new_exercises:
             for tag in entry["skill_tags"]:
                 name = tag["skill"]
                 if name in skill_ids or name in missing_skills:
@@ -97,7 +102,7 @@ async def main(args: argparse.Namespace) -> int:
             print("Run scripts/seed_skills.py first.")
             return 1
 
-        created = bound = already = conflicts = missing = 0
+        created = bound = already = conflicts = missing = not_created = 0
 
         async def bind(name: str, clip: str, label: str) -> str:
             """Attach the clip to an existing exercise. Returns the outcome."""
@@ -126,6 +131,11 @@ async def main(args: argparse.Namespace) -> int:
                 conflicts += outcome == "conflict"
                 if outcome == "already":
                     print(f"  skip (exists, clip already bound): {name}")
+                continue
+
+            if args.bindings_only:
+                print(f"  skip (not in this database, --bindings-only does not create): {name}")
+                not_created += 1
                 continue
 
             print(f"  create: {name}  [{clip}]  skills: "
@@ -192,7 +202,8 @@ async def main(args: argparse.Namespace) -> int:
 
         verb = "" if args.apply else "would be "
         print(f"\nSummary: new exercises {verb}created {created}, clips {verb}bound {bound}, "
-              f"already in place {already}, conflicts {conflicts}, names missing here {missing}.")
+              f"already in place {already}, conflicts {conflicts}, names missing here {missing}"
+              + (f", new exercises NOT created (--bindings-only) {not_created}." if args.bindings_only else "."))
         if not args.apply:
             print("Dry run -- re-run with --apply to write.")
         return 0
@@ -201,6 +212,9 @@ async def main(args: argparse.Namespace) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--apply", action="store_true", help="write changes (default is a dry run)")
+    parser.add_argument("--bindings-only", action="store_true",
+                        help="only attach clips to exercises that already exist; never create "
+                             "exercises or touch any other field")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace a different clip an exercise already has")
     parser.add_argument("--data", default=str(DEFAULT_DATA), help="path to the JSON data file")
