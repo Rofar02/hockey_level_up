@@ -1,0 +1,706 @@
+[
+ {
+  "name": "Sliding adductor",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "hamstrings": 0.3,
+     "core": 0.4
+    },
+    "new": {
+     "glutes": 0.12,
+     "hamstrings": 0.12,
+     "core": 0.16,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковая планка (нога на лавочке)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.7,
+     "back": 0.3
+    },
+    "new": {
+     "core": 0.49,
+     "back": 0.21,
+     "adductors": 0.3
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковая планка + привод",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.5,
+     "glutes": 0.3,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "core": 0.25,
+     "glutes": 0.15,
+     "hamstrings": 0.1,
+     "adductors": 0.5
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой выпад + перекат",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой выпад на колене + наружная ротация",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "quads": 0.16,
+     "hamstrings": 0.24,
+     "glutes": 0.4,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой выпад на слайдерах с резиной",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.4,
+     "core": 0.1,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.32,
+     "core": 0.08,
+     "hamstrings": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой выпад с лендмайном",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.3,
+     "core": 0.1,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "quads": 0.32,
+     "glutes": 0.24,
+     "core": 0.08,
+     "hamstrings": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой присед с касанием внутренней части стопы",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "core": 0.2,
+     "quads": 0.5
+    },
+    "new": {
+     "glutes": 0.24,
+     "core": 0.16,
+     "quads": 0.4,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Высокие бёдра",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Высокий шаг с захватом колена",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Задняя часть приводящих на тумбе",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "quads": 0.08,
+     "hamstrings": 0.12,
+     "glutes": 0.2,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Изометрическое сжатие мяча между коленями",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "hamstrings": 0.3,
+     "core": 0.4
+    },
+    "new": {
+     "glutes": 0.12,
+     "hamstrings": 0.12,
+     "core": 0.16,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Казачий присед",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.4,
+     "hamstrings": 0.2,
+     "calves": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.32,
+     "hamstrings": 0.16,
+     "calves": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Копенгаген-планка короткий рычаг",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.4,
+     "hamstrings": 0.3,
+     "glutes": 0.3
+    },
+    "new": {
+     "core": 0.16,
+     "hamstrings": 0.12,
+     "glutes": 0.12,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Латеральный выпад с гантелью на слайде",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.4,
+     "core": 0.1,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.32,
+     "core": 0.08,
+     "hamstrings": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Латеральный выпад с гантелями",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.4,
+     "hamstrings": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.32,
+     "hamstrings": 0.16,
+     "core": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Лежачее подтягивание поясничной мышцы с мини-бэндом",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.4,
+     "back": 0.2,
+     "hamstrings": 0.4
+    },
+    "new": {
+     "glutes": 0.16,
+     "back": 0.08,
+     "hamstrings": 0.16,
+     "hip_flexors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Марш на месте с высоким коленом и паузой",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Подъём ног в висе",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.7,
+     "forearms": 0.3
+    },
+    "new": {
+     "core": 0.42,
+     "forearms": 0.18,
+     "hip_flexors": 0.4
+    }
+   }
+  }
+ },
+ {
+  "name": "Подъём прямой ноги лёжа",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.8,
+     "core": 0.2
+    },
+    "new": {
+     "quads": 0.64,
+     "core": 0.16,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Полусгибатель у стены (ПНФ)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.4,
+     "back": 0.2,
+     "hamstrings": 0.4
+    },
+    "new": {
+     "glutes": 0.16,
+     "back": 0.08,
+     "hamstrings": 0.16,
+     "hip_flexors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Приведение бедра в тренажёре",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.1,
+     "core": 0.2,
+     "quads": 0.7
+    },
+    "new": {
+     "glutes": 0.04,
+     "core": 0.08,
+     "quads": 0.28,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Приведение бедра с резиной",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "hamstrings": 0.3,
+     "core": 0.1,
+     "quads": 0.3
+    },
+    "new": {
+     "glutes": 0.12,
+     "hamstrings": 0.12,
+     "core": 0.04,
+     "quads": 0.12,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Привод + вращение с весом",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "hamstrings": 0.3,
+     "core": 0.4
+    },
+    "new": {
+     "glutes": 0.12,
+     "hamstrings": 0.12,
+     "core": 0.16,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Привод в длинной позиции (гиря/резина)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "hamstrings": 0.3,
+     "core": 0.4
+    },
+    "new": {
+     "glutes": 0.12,
+     "hamstrings": 0.12,
+     "core": 0.16,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Приводящие в длинной позиции (ПНФ)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "quads": 0.08,
+     "hamstrings": 0.12,
+     "glutes": 0.2,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Приводящие мышцы - ролл",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "quads": 0.08,
+     "hamstrings": 0.12,
+     "glutes": 0.2,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Растяжка приводящих в широкой стойке стоя",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "hamstrings": 0.3,
+     "core": 0.4
+    },
+    "new": {
+     "glutes": 0.12,
+     "hamstrings": 0.12,
+     "core": 0.16,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Растяжка сгибателя бедра в полуприседе на колене",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "quads": 0.08,
+     "hamstrings": 0.12,
+     "glutes": 0.2,
+     "hip_flexors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Сгибатель + лавочка + рука в потолок",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.3,
+     "core": 0.3
+    },
+    "new": {
+     "quads": 0.16,
+     "glutes": 0.12,
+     "core": 0.12,
+     "hip_flexors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Сгибатель + резина боком",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.3,
+     "core": 0.3
+    },
+    "new": {
+     "quads": 0.16,
+     "glutes": 0.12,
+     "core": 0.12,
+     "hip_flexors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Сгибатель + резина лицом",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.3,
+     "core": 0.3
+    },
+    "new": {
+     "quads": 0.16,
+     "glutes": 0.12,
+     "core": 0.12,
+     "hip_flexors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Сгибатель ПНФ",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.3,
+     "core": 0.3
+    },
+    "new": {
+     "quads": 0.16,
+     "glutes": 0.12,
+     "core": 0.12,
+     "hip_flexors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Сгибатель бедра у стены",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.3,
+     "core": 0.3
+    },
+    "new": {
+     "quads": 0.16,
+     "glutes": 0.12,
+     "core": 0.12,
+     "hip_flexors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Сжатие приводящих с прямыми ногами в среднем диапазоне",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.5,
+     "hamstrings": 0.3,
+     "glutes": 0.2
+    },
+    "new": {
+     "quads": 0.2,
+     "hamstrings": 0.12,
+     "glutes": 0.08,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Слайд-борд боковое скольжение",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.4,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.32,
+     "core": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Трёхпозиционное сжатие приводящих (статика)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.7
+    },
+    "new": {
+     "quads": 0.4,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Эксцентрическое приведение бедра на слайд-диске",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "hamstrings": 0.3,
+     "core": 0.4
+    },
+    "new": {
+     "glutes": 0.12,
+     "hamstrings": 0.12,
+     "core": 0.16,
+     "adductors": 0.6
+    }
+   }
+  }
+ }
+]
