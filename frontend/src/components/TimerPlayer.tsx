@@ -404,6 +404,33 @@ export function TimerPlayer({
     }
   }, [])
 
+  // Browsers (iOS especially) drop or reset the media session's position
+  // when the page comes back from the background -- the widget's progress
+  // bar then restarts from zero. Re-assert it from the real deadline every
+  // time the page is shown again.
+  const resyncLockScreenRef = useRef(() => {})
+  resyncLockScreenRef.current = () => {
+    if (!lockScreenStartedRef.current || completedRounds >= rounds) {
+      return
+    }
+    updateLockScreenInfo(lockScreenInfo())
+    const total = phase === 'work' ? durationSeconds : restSeconds
+    const left =
+      running && deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
+    updateLockScreenProgress(total, left, running)
+  }
+  useEffect(() => {
+    const resync = () => resyncLockScreenRef.current()
+    document.addEventListener('visibilitychange', resync)
+    window.addEventListener('pageshow', resync)
+    window.addEventListener('focus', resync)
+    return () => {
+      document.removeEventListener('visibilitychange', resync)
+      window.removeEventListener('pageshow', resync)
+      window.removeEventListener('focus', resync)
+    }
+  }, [])
+
   function skipRest() {
     setRunning(false)
     advanceRest()
