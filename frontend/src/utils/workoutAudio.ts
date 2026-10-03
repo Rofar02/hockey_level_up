@@ -119,7 +119,9 @@ export function updateLockScreenInfo(info: LockScreenInfo): void {
     title: info.title,
     artist: info.subtitle,
     album: 'IceLevel',
-    artwork: info.artworkUrl ? [{ src: info.artworkUrl, sizes: '512x512', type: 'image/jpeg' }] : [],
+    artwork: info.artworkUrl
+      ? [{ src: info.artworkUrl, sizes: '512x512', type: info.artworkUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg' }]
+      : [],
   })
 }
 

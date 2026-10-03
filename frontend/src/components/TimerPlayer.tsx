@@ -13,6 +13,7 @@ import {
   scheduleRestDoneNotification,
   type ScheduledRestNotification,
 } from '../utils/restNotification'
+import { renderLockScreenArtwork } from '../utils/lockScreenArtwork'
 import { exercisePosterUrl } from '../utils/media'
 import {
   cancelScheduledBeeps,
@@ -319,9 +320,16 @@ export function TimerPlayer({
 
   function lockScreenInfo() {
     const artworkUrl =
-      exercise.video_source_type === 'file' && exercise.video_source_id !== null
+      renderLockScreenArtwork({
+        phase,
+        exerciseName: exercise.name,
+        seconds: phase === 'work' ? durationSeconds : restSeconds,
+        rounds,
+        completedRounds,
+      }) ??
+      (exercise.video_source_type === 'file' && exercise.video_source_id !== null
         ? exercisePosterUrl(exercise.video_source_id)
-        : '/icon-512.png'
+        : '/icon-512.png')
     const subtitle =
       phase === 'work'
         ? `Раунд ${completedRounds + 1} из ${rounds} · работа`
