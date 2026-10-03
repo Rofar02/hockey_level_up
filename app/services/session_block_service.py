@@ -85,7 +85,9 @@ class SessionBlockService:
             order=block.order,
             completed_at=block.completed_at,
             skipped_at=block.skipped_at,
-            exercise=exercise_to_read(block.exercise, target_stats),
+            exercise=exercise_to_read(
+                block.exercise, target_stats, await self._exercises.list_movement_patterns(block.exercise_id)
+            ),
             ceiling_escalations=ceiling_escalations,
         )
 
@@ -126,7 +128,9 @@ class SessionBlockService:
             order=block.order,
             completed_at=block.completed_at,
             skipped_at=block.skipped_at,
-            exercise=exercise_to_read(block.exercise, target_stats),
+            exercise=exercise_to_read(
+                block.exercise, target_stats, await self._exercises.list_movement_patterns(block.exercise_id)
+            ),
         )
 
     async def _maybe_publish_training_completed(self, block: SessionBlock, user: User) -> None:

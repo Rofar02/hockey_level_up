@@ -256,10 +256,10 @@ class TrainingPartyService:
 
         joined_users = await self._joined_users(party.id)
         exercises = await self._schedule_service.suggest_party_exercises(joined_users, count)
-        stats_by_id = await self._exercises.list_target_stats_by_exercise(
-            [exercise.id for exercise in exercises]
-        )
-        return exercises_to_read(exercises, stats_by_id)
+        exercise_ids = [exercise.id for exercise in exercises]
+        stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
+        patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)
+        return exercises_to_read(exercises, stats_by_id, patterns_by_id)
 
     async def confirm_exercises(
         self, user: User, party_id: uuid.UUID, exercise_ids: list[uuid.UUID]
@@ -442,10 +442,10 @@ class TrainingPartyService:
             exercise = await self._exercises.get_by_id(exercise_id)
             if exercise is not None:
                 exercises.append(exercise)
-        stats_by_id = await self._exercises.list_target_stats_by_exercise(
-            [exercise.id for exercise in exercises]
-        )
-        return exercises_to_read(exercises, stats_by_id)
+        exercise_ids = [exercise.id for exercise in exercises]
+        stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
+        patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)
+        return exercises_to_read(exercises, stats_by_id, patterns_by_id)
 
     @staticmethod
     def _effective_status(party: TrainingParty, viewer: User) -> PartyStatus:

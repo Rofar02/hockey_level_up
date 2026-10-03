@@ -2567,13 +2567,14 @@ class ScheduleService:
         block.exercise_id = new_exercise.id
         await self._session.commit()
         target_stats = await self._exercises.list_target_stats(new_exercise.id)
+        patterns = await self._exercises.list_movement_patterns(new_exercise.id)
         return SessionBlockRead(
             id=block.id,
             phase=block.phase,
             order=block.order,
             completed_at=block.completed_at,
             skipped_at=block.skipped_at,
-            exercise=exercise_to_read(new_exercise, target_stats),
+            exercise=exercise_to_read(new_exercise, target_stats, patterns),
         )
 
     @staticmethod
@@ -2910,6 +2911,7 @@ class ScheduleService:
         day: DayPlan,
         stats_by_id: dict[uuid.UUID, list[TargetStat]],
         diary_session_ids: set[uuid.UUID],
+        patterns_by_id: dict[uuid.UUID, list[MovementPattern]] | None = None,
     ) -> DayPlanRead:
         session_read = None
         if day.training_session is not None:
@@ -2931,7 +2933,9 @@ class ScheduleService:
                     completed_at=block.completed_at,
                     skipped_at=block.skipped_at,
                     exercise=exercise_to_read(
-                        block.exercise, stats_by_id.get(block.exercise_id, [])
+                        block.exercise,
+                        stats_by_id.get(block.exercise_id, []),
+                        (patterns_by_id or {}).get(block.exercise_id),
                     ),
                 )
                 for block in day.training_session.blocks
@@ -2964,6 +2968,7 @@ class ScheduleService:
             for block in day.training_session.blocks
         ]
         stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
+        patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)
         diary_candidate_ids = [
             day.training_session.id
             for day in weekly_plan.day_plans
@@ -2973,7 +2978,7 @@ class ScheduleService:
         diary_session_ids = await self._diary.list_session_ids_with_entries(diary_candidate_ids)
 
         day_reads = [
-            self._day_plan_to_read_schema(day, stats_by_id, diary_session_ids)
+            self._day_plan_to_read_schema(day, stats_by_id, diary_session_ids, patterns_by_id)
             for day in weekly_plan.day_plans
         ]
         return WeeklyPlanRead(
@@ -3023,6 +3028,7 @@ class ScheduleService:
             else []
         )
         stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
+        patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)
         diary_candidate_ids = (
             [day.training_session.id]
             if day.training_session is not None
@@ -3030,4 +3036,4 @@ class ScheduleService:
             else []
         )
         diary_session_ids = await self._diary.list_session_ids_with_entries(diary_candidate_ids)
-        return self._day_plan_to_read_schema(day, stats_by_id, diary_session_ids)
+        return self._day_plan_to_read_schema(day, stats_by_id, diary_session_ids, patterns_by_id)
