@@ -175,6 +175,15 @@ export function TimerPlayer({
 
   const restSeconds = exercise.rest_seconds ?? FALLBACK_REST_SECONDS
 
+  // One-sided exercise done side by side (2026-10-03: each round is one
+  // side, rounds alternate) -- "Правая" / "Левая" instead of "Раунд N".
+  function sideLabel(roundNumber: number): string | null {
+    if (exercise.is_unilateral !== true || rounds < 2 || rounds % 2 !== 0) {
+      return null
+    }
+    return roundNumber % 2 === 1 ? 'Правая' : 'Левая'
+  }
+
   const snapshotKey = `${trainingSessionId}:${exercise.id}`
   // Restore once on mount: first the local snapshot (the segment in
   // progress), then the server's logged rounds, which win if they're ahead
@@ -508,11 +517,18 @@ export function TimerPlayer({
   }
 
   function lockScreenInfo() {
+    const nextSide = sideLabel(completedRounds + 1)
     const artworkUrl =
       renderLockScreenArtwork({
         phase,
         exerciseName: exercise.name,
         seconds: phase === 'work' ? durationSeconds : restSeconds,
+        detail:
+          nextSide === null
+            ? undefined
+            : phase === 'work'
+              ? `${durationSeconds} сек · ${nextSide.toLowerCase()}`
+              : `${restSeconds} сек · дальше ${nextSide.toLowerCase()}`,
         rounds,
         completedRounds,
       }) ??
@@ -520,9 +536,13 @@ export function TimerPlayer({
         ? exercisePosterUrl(exercise.video_source_id)
         : '/icon-512.png')
     const subtitle =
-      phase === 'work'
-        ? `Раунд ${completedRounds + 1} из ${rounds} · работа`
-        : `Отдых · дальше раунд ${completedRounds + 1} из ${rounds}`
+      nextSide !== null
+        ? phase === 'work'
+          ? `${nextSide} сторона`
+          : `Отдых · дальше ${nextSide.toLowerCase()} сторона`
+        : phase === 'work'
+          ? `Раунд ${completedRounds + 1} из ${rounds} · работа`
+          : `Отдых · дальше раунд ${completedRounds + 1} из ${rounds}`
     return { title: exercise.name, subtitle, artworkUrl }
   }
 
@@ -799,7 +819,11 @@ export function TimerPlayer({
           <CountdownRing
             totalSeconds={durationSeconds}
             remainingSeconds={remaining}
-            label={`из ${durationSeconds} сек`}
+            label={
+              sideLabel(completedRounds + 1) !== null
+                ? `${sideLabel(completedRounds + 1)} · ${durationSeconds} сек`
+                : `из ${durationSeconds} сек`
+            }
             accent="ice"
             interactive
             running={running}
@@ -840,7 +864,7 @@ export function TimerPlayer({
           <CountdownRing
             totalSeconds={restSeconds}
             remainingSeconds={remaining}
-            label="Отдых"
+            label={sideLabel(completedRounds + 1) !== null ? 'Смена стороны' : 'Отдых'}
             accent="persimmon"
           />
           <button
