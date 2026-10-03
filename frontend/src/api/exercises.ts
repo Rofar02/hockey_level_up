@@ -11,7 +11,12 @@ import type {
   TargetStat,
 } from '../types/exercise'
 import type { TrainingPhase } from '../types/schedule'
-import type { ExerciseHistoryRead, SuggestedRepsRead, SuggestedWeightRead } from '../types/setCompletion'
+import type {
+  ExerciseHistoryRead,
+  SuggestedDurationRead,
+  SuggestedRepsRead,
+  SuggestedWeightRead,
+} from '../types/setCompletion'
 import type { SkillTagRead } from '../types/skill'
 
 export function getSuggestedWeight(
@@ -37,6 +42,13 @@ export function getSuggestedReps(
   accessToken: string,
 ): Promise<SuggestedRepsRead> {
   return apiGet<SuggestedRepsRead>(`/exercises/${exerciseId}/suggested-reps`, accessToken)
+}
+
+export function getSuggestedDuration(
+  exerciseId: string,
+  accessToken: string,
+): Promise<SuggestedDurationRead> {
+  return apiGet<SuggestedDurationRead>(`/exercises/${exerciseId}/suggested-duration`, accessToken)
 }
 
 export function listExerciseEquipmentRequirements(

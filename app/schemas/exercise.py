@@ -258,3 +258,9 @@ class SuggestedRepsRead(BaseModel):
     # exercise_type=sets_reps, or its rep_range_min/max aren't both set yet
     # (not backfilled) -- see RepsSuggestionService.
     suggested_reps: int | None
+
+
+class SuggestedDurationRead(BaseModel):
+    # None when the exercise has no time progression (only timed MAIN
+    # strength holds have it) -- the player then uses target_duration_seconds.
+    suggested_duration_seconds: int | None

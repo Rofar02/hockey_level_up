@@ -101,6 +101,17 @@ export function TimerPlayer({
 
   const restSeconds = exercise.rest_seconds ?? FALLBACK_REST_SECONDS
 
+  // The per-athlete target (time progression) arrives a moment after mount;
+  // pick it up as long as nothing has started yet. Once the first round is
+  // running or logged, the target in hand stays for the whole exercise.
+  const notStarted = !running && completedRounds === 0 && phase === 'work' && manualSeconds === null
+  useEffect(() => {
+    if (notStarted) {
+      setRemaining(durationSeconds)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new target should re-sync
+  }, [durationSeconds])
+
   // Ticks the visible countdown down from deadlineRef while running. Only
   // depends on `running`, not `remaining`/`phase` -- advanceWork/advanceRest
   // below flip running false then true again in the same batch when moving
