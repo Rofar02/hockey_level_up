@@ -94,8 +94,79 @@ let keepAliveAudio: HTMLAudioElement | null = null
 
 export interface LockScreenHandlers {
   onPlay: () => void
-  onPause: () => void
+  // true if the timer actually paused (a work round); false where pausing
+  // doesn't apply (rest runs on its own) -- the track then keeps playing.
+  onPause: () => boolean
   onNext?: () => void
+}
+
+let activeHandlers: LockScreenHandlers | null = null
+// Our own play()/pause()/src changes fire the element's play/pause events
+// too; those must not be mistaken for the athlete (or the system) acting.
+let ignoreElementEventsUntil = 0
+
+function ownPlay(): void {
+  if (keepAliveAudio === null) {
+    return
+  }
+  ignoreElementEventsUntil = performance.now() + 600
+  void keepAliveAudio.play().catch(() => {})
+}
+
+function ownPause(): void {
+  if (keepAliveAudio === null) {
+    return
+  }
+  ignoreElementEventsUntil = performance.now() + 600
+  keepAliveAudio.pause()
+}
+
+// Pause/play from the lock screen, Control Center, headphones -- handled
+// synchronously right here (beeps off, track stopped) and only then handed
+// to the timer: with the screen locked React may not re-render until the
+// app is opened, and the scheduled beeps must not keep going till then.
+function handlePauseRequest(): void {
+  if (activeHandlers === null) {
+    return
+  }
+  if (activeHandlers.onPause()) {
+    cancelScheduledBeeps()
+    ownPause()
+    navigator.mediaSession.playbackState = 'paused'
+  } else {
+    ownPlay()
+    navigator.mediaSession.playbackState = 'playing'
+  }
+}
+
+function handlePlayRequest(): void {
+  if (activeHandlers === null) {
+    return
+  }
+  ownPlay()
+  navigator.mediaSession.playbackState = 'playing'
+  activeHandlers.onPlay()
+}
+
+function createKeepAliveAudio(): HTMLAudioElement {
+  const audio = new Audio()
+  audio.loop = true
+  // The system can stop the track by itself (an incoming call, AirPods
+  // taken out, iOS's own lock-screen button acting on the element) --
+  // treat that exactly like the pause button.
+  audio.addEventListener('pause', () => {
+    if (performance.now() < ignoreElementEventsUntil || audio.ended) {
+      return
+    }
+    handlePauseRequest()
+  })
+  audio.addEventListener('play', () => {
+    if (performance.now() < ignoreElementEventsUntil) {
+      return
+    }
+    handlePlayRequest()
+  })
+  return audio
 }
 
 export interface LockScreenInfo {
@@ -118,19 +189,20 @@ export function startLockScreenSession(info: LockScreenInfo, handlers: LockScree
     }
   }
   if (keepAliveAudio === null) {
-    keepAliveAudio = new Audio()
-    keepAliveAudio.loop = true
+    keepAliveAudio = createKeepAliveAudio()
   }
   // Started here, inside the tap -- later play() calls on the same element
   // (resume from the lock screen, a new track length) are then allowed.
   if (!keepAliveAudio.src) {
+    ignoreElementEventsUntil = performance.now() + 600
     keepAliveAudio.src = silentWavUrl(60)
   }
-  void keepAliveAudio.play().catch(() => {})
+  activeHandlers = handlers
+  ownPlay()
   updateLockScreenInfo(info)
   const session = navigator.mediaSession
-  session.setActionHandler('play', handlers.onPlay)
-  session.setActionHandler('pause', handlers.onPause)
+  session.setActionHandler('play', handlePlayRequest)
+  session.setActionHandler('pause', handlePauseRequest)
   session.setActionHandler('nexttrack', handlers.onNext ?? null)
 }
 
@@ -163,10 +235,12 @@ export function updateLockScreenProgress(totalSeconds: number, remainingSeconds:
   if (keepAliveAudio !== null) {
     const url = silentWavUrl(totalSeconds)
     if (keepAliveAudio.src !== url) {
+      ignoreElementEventsUntil = performance.now() + 600
       keepAliveAudio.src = url
     }
     const seekTo = () => {
       if (keepAliveAudio !== null && Math.abs(keepAliveAudio.currentTime - elapsed) > 0.5) {
+        ignoreElementEventsUntil = performance.now() + 600
         keepAliveAudio.currentTime = elapsed
       }
     }
@@ -175,10 +249,10 @@ export function updateLockScreenProgress(totalSeconds: number, remainingSeconds:
     } else {
       keepAliveAudio.addEventListener('loadedmetadata', seekTo, { once: true })
     }
-    if (playing) {
-      void keepAliveAudio.play().catch(() => {})
-    } else {
-      keepAliveAudio.pause()
+    if (playing && keepAliveAudio.paused) {
+      ownPlay()
+    } else if (!playing && !keepAliveAudio.paused) {
+      ownPause()
     }
   }
   try {
@@ -197,9 +271,8 @@ export function updateLockScreenProgress(totalSeconds: number, remainingSeconds:
 // branded idle card there instead (`idle`, see lockScreenArtwork.ts).
 export function stopLockScreenSession(idle?: LockScreenInfo): void {
   cancelScheduledBeeps()
-  if (keepAliveAudio !== null) {
-    keepAliveAudio.pause()
-  }
+  activeHandlers = null
+  ownPause()
   if (!isLockScreenPlayerSupported()) {
     return
   }

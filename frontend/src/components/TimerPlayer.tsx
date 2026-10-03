@@ -435,8 +435,13 @@ export function TimerPlayer({
       setManualSeconds(null)
     } else {
       // Paused mid-round -- capture what's actually elapsed so far as the
-      // starting point for an early honest confirm.
-      setManualSeconds(Math.round(durationSeconds - remaining))
+      // starting point for an early honest confirm. From the deadline, not
+      // `remaining`: a pause from the lock screen can arrive while the page
+      // was frozen and `remaining` is whatever the last tick before that was.
+      const left =
+        deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
+      setRemaining(left)
+      setManualSeconds(Math.round(durationSeconds - left))
     }
     setRunning(next)
   }
@@ -447,17 +452,21 @@ export function TimerPlayer({
   idleCardRef.current = () => idleLockScreenInfo()
 
   // Lock-screen buttons call whatever the latest render's handlers are.
-  const lockScreenHandlersRef = useRef({ play: () => {}, pause: () => {}, next: () => {} })
+  const lockScreenHandlersRef = useRef({ play: () => {}, pause: (): boolean => false, next: () => {} })
   lockScreenHandlersRef.current = {
     play: () => {
       if (phase === 'work') {
         setWorkRunning(true)
       }
     },
+    // Pauses the work round in the app too. Rest has no pause in the app,
+    // so there the lock-screen button is ignored and the rest runs on.
     pause: () => {
-      if (phase === 'work') {
-        setWorkRunning(false)
+      if (phase !== 'work') {
+        return false
       }
+      setWorkRunning(false)
+      return true
     },
     next: () => {
       if (phase === 'rest') {
