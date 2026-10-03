@@ -17,6 +17,7 @@
 //     time even while iOS has frozen the page's JavaScript. The timer's own
 //     state catches up the moment the page wakes (see TimerPlayer).
 
+import { buzzer, goalHorn, stickTap, whistle, type Track } from './hockeySounds'
 import { getSharedAudioContext } from './restNotification'
 
 const ENABLED_KEY = 'icelevel.lockScreenPlayer'
@@ -296,7 +297,7 @@ export interface SegmentEnd {
   kind: 'work' | 'rest' | 'done'
 }
 
-let scheduledNodes: OscillatorNode[] = []
+let scheduledNodes: AudioScheduledSourceNode[] = []
 
 export function cancelScheduledBeeps(): void {
   for (const node of scheduledNodes) {
@@ -309,22 +310,14 @@ export function cancelScheduledBeeps(): void {
   scheduledNodes = []
 }
 
-function tone(ctx: AudioContext, at: number, frequency: number, length: number): void {
-  const oscillator = ctx.createOscillator()
-  const gain = ctx.createGain()
-  oscillator.frequency.value = frequency
-  gain.gain.setValueAtTime(0.25, at)
-  gain.gain.exponentialRampToValueAtTime(0.001, at + length)
-  oscillator.connect(gain)
-  gain.connect(ctx.destination)
-  oscillator.start(at)
-  oscillator.stop(at + length)
-  scheduledNodes.push(oscillator)
+const track: Track = (node) => {
+  scheduledNodes.push(node)
 }
 
-// Replaces whatever was scheduled before: three short ticks counting down
-// the last 3 s of each segment, then its end tone -- high for "go"
-// (rest over), lower for "rest" (work over), a double tone when done.
+// Replaces whatever was scheduled before: stick taps counting down the last
+// 3 s of each segment, then its hockey signal (hockeySounds.ts) -- the
+// end-of-shift buzzer when work is over, the face-off whistle when rest is
+// over, the goal horn when the whole exercise is done.
 export function scheduleSegmentBeeps(segments: SegmentEnd[]): void {
   cancelScheduledBeeps()
   const ctx = getSharedAudioContext()
@@ -339,16 +332,18 @@ export function scheduleSegmentBeeps(segments: SegmentEnd[]): void {
     const end = now + segment.endsIn
     for (const before of [3, 2, 1]) {
       if (segment.endsIn - before > 0.05) {
-        tone(ctx, end - before, 660, 0.12)
+        stickTap(ctx, end - before, track)
       }
     }
+    if (segment.endsIn < 0.05) {
+      continue
+    }
     if (segment.kind === 'rest') {
-      tone(ctx, end, 1046, 0.5)
+      whistle(ctx, end, track)
     } else if (segment.kind === 'work') {
-      tone(ctx, end, 523, 0.5)
+      buzzer(ctx, end, track)
     } else {
-      tone(ctx, end, 784, 0.25)
-      tone(ctx, end + 0.3, 1046, 0.5)
+      goalHorn(ctx, end, track)
     }
   }
 }
