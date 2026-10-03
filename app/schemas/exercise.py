@@ -62,15 +62,19 @@ class ExerciseRead(BaseModel):
     # still a real row so existing session/set-completion history keeps
     # resolving normally. Toggled via its own PATCH field, not the main form.
     is_archived: bool
+    # Input to rest_seconds only (light core/mobility strength rests less),
+    # not part of the response -- supplied by exercise_to_read's callers the
+    # same way target_stats is.
+    movement_patterns: list[MovementPattern] = Field(default_factory=list, exclude=True)
 
-    # Computed, not stored -- see app.core.rest. Derived from stimulus_type
-    # and difficulty_level (None only when stimulus_type is unclassified),
-    # exposed here so every client reads the same rest suggestion without
-    # reimplementing the stimulus_type/difficulty formula.
+    # Computed, not stored -- see app.core.rest. Derived from stimulus_type,
+    # difficulty_level, phase and movement pattern (None only when
+    # stimulus_type is unclassified), exposed here so every client reads the
+    # same rest suggestion without reimplementing the formula.
     @computed_field  # type: ignore[prop-decorator]
     @property
     def rest_seconds(self) -> int | None:
-        return rest_seconds_for(self.stimulus_type, self.difficulty_level)
+        return rest_seconds_for(self.stimulus_type, self.difficulty_level, self.phase, self.movement_patterns)
 
 
 # Every ExerciseRead must be built through here (or exercises_to_read for a
@@ -80,7 +84,11 @@ class ExerciseRead(BaseModel):
 # themselves (single via ExerciseRepository.list_target_stats, batch via
 # list_target_stats_by_exercise) so this stays a pure function with no
 # repository/session dependency of its own.
-def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> ExerciseRead:
+def exercise_to_read(
+    exercise: Exercise,
+    target_stats: list[TargetStat],
+    movement_patterns: list[MovementPattern] | None = None,
+) -> ExerciseRead:
     return ExerciseRead(
         id=exercise.id,
         name=exercise.name,
@@ -104,13 +112,17 @@ def exercise_to_read(exercise: Exercise, target_stats: list[TargetStat]) -> Exer
         warmup_stage=exercise.warmup_stage,
         admin_reviewed=exercise.admin_reviewed,
         is_archived=exercise.is_archived,
+        movement_patterns=movement_patterns or [],
     )
 
 
 def exercises_to_read(
-    exercises: list[Exercise], target_stats_by_id: dict[uuid.UUID, list[TargetStat]]
+    exercises: list[Exercise],
+    target_stats_by_id: dict[uuid.UUID, list[TargetStat]],
+    patterns_by_id: dict[uuid.UUID, list[MovementPattern]] | None = None,
 ) -> list[ExerciseRead]:
-    return [exercise_to_read(e, target_stats_by_id.get(e.id, [])) for e in exercises]
+    patterns = patterns_by_id or {}
+    return [exercise_to_read(e, target_stats_by_id.get(e.id, []), patterns.get(e.id)) for e in exercises]
 
 
 class ExerciseCreate(BaseModel):

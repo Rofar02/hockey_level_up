@@ -3,6 +3,7 @@ import { ExerciseDetailBody } from './ExerciseDetailModal'
 import { ExerciseVideoStage } from './ExerciseVideoStage'
 import * as exercisesApi from '../api/exercises'
 import { formatElapsed } from '../hooks/useSessionClock'
+import type { ExerciseRead } from '../types/exercise'
 import type { SessionBlockRead } from '../types/schedule'
 import type { SkillSummaryRead } from '../types/skill'
 
@@ -28,6 +29,7 @@ export function ExerciseFocusScreen({
   onBack,
   onComplete,
   onSettled,
+  nextExercise,
   blockId,
   onReplaced,
   onSkip,
@@ -68,6 +70,9 @@ export function ExerciseFocusScreen({
   // auto-advance to the next not-yet-done exercise in the phase without
   // returning to the list (icelevel_player_master_prompt.md, 2026-08-28).
   onSettled?: () => void
+  // The exercise auto-advance goes to next in this phase (null = last one)
+  // -- the continuous warm-up / cool-down player announces and starts it.
+  nextExercise?: ExerciseRead | null
   blockId?: string
   onReplaced?: (updated: SessionBlockRead) => void
   // Warmup/cooldown-only (media-player redesign, 2026-08-28) -- undefined
@@ -157,6 +162,7 @@ export function ExerciseFocusScreen({
         onClose={onBack}
         onLastSetCompleted={onComplete}
         onSettled={onSettled}
+        nextExercise={nextExercise}
         blockId={blockId}
         onReplaced={onReplaced}
         onSkip={canSkip ? onSkip : undefined}

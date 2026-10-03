@@ -143,6 +143,8 @@ export interface ExerciseDetailBodyProps {
   // "Выполнено" fallback) is not offered at all, only technique and
   // transfer. Doing an exercise happens on the training screen.
   readOnly?: boolean
+  // Next exercise in the phase (focus screen only) -- see TimerPlayer.
+  nextExercise?: ExerciseRead | null
 }
 
 // "Подходы" (SetLogger: suggested weight, per-set logging, feedback, state
@@ -162,6 +164,7 @@ export function ExerciseDetailBody({
   onSkip,
   variant = 'modal',
   readOnly = false,
+  nextExercise = null,
 }: ExerciseDetailBodyProps) {
   const [activeTab, setActiveTab] = useState<ExerciseModalTab>(readOnly ? 'technique' : 'sets')
   const [isReplacing, setIsReplacing] = useState(false)
@@ -389,6 +392,7 @@ export function ExerciseDetailBody({
               isDone={onLastSetCompleted === undefined}
               onComplete={onLastSetCompleted}
               onSettled={onSettled}
+              nextExercise={nextExercise}
             />
           ) : (
             <div className="flex flex-col gap-3">

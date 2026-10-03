@@ -20,7 +20,8 @@ const TEXT_FONT = 'Inter, system-ui, sans-serif'
 export interface ArtworkState {
   // 'idle': the screensaver left on the lock screen between exercises.
   // 'set': a set done at the athlete's own pace (sets/reps exercises).
-  phase: 'work' | 'rest' | 'done' | 'idle' | 'set'
+  // 'next': the few seconds between two warm-up / cool-down exercises.
+  phase: 'work' | 'rest' | 'done' | 'idle' | 'set' | 'next'
   exerciseName: string
   // Seconds of the segment shown (work or rest length); omitted for 'done'.
   seconds?: number
@@ -89,7 +90,7 @@ export function renderLockScreenArtwork(state: ArtworkState): string | null {
   if (ctx === null) {
     return null
   }
-  const accent = state.phase === 'rest' ? COLORS.persimmon : COLORS.ice
+  const accent = state.phase === 'rest' || state.phase === 'next' ? COLORS.persimmon : COLORS.ice
 
   // Background: dark card with a soft glow of the phase colour.
   const background = ctx.createLinearGradient(0, 0, 0, SIZE)
@@ -98,7 +99,10 @@ export function renderLockScreenArtwork(state: ArtworkState): string | null {
   ctx.fillStyle = background
   ctx.fillRect(0, 0, SIZE, SIZE)
   const glow = ctx.createRadialGradient(SIZE * 0.85, SIZE * 0.1, 0, SIZE * 0.85, SIZE * 0.1, SIZE * 0.75)
-  glow.addColorStop(0, state.phase === 'rest' ? 'rgba(255,92,52,0.35)' : 'rgba(215,239,255,0.22)')
+  glow.addColorStop(
+    0,
+    state.phase === 'rest' || state.phase === 'next' ? 'rgba(255,92,52,0.35)' : 'rgba(215,239,255,0.22)',
+  )
   glow.addColorStop(1, 'rgba(0,0,0,0)')
   ctx.fillStyle = glow
   ctx.fillRect(0, 0, SIZE, SIZE)
@@ -124,7 +128,15 @@ export function renderLockScreenArtwork(state: ArtworkState): string | null {
 
   // Phase.
   const phaseLabel =
-    state.phase === 'work' ? 'РАБОТА' : state.phase === 'rest' ? 'ОТДЫХ' : state.phase === 'set' ? 'ПОДХОД' : 'ГОТОВО'
+    state.phase === 'work'
+      ? 'РАБОТА'
+      : state.phase === 'rest'
+        ? 'ОТДЫХ'
+        : state.phase === 'set'
+          ? 'ПОДХОД'
+          : state.phase === 'next'
+            ? 'ДАЛЕЕ'
+            : 'ГОТОВО'
   ctx.fillStyle = accent
   ctx.font = `700 118px ${DISPLAY_FONT}`
   ctx.fillText(phaseLabel, pad - 4, 205)

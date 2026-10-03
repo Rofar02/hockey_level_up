@@ -914,6 +914,7 @@ export function TrainingSessionPage() {
                   // their own feedback flow on an exercise that was already
                   // fully settled before this mount.
                   onSettled={handleExerciseSettled}
+                  nextExercise={nextPrefetchExercise}
                   blockId={
                     selectedBlock.completed_at === null && selectedBlock.skipped_at === null
                       ? selectedBlock.id

@@ -37,7 +37,7 @@ def estimate_block_duration_seconds(exercise: Exercise) -> int:
 
     if exercise.exercise_type == ExerciseType.SETS_REPS:
         if exercise.target_sets and exercise.rep_range_min and exercise.rep_range_max:
-            rest = rest_seconds_for(exercise.stimulus_type, exercise.difficulty_level) or 0
+            rest = rest_seconds_for(exercise.stimulus_type, exercise.difficulty_level, exercise.phase) or 0
             # Midpoint of the rep range (Phase: П.1 double progression) --
             # reps are now a [min, max] range per exercise, not a single
             # target, so there's no one "the" rep count to multiply by.

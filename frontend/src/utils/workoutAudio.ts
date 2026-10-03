@@ -221,6 +221,28 @@ export function updateLockScreenInfo(info: LockScreenInfo): void {
   })
 }
 
+// Continuous warm-up / cool-down (2026-10-03): when one timed exercise
+// hands over to the next, the lock-screen session must not be torn down in
+// between, and the next timer starts by itself. The finishing player marks
+// the hand-off; the next one (mounted a moment later) takes it. Expires so
+// a stale mark can never auto-start some unrelated timer later.
+let handoffAt = 0
+const HANDOFF_TTL_MS = 15000
+
+export function markLockScreenHandoff(): void {
+  handoffAt = Date.now()
+}
+
+export function isLockScreenHandoffPending(): boolean {
+  return handoffAt !== 0 && Date.now() - handoffAt < HANDOFF_TTL_MS
+}
+
+export function takeLockScreenHandoff(): boolean {
+  const pending = isLockScreenHandoffPending()
+  handoffAt = 0
+  return pending
+}
+
 // Unlocks audio playback from inside a tap whose real work (the rest timer
 // it leads to) only starts after an await -- iOS refuses play() outside a
 // gesture, but once this element has played it may be started again later.

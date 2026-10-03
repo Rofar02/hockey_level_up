@@ -1,0 +1,1109 @@
+[
+ {
+  "name": "Голубь (ПНФ)",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Задняя поверхность бедра на четвереньках",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Квадрицепс с задней ногой на возвышении",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Маятник Кодмана",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Приводящие в длинной позиции (ПНФ)",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Растяжка груди под 90 градусов",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Растяжка сгибателя бедра в полуприседе на колене",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Растяжка спящего",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Широчайшая + рука под себя",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Ягодица крест-накрест лёжа",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Растяжка на подвижность бедра",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 60,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Голубь с рукой по диагонали",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Полусгибатель у стены (ПНФ)",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Широчайшая крест-накрест",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Обхват колена в позиции 90/90 лёжа",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Боковая планка с подъёмом верхней ноги",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Изометрическая стабилизация лопатки в упоре на 1 руке",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Боковая планка (базовая)",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Боковая планка (нога на лавочке)",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Голеностоп ПНФ",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 20,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Грудной ПНФ",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 20,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Сгибатель ПНФ",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 20,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Растяжка сгибателей пальцев",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Голеностоп 3 направления",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Голубь + лавочка",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Растяжка икроножной у стены",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Растяжка камбаловидной у стены",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Растяжка передней поверхности бедра стоя",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Растяжка приводящих в широкой стойке стоя",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Сгибатель + резина лицом",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Сгибатель бедра у стены",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Широчайшая + ротация",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Голеностоп у стены (ПНФ)",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Мобильность голеностопа у стены",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Привод в длинной позиции (гиря/резина)",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Сгибатель + лавочка + рука в потолок",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Сгибатель + резина боком",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Динамическая растяжка (махи)",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Боковой выпад на колене + наружная ротация",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Внутренняя часть лопатки - ролл",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Грудь у стены - мяч",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Задняя часть приводящих на тумбе",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Наружная часть лопатки - ролл",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Стопа - мяч",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 45,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Приводящие мышцы - ролл",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 60,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Ягодицы - ролл",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 60,
+    "new": 30
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Баланс на нестабильной поверхности",
+  "changes": {
+   "phase": {
+    "old": "cooldown",
+    "new": "warmup"
+   },
+   "warmup_stage": {
+    "old": null,
+    "new": "activation"
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Спринг-анкл уровни 1-5",
+  "changes": {
+   "phase": {
+    "old": "cooldown",
+    "new": "warmup"
+   },
+   "warmup_stage": {
+    "old": null,
+    "new": "activation"
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     null,
+     null
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Изометрическое напряжение квадрицепса",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     4,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Изометрическое сгибание плеча в стену",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     4,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Шея 4 направления изометрия",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     3,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Изометрическое сжатие мяча между коленями",
+  "changes": {
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     3,
+     null,
+     null
+    ]
+   }
+  }
+ },
+ {
+  "name": "Боковое раскачивание на четвереньках",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 30,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Раскачивание бедра лёжа",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 30,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Ходьба с носками",
+  "changes": {
+   "phase": {
+    "old": "cooldown",
+    "new": "warmup"
+   },
+   "warmup_stage": {
+    "old": null,
+    "new": "activation"
+   }
+  }
+ },
+ {
+  "name": "Бег на месте",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 30,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Приставные шаги в стойке",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 30,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Линейный марш",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 30,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Марш с прямой ногой",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 30,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Спиной вперёд",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 30,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Марш на месте с высоким коленом и паузой",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 30,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Быстрая работа стоп на месте",
+  "changes": {
+   "target_duration_seconds": {
+    "old": 15,
+    "new": 20
+   }
+  }
+ },
+ {
+  "name": "Планка",
+  "changes": {
+   "warmup_stage": {
+    "old": null,
+    "new": "activation"
+   }
+  }
+ }
+]

@@ -48,10 +48,10 @@ class ExerciseService:
             phase=phase,
             target_stat=target_stat,
         )
-        stats_by_id = await self._exercises.list_target_stats_by_exercise(
-            [exercise.id for exercise in exercises]
-        )
-        return exercises_to_read(exercises, stats_by_id)
+        exercise_ids = [exercise.id for exercise in exercises]
+        stats_by_id = await self._exercises.list_target_stats_by_exercise(exercise_ids)
+        patterns_by_id = await self._exercises.list_movement_patterns_by_exercise(exercise_ids)
+        return exercises_to_read(exercises, stats_by_id, patterns_by_id)
 
     async def get_exercise(self, exercise_id: uuid.UUID) -> Exercise:
         exercise = await self._exercises.get_by_id(exercise_id)
@@ -64,7 +64,8 @@ class ExerciseService:
     async def get_exercise_read(self, exercise_id: uuid.UUID) -> ExerciseRead:
         exercise = await self.get_exercise(exercise_id)
         target_stats = await self._exercises.list_target_stats(exercise_id)
-        return exercise_to_read(exercise, target_stats)
+        patterns = await self._exercises.list_movement_patterns(exercise_id)
+        return exercise_to_read(exercise, target_stats, patterns)
 
     async def create_exercise(self, data: ExerciseCreate) -> ExerciseRead:
         try:
@@ -94,7 +95,8 @@ class ExerciseService:
             ) from exc
         await self._session.refresh(exercise)
         target_stats = await self._exercises.list_target_stats(exercise_id)
-        return exercise_to_read(exercise, target_stats)
+        patterns = await self._exercises.list_movement_patterns(exercise_id)
+        return exercise_to_read(exercise, target_stats, patterns)
 
     async def list_target_stats(self, exercise_id: uuid.UUID) -> list[TargetStat]:
         await self.get_exercise(exercise_id)
