@@ -1,0 +1,1013 @@
+[
+ {
+  "name": "Раскачивание бедра лёжа",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "hamstrings": 0.3,
+     "core": 0.4
+    },
+    "new": {
+     "glutes": 0.15,
+     "hamstrings": 0.15,
+     "core": 0.2,
+     "adductors": 0.5
+    }
+   }
+  }
+ },
+ {
+  "name": "Растяжка у борта",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "quads": 0.08,
+     "hamstrings": 0.12,
+     "glutes": 0.2,
+     "adductors": 0.6
+    }
+   }
+  }
+ },
+ {
+  "name": "Внутренний выпад + слайд",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.3,
+     "hamstrings": 0.2,
+     "core": 0.2
+    },
+    "new": {
+     "quads": 0.21,
+     "glutes": 0.21,
+     "hamstrings": 0.14,
+     "core": 0.14,
+     "adductors": 0.3
+    }
+   }
+  }
+ },
+ {
+  "name": "Слайд-борд с сопротивлением резины",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.22,
+     "hamstrings": 0.15,
+     "glutes": 0.15,
+     "calves": 0.15,
+     "core": 0.08,
+     "adductors": 0.25
+    }
+   }
+  }
+ },
+ {
+  "name": "Приседания сумо с гантелью",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.5,
+     "glutes": 0.3,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "quads": 0.38,
+     "glutes": 0.22,
+     "hamstrings": 0.15,
+     "adductors": 0.25
+    }
+   }
+  }
+ },
+ {
+  "name": "Становая тяга сумо",
+  "changes": {
+   "muscles": {
+    "old": {
+     "hamstrings": 0.4,
+     "glutes": 0.4,
+     "back": 0.2
+    },
+    "new": {
+     "hamstrings": 0.32,
+     "glutes": 0.32,
+     "back": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Тяга сумо с гирей",
+  "changes": {
+   "muscles": {
+    "old": {
+     "hamstrings": 0.2,
+     "glutes": 0.4,
+     "back": 0.1,
+     "quads": 0.3
+    },
+    "new": {
+     "hamstrings": 0.16,
+     "glutes": 0.32,
+     "back": 0.08,
+     "quads": 0.24,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Лягушка (прыжковые приседания)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "quads": 0.3,
+     "core": 0.1,
+     "calves": 0.1,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "glutes": 0.24,
+     "quads": 0.24,
+     "core": 0.08,
+     "calves": 0.08,
+     "hamstrings": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "C-cut имитация (без оборудования)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "hamstrings": 0.4,
+     "glutes": 0.4,
+     "back": 0.2
+    },
+    "new": {
+     "hamstrings": 0.32,
+     "glutes": 0.32,
+     "back": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Прыжки в сторону (имитация конькобежного бега)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.3,
+     "calves": 0.3
+    },
+    "new": {
+     "quads": 0.32,
+     "glutes": 0.24,
+     "calves": 0.24,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Скейтер-прыжок",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.4,
+     "hamstrings": 0.2,
+     "calves": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.32,
+     "hamstrings": 0.16,
+     "calves": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Скейтер-прыжок на возвышение",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.4,
+     "core": 0.2
+    },
+    "new": {
+     "quads": 0.32,
+     "glutes": 0.32,
+     "core": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Скейтер-прыжок с резиной",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.3,
+     "hamstrings": 0.2,
+     "calves": 0.1
+    },
+    "new": {
+     "quads": 0.32,
+     "glutes": 0.24,
+     "hamstrings": 0.16,
+     "calves": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Скейтер-прыжок через барьеры",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.4,
+     "hamstrings": 0.2,
+     "calves": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.32,
+     "hamstrings": 0.16,
+     "calves": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Реактивный скейтер-прыжок по сигналу",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.4,
+     "core": 0.2
+    },
+    "new": {
+     "quads": 0.32,
+     "glutes": 0.32,
+     "core": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой прыжок на дальность на 1 ноге",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.4,
+     "hamstrings": 0.2,
+     "calves": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.32,
+     "hamstrings": 0.16,
+     "calves": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой скачок 45°+пауза",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.3,
+     "core": 0.2,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.24,
+     "core": 0.16,
+     "hamstrings": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой скачок через барьер",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.3,
+     "core": 0.1,
+     "calves": 0.3
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.26,
+     "core": 0.09,
+     "calves": 0.26,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой прыжок через линию",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.2,
+     "calves": 0.4,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.26,
+     "glutes": 0.17,
+     "calves": 0.33,
+     "core": 0.09,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой шаг с прыжком",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Выпад в сторону с ротацией корпуса",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Контроль края конька латеральный баланс",
+  "changes": {
+   "muscles": {
+    "old": {
+     "calves": 0.6,
+     "core": 0.2,
+     "glutes": 0.2
+    },
+    "new": {
+     "calves": 0.51,
+     "core": 0.17,
+     "glutes": 0.17,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Стартовый разгон конькобежца",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.3,
+     "core": 0.2,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "quads": 0.25,
+     "glutes": 0.26,
+     "core": 0.17,
+     "hamstrings": 0.17,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Резаная имитация торможения",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.4,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "quads": 0.34,
+     "glutes": 0.34,
+     "hamstrings": 0.17,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Кроссовер",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.25,
+     "hamstrings": 0.17,
+     "glutes": 0.17,
+     "calves": 0.17,
+     "core": 0.09,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Обратный кроссовер",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.25,
+     "hamstrings": 0.17,
+     "glutes": 0.17,
+     "calves": 0.17,
+     "core": 0.09,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Кроссовер на месте",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.4,
+     "calves": 0.1
+    },
+    "new": {
+     "quads": 0.26,
+     "hamstrings": 0.17,
+     "glutes": 0.33,
+     "calves": 0.09,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Прыжок кроссовер",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.4,
+     "hamstrings": 0.2,
+     "calves": 0.1
+    },
+    "new": {
+     "quads": 0.26,
+     "glutes": 0.33,
+     "hamstrings": 0.17,
+     "calves": 0.09,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковое ведение с широким выпадом в сторону",
+  "changes": {
+   "muscles": {
+    "old": {
+     "forearms": 0.4,
+     "quads": 0.3,
+     "glutes": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "forearms": 0.33,
+     "quads": 0.26,
+     "glutes": 0.17,
+     "core": 0.09,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Кроссовер с санями",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.3,
+     "quads": 0.3,
+     "core": 0.2,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "glutes": 0.24,
+     "quads": 0.24,
+     "core": 0.16,
+     "hamstrings": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Кроссовер со спринтом по команде",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.4,
+     "quads": 0.4,
+     "core": 0.2
+    },
+    "new": {
+     "glutes": 0.34,
+     "quads": 0.34,
+     "core": 0.17,
+     "adductors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковая тяга саней",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.4,
+     "quads": 0.4,
+     "hamstrings": 0.2
+    },
+    "new": {
+     "glutes": 0.32,
+     "quads": 0.32,
+     "hamstrings": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Серия боковых прыжков со спринтом",
+  "changes": {
+   "muscles": {
+    "old": {
+     "glutes": 0.4,
+     "quads": 0.4,
+     "calves": 0.2
+    },
+    "new": {
+     "glutes": 0.32,
+     "quads": 0.32,
+     "calves": 0.16,
+     "adductors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Подъём корпуса с мячом над головой",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.8,
+     "shoulders": 0.2
+    },
+    "new": {
+     "core": 0.6,
+     "shoulders": 0.15,
+     "hip_flexors": 0.25
+    }
+   }
+  }
+ },
+ {
+  "name": "Русский твист",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.6,
+     "shoulders": 0.2,
+     "back": 0.2
+    },
+    "new": {
+     "core": 0.51,
+     "shoulders": 0.17,
+     "back": 0.17,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Колесо для пресса стоя",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.5,
+     "back": 0.3,
+     "shoulders": 0.2
+    },
+    "new": {
+     "core": 0.42,
+     "back": 0.26,
+     "shoulders": 0.17,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Метание набивного мяча ногами",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "glutes": 0.3,
+     "core": 0.4
+    },
+    "new": {
+     "quads": 0.24,
+     "glutes": 0.24,
+     "core": 0.32,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Планка на фитболе с перекатом",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.7,
+     "back": 0.3
+    },
+    "new": {
+     "core": 0.59,
+     "back": 0.26,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Зашагивание на тумбу с гантелями и подъёмом колена",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.4,
+     "glutes": 0.4,
+     "core": 0.2
+    },
+    "new": {
+     "quads": 0.34,
+     "glutes": 0.34,
+     "core": 0.17,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Обратный выпад с подъёмом колена",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Жук (Dead Bug)",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 1
+    },
+    "new": {
+     "core": 0.8,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Жук + резина",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.7,
+     "back": 0.3
+    },
+    "new": {
+     "core": 0.59,
+     "back": 0.26,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Жук + антиротация",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.7,
+     "back": 0.3
+    },
+    "new": {
+     "core": 0.59,
+     "back": 0.26,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Жук + рол статика",
+  "changes": {
+   "muscles": {
+    "old": {
+     "core": 0.7,
+     "back": 0.3
+    },
+    "new": {
+     "core": 0.59,
+     "back": 0.26,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "A-скип",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "N-скип",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Мощный скип",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Линейный марш",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.22,
+     "hamstrings": 0.15,
+     "glutes": 0.15,
+     "calves": 0.15,
+     "core": 0.08,
+     "hip_flexors": 0.25
+    }
+   }
+  }
+ },
+ {
+  "name": "Марш с прямой ногой",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.24,
+     "hamstrings": 0.16,
+     "glutes": 0.16,
+     "calves": 0.16,
+     "core": 0.08,
+     "hip_flexors": 0.2
+    }
+   }
+  }
+ },
+ {
+  "name": "Бег прямые ноги",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.25,
+     "hamstrings": 0.17,
+     "glutes": 0.17,
+     "calves": 0.17,
+     "core": 0.09,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой скип",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.25,
+     "hamstrings": 0.17,
+     "glutes": 0.17,
+     "calves": 0.17,
+     "core": 0.09,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ },
+ {
+  "name": "Боковой кроссовер скип",
+  "changes": {
+   "muscles": {
+    "old": {
+     "quads": 0.3,
+     "hamstrings": 0.2,
+     "glutes": 0.2,
+     "calves": 0.2,
+     "core": 0.1
+    },
+    "new": {
+     "quads": 0.21,
+     "hamstrings": 0.14,
+     "glutes": 0.14,
+     "calves": 0.14,
+     "core": 0.07,
+     "adductors": 0.15,
+     "hip_flexors": 0.15
+    }
+   }
+  }
+ }
+]
