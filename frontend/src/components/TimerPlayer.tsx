@@ -5,6 +5,7 @@ import { ExerciseFeedbackPrompt } from './ExerciseFeedbackPrompt'
 import { LastTimeHint } from './ExerciseHistory'
 import * as progressApi from '../api/progress'
 import * as setCompletionsApi from '../api/setCompletions'
+import * as trainingSessionsApi from '../api/trainingSessions'
 import type { ExerciseRead } from '../types/exercise'
 import type { ExerciseHistorySession } from '../types/setCompletion'
 import {
@@ -13,6 +14,66 @@ import {
   scheduleRestDoneNotification,
   type ScheduledRestNotification,
 } from '../utils/restNotification'
+import { renderLockScreenArtwork } from '../utils/lockScreenArtwork'
+import { exercisePosterUrl } from '../utils/media'
+import {
+  cancelScheduledBeeps,
+  isLockScreenPlayerEnabled,
+  isLockScreenPlayerSupported,
+  scheduleSegmentBeeps,
+  startLockScreenSession,
+  stopLockScreenSession,
+  updateLockScreenInfo,
+  updateLockScreenProgress,
+  type SegmentEnd,
+} from '../utils/workoutAudio'
+
+// Where the timer stood, kept across leaving the app (2026-10-03: an iPhone
+// home-screen app is often reloaded from scratch when reopened, and the
+// round started over). Device-local and short-lived on purpose: the rounds
+// already finished are on the server anyway (re-read on mount), this only
+// adds the segment in progress -- work or rest, its deadline, paused or not.
+const SNAPSHOT_PREFIX = 'icelevel.timer.'
+const SNAPSHOT_MAX_AGE_MS = 3 * 60 * 60 * 1000
+
+interface TimerSnapshot {
+  phase: 'work' | 'rest'
+  completedRounds: number
+  running: boolean
+  deadline: number | null
+  remaining: number
+  durationSeconds: number
+  savedAt: number
+}
+
+function readSnapshot(key: string): TimerSnapshot | null {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_PREFIX + key)
+    if (raw === null) {
+      return null
+    }
+    const snapshot = JSON.parse(raw) as TimerSnapshot
+    if (Date.now() - snapshot.savedAt > SNAPSHOT_MAX_AGE_MS) {
+      localStorage.removeItem(SNAPSHOT_PREFIX + key)
+      return null
+    }
+    return snapshot
+  } catch {
+    return null
+  }
+}
+
+function writeSnapshot(key: string, snapshot: TimerSnapshot | null): void {
+  try {
+    if (snapshot === null) {
+      localStorage.removeItem(SNAPSHOT_PREFIX + key)
+    } else {
+      localStorage.setItem(SNAPSHOT_PREFIX + key, JSON.stringify(snapshot))
+    }
+  } catch {
+    // Private mode / full storage -- the timer just won't survive a reload.
+  }
+}
 
 // Fallback rest between rounds when the exercise has no configured
 // rest_seconds -- preserves the old always-advances behavior instead of
@@ -101,14 +162,114 @@ export function TimerPlayer({
 
   const restSeconds = exercise.rest_seconds ?? FALLBACK_REST_SECONDS
 
+  const snapshotKey = `${trainingSessionId}:${exercise.id}`
+  // Restore once on mount: first the local snapshot (the segment in
+  // progress), then the server's logged rounds, which win if they're ahead
+  // (e.g. the snapshot was lost). A deadline that passed while the app was
+  // closed is handled by the normal end-of-segment path right after.
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (isDone) {
+      writeSnapshot(snapshotKey, null)
+      return
+    }
+    const snapshot = readSnapshot(snapshotKey)
+    if (snapshot !== null && snapshot.completedRounds < rounds) {
+      setCompletedRounds(snapshot.completedRounds)
+      setPhase(snapshot.phase)
+      if (snapshot.running && snapshot.deadline !== null) {
+        deadlineRef.current = snapshot.deadline
+        setRemaining(Math.max(0, (snapshot.deadline - Date.now()) / 1000))
+        setRunning(true)
+      } else {
+        setRemaining(snapshot.remaining)
+      }
+    }
+    restoredRef.current = true
+    let cancelled = false
+    trainingSessionsApi
+      .getExerciseSets(trainingSessionId, exercise.id, accessToken)
+      .then((result) => {
+        if (cancelled) {
+          return
+        }
+        const logged = result.sets.filter((set) => set.set_number <= rounds).length
+        if (logged > (snapshot?.completedRounds ?? 0) && logged < rounds) {
+          setCompletedRounds(logged)
+          setPhase('work')
+          setRunning(false)
+          deadlineRef.current = null
+          setRemaining(durationSeconds)
+        }
+      })
+      .catch(() => {
+        // Best-effort -- the local snapshot (or a fresh start) stands.
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, [])
+
+  // Saved on every state change (not every tick -- the deadline is enough
+  // to know the rest), and once more when the app goes to the background.
+  const saveSnapshotRef = useRef(() => {})
+  saveSnapshotRef.current = () => {
+    if (!restoredRef.current) {
+      return
+    }
+    if (completedRounds >= rounds || isDone) {
+      writeSnapshot(snapshotKey, null)
+      return
+    }
+    if (completedRounds === 0 && phase === 'work' && !running && remaining >= durationSeconds) {
+      writeSnapshot(snapshotKey, null)
+      return
+    }
+    writeSnapshot(snapshotKey, {
+      phase,
+      completedRounds,
+      running,
+      deadline: running ? deadlineRef.current : null,
+      remaining,
+      durationSeconds,
+      savedAt: Date.now(),
+    })
+  }
+  useEffect(() => {
+    saveSnapshotRef.current()
+  }, [phase, completedRounds, running, isDone])
+  useEffect(() => {
+    const save = () => saveSnapshotRef.current()
+    document.addEventListener('visibilitychange', save)
+    window.addEventListener('pagehide', save)
+    return () => {
+      document.removeEventListener('visibilitychange', save)
+      window.removeEventListener('pagehide', save)
+    }
+  }, [])
+
+  // Lock-screen player experiment (utils/workoutAudio.ts) -- read once per
+  // mount; the session itself starts on the first tap of the ring.
+  const [lockScreen] = useState(() => isLockScreenPlayerEnabled() && isLockScreenPlayerSupported())
+  const lockScreenStartedRef = useRef(false)
+
   // The per-athlete target (time progression) arrives a moment after mount;
   // pick it up as long as nothing has started yet. Once the first round is
   // running or logged, the target in hand stays for the whole exercise.
-  const notStarted = !running && completedRounds === 0 && phase === 'work' && manualSeconds === null
+  const durationSecondsRef = useRef(durationSeconds)
+  const notStarted =
+    !running && completedRounds === 0 && phase === 'work' && manualSeconds === null && remaining === durationSecondsRef.current
   useEffect(() => {
+    // Only a CHANGED target re-syncs -- on mount this must not undo a
+    // restored snapshot (that effect runs earlier in the same commit).
+    if (durationSecondsRef.current === durationSeconds) {
+      return
+    }
     if (notStarted) {
       setRemaining(durationSeconds)
     }
+    durationSecondsRef.current = durationSeconds
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new target should re-sync
   }, [durationSeconds])
 
@@ -156,11 +317,16 @@ export function TimerPlayer({
       return
     }
     setRunning(false)
-    alertTimerDone()
+    // With the lock-screen player on, the end tone was already scheduled
+    // on the audio clock (and may have played long ago with the screen
+    // locked) -- don't beep a second time when the page wakes up.
+    if (!lockScreenStartedRef.current) {
+      alertTimerDone()
+    }
     if (phase === 'work') {
-      advanceWork()
+      advanceWork(durationSeconds, true)
     } else {
-      advanceRest()
+      advanceRest(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, remaining, phase])
@@ -177,7 +343,20 @@ export function TimerPlayer({
   // down to zero" path below always means the whole thing was done. A
   // manual early confirm (see the paused-mid-round controls further down)
   // passes whatever the athlete actually logged instead.
-  function advanceWork(actualSeconds: number = durationSeconds) {
+  // Where the next segment starts counting from. Normally "now"; with the
+  // lock-screen player on, a segment that ran out on its own continues
+  // from its own scheduled end, so after the page was frozen with the
+  // screen locked the on-screen timer catches up with the beeps the athlete
+  // already heard instead of restarting the rest from the moment of unlock.
+  function nextSegmentStart(fromDeadline: boolean): number {
+    if (fromDeadline && lockScreenStartedRef.current && deadlineRef.current !== null) {
+      return deadlineRef.current
+    }
+    return Date.now()
+  }
+
+  function advanceWork(actualSeconds: number = durationSeconds, fromDeadline = false) {
+    const segmentStart = nextSegmentStart(fromDeadline)
     const finishedSetNumber = completedRounds + 1
     // Honest record of what was actually done -- previously duration-mode
     // exercises left zero SetCompletion rows at all (found 2026-08-28
@@ -216,7 +395,7 @@ export function TimerPlayer({
     }
     setCompletedRounds(finishedSetNumber)
     setPhase('rest')
-    deadlineRef.current = Date.now() + restSeconds * 1000
+    deadlineRef.current = segmentStart + restSeconds * 1000
     setRemaining(restSeconds)
     setRunning(true)
 
@@ -234,13 +413,202 @@ export function TimerPlayer({
       })
   }
 
-  function advanceRest() {
+  function advanceRest(fromDeadline = false) {
     scheduledRestNotificationRef.current.cancel()
+    const segmentStart = nextSegmentStart(fromDeadline)
     setPhase('work')
-    deadlineRef.current = Date.now() + durationSeconds * 1000
+    deadlineRef.current = segmentStart + durationSeconds * 1000
     setRemaining(durationSeconds)
     setRunning(true)
   }
+
+  function setWorkRunning(next: boolean) {
+    if (next === running) {
+      return
+    }
+    if (next) {
+      // Resuming (or starting fresh) anchors a new deadline off whatever
+      // `remaining` currently is, and drops any honest-fact override from a
+      // previous pause -- the athlete chose to keep going, so the round
+      // isn't finishing early after all.
+      deadlineRef.current = Date.now() + remaining * 1000
+      setManualSeconds(null)
+    } else {
+      // Paused mid-round -- capture what's actually elapsed so far as the
+      // starting point for an early honest confirm. From the deadline, not
+      // `remaining`: a pause from the lock screen can arrive while the page
+      // was frozen and `remaining` is whatever the last tick before that was.
+      const left =
+        deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
+      setRemaining(left)
+      setManualSeconds(Math.round(durationSeconds - left))
+    }
+    setRunning(next)
+  }
+
+  // The idle card for unmount, built by the latest render's function (the
+  // cleanup above only sees the first render; drawn lazily, not per tick).
+  const idleCardRef = useRef(() => idleLockScreenInfo())
+  idleCardRef.current = () => idleLockScreenInfo()
+
+  // Lock-screen buttons call whatever the latest render's handlers are.
+  const lockScreenHandlersRef = useRef({ play: () => {}, pause: (): boolean => false, next: () => {} })
+  lockScreenHandlersRef.current = {
+    play: () => {
+      if (phase === 'work') {
+        setWorkRunning(true)
+      }
+    },
+    // Pauses the work round in the app too. Rest has no pause in the app,
+    // so there the lock-screen button is ignored and the rest runs on.
+    pause: () => {
+      if (phase !== 'work') {
+        return false
+      }
+      setWorkRunning(false)
+      return true
+    },
+    next: () => {
+      if (phase === 'rest') {
+        skipRest()
+      }
+    },
+  }
+
+  function lockScreenInfo() {
+    const artworkUrl =
+      renderLockScreenArtwork({
+        phase,
+        exerciseName: exercise.name,
+        seconds: phase === 'work' ? durationSeconds : restSeconds,
+        rounds,
+        completedRounds,
+      }) ??
+      (exercise.video_source_type === 'file' && exercise.video_source_id !== null
+        ? exercisePosterUrl(exercise.video_source_id)
+        : '/icon-512.png')
+    const subtitle =
+      phase === 'work'
+        ? `Раунд ${completedRounds + 1} из ${rounds} · работа`
+        : `Отдых · дальше раунд ${completedRounds + 1} из ${rounds}`
+    return { title: exercise.name, subtitle, artworkUrl }
+  }
+
+  // Whole exercise as one timeline (all work rounds + the rests between):
+  // the lock-screen progress bar shows this, not the current segment.
+  function exerciseTimeline(): { total: number; left: number } {
+    const total = rounds * durationSeconds + Math.max(0, rounds - 1) * restSeconds
+    const segmentTotal = phase === 'work' ? durationSeconds : restSeconds
+    const segmentLeft =
+      running && deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
+    const before =
+      phase === 'work'
+        ? completedRounds * (durationSeconds + restSeconds)
+        : completedRounds * durationSeconds + Math.max(0, completedRounds - 1) * restSeconds
+    const elapsed = before + (segmentTotal - segmentLeft)
+    return { total, left: Math.max(0, total - elapsed) }
+  }
+
+  function idleLockScreenInfo() {
+    return {
+      title: 'IceLevel',
+      subtitle: 'Тренировка идёт',
+      artworkUrl: renderLockScreenArtwork({ phase: 'idle', exerciseName: exercise.name, rounds, completedRounds }) ?? '/icon-512.png',
+    }
+  }
+
+  // Called from the ring tap itself -- audio may only start inside a gesture.
+  function startLockScreenIfOn() {
+    if (!lockScreen || lockScreenStartedRef.current) {
+      return
+    }
+    lockScreenStartedRef.current = true
+    startLockScreenSession(lockScreenInfo(), {
+      onPlay: () => lockScreenHandlersRef.current.play(),
+      onPause: () => lockScreenHandlersRef.current.pause(),
+      onNext: () => lockScreenHandlersRef.current.next(),
+    })
+  }
+
+  // Keeps the widget and the pre-scheduled beeps in step with the timer:
+  // on every start/pause/segment change (not every tick), everything still
+  // ahead is re-laid out on the audio clock from the current deadline.
+  useEffect(() => {
+    if (!lockScreenStartedRef.current) {
+      return
+    }
+    if (completedRounds >= rounds) {
+      // Last round over -- let the final double tone finish, then release
+      // the lock-screen widget.
+      const idle = idleLockScreenInfo()
+      const timeoutId = window.setTimeout(() => stopLockScreenSession(idle), 1500)
+      return () => window.clearTimeout(timeoutId)
+    }
+    updateLockScreenInfo(lockScreenInfo())
+    const endsIn =
+      running && deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
+    const timeline = exerciseTimeline()
+    updateLockScreenProgress(timeline.total, timeline.left, running)
+    if (!running) {
+      cancelScheduledBeeps()
+      return
+    }
+    const segments: SegmentEnd[] = []
+    let at = endsIn
+    let round = completedRounds + 1
+    let segmentPhase = phase
+    for (;;) {
+      if (segmentPhase === 'work') {
+        if (round >= rounds) {
+          segments.push({ endsIn: at, kind: 'done' })
+          break
+        }
+        segments.push({ endsIn: at, kind: 'work' })
+        at += restSeconds
+        segmentPhase = 'rest'
+      } else {
+        segments.push({ endsIn: at, kind: 'rest' })
+        round += 1
+        at += durationSeconds
+        segmentPhase = 'work'
+      }
+    }
+    scheduleSegmentBeeps(segments)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-plan on state changes, not on every tick
+  }, [running, phase, completedRounds, durationSeconds])
+
+  useEffect(() => {
+    return () => {
+      if (lockScreenStartedRef.current) {
+        stopLockScreenSession(idleCardRef.current())
+      }
+    }
+  }, [])
+
+  // Browsers (iOS especially) drop or reset the media session's position
+  // when the page comes back from the background -- the widget's progress
+  // bar then restarts from zero. Re-assert it from the real deadline every
+  // time the page is shown again.
+  const resyncLockScreenRef = useRef(() => {})
+  resyncLockScreenRef.current = () => {
+    if (!lockScreenStartedRef.current || completedRounds >= rounds) {
+      return
+    }
+    updateLockScreenInfo(lockScreenInfo())
+    const timeline = exerciseTimeline()
+    updateLockScreenProgress(timeline.total, timeline.left, running)
+  }
+  useEffect(() => {
+    const resync = () => resyncLockScreenRef.current()
+    document.addEventListener('visibilitychange', resync)
+    window.addEventListener('pageshow', resync)
+    window.addEventListener('focus', resync)
+    return () => {
+      document.removeEventListener('visibilitychange', resync)
+      window.removeEventListener('pageshow', resync)
+      window.removeEventListener('focus', resync)
+    }
+  }, [])
 
   function skipRest() {
     setRunning(false)
@@ -296,25 +664,12 @@ export function TimerPlayer({
             accent="ice"
             interactive
             running={running}
-            onToggle={() =>
-              setRunning((value) => {
-                const next = !value
-                if (next) {
-                  // Resuming (or starting fresh) anchors a new deadline off
-                  // whatever `remaining` currently is, and drops any
-                  // honest-fact override from a previous pause -- the
-                  // athlete chose to keep going, so the round isn't
-                  // finishing early after all.
-                  deadlineRef.current = Date.now() + remaining * 1000
-                  setManualSeconds(null)
-                } else {
-                  // Paused mid-round -- capture what's actually elapsed so
-                  // far as the starting point for an early honest confirm.
-                  setManualSeconds(Math.round(durationSeconds - remaining))
-                }
-                return next
-              })
-            }
+            onToggle={() => {
+              if (!running) {
+                startLockScreenIfOn()
+              }
+              setWorkRunning(!running)
+            }}
           />
           <LastTimeHint history={history} setNumber={completedRounds + 1} tracksWeight={false} />
           {manualSeconds !== null && (

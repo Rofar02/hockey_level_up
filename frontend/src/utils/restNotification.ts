@@ -87,6 +87,19 @@ export function installAudioUnlockOnFirstGesture(): void {
   }
 }
 
+// The same unlocked context, for code that schedules its own sounds ahead
+// of time (workoutAudio.ts). null where Web Audio doesn't exist at all.
+export function getSharedAudioContext(): AudioContext | null {
+  if (sharedAudioContext === null) {
+    const AudioContextClass = resolveAudioContextClass()
+    if (AudioContextClass === undefined) {
+      return null
+    }
+    sharedAudioContext = new AudioContextClass()
+  }
+  return sharedAudioContext
+}
+
 // Vibration + a short synthesized beep (Web Audio oscillator, no external
 // audio asset needed) -- the immediate, always-on-screen alert for "a
 // countdown just reached zero". Shared by both timer surfaces: RestTimer
