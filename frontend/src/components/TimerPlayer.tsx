@@ -13,6 +13,18 @@ import {
   scheduleRestDoneNotification,
   type ScheduledRestNotification,
 } from '../utils/restNotification'
+import { exercisePosterUrl } from '../utils/media'
+import {
+  cancelScheduledBeeps,
+  isLockScreenPlayerEnabled,
+  isLockScreenPlayerSupported,
+  scheduleSegmentBeeps,
+  startLockScreenSession,
+  stopLockScreenSession,
+  updateLockScreenInfo,
+  updateLockScreenProgress,
+  type SegmentEnd,
+} from '../utils/workoutAudio'
 
 // Fallback rest between rounds when the exercise has no configured
 // rest_seconds -- preserves the old always-advances behavior instead of
@@ -101,6 +113,11 @@ export function TimerPlayer({
 
   const restSeconds = exercise.rest_seconds ?? FALLBACK_REST_SECONDS
 
+  // Lock-screen player experiment (utils/workoutAudio.ts) -- read once per
+  // mount; the session itself starts on the first tap of the ring.
+  const [lockScreen] = useState(() => isLockScreenPlayerEnabled() && isLockScreenPlayerSupported())
+  const lockScreenStartedRef = useRef(false)
+
   // The per-athlete target (time progression) arrives a moment after mount;
   // pick it up as long as nothing has started yet. Once the first round is
   // running or logged, the target in hand stays for the whole exercise.
@@ -156,11 +173,16 @@ export function TimerPlayer({
       return
     }
     setRunning(false)
-    alertTimerDone()
+    // With the lock-screen player on, the end tone was already scheduled
+    // on the audio clock (and may have played long ago with the screen
+    // locked) -- don't beep a second time when the page wakes up.
+    if (!lockScreenStartedRef.current) {
+      alertTimerDone()
+    }
     if (phase === 'work') {
-      advanceWork()
+      advanceWork(durationSeconds, true)
     } else {
-      advanceRest()
+      advanceRest(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running, remaining, phase])
@@ -177,7 +199,20 @@ export function TimerPlayer({
   // down to zero" path below always means the whole thing was done. A
   // manual early confirm (see the paused-mid-round controls further down)
   // passes whatever the athlete actually logged instead.
-  function advanceWork(actualSeconds: number = durationSeconds) {
+  // Where the next segment starts counting from. Normally "now"; with the
+  // lock-screen player on, a segment that ran out on its own continues
+  // from its own scheduled end, so after the page was frozen with the
+  // screen locked the on-screen timer catches up with the beeps the athlete
+  // already heard instead of restarting the rest from the moment of unlock.
+  function nextSegmentStart(fromDeadline: boolean): number {
+    if (fromDeadline && lockScreenStartedRef.current && deadlineRef.current !== null) {
+      return deadlineRef.current
+    }
+    return Date.now()
+  }
+
+  function advanceWork(actualSeconds: number = durationSeconds, fromDeadline = false) {
+    const segmentStart = nextSegmentStart(fromDeadline)
     const finishedSetNumber = completedRounds + 1
     // Honest record of what was actually done -- previously duration-mode
     // exercises left zero SetCompletion rows at all (found 2026-08-28
@@ -216,7 +251,7 @@ export function TimerPlayer({
     }
     setCompletedRounds(finishedSetNumber)
     setPhase('rest')
-    deadlineRef.current = Date.now() + restSeconds * 1000
+    deadlineRef.current = segmentStart + restSeconds * 1000
     setRemaining(restSeconds)
     setRunning(true)
 
@@ -234,13 +269,132 @@ export function TimerPlayer({
       })
   }
 
-  function advanceRest() {
+  function advanceRest(fromDeadline = false) {
     scheduledRestNotificationRef.current.cancel()
+    const segmentStart = nextSegmentStart(fromDeadline)
     setPhase('work')
-    deadlineRef.current = Date.now() + durationSeconds * 1000
+    deadlineRef.current = segmentStart + durationSeconds * 1000
     setRemaining(durationSeconds)
     setRunning(true)
   }
+
+  function setWorkRunning(next: boolean) {
+    if (next === running) {
+      return
+    }
+    if (next) {
+      // Resuming (or starting fresh) anchors a new deadline off whatever
+      // `remaining` currently is, and drops any honest-fact override from a
+      // previous pause -- the athlete chose to keep going, so the round
+      // isn't finishing early after all.
+      deadlineRef.current = Date.now() + remaining * 1000
+      setManualSeconds(null)
+    } else {
+      // Paused mid-round -- capture what's actually elapsed so far as the
+      // starting point for an early honest confirm.
+      setManualSeconds(Math.round(durationSeconds - remaining))
+    }
+    setRunning(next)
+  }
+
+  // Lock-screen buttons call whatever the latest render's handlers are.
+  const lockScreenHandlersRef = useRef({ play: () => {}, pause: () => {}, next: () => {} })
+  lockScreenHandlersRef.current = {
+    play: () => {
+      if (phase === 'work') {
+        setWorkRunning(true)
+      }
+    },
+    pause: () => {
+      if (phase === 'work') {
+        setWorkRunning(false)
+      }
+    },
+    next: () => {
+      if (phase === 'rest') {
+        skipRest()
+      }
+    },
+  }
+
+  function lockScreenInfo() {
+    const artworkUrl =
+      exercise.video_source_type === 'file' && exercise.video_source_id !== null
+        ? exercisePosterUrl(exercise.video_source_id)
+        : '/icon-512.png'
+    const subtitle =
+      phase === 'work'
+        ? `Раунд ${completedRounds + 1} из ${rounds} · работа`
+        : `Отдых · дальше раунд ${completedRounds + 1} из ${rounds}`
+    return { title: exercise.name, subtitle, artworkUrl }
+  }
+
+  // Called from the ring tap itself -- audio may only start inside a gesture.
+  function startLockScreenIfOn() {
+    if (!lockScreen || lockScreenStartedRef.current) {
+      return
+    }
+    lockScreenStartedRef.current = true
+    startLockScreenSession(lockScreenInfo(), {
+      onPlay: () => lockScreenHandlersRef.current.play(),
+      onPause: () => lockScreenHandlersRef.current.pause(),
+      onNext: () => lockScreenHandlersRef.current.next(),
+    })
+  }
+
+  // Keeps the widget and the pre-scheduled beeps in step with the timer:
+  // on every start/pause/segment change (not every tick), everything still
+  // ahead is re-laid out on the audio clock from the current deadline.
+  useEffect(() => {
+    if (!lockScreenStartedRef.current) {
+      return
+    }
+    if (completedRounds >= rounds) {
+      // Last round over -- let the final double tone finish, then release
+      // the lock-screen widget.
+      const timeoutId = window.setTimeout(stopLockScreenSession, 1500)
+      return () => window.clearTimeout(timeoutId)
+    }
+    updateLockScreenInfo(lockScreenInfo())
+    const total = phase === 'work' ? durationSeconds : restSeconds
+    const endsIn =
+      running && deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
+    updateLockScreenProgress(total, endsIn, running)
+    if (!running) {
+      cancelScheduledBeeps()
+      return
+    }
+    const segments: SegmentEnd[] = []
+    let at = endsIn
+    let round = completedRounds + 1
+    let segmentPhase = phase
+    for (;;) {
+      if (segmentPhase === 'work') {
+        if (round >= rounds) {
+          segments.push({ endsIn: at, kind: 'done' })
+          break
+        }
+        segments.push({ endsIn: at, kind: 'work' })
+        at += restSeconds
+        segmentPhase = 'rest'
+      } else {
+        segments.push({ endsIn: at, kind: 'rest' })
+        round += 1
+        at += durationSeconds
+        segmentPhase = 'work'
+      }
+    }
+    scheduleSegmentBeeps(segments)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-plan on state changes, not on every tick
+  }, [running, phase, completedRounds, durationSeconds])
+
+  useEffect(() => {
+    return () => {
+      if (lockScreenStartedRef.current) {
+        stopLockScreenSession()
+      }
+    }
+  }, [])
 
   function skipRest() {
     setRunning(false)
@@ -296,25 +450,12 @@ export function TimerPlayer({
             accent="ice"
             interactive
             running={running}
-            onToggle={() =>
-              setRunning((value) => {
-                const next = !value
-                if (next) {
-                  // Resuming (or starting fresh) anchors a new deadline off
-                  // whatever `remaining` currently is, and drops any
-                  // honest-fact override from a previous pause -- the
-                  // athlete chose to keep going, so the round isn't
-                  // finishing early after all.
-                  deadlineRef.current = Date.now() + remaining * 1000
-                  setManualSeconds(null)
-                } else {
-                  // Paused mid-round -- capture what's actually elapsed so
-                  // far as the starting point for an early honest confirm.
-                  setManualSeconds(Math.round(durationSeconds - remaining))
-                }
-                return next
-              })
-            }
+            onToggle={() => {
+              if (!running) {
+                startLockScreenIfOn()
+              }
+              setWorkRunning(!running)
+            }}
           />
           <LastTimeHint history={history} setNumber={completedRounds + 1} tracksWeight={false} />
           {manualSeconds !== null && (

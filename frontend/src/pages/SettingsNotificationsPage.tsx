@@ -11,12 +11,18 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { getActivePushSubscription, isIos, isPushSupported, isStandalone, subscribeToPush } from '../push'
 import { REMINDER_PREFERENCE_LABELS } from '../types/user'
+import {
+  isLockScreenPlayerEnabled,
+  isLockScreenPlayerSupported,
+  setLockScreenPlayerEnabled,
+} from '../utils/workoutAudio'
 import type { ReminderPreference } from '../types/user'
 
 export function SettingsNotificationsPage() {
   const { user, accessToken, updateUser } = useAuth()
 
   const [pushSupported] = useState(() => isPushSupported())
+  const [lockScreenPlayer, setLockScreenPlayer] = useState(() => isLockScreenPlayerEnabled())
   // Unsupported for the fixable reason (iOS Safari, not installed to the
   // home screen) vs. every other unsupported case, which has no fix to
   // point the user at -- see push.ts for why standalone gates PushManager.
@@ -232,6 +238,27 @@ export function SettingsNotificationsPage() {
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {isLockScreenPlayerSupported() && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-medium text-text-primary">Таймер на экране блокировки</p>
+                <p className="text-sm text-text-secondary">
+                  Эксперимент: упражнения на время показываются в плеере на экране блокировки, сигналы
+                  звучат и при выключенном экране.
+                </p>
+              </div>
+              <Switch
+                checked={lockScreenPlayer}
+                onClick={() => {
+                  setLockScreenPlayerEnabled(!lockScreenPlayer)
+                  setLockScreenPlayer(!lockScreenPlayer)
+                }}
+              />
+            </div>
           </div>
         )}
       </div>
