@@ -5,6 +5,7 @@ import { ExerciseFeedbackPrompt } from './ExerciseFeedbackPrompt'
 import { LastTimeHint } from './ExerciseHistory'
 import * as progressApi from '../api/progress'
 import * as setCompletionsApi from '../api/setCompletions'
+import * as trainingSessionsApi from '../api/trainingSessions'
 import type { ExerciseRead } from '../types/exercise'
 import type { ExerciseHistorySession } from '../types/setCompletion'
 import {
@@ -26,6 +27,53 @@ import {
   updateLockScreenProgress,
   type SegmentEnd,
 } from '../utils/workoutAudio'
+
+// Where the timer stood, kept across leaving the app (2026-10-03: an iPhone
+// home-screen app is often reloaded from scratch when reopened, and the
+// round started over). Device-local and short-lived on purpose: the rounds
+// already finished are on the server anyway (re-read on mount), this only
+// adds the segment in progress -- work or rest, its deadline, paused or not.
+const SNAPSHOT_PREFIX = 'icelevel.timer.'
+const SNAPSHOT_MAX_AGE_MS = 3 * 60 * 60 * 1000
+
+interface TimerSnapshot {
+  phase: 'work' | 'rest'
+  completedRounds: number
+  running: boolean
+  deadline: number | null
+  remaining: number
+  durationSeconds: number
+  savedAt: number
+}
+
+function readSnapshot(key: string): TimerSnapshot | null {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_PREFIX + key)
+    if (raw === null) {
+      return null
+    }
+    const snapshot = JSON.parse(raw) as TimerSnapshot
+    if (Date.now() - snapshot.savedAt > SNAPSHOT_MAX_AGE_MS) {
+      localStorage.removeItem(SNAPSHOT_PREFIX + key)
+      return null
+    }
+    return snapshot
+  } catch {
+    return null
+  }
+}
+
+function writeSnapshot(key: string, snapshot: TimerSnapshot | null): void {
+  try {
+    if (snapshot === null) {
+      localStorage.removeItem(SNAPSHOT_PREFIX + key)
+    } else {
+      localStorage.setItem(SNAPSHOT_PREFIX + key, JSON.stringify(snapshot))
+    }
+  } catch {
+    // Private mode / full storage -- the timer just won't survive a reload.
+  }
+}
 
 // Fallback rest between rounds when the exercise has no configured
 // rest_seconds -- preserves the old always-advances behavior instead of
@@ -114,6 +162,93 @@ export function TimerPlayer({
 
   const restSeconds = exercise.rest_seconds ?? FALLBACK_REST_SECONDS
 
+  const snapshotKey = `${trainingSessionId}:${exercise.id}`
+  // Restore once on mount: first the local snapshot (the segment in
+  // progress), then the server's logged rounds, which win if they're ahead
+  // (e.g. the snapshot was lost). A deadline that passed while the app was
+  // closed is handled by the normal end-of-segment path right after.
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (isDone) {
+      writeSnapshot(snapshotKey, null)
+      return
+    }
+    const snapshot = readSnapshot(snapshotKey)
+    if (snapshot !== null && snapshot.completedRounds < rounds) {
+      setCompletedRounds(snapshot.completedRounds)
+      setPhase(snapshot.phase)
+      if (snapshot.running && snapshot.deadline !== null) {
+        deadlineRef.current = snapshot.deadline
+        setRemaining(Math.max(0, (snapshot.deadline - Date.now()) / 1000))
+        setRunning(true)
+      } else {
+        setRemaining(snapshot.remaining)
+      }
+    }
+    restoredRef.current = true
+    let cancelled = false
+    trainingSessionsApi
+      .getExerciseSets(trainingSessionId, exercise.id, accessToken)
+      .then((result) => {
+        if (cancelled) {
+          return
+        }
+        const logged = result.sets.filter((set) => set.set_number <= rounds).length
+        if (logged > (snapshot?.completedRounds ?? 0) && logged < rounds) {
+          setCompletedRounds(logged)
+          setPhase('work')
+          setRunning(false)
+          deadlineRef.current = null
+          setRemaining(durationSeconds)
+        }
+      })
+      .catch(() => {
+        // Best-effort -- the local snapshot (or a fresh start) stands.
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, [])
+
+  // Saved on every state change (not every tick -- the deadline is enough
+  // to know the rest), and once more when the app goes to the background.
+  const saveSnapshotRef = useRef(() => {})
+  saveSnapshotRef.current = () => {
+    if (!restoredRef.current) {
+      return
+    }
+    if (completedRounds >= rounds || isDone) {
+      writeSnapshot(snapshotKey, null)
+      return
+    }
+    if (completedRounds === 0 && phase === 'work' && !running && remaining >= durationSeconds) {
+      writeSnapshot(snapshotKey, null)
+      return
+    }
+    writeSnapshot(snapshotKey, {
+      phase,
+      completedRounds,
+      running,
+      deadline: running ? deadlineRef.current : null,
+      remaining,
+      durationSeconds,
+      savedAt: Date.now(),
+    })
+  }
+  useEffect(() => {
+    saveSnapshotRef.current()
+  }, [phase, completedRounds, running, isDone])
+  useEffect(() => {
+    const save = () => saveSnapshotRef.current()
+    document.addEventListener('visibilitychange', save)
+    window.addEventListener('pagehide', save)
+    return () => {
+      document.removeEventListener('visibilitychange', save)
+      window.removeEventListener('pagehide', save)
+    }
+  }, [])
+
   // Lock-screen player experiment (utils/workoutAudio.ts) -- read once per
   // mount; the session itself starts on the first tap of the ring.
   const [lockScreen] = useState(() => isLockScreenPlayerEnabled() && isLockScreenPlayerSupported())
@@ -122,11 +257,19 @@ export function TimerPlayer({
   // The per-athlete target (time progression) arrives a moment after mount;
   // pick it up as long as nothing has started yet. Once the first round is
   // running or logged, the target in hand stays for the whole exercise.
-  const notStarted = !running && completedRounds === 0 && phase === 'work' && manualSeconds === null
+  const durationSecondsRef = useRef(durationSeconds)
+  const notStarted =
+    !running && completedRounds === 0 && phase === 'work' && manualSeconds === null && remaining === durationSecondsRef.current
   useEffect(() => {
+    // Only a CHANGED target re-syncs -- on mount this must not undo a
+    // restored snapshot (that effect runs earlier in the same commit).
+    if (durationSecondsRef.current === durationSeconds) {
+      return
+    }
     if (notStarted) {
       setRemaining(durationSeconds)
     }
+    durationSecondsRef.current = durationSeconds
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a new target should re-sync
   }, [durationSeconds])
 
@@ -298,6 +441,11 @@ export function TimerPlayer({
     setRunning(next)
   }
 
+  // The idle card for unmount, built by the latest render's function (the
+  // cleanup above only sees the first render; drawn lazily, not per tick).
+  const idleCardRef = useRef(() => idleLockScreenInfo())
+  idleCardRef.current = () => idleLockScreenInfo()
+
   // Lock-screen buttons call whatever the latest render's handlers are.
   const lockScreenHandlersRef = useRef({ play: () => {}, pause: () => {}, next: () => {} })
   lockScreenHandlersRef.current = {
@@ -337,6 +485,29 @@ export function TimerPlayer({
     return { title: exercise.name, subtitle, artworkUrl }
   }
 
+  // Whole exercise as one timeline (all work rounds + the rests between):
+  // the lock-screen progress bar shows this, not the current segment.
+  function exerciseTimeline(): { total: number; left: number } {
+    const total = rounds * durationSeconds + Math.max(0, rounds - 1) * restSeconds
+    const segmentTotal = phase === 'work' ? durationSeconds : restSeconds
+    const segmentLeft =
+      running && deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
+    const before =
+      phase === 'work'
+        ? completedRounds * (durationSeconds + restSeconds)
+        : completedRounds * durationSeconds + Math.max(0, completedRounds - 1) * restSeconds
+    const elapsed = before + (segmentTotal - segmentLeft)
+    return { total, left: Math.max(0, total - elapsed) }
+  }
+
+  function idleLockScreenInfo() {
+    return {
+      title: 'IceLevel',
+      subtitle: 'Тренировка идёт',
+      artworkUrl: renderLockScreenArtwork({ phase: 'idle', exerciseName: exercise.name, rounds, completedRounds }) ?? '/icon-512.png',
+    }
+  }
+
   // Called from the ring tap itself -- audio may only start inside a gesture.
   function startLockScreenIfOn() {
     if (!lockScreen || lockScreenStartedRef.current) {
@@ -360,14 +531,15 @@ export function TimerPlayer({
     if (completedRounds >= rounds) {
       // Last round over -- let the final double tone finish, then release
       // the lock-screen widget.
-      const timeoutId = window.setTimeout(stopLockScreenSession, 1500)
+      const idle = idleLockScreenInfo()
+      const timeoutId = window.setTimeout(() => stopLockScreenSession(idle), 1500)
       return () => window.clearTimeout(timeoutId)
     }
     updateLockScreenInfo(lockScreenInfo())
-    const total = phase === 'work' ? durationSeconds : restSeconds
     const endsIn =
       running && deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
-    updateLockScreenProgress(total, endsIn, running)
+    const timeline = exerciseTimeline()
+    updateLockScreenProgress(timeline.total, timeline.left, running)
     if (!running) {
       cancelScheduledBeeps()
       return
@@ -399,7 +571,7 @@ export function TimerPlayer({
   useEffect(() => {
     return () => {
       if (lockScreenStartedRef.current) {
-        stopLockScreenSession()
+        stopLockScreenSession(idleCardRef.current())
       }
     }
   }, [])
@@ -414,10 +586,8 @@ export function TimerPlayer({
       return
     }
     updateLockScreenInfo(lockScreenInfo())
-    const total = phase === 'work' ? durationSeconds : restSeconds
-    const left =
-      running && deadlineRef.current !== null ? Math.max(0, (deadlineRef.current - Date.now()) / 1000) : remaining
-    updateLockScreenProgress(total, left, running)
+    const timeline = exerciseTimeline()
+    updateLockScreenProgress(timeline.total, timeline.left, running)
   }
   useEffect(() => {
     const resync = () => resyncLockScreenRef.current()

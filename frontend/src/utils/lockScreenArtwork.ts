@@ -18,7 +18,8 @@ const DISPLAY_FONT = 'Oswald, "Arial Narrow", system-ui, sans-serif'
 const TEXT_FONT = 'Inter, system-ui, sans-serif'
 
 export interface ArtworkState {
-  phase: 'work' | 'rest' | 'done'
+  // 'idle': the screensaver left on the lock screen between exercises.
+  phase: 'work' | 'rest' | 'done' | 'idle'
   exerciseName: string
   // Seconds of the segment shown (work or rest length); omitted for 'done'.
   seconds?: number
@@ -55,6 +56,27 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines
 }
 
+// Screensaver: big wordmark, a thin ice line, and what was done last.
+function drawIdle(ctx: CanvasRenderingContext2D, lastExercise: string, pad: number): void {
+  ctx.fillStyle = COLORS.ice
+  ctx.font = `700 104px ${DISPLAY_FONT}`
+  ctx.fillText('ICE', pad - 4, 230)
+  const iceWidth = ctx.measureText('ICE').width
+  ctx.fillStyle = COLORS.persimmon
+  ctx.fillText('LEVEL', pad - 4 + iceWidth + 8, 230)
+  ctx.fillStyle = COLORS.ice
+  ctx.fillRect(pad, 262, 64, 4)
+  ctx.fillStyle = COLORS.text
+  ctx.font = `600 32px ${TEXT_FONT}`
+  ctx.fillText('Тренировка идёт', pad, 320)
+  if (lastExercise) {
+    ctx.fillStyle = COLORS.muted
+    ctx.font = `500 24px ${TEXT_FONT}`
+    const lines = wrapLines(ctx, `Последнее: ${lastExercise}`, SIZE - pad * 2, 2)
+    lines.forEach((text, index) => ctx.fillText(text, pad, SIZE - pad - 40 + index * 32 - (lines.length - 1) * 32))
+  }
+}
+
 // Returns a PNG data URL, or null where canvas isn't available.
 export function renderLockScreenArtwork(state: ArtworkState): string | null {
   const canvas = document.createElement('canvas')
@@ -80,6 +102,15 @@ export function renderLockScreenArtwork(state: ArtworkState): string | null {
 
   const pad = 40
   ctx.textBaseline = 'alphabetic'
+
+  if (state.phase === 'idle') {
+    drawIdle(ctx, state.exerciseName, pad)
+    try {
+      return canvas.toDataURL('image/png')
+    } catch {
+      return null
+    }
+  }
 
   // Wordmark.
   ctx.fillStyle = COLORS.muted

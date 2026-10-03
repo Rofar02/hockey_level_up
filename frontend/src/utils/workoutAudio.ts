@@ -45,11 +45,23 @@ export function isLockScreenPlayerSupported(): boolean {
   return 'mediaSession' in navigator
 }
 
-// 2 s of 8 kHz 16-bit mono silence as an in-memory WAV -- no asset to ship.
-function silentWavUrl(): string {
-  const sampleRate = 8000
-  const samples = sampleRate * 2
-  const buffer = new ArrayBuffer(44 + samples * 2)
+// Silence as an in-memory 8 kHz 8-bit mono WAV (8 KB per second), exactly
+// as long as the whole exercise. iOS draws the lock-screen progress bar
+// from this element's own timeline and ignores setPositionState in a
+// home-screen app -- with a short looping clip the bar kept restarting.
+// A track as long as the exercise, seeked to the elapsed second, makes the
+// bar right even while the page itself is frozen: the track plays on.
+const SILENCE_RATE = 8000
+const MAX_SILENCE_SECONDS = 20 * 60
+let silenceCache: { seconds: number; url: string } | null = null
+
+function silentWavUrl(seconds: number): string {
+  const length = Math.max(1, Math.min(MAX_SILENCE_SECONDS, Math.ceil(seconds)))
+  if (silenceCache !== null && silenceCache.seconds === length) {
+    return silenceCache.url
+  }
+  const samples = SILENCE_RATE * length
+  const buffer = new ArrayBuffer(44 + samples)
   const view = new DataView(buffer)
   const writeText = (offset: number, text: string) => {
     for (let i = 0; i < text.length; i += 1) {
@@ -57,19 +69,25 @@ function silentWavUrl(): string {
     }
   }
   writeText(0, 'RIFF')
-  view.setUint32(4, 36 + samples * 2, true)
+  view.setUint32(4, 36 + samples, true)
   writeText(8, 'WAVE')
   writeText(12, 'fmt ')
   view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * 2, true)
-  view.setUint16(32, 2, true)
-  view.setUint16(34, 16, true)
+  view.setUint16(20, 1, true) // PCM
+  view.setUint16(22, 1, true) // mono
+  view.setUint32(24, SILENCE_RATE, true)
+  view.setUint32(28, SILENCE_RATE, true) // byte rate
+  view.setUint16(32, 1, true) // block align
+  view.setUint16(34, 8, true) // bits per sample
   writeText(36, 'data')
-  view.setUint32(40, samples * 2, true)
-  return URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }))
+  view.setUint32(40, samples, true)
+  new Uint8Array(buffer, 44).fill(128) // 8-bit PCM silence is the midpoint
+  if (silenceCache !== null) {
+    URL.revokeObjectURL(silenceCache.url)
+  }
+  const url = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }))
+  silenceCache = { seconds: length, url }
+  return url
 }
 
 let keepAliveAudio: HTMLAudioElement | null = null
@@ -100,8 +118,13 @@ export function startLockScreenSession(info: LockScreenInfo, handlers: LockScree
     }
   }
   if (keepAliveAudio === null) {
-    keepAliveAudio = new Audio(silentWavUrl())
+    keepAliveAudio = new Audio()
     keepAliveAudio.loop = true
+  }
+  // Started here, inside the tap -- later play() calls on the same element
+  // (resume from the lock screen, a new track length) are then allowed.
+  if (!keepAliveAudio.src) {
+    keepAliveAudio.src = silentWavUrl(60)
   }
   void keepAliveAudio.play().catch(() => {})
   updateLockScreenInfo(info)
@@ -125,7 +148,9 @@ export function updateLockScreenInfo(info: LockScreenInfo): void {
   })
 }
 
-// The lock-screen progress bar animates on its own from this snapshot.
+// The lock-screen progress bar: whole exercise (`totalSeconds`), currently
+// at `totalSeconds - remainingSeconds`. Set both ways -- setPositionState
+// for Chrome, and the silent track's own length and position for iOS.
 export function updateLockScreenProgress(totalSeconds: number, remainingSeconds: number, playing: boolean): void {
   if (!isLockScreenPlayerSupported()) {
     return
@@ -134,10 +159,32 @@ export function updateLockScreenProgress(totalSeconds: number, remainingSeconds:
   if (totalSeconds <= 0) {
     return
   }
+  const elapsed = Math.min(totalSeconds, Math.max(0, totalSeconds - remainingSeconds))
+  if (keepAliveAudio !== null) {
+    const url = silentWavUrl(totalSeconds)
+    if (keepAliveAudio.src !== url) {
+      keepAliveAudio.src = url
+    }
+    const seekTo = () => {
+      if (keepAliveAudio !== null && Math.abs(keepAliveAudio.currentTime - elapsed) > 0.5) {
+        keepAliveAudio.currentTime = elapsed
+      }
+    }
+    if (keepAliveAudio.readyState >= 1) {
+      seekTo()
+    } else {
+      keepAliveAudio.addEventListener('loadedmetadata', seekTo, { once: true })
+    }
+    if (playing) {
+      void keepAliveAudio.play().catch(() => {})
+    } else {
+      keepAliveAudio.pause()
+    }
+  }
   try {
     navigator.mediaSession.setPositionState({
       duration: totalSeconds,
-      position: Math.min(totalSeconds, Math.max(0, totalSeconds - remainingSeconds)),
+      position: elapsed,
       playbackRate: playing ? 1 : 1e-6,
     })
   } catch {
@@ -145,7 +192,10 @@ export function updateLockScreenProgress(totalSeconds: number, remainingSeconds:
   }
 }
 
-export function stopLockScreenSession(): void {
+// Exercise over or left: iOS keeps the last "now playing" card on the lock
+// screen -- with no metadata it falls back to the bare app icon, so leave a
+// branded idle card there instead (`idle`, see lockScreenArtwork.ts).
+export function stopLockScreenSession(idle?: LockScreenInfo): void {
   cancelScheduledBeeps()
   if (keepAliveAudio !== null) {
     keepAliveAudio.pause()
@@ -153,10 +203,15 @@ export function stopLockScreenSession(): void {
   if (!isLockScreenPlayerSupported()) {
     return
   }
-  navigator.mediaSession.metadata = null
-  navigator.mediaSession.playbackState = 'none'
   for (const action of ['play', 'pause', 'nexttrack'] as const) {
     navigator.mediaSession.setActionHandler(action, null)
+  }
+  if (idle !== undefined) {
+    updateLockScreenInfo(idle)
+    navigator.mediaSession.playbackState = 'paused'
+  } else {
+    navigator.mediaSession.metadata = null
+    navigator.mediaSession.playbackState = 'none'
   }
 }
 
