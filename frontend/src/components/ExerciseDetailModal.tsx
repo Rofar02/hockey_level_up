@@ -205,6 +205,34 @@ export function ExerciseDetailBody({
     }
   }, [exercise.id, trainingSessionId, accessToken, hasPlayer])
 
+  // Time progression (2026-10-03): timed MAIN strength holds get a
+  // per-athlete target from the backend (+5/+10 s after a good session, up
+  // to 2x the catalog value); null for everything else, and while loading,
+  // which leaves the timer on the catalog value.
+  const [suggestedDuration, setSuggestedDuration] = useState<number | null>(null)
+  const isDurationPlayer = exercisePlayerMode(exercise) === 'duration' && !readOnly
+
+  useEffect(() => {
+    if (!isDurationPlayer) {
+      return
+    }
+    let cancelled = false
+    setSuggestedDuration(null)
+    exercisesApi
+      .getSuggestedDuration(exercise.id, accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setSuggestedDuration(result.suggested_duration_seconds)
+        }
+      })
+      .catch(() => {
+        // Best-effort, like the reps/weight suggestions -- the catalog value stays.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [exercise.id, accessToken, isDurationPlayer])
+
   useEffect(() => {
     if (!showTransferTab) {
       return
@@ -342,7 +370,7 @@ export function ExerciseDetailBody({
               exercise={exercise}
               trainingSessionId={trainingSessionId}
               accessToken={accessToken}
-              durationSeconds={exercise.target_duration_seconds!}
+              durationSeconds={suggestedDuration ?? exercise.target_duration_seconds!}
               history={history}
               rounds={exercise.target_sets ?? 1}
               isDone={onLastSetCompleted === undefined}

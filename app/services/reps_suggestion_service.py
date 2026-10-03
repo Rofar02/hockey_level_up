@@ -2,7 +2,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.exercise import Exercise, ExerciseType
+from app.models.exercise import Exercise, ExerciseType, StimulusType, TrainingPhase
 from app.models.set_completion import SetFeedback
 from app.models.user import User
 from app.repositories.set_completion_repository import SetCompletionRepository
@@ -22,6 +22,37 @@ _REPS_BUMP_BY_FEEDBACK: dict[SetFeedback | None, int] = {
     SetFeedback.MAX: 0,
     None: 1,
 }
+
+
+# Time progression (2026-10-03): the same double-progression idea for
+# timed strength holds (planks, hangs, isometrics) -- seconds instead of
+# reps. Starts at target_duration_seconds, never goes below it, ceiling at
+# DURATION_CEILING_FACTOR times it. Endurance work is excluded on purpose:
+# there the catalog itself progresses by difficulty level (6 km run is
+# level 1, 8 km level 2, ...), and skill/power drills are about quality and
+# speed, not longer work.
+DURATION_STEP_SECONDS = 5
+DURATION_CEILING_FACTOR = 2
+_DURATION_BUMP_BY_FEEDBACK: dict[SetFeedback | None, int] = {
+    SetFeedback.EASY: 10,
+    SetFeedback.NORMAL: 5,
+    SetFeedback.HARD: 0,
+    SetFeedback.MAX: -5,
+    None: 0,
+}
+
+
+def has_time_progression(exercise: Exercise) -> bool:
+    return (
+        exercise.exercise_type == ExerciseType.DURATION
+        and exercise.phase == TrainingPhase.MAIN
+        and exercise.stimulus_type == StimulusType.STRENGTH
+        and bool(exercise.target_duration_seconds)
+    )
+
+
+def _round_down_to_step(seconds: int) -> int:
+    return seconds - seconds % DURATION_STEP_SECONDS
 
 
 def _has_rep_range(exercise: Exercise) -> bool:
@@ -84,6 +115,8 @@ class RepsSuggestionService:
         Deliberately doesn't check tracks_weight itself -- meaningful only
         in that context, so it's the caller's job to ask at the right time.
         """
+        if has_time_progression(exercise):
+            return await self.is_duration_stuck_at_ceiling(user, exercise)
         if not _has_rep_range(exercise):
             return False
 
@@ -100,6 +133,59 @@ class RepsSuggestionService:
         )
         good_feedback = last_set.feedback in (SetFeedback.EASY, SetFeedback.NORMAL)
         return hit_top and good_feedback
+
+    async def _last_session_durations(
+        self, user: User, exercise: Exercise
+    ) -> tuple[list[int], SetFeedback | None] | None:
+        """Seconds actually held in each round of the last session of this
+        exercise, plus that session's feedback (saved on its last set).
+        None when there is no usable history."""
+        last_set = await self._sets.get_last_for_user_exercise(user.id, exercise.id)
+        if last_set is None:
+            return None
+        rounds = await self._sets.list_for_session_exercise(last_set.training_session_id, exercise.id)
+        held = [s.duration_seconds_completed for s in rounds if s.duration_seconds_completed]
+        if not held:
+            return None
+        return held, last_set.feedback
+
+    async def suggest_duration(self, user: User, exercise: Exercise) -> int | None:
+        """Seconds per round for a timed strength hold. Every round held as
+        long as the previous session's longest one counts as "done in full"
+        (the timer logs the full target when it simply runs out; an early
+        stop logs less), and then feedback moves it by +10/+5/0/-5 s. A
+        round cut short means the next target is what was actually held,
+        rounded down to 5 s. Always within [target, target * 2]; a
+        macrocycle deload goes back to the start value."""
+        if not has_time_progression(exercise):
+            return None
+        base = exercise.target_duration_seconds
+        assert base is not None
+        if await self._is_macrocycle_deload(user.id):
+            return base
+        last = await self._last_session_durations(user, exercise)
+        if last is None:
+            return base
+        held, feedback = last
+        weakest = min(held)
+        if weakest >= max(held):
+            suggested = _round_down_to_step(weakest + _DURATION_BUMP_BY_FEEDBACK[feedback])
+        else:
+            suggested = _round_down_to_step(weakest)
+        return max(base, min(suggested, base * DURATION_CEILING_FACTOR))
+
+    async def is_duration_stuck_at_ceiling(self, user: User, exercise: Exercise) -> bool:
+        """Every round of the last session held for the full ceiling (2x the
+        start value) with easy/normal feedback -- the timed counterpart of
+        is_stuck_at_ceiling, used the same way: time to a harder variant."""
+        if not has_time_progression(exercise):
+            return False
+        last = await self._last_session_durations(user, exercise)
+        if last is None:
+            return False
+        held, feedback = last
+        ceiling = exercise.target_duration_seconds * DURATION_CEILING_FACTOR
+        return min(held) >= ceiling and feedback in (SetFeedback.EASY, SetFeedback.NORMAL)
 
     async def _is_macrocycle_deload(self, user_id: uuid.UUID) -> bool:
         """Phase: П.2. Pure read, see WeightSuggestionService._active_macrocycle_deload_block."""

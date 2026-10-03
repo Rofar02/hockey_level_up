@@ -45,6 +45,10 @@ export interface SuggestedRepsRead {
   suggested_reps: number | null
 }
 
+export interface SuggestedDurationRead {
+  suggested_duration_seconds: number | null
+}
+
 export interface SetCompletionSummary {
   set_number: number
   weight_kg: number | null

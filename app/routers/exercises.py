@@ -18,6 +18,7 @@ from app.schemas.exercise import (
     MovementPatternsReplace,
     MuscleGroupsReplace,
     MuscleGroupWeight,
+    SuggestedDurationRead,
     SuggestedRepsRead,
     SuggestedWeightRead,
     TargetStatsReplace,
@@ -219,6 +220,17 @@ async def get_suggested_reps(
     exercise = await ExerciseService(session).get_exercise(exercise_id)
     suggested = await RepsSuggestionService(session).suggest_reps(current_user, exercise)
     return SuggestedRepsRead(suggested_reps=suggested)
+
+
+@router.get("/{exercise_id}/suggested-duration", response_model=SuggestedDurationRead)
+async def get_suggested_duration(
+    exercise_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    exercise = await ExerciseService(session).get_exercise(exercise_id)
+    suggested = await RepsSuggestionService(session).suggest_duration(current_user, exercise)
+    return SuggestedDurationRead(suggested_duration_seconds=suggested)
 
 
 @router.get("/{exercise_id}/history", response_model=ExerciseHistoryRead)
