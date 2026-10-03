@@ -1,4 +1,50 @@
+import { useRef, useState } from 'react'
 import type { ExerciseRead } from '../types/exercise'
+import { exercisePosterUrl, exerciseVideoUrl } from '../utils/media'
+
+// Poster frame + big play button while the clip is paused: the poster alone
+// reads as a still picture, so the button is what says "this is a video".
+// Native controls stay for scrubbing; the overlay only sits on top while
+// paused/ended and hands the click to the <video>.
+function FileVideoPlayer({ id, title }: { id: string; title: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(false)
+
+  return (
+    <div className="relative aspect-video overflow-hidden rounded-md bg-black">
+      <video
+        ref={videoRef}
+        src={exerciseVideoUrl(id)}
+        poster={exercisePosterUrl(id)}
+        title={title}
+        className="h-full w-full"
+        controls
+        loop
+        muted
+        playsInline
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+      />
+      {!playing && (
+        <button
+          type="button"
+          aria-label="Воспроизвести видео"
+          onClick={() => void videoRef.current?.play()}
+          className="absolute inset-0 flex items-center justify-center bg-black/20"
+        >
+          <span
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-black/55 ring-1 ring-white/40 backdrop-blur-sm"
+            aria-hidden="true"
+          >
+            <i className="ti ti-player-play ml-0.5 text-3xl text-white" aria-hidden="true" />
+          </span>
+        </button>
+      )}
+    </div>
+  )
+}
 
 // The actual video embed (or its placeholder) -- pulled out of
 // ExerciseTechnique (2026-08-28) once ExerciseFocusScreen needed to show it
@@ -19,6 +65,14 @@ export function ExerciseVideoStage({ exercise }: { exercise: ExerciseRead }) {
         />
       </div>
     )
+  }
+
+  // Self-hosted clip (the author's permission was obtained): video_source_id
+  // is the file's base name under static/exercise-videos/. Muted + looping
+  // + inline so it behaves like a technique GIF on mobile, with controls
+  // for scrubbing.
+  if (exercise.video_source_type === 'file' && exercise.video_source_id !== null) {
+    return <FileVideoPlayer id={exercise.video_source_id} title={exercise.name} />
   }
 
   if (exercise.video_source_type === 'vk' && exercise.video_source_id !== null) {
