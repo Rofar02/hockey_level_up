@@ -1,0 +1,813 @@
+[
+ {
+  "name": "Голубь (ПНФ)",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": []
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Квадрицепс с задней ногой на возвышении",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "step_platform"
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Миофасциальный релиз на роллере",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "foam_roller"
+    ]
+   },
+   "target_duration_seconds": {
+    "old": null,
+    "new": 120
+   }
+  }
+ },
+ {
+  "name": "Растяжка голени у стены",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": []
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Растяжка с использованием скамьи",
+  "changes": {
+   "equipment": {
+    "old": [
+     "barbell"
+    ],
+    "new": [
+     "step_platform"
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Растяжка с полотенцем (подколенные)",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": []
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   },
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "hamstrings": 0.7,
+     "glutes": 0.3
+    }
+   }
+  }
+ },
+ {
+  "name": "Складка сидя на коврике",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": []
+   }
+  }
+ },
+ {
+  "name": "Активация плеч эспандером",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "resistance_band"
+    ]
+   },
+   "sets_reps": {
+    "old": [
+     null,
+     null,
+     null
+    ],
+    "new": [
+     2,
+     12,
+     15
+    ]
+   }
+  }
+ },
+ {
+  "name": "Боковая ходьба с мини-бэндом",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "resistance_band"
+    ]
+   }
+  }
+ },
+ {
+  "name": "Лежачее подтягивание поясничной мышцы с мини-бэндом",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "resistance_band"
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Сведение лопаток с резиной в полуприседе на колене",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "resistance_band"
+    ]
+   }
+  }
+ },
+ {
+  "name": "Велотренажёр (лёгкая интенсивность)",
+  "changes": {
+   "equipment": {
+    "old": [
+     "barbell"
+    ],
+    "new": [
+     "gym_machine"
+    ]
+   },
+   "target_duration_seconds": {
+    "old": null,
+    "new": 300
+   }
+  }
+ },
+ {
+  "name": "Гребной тренажёр (лёгкий темп)",
+  "changes": {
+   "equipment": {
+    "old": [
+     "barbell"
+    ],
+    "new": [
+     "gym_machine"
+    ]
+   },
+   "target_duration_seconds": {
+    "old": null,
+    "new": 300
+   }
+  }
+ },
+ {
+  "name": "Прыжки на скакалке (лёгкий темп)",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "jump_rope"
+    ]
+   },
+   "target_duration_seconds": {
+    "old": null,
+    "new": 60
+   }
+  }
+ },
+ {
+  "name": "Боковая поверхность бедра - ролл",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "foam_roller"
+    ]
+   }
+  }
+ },
+ {
+  "name": "Боковая часть голени - мяч",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": []
+   }
+  }
+ },
+ {
+  "name": "Внутренняя часть лопатки - ролл",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "foam_roller"
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Грудь у стены - мяч",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": []
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   },
+   "muscles": {
+    "old": {
+     "shoulders": 1
+    },
+    "new": {
+     "chest": 0.7,
+     "shoulders": 0.3
+    }
+   }
+  }
+ },
+ {
+  "name": "Задняя поверхность бедра (бицепс бедра) - ролл",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "foam_roller"
+    ]
+   }
+  }
+ },
+ {
+  "name": "Задняя часть приводящих на тумбе",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "step_platform"
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Наружная часть лопатки - ролл",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "foam_roller"
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Передняя поверхность бедра (квадрицепс) - ролл",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "foam_roller"
+    ]
+   }
+  }
+ },
+ {
+  "name": "Приводящие мышцы - ролл",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "foam_roller"
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Стопа - мяч",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": []
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Ягодицы - ролл",
+  "changes": {
+   "equipment": {
+    "old": [
+     "dumbbells"
+    ],
+    "new": [
+     "foam_roller"
+    ]
+   },
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Задняя поверхность бедра на четвереньках",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Изометрическое напряжение квадрицепса",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Приводящие в длинной позиции (ПНФ)",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Пронация кисти",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Разгибание запястья с лёгкой гантелью",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Растяжка груди под 90 градусов",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   },
+   "muscles": {
+    "old": {
+     "shoulders": 1
+    },
+    "new": {
+     "chest": 0.7,
+     "shoulders": 0.3
+    }
+   }
+  }
+ },
+ {
+  "name": "Растяжка квадрицепса стоя",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   },
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "quads": 0.7,
+     "glutes": 0.3
+    }
+   }
+  }
+ },
+ {
+  "name": "Растяжка мышц ног после тренировки",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Растяжка подколенных сухожилий стоя",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   },
+   "muscles": {
+    "old": {
+     "quads": 0.2,
+     "hamstrings": 0.3,
+     "glutes": 0.5
+    },
+    "new": {
+     "hamstrings": 0.7,
+     "glutes": 0.3
+    }
+   }
+  }
+ },
+ {
+  "name": "Растяжка сгибателя бедра в полуприседе на колене",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Сгибание запястья с лёгкой гантелью",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Сопротивление во всех направлениях с резиной",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Супинация кисти",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Широчайшая + рука под себя",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   },
+   "muscles": {
+    "old": {
+     "shoulders": 1
+    },
+    "new": {
+     "back": 0.7,
+     "shoulders": 0.3
+    }
+   }
+  }
+ },
+ {
+  "name": "Ягодица крест-накрест лёжа",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Наружная ротация гантели лёжа",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Динамическая растяжка (махи)",
+  "changes": {
+   "target_duration_seconds": {
+    "old": null,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "90/90 наружная ротация",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Голеностоп 3 направления",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Голеностоп ПНФ",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Голеностоп у стены (ПНФ)",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Голубь + лавочка",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Грудной ПНФ",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Круг голеностоп",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Мобилизация ТБС 90/90 переходы",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Мобилизация голеностопа с лентой",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Мобильность голеностопа у стены",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Растяжка икроножной у стены",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Растяжка камбаловидной у стены",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Растяжка сгибателей пальцев",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Сгибатель + резина лицом",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Сгибатель бедра у стены",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Широчайшая + ротация",
+  "changes": {
+   "is_unilateral": {
+    "old": null,
+    "new": true
+   }
+  }
+ },
+ {
+  "name": "Суставная гимнастика",
+  "changes": {
+   "target_duration_seconds": {
+    "old": null,
+    "new": 60
+   }
+  }
+ },
+ {
+  "name": "Бег на месте",
+  "changes": {
+   "target_duration_seconds": {
+    "old": null,
+    "new": 30
+   }
+  }
+ },
+ {
+  "name": "Лёгкое катание для разогрева",
+  "changes": {
+   "target_duration_seconds": {
+    "old": null,
+    "new": 300
+   }
+  }
+ },
+ {
+  "name": "Лёгкое катание для заминки",
+  "changes": {
+   "target_duration_seconds": {
+    "old": null,
+    "new": 300
+   }
+  }
+ },
+ {
+  "name": "Катание спиной вперёд в медленном темпе",
+  "changes": {
+   "target_duration_seconds": {
+    "old": null,
+    "new": 60
+   }
+  }
+ },
+ {
+  "name": "Кошка-корова",
+  "changes": {
+   "target_duration_seconds": {
+    "old": null,
+    "new": 45
+   }
+  }
+ },
+ {
+  "name": "Приставные шаги в стойке",
+  "changes": {
+   "target_duration_seconds": {
+    "old": null,
+    "new": 30
+   }
+  }
+ }
+]

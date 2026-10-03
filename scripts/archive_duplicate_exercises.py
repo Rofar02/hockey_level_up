@@ -24,6 +24,7 @@ Usage (on the server, from the project root):
 """
 import argparse
 import asyncio
+import json
 import sys
 from pathlib import Path
 
@@ -64,7 +65,7 @@ async def history(session, exercise_id) -> tuple[int, int]:
     return blocks, sets
 
 
-async def main(apply: bool) -> int:
+async def main(apply: bool, pairs: list[tuple[str, str]]) -> int:
     print("Mode:", "APPLY" if apply else "DRY RUN (nothing is written, pass --apply to write)", "\n")
     archived = skipped = refused = 0
     async with AsyncSessionLocal() as session:
@@ -74,7 +75,7 @@ async def main(apply: bool) -> int:
         )
         by_name = {row.name: row for row in rows.all()}
 
-        for keep_name, drop_name in PAIRS:
+        for keep_name, drop_name in pairs:
             keep, drop = by_name.get(keep_name), by_name.get(drop_name)
             if drop is None:
                 print(f"SKIP   not in this database: {drop_name!r}")
@@ -106,4 +107,10 @@ async def main(apply: bool) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--apply", action="store_true", help="write changes (default is a dry run)")
-    sys.exit(asyncio.run(main(parser.parse_args().apply)))
+    parser.add_argument("--pairs", help="JSON file with [[keep, archive], ...] instead of the built-in list "
+                                        "(e.g. scripts/data/archive_pairs_2.json)")
+    args = parser.parse_args()
+    chosen = PAIRS
+    if args.pairs:
+        chosen = [tuple(pair) for pair in json.loads(Path(args.pairs).read_text(encoding="utf-8"))]
+    sys.exit(asyncio.run(main(args.apply, chosen)))
