@@ -39,14 +39,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
 
-from app.db.session import AsyncSessionLocal  # noqa: E402
-from app.models.exercise import EquipmentItem, Exercise, MovementPattern, TargetStat  # noqa: E402
-from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, MuscleGroupWeight  # noqa: E402
-from app.schemas.skill import SkillTagCreate  # noqa: E402
-from app.services.exercise_service import ExerciseService  # noqa: E402
-from app.services.skill_service import SkillService  # noqa: E402
+from app.db.session import AsyncSessionLocal
+from app.models.exercise import (
+    EquipmentItem,
+    Exercise,
+    MovementPattern,
+    TargetStat,
+)
+from app.schemas.exercise import (
+    ExerciseCreate,
+    ExerciseUpdate,
+    MuscleGroupWeight,
+)
+from app.schemas.skill import SkillTagCreate
+from app.services.exercise_service import ExerciseService
+from app.services.skill_service import SkillService
 
 DEFAULT_DATA = Path(__file__).resolve().parent / "data" / "exercise_videos.json"
 
