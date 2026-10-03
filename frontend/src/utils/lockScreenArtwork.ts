@@ -19,10 +19,13 @@ const TEXT_FONT = 'Inter, system-ui, sans-serif'
 
 export interface ArtworkState {
   // 'idle': the screensaver left on the lock screen between exercises.
-  phase: 'work' | 'rest' | 'done' | 'idle'
+  // 'set': a set done at the athlete's own pace (sets/reps exercises).
+  phase: 'work' | 'rest' | 'done' | 'idle' | 'set'
   exerciseName: string
   // Seconds of the segment shown (work or rest length); omitted for 'done'.
   seconds?: number
+  // Replaces the seconds line, e.g. "8–12 повт. · 60 кг" for a set.
+  detail?: string
   rounds: number
   // Rounds fully finished so far.
   completedRounds: number
@@ -120,17 +123,19 @@ export function renderLockScreenArtwork(state: ArtworkState): string | null {
   ctx.letterSpacing = '0px'
 
   // Phase.
-  const phaseLabel = state.phase === 'work' ? 'РАБОТА' : state.phase === 'rest' ? 'ОТДЫХ' : 'ГОТОВО'
+  const phaseLabel =
+    state.phase === 'work' ? 'РАБОТА' : state.phase === 'rest' ? 'ОТДЫХ' : state.phase === 'set' ? 'ПОДХОД' : 'ГОТОВО'
   ctx.fillStyle = accent
   ctx.font = `700 118px ${DISPLAY_FONT}`
   ctx.fillText(phaseLabel, pad - 4, 205)
 
   // Segment length, next to nothing else -- the progress bar under the
   // artwork shows the countdown itself.
-  if (state.seconds !== undefined && state.phase !== 'done') {
+  const detail = state.detail ?? (state.seconds !== undefined && state.phase !== 'done' ? `${state.seconds} сек` : null)
+  if (detail !== null) {
     ctx.fillStyle = COLORS.text
     ctx.font = `600 40px ${DISPLAY_FONT}`
-    ctx.fillText(`${state.seconds} сек`, pad, 262)
+    ctx.fillText(detail, pad, 262)
   }
 
   // Exercise name, up to two lines.

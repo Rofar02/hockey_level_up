@@ -221,6 +221,52 @@ export function updateLockScreenInfo(info: LockScreenInfo): void {
   })
 }
 
+// Unlocks audio playback from inside a tap whose real work (the rest timer
+// it leads to) only starts after an await -- iOS refuses play() outside a
+// gesture, but once this element has played it may be started again later.
+export function primeLockScreenAudio(): void {
+  if (!isLockScreenPlayerSupported()) {
+    return
+  }
+  if (keepAliveAudio === null) {
+    keepAliveAudio = createKeepAliveAudio()
+  }
+  if (!keepAliveAudio.src) {
+    ignoreElementEventsUntil = performance.now() + 600
+    keepAliveAudio.src = silentWavUrl(60)
+  }
+  ownPlay()
+}
+
+// Between timed parts (a set done at the athlete's own pace): show `info`,
+// no countdown, nothing scheduled, track paused -- the card stays on the
+// lock screen as a "what now" reminder.
+export function holdLockScreen(info: LockScreenInfo): void {
+  cancelScheduledBeeps()
+  activeHandlers = null
+  ownPause()
+  if (!isLockScreenPlayerSupported()) {
+    return
+  }
+  for (const action of ['play', 'pause', 'nexttrack'] as const) {
+    navigator.mediaSession.setActionHandler(action, null)
+  }
+  updateLockScreenInfo(info)
+  navigator.mediaSession.playbackState = 'paused'
+}
+
+// The goal horn right now (the last set was just logged -- a real tap).
+export function playGoalHornNow(): void {
+  const ctx = getSharedAudioContext()
+  if (ctx === null) {
+    return
+  }
+  if (ctx.state === 'suspended') {
+    void ctx.resume()
+  }
+  goalHorn(ctx, ctx.currentTime + 0.05, track)
+}
+
 // The lock-screen progress bar: whole exercise (`totalSeconds`), currently
 // at `totalSeconds - remainingSeconds`. Set both ways -- setPositionState
 // for Chrome, and the silent track's own length and position for iOS.

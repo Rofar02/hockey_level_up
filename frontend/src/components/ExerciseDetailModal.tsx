@@ -24,6 +24,19 @@ import { SET_FEEDBACK_LABELS, SET_FEEDBACK_OPTIONS } from '../types/setCompletio
 import type { ExerciseHistorySession, SetCompletionSummary, SetFeedback } from '../types/setCompletion'
 import type { SkillTagRead } from '../types/skill'
 import { exercisePlayerMode } from '../utils/exercisePlayerMode'
+import { renderLockScreenArtwork } from '../utils/lockScreenArtwork'
+import {
+  holdLockScreen,
+  isLockScreenPlayerEnabled,
+  isLockScreenPlayerSupported,
+  playGoalHornNow,
+  primeLockScreenAudio,
+  scheduleSegmentBeeps,
+  startLockScreenSession,
+  stopLockScreenSession,
+  updateLockScreenProgress,
+  type LockScreenInfo,
+} from '../utils/workoutAudio'
 import { hasExerciseDescription, hasExerciseTechnique } from '../utils/exerciseTechnique'
 import {
   alertTimerDone,
@@ -519,14 +532,21 @@ const REPS_TAG_LABELS = { match: 'совпадает', less: 'меньше', mor
 // way there's nothing left to notify about.
 function RestTimer({
   totalSeconds,
+  deadline,
   accessToken,
   onDone,
+  lockScreen,
 }: {
   totalSeconds: number
+  // Absolute end time (ms) -- survives the app being reloaded mid-rest.
+  deadline: number
   accessToken: string
   onDone: () => void
+  // Lock-screen player experiment: the rest card while counting, and the
+  // card for the set that follows once the rest is over (or skipped).
+  lockScreen: { rest: LockScreenInfo; next: LockScreenInfo } | null
 }) {
-  const [remaining, setRemaining] = useState(totalSeconds)
+  const [remaining, setRemaining] = useState(() => Math.max(0, (deadline - Date.now()) / 1000))
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
   // Same wall-clock-deadline fix as TimerPlayer's work/rest ring (found
@@ -536,7 +556,39 @@ function RestTimer({
   // net covering it either way -- scheduleRestDoneNotification below only
   // fires a background alert at the real deadline, it doesn't correct what
   // the on-screen digits show once the athlete looks again.
-  const deadlineRef = useRef(Date.now() + totalSeconds * 1000)
+  const deadlineRef = useRef(deadline)
+  // Fixed for this rest period (the cards are rebuilt by the parent on
+  // every render, the decision to use the lock screen is not).
+  const hasLockScreenRef = useRef(lockScreen !== null)
+
+  // Rest on the lock screen: countdown card + progress, stick taps and the
+  // face-off whistle scheduled on the audio clock (they play even with the
+  // page frozen); "далее" skips the rest. Afterwards the next set's card
+  // stays up. Pause doesn't apply to rest (false = keep running).
+  useEffect(() => {
+    if (lockScreen === null) {
+      return
+    }
+    const left = Math.max(0, (deadlineRef.current - Date.now()) / 1000)
+    startLockScreenSession(lockScreen.rest, {
+      onPlay: () => {},
+      onPause: () => false,
+      onNext: () => onDoneRef.current(),
+    })
+    updateLockScreenProgress(totalSeconds, left, true)
+    scheduleSegmentBeeps([{ endsIn: left, kind: 'rest' }])
+    const resync = () => {
+      if (document.visibilityState === 'visible') {
+        updateLockScreenProgress(totalSeconds, Math.max(0, (deadlineRef.current - Date.now()) / 1000), true)
+      }
+    }
+    document.addEventListener('visibilitychange', resync)
+    return () => {
+      document.removeEventListener('visibilitychange', resync)
+      holdLockScreen(lockScreen.next)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one rest period per mount
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -581,7 +633,10 @@ function RestTimer({
     if (remaining > 0) {
       return
     }
-    alertTimerDone()
+    // The lock-screen player already scheduled the whistle for this moment.
+    if (!hasLockScreenRef.current) {
+      alertTimerDone()
+    }
     onDoneRef.current()
   }, [remaining])
 
@@ -618,6 +673,15 @@ function RestTimer({
 // modal doesn't lose progress -- the "current" set is the first set_number
 // with no record yet, not just count+1, in case sets were ever logged
 // out of order.
+// The rest between two sets, persisted per (session, exercise) so it
+// survives the app being reloaded mid-rest.
+const REST_STORAGE_PREFIX = 'icelevel.rest.'
+interface RestState {
+  forSetNumber: number
+  totalSeconds: number
+  deadline: number
+}
+
 function SetLogger({
   exercise,
   trainingSessionId,
@@ -685,9 +749,26 @@ function SetLogger({
   // 0 or the athlete taps "Пропустить". forSetNumber pins the timer to the
   // specific set it's a rest *before*, so it never survives into rendering
   // for the wrong set.
-  const [restState, setRestState] = useState<{ forSetNumber: number; totalSeconds: number } | null>(
-    null,
-  )
+  const [restState, setRestStateRaw] = useState<RestState | null>(null)
+  const restStorageKey = `${REST_STORAGE_PREFIX}${trainingSessionId}:${exercise.id}`
+  // Every change is mirrored to localStorage so a rest survives the app
+  // being reloaded (iOS home-screen apps often are when reopened).
+  function setRestState(next: RestState | null) {
+    setRestStateRaw(next)
+    try {
+      if (next === null) {
+        localStorage.removeItem(restStorageKey)
+      } else {
+        localStorage.setItem(restStorageKey, JSON.stringify(next))
+      }
+    } catch {
+      // Private mode / full storage -- the rest just won't survive a reload.
+    }
+  }
+
+  // Lock-screen player experiment (see TimerPlayer / utils/workoutAudio.ts).
+  const [lockScreen] = useState(() => isLockScreenPlayerEnabled() && isLockScreenPlayerSupported())
+  const lockStartedRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -758,6 +839,98 @@ function SetLogger({
       cancelled = true
     }
   }, [exercise.id, exercise.tracks_weight, hasRepRange, trainingSessionId, accessToken])
+
+  // A rest still running when the app was closed: put it back once the
+  // logged sets are known (it must belong to the set that's now current).
+  const restRestoredRef = useRef(false)
+  useEffect(() => {
+    if (isLoadingSets || restRestoredRef.current) {
+      return
+    }
+    restRestoredRef.current = true
+    try {
+      const raw = localStorage.getItem(restStorageKey)
+      if (raw === null) {
+        return
+      }
+      const saved = JSON.parse(raw) as RestState
+      if (saved.forSetNumber === currentSetNumber && saved.deadline > Date.now()) {
+        setRestStateRaw(saved)
+      } else {
+        localStorage.removeItem(restStorageKey)
+      }
+    } catch {
+      // Unreadable -- start without it.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, after sets load
+  }, [isLoadingSets])
+
+  function setDetail(): string {
+    const parts: string[] = []
+    if (exercise.rep_range_min !== null && exercise.rep_range_max !== null) {
+      parts.push(
+        exercise.rep_range_min === exercise.rep_range_max
+          ? `${exercise.rep_range_min} повт.`
+          : `${exercise.rep_range_min}–${exercise.rep_range_max} повт.`,
+      )
+    }
+    if (exercise.tracks_weight && suggestedWeightKg !== null) {
+      parts.push(`${suggestedWeightKg} кг`)
+    }
+    return parts.join(' · ')
+  }
+
+  function setCard(setNumber: number): LockScreenInfo {
+    const total = targetSets ?? setNumber
+    return {
+      title: exercise.name,
+      subtitle: `Подход ${setNumber} из ${total}`,
+      artworkUrl:
+        renderLockScreenArtwork({
+          phase: 'set',
+          exerciseName: exercise.name,
+          detail: setDetail() || undefined,
+          rounds: total,
+          completedRounds: setNumber - 1,
+        }) ?? undefined,
+    }
+  }
+
+  function restCard(nextSetNumber: number, seconds: number): LockScreenInfo {
+    const total = targetSets ?? nextSetNumber
+    return {
+      title: exercise.name,
+      subtitle: `Отдых · дальше подход ${nextSetNumber} из ${total}`,
+      artworkUrl:
+        renderLockScreenArtwork({
+          phase: 'rest',
+          exerciseName: exercise.name,
+          seconds,
+          rounds: total,
+          completedRounds: nextSetNumber - 1,
+        }) ?? undefined,
+    }
+  }
+
+  function idleCard(): LockScreenInfo {
+    return {
+      title: 'IceLevel',
+      subtitle: 'Тренировка идёт',
+      artworkUrl:
+        renderLockScreenArtwork({ phase: 'idle', exerciseName: exercise.name, rounds: 0, completedRounds: 0 }) ??
+        undefined,
+    }
+  }
+
+  const idleCardRef = useRef(idleCard)
+  idleCardRef.current = idleCard
+  useEffect(() => {
+    return () => {
+      if (lockStartedRef.current) {
+        stopLockScreenSession(idleCardRef.current())
+      }
+    }
+  }, [])
 
   // First set_number (1..targetSets) without a logged record -- not just
   // Object.keys(completedSets).length + 1, in case rehydrated sets have a
@@ -847,6 +1020,12 @@ function SetLogger({
     const isCorrection = editingSetNumber !== null
     const reps = effectiveReps
     const weight = exercise.tracks_weight ? effectiveWeight : null
+    // Still inside the tap: unlock audio now, the rest it leads to only
+    // starts after the save request below comes back.
+    if (lockScreen && !isCorrection) {
+      primeLockScreenAudio()
+      lockStartedRef.current = true
+    }
 
     setSaveError(null)
     setIsSaving(true)
@@ -901,6 +1080,11 @@ function SetLogger({
       // separately. onLastSetCompleted is undefined in read-only contexts
       // (NewSchedulePage), where this must never fire.
       if (targetSetNumber === targetSets) {
+        if (lockStartedRef.current) {
+          playGoalHornNow()
+          const idle = idleCard()
+          window.setTimeout(() => stopLockScreenSession(idle), 2500)
+        }
         if (onLastSetCompleted !== undefined) {
           onLastSetCompleted()
         }
@@ -911,7 +1095,13 @@ function SetLogger({
         // Only between sets of *this* exercise -- there's no next set to
         // rest before once the last one is saved, whatever comes after
         // (next exercise, or done) isn't this formula's concern.
-        setRestState({ forSetNumber: targetSetNumber + 1, totalSeconds: exercise.rest_seconds })
+        setRestState({
+          forSetNumber: targetSetNumber + 1,
+          totalSeconds: exercise.rest_seconds,
+          deadline: Date.now() + exercise.rest_seconds * 1000,
+        })
+      } else if (lockStartedRef.current) {
+        holdLockScreen(setCard(targetSetNumber + 1))
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
@@ -1018,8 +1208,14 @@ function SetLogger({
                 <RestTimer
                   key={setNumber}
                   totalSeconds={restState.totalSeconds}
+                  deadline={restState.deadline}
                   accessToken={accessToken}
                   onDone={() => setRestState(null)}
+                  lockScreen={
+                    lockScreen && lockStartedRef.current
+                      ? { rest: restCard(setNumber, restState.totalSeconds), next: setCard(setNumber) }
+                      : null
+                  }
                 />
               )
             }
