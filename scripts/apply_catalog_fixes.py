@@ -8,6 +8,8 @@ Reads scripts/data/catalog_metadata_fixes.json: a list of
   target_duration_seconds  int
   sets_reps                [target_sets, rep_range_min, rep_range_max]
   muscles                  {muscle_group: weight}
+  description, phase, warmup_stage, admin_reviewed, is_archived
+                           plain scalar values (enums as their string value)
 
 Written for a catalog the product owner has edited by hand, so it only ever
 does the minimum:
@@ -45,6 +47,7 @@ from app.models.exercise import (
 from app.schemas.exercise import ExerciseUpdate, MuscleGroupWeight
 from app.services.exercise_service import ExerciseService
 
+SCALAR_FIELDS = {"description", "phase", "warmup_stage", "admin_reviewed", "is_archived"}
 DEFAULT_DATA = Path(__file__).resolve().parent / "data" / "catalog_metadata_fixes.json"
 
 
@@ -98,12 +101,16 @@ async def main(args: argparse.Namespace) -> int:
                     ok = {k: round(float(v), 4) for k, v in current.items()} == {
                         k: round(float(v), 4) for k, v in old.items()
                     }
+                elif field in SCALAR_FIELDS:
+                    current = val(getattr(ex, field))
+                    ok = current == old
                 else:
                     raise SystemExit(f"unknown field {field!r}")
                 if not ok:
                     skipped["changed_since_export"].append(f"{name} [{field}]")
                     continue
-                print(f"  {name}: {field} {old} -> {new}")
+                shown = (lambda t: t if not isinstance(t, str) or len(t) < 60 else t[:57] + "...")
+                print(f"  {name}: {field} {shown(old)} -> {shown(new)}")
                 if args.apply:
                     if field == "equipment":
                         await service.replace_equipment_items(ex.id, [EquipmentItem(i) for i in new])
