@@ -63,8 +63,6 @@ const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number
     'gluteus-maximus-right': 1.0,
     'gluteus-medius-left': 0.8,
     'gluteus-medius-right': 0.8,
-    'adductors-left': 0.5,
-    'adductors-right': 0.5,
   },
   chest: {
     'chest-upper-left': 1.0,
@@ -103,7 +101,6 @@ const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number
     'abs-upper-right': 1.0, 'abs-lower-right': 1.0,
     'obliques-left': 0.8, 'obliques-right': 0.8,
     'serratus-anterior-left': 0.6, 'serratus-anterior-right': 0.6,
-    'hip-flexor-left': 0.5, 'hip-flexor-right': 0.5,
   },
   calves: {
     'calves-gastroc-medial-left': 1.0, 'calves-gastroc-lateral-left': 1.0, 'calves-soleus-left': 1.0,
@@ -112,10 +109,22 @@ const MUSCLE_LIBRARY_WEIGHTS_BY_GROUP: Record<MuscleGroup, Record<string, number
     'foot-left': 0.3, 'foot-right': 0.3,
     'foot-back-left': 0.3, 'foot-back-right': 0.3,
   },
+  // 2026-10-03: the inner thigh and the hip flexors used to be painted as
+  // glutes (0.5) and core (0.5). They are their own groups now, so a groin
+  // or hip-flexor concern can be picked on the avatar and loads show where
+  // they belong.
+  adductors: {
+    'adductors-left': 1.0,
+    'adductors-right': 1.0,
+  },
+  hip_flexors: {
+    'hip-flexor-left': 1.0,
+    'hip-flexor-right': 1.0,
+  },
 }
 
 // Reverse lookup for click-to-detail (MuscleLoadChart's onMuscleClick) --
-// which of our 8 groups "owns" a given library id. Built once from the
+// which of our muscle groups "owns" a given library id. Built once from the
 // weight map above rather than maintained separately, so the two can
 // never drift out of sync with each other.
 const GROUP_BY_LIBRARY_ID: Record<string, MuscleGroup> = Object.fromEntries(

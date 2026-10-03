@@ -60,7 +60,7 @@ class UserTemporaryRestriction(Base):
         enum_column(MovementPattern, "movement_pattern"), nullable=True
     )
     muscle_group: Mapped[MuscleGroup | None] = mapped_column(
-        enum_column(MuscleGroup, "muscle_group"), nullable=True
+        enum_column(MuscleGroup, "muscle_group", length=32), nullable=True
     )
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

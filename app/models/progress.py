@@ -82,7 +82,7 @@ class UserMuscleLoad(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     muscle_group: Mapped[MuscleGroup] = mapped_column(
-        enum_column(MuscleGroup, "muscle_group"), nullable=False
+        enum_column(MuscleGroup, "muscle_group", length=32), nullable=False
     )
     current_value: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.0, server_default="0"

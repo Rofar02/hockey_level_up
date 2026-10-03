@@ -170,6 +170,12 @@ class MuscleGroup(enum.StrEnum):
     # actually load. No migration needed -- VARCHAR-backed (see
     # app.db.enum_column), same as the earlier movement-pattern additions.
     FOREARMS = "forearms"
+    # Added 2026-10-03: the inner thigh (the classic groin-injury zone in
+    # hockey) and the hip flexors had no honest home -- the avatar painted
+    # them as glutes and core. The column is VARCHAR(32) (see enum_column),
+    # so no further migration is needed for the next addition.
+    ADDUCTORS = "adductors"
+    HIP_FLEXORS = "hip_flexors"
 
 
 class StimulusType(enum.StrEnum):
@@ -449,7 +455,7 @@ class ExerciseMuscleGroup(Base):
         UUID(as_uuid=True), ForeignKey("exercises.id", ondelete="CASCADE"), nullable=False, index=True
     )
     muscle_group: Mapped[MuscleGroup] = mapped_column(
-        enum_column(MuscleGroup, "muscle_group"), nullable=False
+        enum_column(MuscleGroup, "muscle_group", length=32), nullable=False
     )
     weight: Mapped[float] = mapped_column(Float, nullable=False)
 

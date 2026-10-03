@@ -226,6 +226,8 @@ MUSCLE_GROUP_LABELS: dict[MuscleGroup, str] = {
     MuscleGroup.CORE: "Кор",
     MuscleGroup.CALVES: "Икры",
     MuscleGroup.FOREARMS: "Предплечья",
+    MuscleGroup.ADDUCTORS: "Приводящие мышцы",
+    MuscleGroup.HIP_FLEXORS: "Сгибатели бедра",
 }
 
 SYSTEM_PROMPT_GUARDRAILS = (

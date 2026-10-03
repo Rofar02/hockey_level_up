@@ -75,6 +75,8 @@ MUSCLE_DISPLAY_GROUP: dict[MuscleGroup, str] = {
     MuscleGroup.CHEST: "chest_shoulders",
     MuscleGroup.SHOULDERS: "chest_shoulders",
     MuscleGroup.FOREARMS: "arms",
+    MuscleGroup.ADDUCTORS: "legs",
+    MuscleGroup.HIP_FLEXORS: "core",
 }
 DISPLAY_GROUP_ORDER = ["legs", "core", "back", "chest_shoulders", "arms"]
 
