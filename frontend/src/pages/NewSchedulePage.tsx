@@ -11,7 +11,6 @@ import { TeamDayPlanModal, TeamDayWeekLine } from '../components/teamEvents/Team
 import { clearTeamEventCache } from '../hooks/useTeamEvent'
 import { ExerciseTechnique } from '../components/ExerciseTechnique'
 import * as scheduleApi from '../api/schedule'
-import * as sessionBlocksApi from '../api/sessionBlocks'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
@@ -421,48 +420,6 @@ export function NewSchedulePage() {
     }
   }
 
-  // Mirrors TrainingSessionPage's handleComplete -- this is the same
-  // POST /session-blocks/{id}/complete call, just reached from a started
-  // day viewed via the weekly schedule instead of the dedicated session
-  // page. Without it, ExerciseDetailModal's SetLogger happily logs every
-  // set here (it's the same real component, not a read-only view), but the
-  // block itself never gets marked complete and the block_completed event
-  // (stat/XP/streak gain) never fires -- logging "through the Week page"
-  // silently didn't count.
-  async function handleBlockCompleted(dayIsoDate: string, block: SessionBlockRead) {
-    // skipped_at also guarded here -- a warmup/cooldown block skipped from
-    // the live session must stay resolved when reopened from this page too,
-    // never completable a second time for stat/XP gain it already opted out
-    // of.
-    if (accessToken === null || block.completed_at !== null || block.skipped_at !== null) {
-      return
-    }
-    setSubmitError(null)
-    try {
-      const updated = await sessionBlocksApi.completeSessionBlock(block.id, accessToken)
-      setRows((previous) =>
-        previous.map((row) => {
-          if (row.isoDate !== dayIsoDate || row.trainingSession === null) {
-            return row
-          }
-          const blocks = row.trainingSession.blocks.map((b) => (b.id === updated.id ? updated : b))
-          return {
-            ...row,
-            trainingSession: { ...row.trainingSession, blocks },
-            completionStatus: completionStatusFromBlocks(blocks),
-          }
-        }),
-      )
-    } catch (err) {
-      // Same 409-tolerant handling as TrainingSessionPage.handleComplete --
-      // already completed server-side (e.g. double-open race) isn't a real
-      // error, just a stale local block.completed_at.
-      if (!(err instanceof ApiError && err.status === 409)) {
-        setSubmitError(err instanceof ApiError ? err.message : 'Не удалось отметить упражнение.')
-      }
-    }
-  }
-
   const previewIndex = previewIsoDate !== null ? rows.findIndex((row) => row.isoDate === previewIsoDate) : -1
   const previewRow = previewIndex !== -1 ? rows[previewIndex] : null
   const teamPlanIndex = teamPlanIsoDate !== null ? rows.findIndex((row) => row.isoDate === teamPlanIsoDate) : -1
@@ -763,18 +720,7 @@ export function NewSchedulePage() {
             trainingSessionId={selectedExercise.trainingSessionId}
             accessToken={accessToken}
             onClose={() => setSelectedExercise(null)}
-            // Gated on the block's real completed_at/skipped_at, same as
-            // TrainingSessionPage's own onComplete -- previously this was
-            // always defined regardless of state, which made TimerPlayer's
-            // `isDone={onLastSetCompleted === undefined}` always false here.
-            // Reopening an already-finished duration exercise from the
-            // weekly schedule showed it as freshly startable instead of the
-            // "Готово" state (found 2026-08-29, fixed 2026-08-31).
-            onLastSetCompleted={
-              selectedExercise.block.completed_at === null && selectedExercise.block.skipped_at === null
-                ? () => handleBlockCompleted(selectedExercise.dayIsoDate, selectedExercise.block)
-                : undefined
-            }
+            readOnly
           />
         )}
       </div>

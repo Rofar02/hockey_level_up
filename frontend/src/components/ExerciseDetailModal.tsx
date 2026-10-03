@@ -125,6 +125,11 @@ export interface ExerciseDetailBodyProps {
   // tactile Нужно/Старт/Подходы cluster (plan item 1a). SetLogger itself
   // (the target_sets branch) is identical either way.
   variant?: 'modal' | 'focus'
+  // Plan-only view (NewSchedulePage, 2026-10-03: "в плане можно нажать
+  // выполнить -- надо убрать"): the logging tab (SetLogger/TimerPlayer/the
+  // "Выполнено" fallback) is not offered at all, only technique and
+  // transfer. Doing an exercise happens on the training screen.
+  readOnly?: boolean
 }
 
 // "Подходы" (SetLogger: suggested weight, per-set logging, feedback, state
@@ -143,8 +148,9 @@ export function ExerciseDetailBody({
   onReplaced,
   onSkip,
   variant = 'modal',
+  readOnly = false,
 }: ExerciseDetailBodyProps) {
-  const [activeTab, setActiveTab] = useState<ExerciseModalTab>('sets')
+  const [activeTab, setActiveTab] = useState<ExerciseModalTab>(readOnly ? 'technique' : 'sets')
   const [isReplacing, setIsReplacing] = useState(false)
   const [replaceError, setReplaceError] = useState<string | null>(null)
   const [isSkipConfirming, setIsSkipConfirming] = useState(false)
@@ -174,7 +180,7 @@ export function ExerciseDetailBody({
   // line. null while loading; [] on failure or no history, which simply
   // hides both.
   const [history, setHistory] = useState<ExerciseHistorySession[] | null>(null)
-  const hasPlayer = exercisePlayerMode(exercise) !== 'none'
+  const hasPlayer = exercisePlayerMode(exercise) !== 'none' && !readOnly
 
   useEffect(() => {
     if (!hasPlayer) {
@@ -229,9 +235,9 @@ export function ExerciseDetailBody({
   // under a tab strip that no longer has a button for it.
   useEffect(() => {
     if (!showTransferTab && activeTab === 'transfer') {
-      setActiveTab('sets')
+      setActiveTab(readOnly ? 'technique' : 'sets')
     }
-  }, [showTransferTab, activeTab])
+  }, [showTransferTab, activeTab, readOnly])
 
   const targetVolume = formatTargetVolume(exercise)
   const mode = exercisePlayerMode(exercise)
@@ -296,9 +302,11 @@ export function ExerciseDetailBody({
             variant === 'focus' ? '-mx-4' : '-mx-6 -mt-6'
           }`}
         >
-          <TabButton active={activeTab === 'sets'} onClick={() => setActiveTab('sets')}>
-            {mode === 'duration' ? 'Выполнение' : 'Подходы'}
-          </TabButton>
+          {!readOnly && (
+            <TabButton active={activeTab === 'sets'} onClick={() => setActiveTab('sets')}>
+              {mode === 'duration' ? 'Выполнение' : 'Подходы'}
+            </TabButton>
+          )}
           <TabButton active={activeTab === 'technique'} onClick={() => setActiveTab('technique')}>
             Техника
           </TabButton>
@@ -319,8 +327,8 @@ export function ExerciseDetailBody({
             consequence, its own alertTimerDone() sound never got the
             chance to fire, since the effect watching for remaining<=0 was
             torn down along with the component). */}
-        <div className={activeTab === 'sets' ? undefined : 'hidden'}>
-          {mode === 'sets_reps' ? (
+        <div className={activeTab === 'sets' && !readOnly ? undefined : 'hidden'}>
+          {readOnly ? null : mode === 'sets_reps' ? (
             <SetLogger
               exercise={exercise}
               trainingSessionId={trainingSessionId}
@@ -738,6 +746,9 @@ function SetLogger({
     }
   }
   const allSetsDone = targetSets !== null && currentSetNumber > targetSets
+  // Warm-up / cool-down exercises are not rated ("Как ощущения?" only makes
+  // sense for the main work, 2026-10-03) -- the last set advances directly.
+  const skipFeedback = exercise.phase === 'warmup' || exercise.phase === 'cooldown'
 
   // handleSaveSet's onLastSetCompleted call (below) only fires as a side
   // effect of the save request for the Nth set landing -- it never runs if
@@ -864,6 +875,9 @@ function SetLogger({
       if (targetSetNumber === targetSets) {
         if (onLastSetCompleted !== undefined) {
           onLastSetCompleted()
+        }
+        if (skipFeedback) {
+          onSettled?.()
         }
       } else if (exercise.rest_seconds !== null) {
         // Only between sets of *this* exercise -- there's no next set to
@@ -1068,7 +1082,7 @@ function SetLogger({
       </div>
       )}
 
-      {feedback !== null ? (
+      {skipFeedback && feedback === null ? null : feedback !== null ? (
         <div className="flex items-center justify-between gap-2 border-t border-white/5 pt-3 text-sm">
           <span className="text-text-secondary">Как ощущения?</span>
           <span className="flex items-center gap-1.5 font-medium text-accent-persimmon">

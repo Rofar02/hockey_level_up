@@ -79,6 +79,8 @@ export function TimerPlayer({
   const [feedbackAnswered, setFeedbackAnswered] = useState(false)
   const onCompleteRef = useRef(onComplete)
   onCompleteRef.current = onComplete
+  const onSettledRef = useRef(onSettled)
+  onSettledRef.current = onSettled
   // Wall-clock deadline for the currently-running segment, not a tick
   // counter -- a plain "decrement once a second" timer stalls while the
   // screen is locked (mobile browsers throttle/suspend setTimeout in a
@@ -192,7 +194,13 @@ export function TimerPlayer({
     if (finishedSetNumber >= rounds) {
       setCompletedRounds(rounds)
       onCompleteRef.current?.()
-      setShowFeedback(true)
+      if (exercise.phase === 'warmup' || exercise.phase === 'cooldown') {
+        // Warm-up / cool-down are not rated -- go straight to "Готово".
+        setFeedbackAnswered(true)
+        onSettledRef.current?.()
+      } else {
+        setShowFeedback(true)
+      }
       return
     }
     setCompletedRounds(finishedSetNumber)
