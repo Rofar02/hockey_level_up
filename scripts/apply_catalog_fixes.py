@@ -8,7 +8,7 @@ Reads scripts/data/catalog_metadata_fixes.json: a list of
   target_duration_seconds  int
   sets_reps                [target_sets, rep_range_min, rep_range_max]
   muscles                  {muscle_group: weight}
-  description, phase, warmup_stage, admin_reviewed, is_archived
+  description, phase, warmup_stage, stimulus_type, admin_reviewed, is_archived
                            plain scalar values (enums as their string value)
 
 Written for a catalog the product owner has edited by hand, so it only ever
@@ -47,7 +47,7 @@ from app.models.exercise import (
 from app.schemas.exercise import ExerciseUpdate, MuscleGroupWeight
 from app.services.exercise_service import ExerciseService
 
-SCALAR_FIELDS = {"description", "phase", "warmup_stage", "admin_reviewed", "is_archived"}
+SCALAR_FIELDS = {"description", "phase", "warmup_stage", "stimulus_type", "admin_reviewed", "is_archived"}
 DEFAULT_DATA = Path(__file__).resolve().parent / "data" / "catalog_metadata_fixes.json"
 
 
