@@ -17,6 +17,10 @@ COPY . .
 # proxy (see deploy/nginx/app.conf).
 ARG VITE_API_BASE_URL=/api
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# Exercise clips + posters are served by the edge nginx straight from disk
+# (see deploy/nginx/app.conf, /media/exercise-videos/), not through the API.
+ARG VITE_MEDIA_BASE_URL=/media/exercise-videos
+ENV VITE_MEDIA_BASE_URL=$VITE_MEDIA_BASE_URL
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime

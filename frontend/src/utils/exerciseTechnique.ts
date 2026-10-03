@@ -9,7 +9,9 @@ export function hasExerciseDescription(exercise: ExerciseRead): boolean {
 
 export function hasExerciseVideo(exercise: ExerciseRead): boolean {
   return (
-    (exercise.video_source_type === 'youtube' || exercise.video_source_type === 'vk') &&
+    (exercise.video_source_type === 'youtube' ||
+      exercise.video_source_type === 'vk' ||
+      exercise.video_source_type === 'file') &&
     exercise.video_source_id !== null
   )
 }

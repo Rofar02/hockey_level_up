@@ -17,3 +17,7 @@ docs
 static/avatars
 static/reference-articles
 static/team-logos
+
+# Exercise clips + their 720p originals: huge, uploaded to the server separately (docs/deploy.md 11.1)
+static/exercise-videos
+exercise-videos-originals

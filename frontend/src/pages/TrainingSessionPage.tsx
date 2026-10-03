@@ -11,6 +11,7 @@ import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { StatIcon } from '../components/ui/StatIcon'
 import { ExerciseFocusScreen } from '../components/ExerciseFocusScreen'
+import { ExerciseMediaPrefetch } from '../components/ExerciseMediaPrefetch'
 import * as authApi from '../api/auth'
 import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
@@ -763,9 +764,23 @@ export function TrainingSessionPage() {
     }
   }
 
+  // The exercise the focus player will auto-advance to (same lookup as
+  // handleExerciseSettled) -- only used to warm the media cache for it.
+  const selectedIndex =
+    selectedExercise === null
+      ? -1
+      : currentPhaseBlocks.findIndex((block) => block.exercise.id === selectedExercise.id)
+  const nextPrefetchExercise =
+    selectedIndex === -1
+      ? null
+      : (currentPhaseBlocks
+          .slice(selectedIndex + 1)
+          .find((block) => !isExerciseDone(block, setCompletionCounts))?.exercise ?? null)
+
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
+      <ExerciseMediaPrefetch exercise={nextPrefetchExercise} />
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
       <div className="flex flex-col gap-2">
         <BackLink />

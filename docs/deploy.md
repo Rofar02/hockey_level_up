@@ -246,6 +246,44 @@ cd /opt/icelevel
 старые образы + сразу показывает хвост логов backend (чтобы упавшая
 миграция была видна сразу, а не через час).
 
+### 11.1. Видео упражнений (ролики и обложки)
+
+Ролики (`*.mp4`, 480p без звука) и обложки (`*.jpg`) лежат **не в
+репозитории** и **не в томе Docker**, а в обычной папке на сервере
+`/srv/hlu-media/exercise-videos/`. Её читает только edge-nginx
+(`docker-compose.prod.yml`, bind mount, read-only) и отдаёт по адресу
+`/media/exercise-videos/<id>.mp4` напрямую, без Python-бэкенда.
+
+Первый раз:
+
+1. На сервере: `mkdir -p /srv/hlu-media/exercise-videos`.
+2. С локальной машины залить файлы (около 250 МБ):
+   `rsync -avz --progress static/exercise-videos/ root@<сервер>:/srv/hlu-media/exercise-videos/`
+   (с Windows — `scp -r` или rsync из WSL). Оригиналы из
+   `exercise-videos-originals/` на сервер **не нужны**.
+3. Обновить `deploy/nginx/active.conf` из `deploy/nginx/app.conf` (в нём
+   новый блок `location /media/exercise-videos/`) и **пересоздать**
+   nginx: `docker compose -f docker-compose.prod.yml up -d nginx`
+   (новый bind mount подхватывается только при пересоздании, одного
+   `reload` мало).
+4. Пересобрать фронтенд — адрес медиа вшивается в сборку
+   (`VITE_MEDIA_BASE_URL=/media/exercise-videos`):
+   `docker compose -f docker-compose.prod.yml up -d --build frontend`.
+5. Проверка: `curl -I https://icelevel.ru/media/exercise-videos/<id>.mp4`
+   даёт `200`, `Cache-Control: public, max-age=2592000, immutable`; с
+   заголовком `Range: bytes=0-999` — `206`.
+6. Привязки в БД (`video_source_type='file'`, `video_source_id=<имя файла
+   без .mp4>`) на прод переносятся отдельным скриптом, **не** полным
+   `import_master_catalog.py`.
+
+Замена ролика: класть под **новым** именем и менять `video_source_id`
+(браузеры кэшируют файл на 30 дней, под старым именем обновление не
+доедет).
+
+Переезд на отдельный/больший диск: подключить диск, смонтировать в
+`/srv/hlu-media` (или скопировать `rsync -a` и перемонтировать), nginx
+перезапустить. Адреса в приложении не меняются.
+
 ## 12. Смок-тест после любого деплоя
 
 - Регистрация нового аккаунта → подтверждение письма (если Resend уже

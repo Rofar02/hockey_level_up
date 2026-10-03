@@ -1,0 +1,2134 @@
+{
+ "comment": "Self-hosted exercise clips (2026-10-03): 32 new exercises + video bindings for existing ones. Consumed by scripts/import_exercise_videos.py.",
+ "new_exercises": [
+  {
+   "name": "Боковая тяга саней",
+   "description": "Лямка сзади на поясе. Встать боком к направлению движения в низкой стойке и пройти 10 м приставными шагами (шаффл), сани тянутся сзади. Ключевое — стопы не скрещиваются, носки смотрят вперёд, толчок задней по ходу ногой. Частая ошибка — скрещивание ног, наклон корпуса вбок, чрезмерный вес.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "-xbJqxlUgKc",
+   "exercise_type": "sets_reps",
+   "target_sets": 4,
+   "rep_range_min": 1,
+   "rep_range_max": 1,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength",
+    "agility"
+   ],
+   "movement_patterns": [
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "glutes": 0.4,
+    "quads": 0.4,
+    "hamstrings": 0.2
+   },
+   "equipment_items": [
+    "sled"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Катание",
+     "transfer_note": "Боковое ускорение с сопротивлением развивает толчок боковой поверхностью конька при смещении вдоль борта."
+    }
+   ]
+  },
+  {
+   "name": "Боковое ползание «медведем»",
+   "description": "Из положения «медведя» двигаться вбок: ведущая рука и нога делают шаг в сторону, ведомые приставляются следом. Туда и обратно по 3–4 шага. Ключевое — колени над полом, таз не качается, шаги равные. Частая ошибка — скрещивание рук и ног, поднятый таз, колени касаются пола.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "Jxr9WTaeswQ",
+   "exercise_type": "duration",
+   "target_sets": 3,
+   "rep_range_min": null,
+   "rep_range_max": null,
+   "target_duration_seconds": 20,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "agility",
+    "strength"
+   ],
+   "movement_patterns": [
+    "core",
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "core": 0.3,
+    "glutes": 0.3,
+    "shoulders": 0.2,
+    "quads": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Контроль таза при смещении вбок — устойчивость в низкой хоккейной стойке."
+    },
+    {
+     "skill": "Катание",
+     "transfer_note": "Боковое перемещение в низком положении тренирует ягодичные и приводящие мышцы, которые толкают конёк в сторону."
+    }
+   ]
+  },
+  {
+   "name": "Бросок мяча из-за головы вперёд с шагом",
+   "description": "Встать лицом к стене на расстоянии 3–4 м, мяч двумя руками внизу. Поднять мяч над головой с лёгким прогибом назад, шагнуть вперёд и бросить мяч в стену по дуге вниз, вкладывая вес с задней ноги на переднюю. Поймать отскок, вернуться в исходное. Ключевое — движение идёт снизу вверх через бёдра, корпус и плечи по цепочке, рука заканчивает бросок последней. Частая ошибка — бросок одними руками без шага, прогиб в пояснице вместо работы бёдер, мяч отпускается слишком рано и летит высоко вместо стены.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "UJxb56n-RAw",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength",
+    "agility"
+   ],
+   "movement_patterns": [
+    "hip_hinge",
+    "push"
+   ],
+   "muscle_groups": {
+    "shoulders": 0.3,
+    "core": 0.3,
+    "back": 0.2,
+    "glutes": 0.2
+   },
+   "equipment_items": [
+    "medicine_ball"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Сила броска",
+     "transfer_note": "Передача усилия от ног через корпус в руки повторяет цепочку замаха и броска шайбы."
+    }
+   ]
+  },
+  {
+   "name": "Бросок мяча из-за головы с колена",
+   "description": "Встать на одно колено на мат, вторая нога впереди стопой на полу, таз под себя. Мяч взять с пола рядом, поднять над головой, резко бросить в стену по дуге вниз. Ключевое — таз и ноги зафиксированы, работают только корпус и плечи, спина прямая. Частая ошибка — раскачивание тазом, наклон корпуса в сторону, бросок только руками без включения корпуса.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "QeWhKPQeqG0",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "core",
+    "push"
+   ],
+   "muscle_groups": {
+    "core": 0.4,
+    "shoulders": 0.3,
+    "back": 0.3
+   },
+   "equipment_items": [
+    "medicine_ball"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Сила броска",
+     "transfer_note": "Бросок с зафиксированными ногами изолирует работу корпуса и плеч, которая на льду добавляется к ударам и броскам с места."
+    }
+   ]
+  },
+  {
+   "name": "Бросок мяча лёжа на спине с партнёром",
+   "description": "Лечь на спину, колени согнуты, стопы на полу. Партнёр стоит над головой и сверху подаёт мяч на грудь. Поймать мяч и сразу взрывно выжать его вверх обратно партнёру. Ключевое — руки вытянуты вертикально, плечи прижаты к полу, поясница не отрывается. Частая ошибка — прогиб в пояснице, толчок мяча вперёд, а не вверх, пассивная ловля вместо упругой.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "RAcv5bODqyY",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "push"
+   ],
+   "muscle_groups": {
+    "chest": 0.5,
+    "shoulders": 0.3,
+    "core": 0.2
+   },
+   "equipment_items": [
+    "medicine_ball"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Силовая борьба",
+     "transfer_note": "Взрывной жим от груди развивает мощность толчка руками, нужную в единоборствах у борта."
+    }
+   ]
+  },
+  {
+   "name": "Бросок мяча одной рукой от груди с колена",
+   "description": "Встать на одно колено на мат, вторая нога впереди, бок к стене, мяч в одной руке у плеча. Резко толкнуть мяч в стену одной рукой с разворотом корпуса. Поймать отскок, смена руки. Ключевое — таз на месте, ротация идёт от корпуса и плеча. Частая ошибка — падение корпуса в сторону броска, бросок одной кистью, опора на пятку задней ноги вместо колена.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "b9GGuOFEPCc",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "push",
+    "rotation"
+   ],
+   "muscle_groups": {
+    "core": 0.4,
+    "chest": 0.3,
+    "shoulders": 0.3
+   },
+   "equipment_items": [
+    "medicine_ball"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Сила броска",
+     "transfer_note": "Выключает работу ног и показывает вклад корпуса и плеча в бросок, который затем соединяется с толчком конька."
+    }
+   ]
+  },
+  {
+   "name": "Бросок мяча одной рукой от груди с приставным шагом",
+   "description": "Встать боком к стене, мяч в одной руке у плеча. Сделать приставной шаг к стене и в конце шага резко толкнуть мяч одной рукой в стену. Поймать отскок, вернуться, смена руки. Ключевое — вес переносится с дальней ноги на ближнюю, плечо и корпус включаются вместе с рукой. Частая ошибка — бросок «от руки» без шага, остановка перед броском вместо плавного перехода, перекос корпуса в сторону от стены.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "JAvtJUBTy8w",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength",
+    "agility"
+   ],
+   "movement_patterns": [
+    "push",
+    "rotation"
+   ],
+   "muscle_groups": {
+    "chest": 0.3,
+    "shoulders": 0.2,
+    "core": 0.3,
+    "glutes": 0.2
+   },
+   "equipment_items": [
+    "medicine_ball"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Сила броска",
+     "transfer_note": "Перенос веса боком в момент броска одной рукой — то же, что при броске на ходу или щелчке с шагом в сторону."
+    }
+   ]
+  },
+  {
+   "name": "Бросок мяча от груди в удержании выпада",
+   "description": "Лицом к стене принять положение выпада (колено задней ноги над полом), мяч у груди. Не меняя позиции, резко бросить мяч в стену от груди двумя руками, поймать отскок. Ключевое — выпад остаётся неподвижным всё время, ноги и корпус стабильны. Частая ошибка — качание корпуса вперёд-назад при броске, колено переднего бедра уходит внутрь, подъём из выпада.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "6Y5ziJs2I9w",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength",
+    "agility"
+   ],
+   "movement_patterns": [
+    "push",
+    "squat"
+   ],
+   "muscle_groups": {
+    "quads": 0.3,
+    "core": 0.3,
+    "chest": 0.2,
+    "shoulders": 0.2
+   },
+   "equipment_items": [
+    "medicine_ball"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Удержание выпада под силовой нагрузкой на корпус — устойчивость переднего бедра, как при опоре на одну ногу."
+    },
+    {
+     "skill": "Сила броска",
+     "transfer_note": "Бросок с неподвижной нижней частью тела учит передавать силу от опоры в руки, как при броске с одной опорной ноги."
+    }
+   ]
+  },
+  {
+   "name": "Жим-тяга на тросе с колена",
+   "description": "Встать на одно колено боком к стойке с тросами, в одной руке рукоять нижнего блока, во второй рукоять верхнего. Одновременно жать одной рукой вперёд и тянуть другой к груди, корпус не вращается. Ключевое — таз и плечи неподвижны, работают только руки и лопатки. Частая ошибка — разворот корпуса за рукой, падение таза, слишком большой вес.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "bOv1RGwtU7k",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 8,
+   "rep_range_max": 10,
+   "target_duration_seconds": null,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "core",
+    "pull",
+    "push"
+   ],
+   "muscle_groups": {
+    "core": 0.4,
+    "back": 0.3,
+    "chest": 0.3
+   },
+   "equipment_items": [
+    "gym_machine"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Антиротация корпуса с колена — устойчивость корпуса при двух разнонаправленных усилиях."
+    },
+    {
+     "skill": "Сила броска",
+     "transfer_note": "Одновременный жим и тяга повторяют работу рук на клюшке при броске: одна толкает, вторая тянет."
+    }
+   ]
+  },
+  {
+   "name": "Зашагивание на тумбу с гантелями и подъёмом колена",
+   "description": "Встать лицом к тумбе, гантели в опущенных руках. Поставить одну ногу на тумбу целиком, подняться только за счёт неё и вынести вторую ногу вверх, колено на уровне бедра, зафиксироваться на секунду. Контролируемо спуститься, сменить ногу. Ключевое — вес на ноге на тумбе, без толчка от нижней ноги. Частая ошибка — толчок от нижней ноги, колено заваливается внутрь, наклон корпуса, слишком высокая тумба.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "RFQqNCbGX6E",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 8,
+   "rep_range_max": 10,
+   "target_duration_seconds": null,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": true,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength",
+    "agility"
+   ],
+   "movement_patterns": [
+    "squat"
+   ],
+   "muscle_groups": {
+    "quads": 0.4,
+    "glutes": 0.4,
+    "core": 0.2
+   },
+   "equipment_items": [
+    "dumbbells",
+    "step_platform"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Стабильное колено и таз при работе на одной ноге."
+    },
+    {
+     "skill": "Катание",
+     "transfer_note": "Подъём на возвышение одной ногой с выносом колена повторяет толчок и вынос ноги в шаге конька."
+    }
+   ]
+  },
+  {
+   "name": "Касания плеч в позе «медведя»",
+   "description": "Упор на ладони и колени, колени на 3–5 см над полом, спина параллельна полу. Поочерёдно касаться ладонью противоположного плеча, не раскачивая таз. Ключевое — колени не касаются пола, таз неподвижен, шаги ровные. Частая ошибка — таз «уходит» в сторону при каждом касании, колени касаются пола, поднятый таз.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "ignku9wupZM",
+   "exercise_type": "duration",
+   "target_sets": 3,
+   "rep_range_min": null,
+   "rep_range_max": null,
+   "target_duration_seconds": 30,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "core"
+   ],
+   "muscle_groups": {
+    "core": 0.6,
+    "shoulders": 0.4
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Антиротация корпуса на трёх опорах — устойчивость таза при одностороннем движении, как при катании на одной ноге."
+    }
+   ]
+  },
+  {
+   "name": "Кроссовер с санями",
+   "description": "Закрепить сани сзади лямкой на поясе, небольшой вес. Встать боком в низкую хоккейную стойку и пройти 10 м кроссоверными шагами: толкаться наружной ногой, внутреннюю заводить крест-накрест перед опорной, сани тянутся сзади. Ключевое — корпус наклонён, колени согнуты, шаги плавные и непрерывные, сани не останавливаются. Частая ошибка — выпрямление корпуса, шаги «скачками» с остановкой саней, слишком тяжёлый вес, из-за которого ломается техника.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "WK7_uhi1bJ0",
+   "exercise_type": "sets_reps",
+   "target_sets": 4,
+   "rep_range_min": 1,
+   "rep_range_max": 1,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength",
+    "on_ice_skating"
+   ],
+   "movement_patterns": [
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "glutes": 0.3,
+    "quads": 0.3,
+    "core": 0.2,
+    "hamstrings": 0.2
+   },
+   "equipment_items": [
+    "sled"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Катание",
+     "transfer_note": "Нагруженный кроссовер развивает силу толчка наружной ногой — прямой перенос на разгон и поворот на коньках."
+    }
+   ]
+  },
+  {
+   "name": "Кроссовер со спринтом по команде",
+   "description": "Низкая стойка, партнёр показывает рукой направление. Сделать 2–3 кроссоверных шага в эту сторону, затем сразу развернуть корпус и выйти в спринт на 5–10 м. Ключевое — давление в пол и толчок наружной ногой, на последнем шаге кроссовера плечи и таз уже развёрнуты по направлению спринта. Частая ошибка — выпрямление корпуса при переходе в бег, остановка между кроссовером и спринтом, взгляд в пол вместо партнёра.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "ZVwZzE6r9a4",
+   "exercise_type": "sets_reps",
+   "target_sets": 1,
+   "rep_range_min": 4,
+   "rep_range_max": 6,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "agility",
+    "on_ice_skating"
+   ],
+   "movement_patterns": [
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "glutes": 0.4,
+    "quads": 0.4,
+    "core": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Катание",
+     "transfer_note": "Переход из кроссовера в спринт повторяет поворот на льду с выходом на прямую: толчок наружным коньком, корпус разворачивается на последнем шаге."
+    },
+    {
+     "skill": "Координация и реакция",
+     "transfer_note": "Реакция на сигнал и мгновенная смена паттерна переносятся на перестроение по игровой ситуации."
+    }
+   ]
+  },
+  {
+   "name": "Матрица выпадов",
+   "description": "Встать прямо, руки на поясе. Сделать выпад вперёд и вернуться, затем выпад в сторону и вернуться, затем выпад назад и вернуться. Это один круг, затем смена ноги. Ключевое — колено над стопой, корпус вертикален, возвраты в исходное без остановки. Частая ошибка — колено заваливается внутрь, наклон корпуса вперёд, слишком широкие неконтролируемые шаги.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "ukzace3Co-o",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 4,
+   "rep_range_max": 6,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": true,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength",
+    "agility"
+   ],
+   "movement_patterns": [
+    "squat"
+   ],
+   "muscle_groups": {
+    "quads": 0.3,
+    "glutes": 0.3,
+    "hamstrings": 0.2,
+    "core": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Контроль колена и таза при смене направления выпада."
+    },
+    {
+     "skill": "Катание",
+     "transfer_note": "Выпады в трёх направлениях тренируют силу и устойчивость бедра в разных плоскостях, нужные при смене направления и толчке конька."
+    }
+   ]
+  },
+  {
+   "name": "Обратный выпад со скольжением",
+   "description": "Гиря у груди двумя руками, стопа задней ноги на слайдере. Плавно скользить стопой назад, опускаясь в выпад, затем подтянуть слайдер обратно усилием передней ноги. Ключевое — основной вес на передней ноге, колено над стопой, скольжение медленное. Частая ошибка — слайдер уезжает слишком далеко, наклон корпуса, толчок задней ногой вместо передней, колено заваливается внутрь.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "Y4GEC9BuB0E",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 8,
+   "rep_range_max": 10,
+   "target_duration_seconds": null,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": true,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "squat"
+   ],
+   "muscle_groups": {
+    "quads": 0.4,
+    "glutes": 0.4,
+    "core": 0.2
+   },
+   "equipment_items": [
+    "kettlebell",
+    "slide_board"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Контроль таза и колена при нестабильной задней опоре."
+    },
+    {
+     "skill": "Катание",
+     "transfer_note": "Скольжение с контролем напоминает отведение ноги при толчке конька и тренирует тот же рычаг бедра."
+    }
+   ]
+  },
+  {
+   "name": "Падающий старт",
+   "description": "Встать прямо, стопы на ширине таза. Не сгибаясь в поясе, наклонить всё тело вперёд, как падающую доску, и в момент потери равновесия выйти в спринт короткими мощными шагами 10 м. Корпус остаётся наклонённым первые 3–4 шага и постепенно выпрямляется. Ключевое — наклон создаётся всем телом от стоп, а не изгибом поясницы, первый шаг ставится под центр тяжести. Частая ошибка — сгибание в пояснице с отставленным тазом, длинный первый шаг «перед собой» и слишком раннее выпрямление корпуса, из-за чего теряется разгон.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "RkkKQkEj1jQ",
+   "exercise_type": "sets_reps",
+   "target_sets": 1,
+   "rep_range_min": 4,
+   "rep_range_max": 6,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "agility",
+    "on_ice_skating"
+   ],
+   "movement_patterns": [
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "glutes": 0.3,
+    "quads": 0.3,
+    "core": 0.2,
+    "calves": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Взрывной старт",
+     "transfer_note": "Тренирует угол наклона и короткие мощные первые шаги — то же, что первые толчки конька при разгоне с места."
+    },
+    {
+     "skill": "Катание",
+     "transfer_note": "Закрепляет положение корпуса при старте: на льду то же — наклон вперёд и частые короткие толчки."
+    }
+   ]
+  },
+  {
+   "name": "Переноска гири у груди",
+   "description": "Взять гирю двумя руками за рога у груди, локти прижаты к корпусу, плечи опущены, корпус вертикален. Идти ровным шагом 15–20 м без раскачки. Ключевое — гиря «приклеена» к груди, рёбра опущены, шаг короткий и ровный. Частая ошибка — прогиб в пояснице с выпячиванием груди, локти разведены в стороны, гиря отходит от корпуса.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "PKw81pzgxls",
+   "exercise_type": "duration",
+   "target_sets": 3,
+   "rep_range_min": null,
+   "rep_range_max": null,
+   "target_duration_seconds": 30,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength",
+    "endurance"
+   ],
+   "movement_patterns": [
+    "core",
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "core": 0.4,
+    "back": 0.3,
+    "shoulders": 0.2,
+    "forearms": 0.1
+   },
+   "equipment_items": [
+    "kettlebell"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Стабильный корпус при движении с грузом переносится на устойчивость при контакте."
+    },
+    {
+     "skill": "Силовая борьба",
+     "transfer_note": "Удержание нагрузки спереди в ходьбе учит держать вертикальный корпус под давлением, как при борьбе у борта."
+    }
+   ]
+  },
+  {
+   "name": "Переноска двух гирь в стойке на груди",
+   "description": "Две гири в стойке на груди: рукоятки у плеч, локти прижаты и смотрят вниз, запястья нейтральны. Идти ровно 15–20 м. Ключевое — рёбра вниз, ягодицы напряжены, шаг короткий. Частая ошибка — прогиб поясницы, локти вразлёт, гири бьют по ключицам, слишком тяжёлый вес.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "OiYrG3otxAI",
+   "exercise_type": "duration",
+   "target_sets": 3,
+   "rep_range_min": null,
+   "rep_range_max": null,
+   "target_duration_seconds": 30,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength",
+    "endurance"
+   ],
+   "movement_patterns": [
+    "core",
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "core": 0.4,
+    "back": 0.2,
+    "quads": 0.2,
+    "shoulders": 0.2
+   },
+   "equipment_items": [
+    "kettlebell"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Силовая борьба",
+     "transfer_note": "Тяжёлая фронтальная нагрузка в ходьбе — устойчивость корпуса и осанки при давлении соперника."
+    }
+   ]
+  },
+  {
+   "name": "Пила в планке",
+   "description": "Упор на предплечья, тело одной линией от головы до стоп. Не сгибаясь в тазе, мягко сместить корпус назад и вперёд на 5–10 см, как пила, предплечья скользят по полу. Ключевое — таз не поднимается и не провисает, дыхание ровное. Частая ошибка — прогиб в пояснице, поднятый таз, слишком большая амплитуда.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "yb04ORJqiDA",
+   "exercise_type": "duration",
+   "target_sets": 3,
+   "rep_range_min": null,
+   "rep_range_max": null,
+   "target_duration_seconds": 20,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "core"
+   ],
+   "muscle_groups": {
+    "core": 0.7,
+    "shoulders": 0.3
+   },
+   "equipment_items": [
+    "slide_board"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Удержание линии тела при скольжении — стабильность корпуса при толчке соперника в низкой стойке."
+    },
+    {
+     "skill": "Силовая борьба",
+     "transfer_note": "Изометрия кора при движении плеч — устойчивость позиции у борта."
+    }
+   ]
+  },
+  {
+   "name": "Планка «Часы»",
+   "description": "Упор на прямых руках, стопы чуть шире плеч. Одной рукой поочерёдно касаться воображаемых точек циферблата (12, 3, 6, 9 часов), вторая рука удерживает вес, таз остаётся на месте. Затем сменить руку. Ключевое — корпус не раскачивается и не поворачивается, касания лёгкие. Частая ошибка — поворот таза за рукой, прогиб поясницы, слишком широкий шаг рукой.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "JwuTz4URqO8",
+   "exercise_type": "duration",
+   "target_sets": 3,
+   "rep_range_min": null,
+   "rep_range_max": null,
+   "target_duration_seconds": 30,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "core",
+    "push"
+   ],
+   "muscle_groups": {
+    "core": 0.5,
+    "shoulders": 0.3,
+    "chest": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Работа руки в разные стороны при стабильном корпусе — устойчивость при движениях клюшкой и борьбе."
+    }
+   ]
+  },
+  {
+   "name": "Подъём корпуса с мячом над головой",
+   "description": "Лечь на спину, колени согнуты, мяч в вытянутых руках над головой. Плавно поднять корпус вперёд до положения сидя, мяч идёт вертикально, затем медленно вернуться. Ключевое — подъём идёт за счёт пресса, а не размаха руками. Частая ошибка — рывок руками, отрыв стоп от пола, округление шеи.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "a4GToiG__Oo",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 8,
+   "rep_range_max": 12,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "core"
+   ],
+   "muscle_groups": {
+    "core": 0.8,
+    "shoulders": 0.2
+   },
+   "equipment_items": [
+    "medicine_ball"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Сила броска",
+     "transfer_note": "Пресс и плечи в связке с мячом над головой — та же цепочка, что передаёт усилие в бросок и замах."
+    }
+   ]
+  },
+  {
+   "name": "Ползание «медведем» вперёд и назад",
+   "description": "Упор на ладони и носки, колени согнуты и на 3–5 см над полом, спина параллельна полу, таз не выше плеч. Двигаться вперёд, одновременно переставляя противоположные руку и ногу, затем столько же назад. Ключевое — колени не касаются пола, спина ровная, шаги короткие. Частая ошибка — поднятый таз, колени касаются пола, широкие шаги, раскачка корпуса.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "TQp7k0GyKEI",
+   "exercise_type": "duration",
+   "target_sets": 3,
+   "rep_range_min": null,
+   "rep_range_max": null,
+   "target_duration_seconds": 20,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "agility",
+    "strength"
+   ],
+   "movement_patterns": [
+    "core",
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "core": 0.3,
+    "shoulders": 0.3,
+    "quads": 0.2,
+    "glutes": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Движение в низком положении на четырёх опорах с контролем таза — устойчивость корпуса и плеч при контакте в низкой стойке."
+    },
+    {
+     "skill": "Координация и реакция",
+     "transfer_note": "Перекрёстная работа рук и ног в низкой позиции развивает согласованность движений."
+    }
+   ]
+  },
+  {
+   "name": "Присед с двумя гирями в стойке на груди",
+   "description": "Две гири в стойке на груди: рукоятки у плеч, локти прижаты и смотрят вниз. Присесть до параллели бёдер с вертикальным корпусом, подняться. Ключевое — гири не уходят вперёд, спина прямая. Частая ошибка — локти разведены, гири падают вперёд, наклон корпуса, пятки отрываются.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "6leQZJE0-NQ",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 8,
+   "rep_range_max": 10,
+   "target_duration_seconds": null,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "squat"
+   ],
+   "muscle_groups": {
+    "quads": 0.4,
+    "glutes": 0.3,
+    "core": 0.3
+   },
+   "equipment_items": [
+    "kettlebell"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Вертикальный корпус под нагрузкой спереди."
+    },
+    {
+     "skill": "Силовая борьба",
+     "transfer_note": "Тяжёлый фронтальный присед укрепляет ноги и корпус для устойчивой позиции под давлением соперника."
+    }
+   ]
+  },
+  {
+   "name": "Разгонная механика у стены",
+   "description": "Упереться прямыми руками в стену на уровне груди, тело одной прямой линией от головы до стопы под углом около 45°. Опора на носок одной ноги, вторая согнута, колено на уровне бедра. Быстро менять ноги: колено вверх-вперёд, затем стопа бьёт вниз под тело. Серии по 8–10 смен. Ключевое — линия «пятка–таз–плечо» не ломается, стопа приземляется под центром тяжести, носок подтянут. Частая ошибка — прогиб в пояснице, таз отставлен назад, стопа опускается перед телом, смены ленивые, а не быстрые.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 1,
+   "video_source_id": "A4CU50A2mOw",
+   "exercise_type": "duration",
+   "target_sets": 3,
+   "rep_range_min": null,
+   "rep_range_max": null,
+   "target_duration_seconds": 20,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "agility",
+    "on_ice_skating"
+   ],
+   "movement_patterns": [
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "glutes": 0.4,
+    "core": 0.3,
+    "quads": 0.3
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Взрывной старт",
+     "transfer_note": "Отрабатывает положение корпуса и удар ногой вниз под себя на первых шагах — та же посадка, что при первых толчках на старте."
+    },
+    {
+     "skill": "Катание",
+     "transfer_note": "Привычка толкаться под центр тяжести, а не перед собой, переносится на короткие частые толчки при разгоне на коньках."
+    }
+   ]
+  },
+  {
+   "name": "Серия боковых прыжков со спринтом",
+   "description": "Стоя на одной ноге, мощно прыгнуть вбок на другую, повторить ещё два прыжка подряд и после третьего сразу перейти в спринт вперёд на 5–10 м. Приземление на согнутую ногу, колено над стопой, корпус слегка наклонён. Ключевое — минимальная пауза между прыжками, спринт стартует с толчка от последней опорной ноги. Частая ошибка — колено уходит внутрь при приземлении, долгая пауза между прыжками, остановка перед спринтом.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "m4ldeduwrUk",
+   "exercise_type": "sets_reps",
+   "target_sets": 1,
+   "rep_range_min": 4,
+   "rep_range_max": 6,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "agility",
+    "on_ice_skating"
+   ],
+   "movement_patterns": [
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "glutes": 0.4,
+    "quads": 0.4,
+    "calves": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Взрывной старт",
+     "transfer_note": "Реактивное отталкивание сразу в бег тренирует быстрый выход из бокового движения."
+    },
+    {
+     "skill": "Катание",
+     "transfer_note": "Боковой толчок с ноги на ногу — прямой аналог толчка конька в сторону; спринт после серии переносится на выход из поворота в разгон."
+    }
+   ]
+  },
+  {
+   "name": "Слэм мяча на одной ноге",
+   "description": "Встать на одну ногу, колено слегка согнуто, мяч над головой на вытянутых руках. Резко бросить мяч в пол перед собой, наклонившись корпусом, поднять мяч и вернуться в исходное. Ключевое — опорная нога стабильна, колено над стопой, таз ровный. Частая ошибка — падение таза в сторону, потеря равновесия при броске, бросок только руками без включения корпуса.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "p48hSfjlQ6k",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "strength",
+    "agility"
+   ],
+   "movement_patterns": [
+    "core",
+    "push"
+   ],
+   "muscle_groups": {
+    "core": 0.3,
+    "back": 0.2,
+    "shoulders": 0.2,
+    "glutes": 0.3
+   },
+   "equipment_items": [
+    "medicine_ball"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Мощное движение на одной ноге тренирует устойчивость, как при броске или борьбе на одном коньке."
+    },
+    {
+     "skill": "Сила броска",
+     "transfer_note": "Разгибание корпуса и плеч в броске — вклад в мощность броскового движения."
+    }
+   ]
+  },
+  {
+   "name": "Становая тяга с трэп-грифом",
+   "description": "Встать внутри грифа, стопы на ширине таза, взяться за рукояти нейтральным хватом. Отвести таз назад и вниз, грудь вперёд, спина прямая. Подняться, одновременно выпрямляя колени и таз, гриф идёт рядом с корпусом, затем плавно опустить. Ключевое — спина нейтральна на всём движении, толчок ногами «в пол». Частая ошибка — округление поясницы, гриф уходит вперёд от тела, таз поднимается раньше плеч, рывок.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "p-FnfZUGyZI",
+   "exercise_type": "sets_reps",
+   "target_sets": 4,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "hip_hinge"
+   ],
+   "muscle_groups": {
+    "quads": 0.3,
+    "glutes": 0.3,
+    "hamstrings": 0.2,
+    "back": 0.2
+   },
+   "equipment_items": [
+    "barbell"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Взрывной старт",
+     "transfer_note": "Мощный подъём весом с пола развивает ту же силу разгибателей ног и таза, что даёт первый толчок при старте."
+    },
+    {
+     "skill": "Силовая борьба",
+     "transfer_note": "Общая сила ног и спины для устойчивой позиции в единоборствах."
+    }
+   ]
+  },
+  {
+   "name": "Трёхточечный старт",
+   "description": "Из стойки шагнуть вперёд одной ногой, присесть и поставить на пол одну руку. Вес на передней ноге и опорной руке, таз выше колен, спина прямая, взгляд вперёд-вниз. По сигналу сильно оттолкнуться передней ногой, вынести руку и перейти в спринт на 5–10 м короткими частыми шагами. Ключевое — вес смещён вперёд ещё до сигнала, толчок идёт «в пол», а не подъёмом корпуса. Частая ошибка — вес на пятках, подъём корпуса перед первым шагом, слишком длинный первый шаг.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "x7E_-bXif5Y",
+   "exercise_type": "sets_reps",
+   "target_sets": 1,
+   "rep_range_min": 4,
+   "rep_range_max": 6,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": null,
+   "stimulus_type": "power",
+   "target_stats": [
+    "agility"
+   ],
+   "movement_patterns": [
+    "locomotion"
+   ],
+   "muscle_groups": {
+    "quads": 0.4,
+    "glutes": 0.4,
+    "core": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Взрывной старт",
+     "transfer_note": "Мгновенный выход из низкой стойки с опорой на руку — перенос на рывок за шайбой после борьбы у борта или касания льда."
+    }
+   ]
+  },
+  {
+   "name": "Турецкий подъём с гирей",
+   "description": "Лечь на спину, гиря в вытянутой вверх руке над плечом, взгляд на гирю, одноимённая нога согнута, стопа на полу. Подняться на локоть, затем на ладонь, поднять таз в мост, завести ногу назад в колено и встать до вертикали. Вернуться тем же путём. Ключевое — рука с гирей всё время вертикальна, движения медленные. Частая ошибка — рука с гирей уходит вперёд или назад, рывок вместо плавного подъёма, провал таза в мосту, потеря взгляда на гирю.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 4,
+   "video_source_id": "FSJxfzDUmr8",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 3,
+   "rep_range_max": 5,
+   "target_duration_seconds": null,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": true,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength",
+    "agility"
+   ],
+   "movement_patterns": [
+    "core",
+    "push"
+   ],
+   "muscle_groups": {
+    "core": 0.3,
+    "shoulders": 0.3,
+    "glutes": 0.2,
+    "quads": 0.2
+   },
+   "equipment_items": [
+    "kettlebell"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Подъём с пола с грузом над головой учит стабильности плеча, корпуса и таза при смене положений."
+    },
+    {
+     "skill": "Силовая борьба",
+     "transfer_note": "Контролируемое вставание из положения лёжа переносится на подъём после падения или борьбы."
+    }
+   ]
+  },
+  {
+   "name": "Тяга гантели в планке",
+   "description": "Упор лёжа на гантелях (шестигранных), стопы шире плеч. Подтянуть одну гантель к рёбрам, локоть вдоль корпуса, опустить и сменить сторону. Ключевое — таз и плечи остаются параллельны полу, гантель идёт к поясу. Частая ошибка — разворот таза при подтягивании, широко разведённые локти, слишком тяжёлые гантели.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 3,
+   "video_source_id": "8L8GP5PdnWg",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 6,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": true,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "core",
+    "pull"
+   ],
+   "muscle_groups": {
+    "back": 0.4,
+    "core": 0.4,
+    "shoulders": 0.2
+   },
+   "equipment_items": [
+    "dumbbells"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Антиротация корпуса под нагрузкой — устойчивость тела при контакте."
+    },
+    {
+     "skill": "Силовая борьба",
+     "transfer_note": "Тяга в упоре на одной руке тренирует спину и кор для удержания позиции и отталкивания соперника."
+    }
+   ]
+  },
+  {
+   "name": "Тяга тросом в боковой планке",
+   "description": "Боковая планка на предплечье, второй рукой тянуть рукоять троса к рёбрам, затем разгибать руку обратно. Таз не провисает. Ключевое — линия тела от плеча до стоп сохраняется на всём движении. Частая ошибка — провисание таза, разворот корпуса вперёд, рывок рукой.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 4,
+   "video_source_id": "0JldYifds8c",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 8,
+   "rep_range_max": 8,
+   "target_duration_seconds": null,
+   "tracks_weight": true,
+   "suitable_for_game_day": false,
+   "is_unilateral": true,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "core",
+    "pull"
+   ],
+   "muscle_groups": {
+    "core": 0.5,
+    "back": 0.3,
+    "shoulders": 0.2
+   },
+   "equipment_items": [
+    "gym_machine"
+   ],
+   "skill_tags": [
+    {
+     "skill": "Баланс и устойчивость",
+     "transfer_note": "Боковая стабильность корпуса при тяге — устойчивость при игре сбоку и в борьбе у борта."
+    }
+   ]
+  },
+  {
+   "name": "Ягодичный мост с опорой на скамью",
+   "description": "Сесть спиной к скамье, верхняя часть лопаток на краю, стопы на ширине таза, колени под 90°. Поднять таз до прямой линии плечи–колени, пауза, плавно опустить. Ключевое — разгибание в бёдрах, а не в пояснице, подбородок прижат. Частая ошибка — прогиб в пояснице вверху, опора на шею вместо лопаток, неполное разгибание, стопы слишком близко или далеко.",
+   "category": "off_ice",
+   "phase": "main",
+   "difficulty_level": 2,
+   "video_source_id": "ol7ZgIjOHgY",
+   "exercise_type": "sets_reps",
+   "target_sets": 3,
+   "rep_range_min": 10,
+   "rep_range_max": 12,
+   "target_duration_seconds": null,
+   "tracks_weight": false,
+   "suitable_for_game_day": false,
+   "is_unilateral": false,
+   "stimulus_type": "strength",
+   "target_stats": [
+    "strength"
+   ],
+   "movement_patterns": [
+    "hip_hinge"
+   ],
+   "muscle_groups": {
+    "glutes": 0.6,
+    "hamstrings": 0.2,
+    "core": 0.2
+   },
+   "equipment_items": [],
+   "skill_tags": [
+    {
+     "skill": "Взрывной старт",
+     "transfer_note": "Разгибание бёдер с большой амплитудой тренирует ягодичные мышцы, которые дают мощность толчка."
+    },
+    {
+     "skill": "Катание",
+     "transfer_note": "Сильные ягодицы удерживают таз над коньком и дают длину толчка."
+    }
+   ]
+  }
+ ],
+ "bindings": [
+  {
+   "name": "5-10-5 шаттл",
+   "video_source_id": "NYUgOGaRwMQ"
+  },
+  {
+   "name": "90/90 + вращение",
+   "video_source_id": "h-cBnAqehWw"
+  },
+  {
+   "name": "90/90 наружная ротация",
+   "video_source_id": "2z-PcxEp9dA"
+  },
+  {
+   "name": "A-скип",
+   "video_source_id": "-O9H15yVc8s"
+  },
+  {
+   "name": "Face pull",
+   "video_source_id": "LKZkugOZufU"
+  },
+  {
+   "name": "Lateral band walk",
+   "video_source_id": "N4tkpDMlqCQ"
+  },
+  {
+   "name": "Spiderman + ротация грудного отдела",
+   "video_source_id": "TMPoG9XprVA"
+  },
+  {
+   "name": "Wall slides",
+   "video_source_id": "1mTNn-im1A4"
+  },
+  {
+   "name": "Активация передней зубчатой мышцы",
+   "video_source_id": "eCy9o9ss8jg"
+  },
+  {
+   "name": "Антиротационный жим half-kneeling",
+   "video_source_id": "M7mZeFZ7ey0"
+  },
+  {
+   "name": "Антиротационный жим на одном колене (изометрия) (резина)",
+   "video_source_id": "4CfuTvicPz4"
+  },
+  {
+   "name": "Антиротационный жим сидя на коленях",
+   "video_source_id": "HZe5g-JyNTU"
+  },
+  {
+   "name": "Антиротационный жим стоя",
+   "video_source_id": "G5dHZNsYrLk"
+  },
+  {
+   "name": "Ассальт-байк интервалы",
+   "video_source_id": "EJcsyGefpKI"
+  },
+  {
+   "name": "Боковая планка (базовая)",
+   "video_source_id": "rCDvpapUd1E"
+  },
+  {
+   "name": "Боковая планка (нога на лавочке)",
+   "video_source_id": "uH_Vi7F90XY"
+  },
+  {
+   "name": "Боковая планка + привод",
+   "video_source_id": "XUjqzun5ztg"
+  },
+  {
+   "name": "Боковая планка с подъёмом верхней ноги",
+   "video_source_id": "gs4WzlSyL44"
+  },
+  {
+   "name": "Боковая поверхность бедра - ролл",
+   "video_source_id": "afUacWtoS9g"
+  },
+  {
+   "name": "Боковая ходьба с мини-бэндом",
+   "video_source_id": "N4tkpDMlqCQ"
+  },
+  {
+   "name": "Боковой кроссовер скип",
+   "video_source_id": "fv5iK7gm3aQ"
+  },
+  {
+   "name": "Боковой прыжок через линию",
+   "video_source_id": "YvZrMC23rJA"
+  },
+  {
+   "name": "Боковой скачок 45°+пауза",
+   "video_source_id": "SRZQXtpK9EE"
+  },
+  {
+   "name": "Боковой скачок через барьер",
+   "video_source_id": "J_s957woSBE"
+  },
+  {
+   "name": "Боковой скип",
+   "video_source_id": "DM9B5lAooWU"
+  },
+  {
+   "name": "Бокс-джамп",
+   "video_source_id": "y_gBMNZgrus"
+  },
+  {
+   "name": "Болгарский присед",
+   "video_source_id": "ydP4mGO6MyU"
+  },
+  {
+   "name": "Бросок мяча от груди + шаг",
+   "video_source_id": "X7WqWRTIOnA"
+  },
+  {
+   "name": "Бросок мяча от груди стоя",
+   "video_source_id": "IMSPotyAV-U"
+  },
+  {
+   "name": "Бросок набивного мяча от груди",
+   "video_source_id": "APVZh3CVLtM"
+  },
+  {
+   "name": "Бёрдог",
+   "video_source_id": "5_gmsBtEN1M"
+  },
+  {
+   "name": "Величайшая растяжка мира",
+   "video_source_id": "TMPoG9XprVA"
+  },
+  {
+   "name": "Внутренний выпад + слайд",
+   "video_source_id": "t0Ay-jAT7_Q"
+  },
+  {
+   "name": "Выпад в сторону с ротацией корпуса",
+   "video_source_id": "Q7rul_UToIU"
+  },
+  {
+   "name": "Выпад назад с гантелями",
+   "video_source_id": "0dBtXbm0mxs"
+  },
+  {
+   "name": "Выпады с гантелями",
+   "video_source_id": "t8yInkvTNjg"
+  },
+  {
+   "name": "Высокие бёдра",
+   "video_source_id": "cmy0ehU2X5U"
+  },
+  {
+   "name": "Высокий шаг с захватом колена",
+   "video_source_id": "5pDtginPz5s"
+  },
+  {
+   "name": "Голеностоп 3 направления",
+   "video_source_id": "jLt7fiKhI1g"
+  },
+  {
+   "name": "Голеностоп ПНФ",
+   "video_source_id": "JH5V3A9uIa8"
+  },
+  {
+   "name": "Голеностоп у стены (ПНФ)",
+   "video_source_id": "qHFGTUUUjhs"
+  },
+  {
+   "name": "Голубь + лавочка",
+   "video_source_id": "TN-NVALWV7w"
+  },
+  {
+   "name": "Горизонтальная тяга сидя на 1 колене",
+   "video_source_id": "t-yI8H49JEg"
+  },
+  {
+   "name": "Горизонтальный жим сидя на 1 колене",
+   "video_source_id": "QpU9v1Zeewo"
+  },
+  {
+   "name": "Грудной стоя в V-позиции",
+   "video_source_id": "RCSPG_Yuumg"
+  },
+  {
+   "name": "Грудь у стены - мяч",
+   "video_source_id": "XEEpjDEgMsg"
+  },
+  {
+   "name": "Депт-джамп с тумбы",
+   "video_source_id": "F3MYw4oZ4MU"
+  },
+  {
+   "name": "Диагональная дуга рукой лёжа на боку",
+   "video_source_id": "k0bakk65Bw0"
+  },
+  {
+   "name": "Диагональный выпад назад-накрест",
+   "video_source_id": "BuT__mWg3Xs"
+  },
+  {
+   "name": "Динамическая растяжка (махи)",
+   "video_source_id": "U_7iWZXCEsU"
+  },
+  {
+   "name": "Дровосек с верхней позиции",
+   "video_source_id": "MCAiuEhYa4Q"
+  },
+  {
+   "name": "Дровосек с нижней позиции",
+   "video_source_id": "Mlt3oCBgRO4"
+  },
+  {
+   "name": "Жим гантелей лёжа",
+   "video_source_id": "jTccpKcbmSc"
+  },
+  {
+   "name": "Жим гантелей лёжа с паузой в нижней точке",
+   "video_source_id": "Bz4TGD4KX8w"
+  },
+  {
+   "name": "Жим гантелей на наклонной скамье",
+   "video_source_id": "CBfHo0lSaTM"
+  },
+  {
+   "name": "Жим гантелей нейтральным хватом на наклонной",
+   "video_source_id": "YTulMfSttfc"
+  },
+  {
+   "name": "Жим гантелей сидя на наклонной скамье под углом",
+   "video_source_id": "78uA_Ef4zzg"
+  },
+  {
+   "name": "Жим гантелей стоя одна рука поочерёдно",
+   "video_source_id": "ZV2I8XvdOuc"
+  },
+  {
+   "name": "Жим лендмайн стоя",
+   "video_source_id": "fMEsvtAQZrU"
+  },
+  {
+   "name": "Жим лёжа гантели",
+   "video_source_id": "jTccpKcbmSc"
+  },
+  {
+   "name": "Жим лёжа гриф",
+   "video_source_id": "tmfg74nUbnk"
+  },
+  {
+   "name": "Жим лёжа со штангой",
+   "video_source_id": "tmfg74nUbnk"
+  },
+  {
+   "name": "Жим штанги лёжа классический",
+   "video_source_id": "tmfg74nUbnk"
+  },
+  {
+   "name": "Жук (Dead Bug)",
+   "video_source_id": "BAJ2HzoJ1oI"
+  },
+  {
+   "name": "Задняя поверхность бедра (бицепс бедра) - ролл",
+   "video_source_id": "MGd1riGV_Nc"
+  },
+  {
+   "name": "Захлёст",
+   "video_source_id": "4WK7g5Lctsg"
+  },
+  {
+   "name": "Изометрические удержания в отжимании",
+   "video_source_id": "LSd7M9v3Wfw"
+  },
+  {
+   "name": "Инчворм",
+   "video_source_id": "vs53Pq8v8zA"
+  },
+  {
+   "name": "Йога-отжимание",
+   "video_source_id": "LkydCLZnJ_w"
+  },
+  {
+   "name": "Казачий присед",
+   "video_source_id": "iZ00AhA-Ej0"
+  },
+  {
+   "name": "Кариока",
+   "video_source_id": "jrDBA5SA8IA"
+  },
+  {
+   "name": "Квадрицепс на тумбе с руками вверх",
+   "video_source_id": "-gLmU7wz2k0"
+  },
+  {
+   "name": "Квадрицепс с задней ногой на возвышении",
+   "video_source_id": "fMZh78bIiIw"
+  },
+  {
+   "name": "Колено к колену лёжа",
+   "video_source_id": "bbcUWrWnyF8"
+  },
+  {
+   "name": "Колесо для пресса стоя",
+   "video_source_id": "05IuVzorMu4"
+  },
+  {
+   "name": "Контролируемые вращения плеча",
+   "video_source_id": "U7mJoDym2oM"
+  },
+  {
+   "name": "Координационная лестница",
+   "video_source_id": "j__xodK6rtU"
+  },
+  {
+   "name": "Кроссовер",
+   "video_source_id": "dTarZU6OsIc"
+  },
+  {
+   "name": "Кёрцевой выпад",
+   "video_source_id": "BuT__mWg3Xs"
+  },
+  {
+   "name": "Латеральный бокс-джамп",
+   "video_source_id": "1lyt9WFPUdg"
+  },
+  {
+   "name": "Латеральный выпад с гантелью на слайде",
+   "video_source_id": "mKb6rbmj-jA"
+  },
+  {
+   "name": "Латеральный выпад с гантелями",
+   "video_source_id": "6DMXBtF_Spg"
+  },
+  {
+   "name": "Латеральный спринт из положения полуколена",
+   "video_source_id": "RGxb0YJXrzA"
+  },
+  {
+   "name": "Лежачее подтягивание поясничной мышцы с мини-бэндом",
+   "video_source_id": "k1B478QT0eU"
+  },
+  {
+   "name": "Лестница для ног (agility ladder)",
+   "video_source_id": "j__xodK6rtU"
+  },
+  {
+   "name": "Лестница ловкости приставные шаги",
+   "video_source_id": "7xadZuIfuBA"
+  },
+  {
+   "name": "Линейный марш",
+   "video_source_id": "kKHWaBUvcy0"
+  },
+  {
+   "name": "Марш на месте с высоким коленом и паузой",
+   "video_source_id": "55e1a7McsXo"
+  },
+  {
+   "name": "Марш с прямой ногой",
+   "video_source_id": "VT6vuS-C0QQ"
+  },
+  {
+   "name": "Миофасциальный релиз на роллере",
+   "video_source_id": "-1kOI5Qtwv4"
+  },
+  {
+   "name": "Мобилизация ТБС 90/90 переходы",
+   "video_source_id": "yMis3pw_B3I"
+  },
+  {
+   "name": "Мобилизация голеностопа колено к стене",
+   "video_source_id": "h-eUWofzIyw"
+  },
+  {
+   "name": "Мобилизация грудного отдела на валике",
+   "video_source_id": "hHs-r38gRjg"
+  },
+  {
+   "name": "Мобилизация грудного отдела с роликом под лопатками",
+   "video_source_id": "hHs-r38gRjg"
+  },
+  {
+   "name": "Мобилизация запястья",
+   "video_source_id": "gmo68U4RrYs"
+  },
+  {
+   "name": "Мобилизация квадрицепса в полуприседе на одном колене",
+   "video_source_id": "en6MKOeTNSQ"
+  },
+  {
+   "name": "Мобильность голеностопа у стены",
+   "video_source_id": "lDvjlSnvbGg"
+  },
+  {
+   "name": "Мощный скип",
+   "video_source_id": "5pVhixyOXVk"
+  },
+  {
+   "name": "Наружная часть лопатки - ролл",
+   "video_source_id": "ZfvlVvcatGs"
+  },
+  {
+   "name": "Нордическое сгибание бедра",
+   "video_source_id": "nW2hCU1Pn3Q"
+  },
+  {
+   "name": "Нордическое сгибание голени",
+   "video_source_id": "nW2hCU1Pn3Q"
+  },
+  {
+   "name": "Отжимания классические",
+   "video_source_id": "18L71r1nKQk"
+  },
+  {
+   "name": "Отжимания с возвышения под ноги",
+   "video_source_id": "4tAc9usIv8E"
+  },
+  {
+   "name": "Перевёрнутый reach (перевёрнутая тяга)",
+   "video_source_id": "w9TK87k-eRo"
+  },
+  {
+   "name": "Передняя поверхность бедра (квадрицепс) - ролл",
+   "video_source_id": "M9VzCIeO8Pw"
+  },
+  {
+   "name": "Пистолетик",
+   "video_source_id": "hdwO0umlIhw"
+  },
+  {
+   "name": "Планка",
+   "video_source_id": "0ol3YFpOrTs"
+  },
+  {
+   "name": "Планка в позе медведя (Bear Crawl Plank)",
+   "video_source_id": "VaoNT0BLTqw"
+  },
+  {
+   "name": "Планка на фитболе с перекатом",
+   "video_source_id": "VOPq6iXol4k"
+  },
+  {
+   "name": "Планка с вытягиванием рук вперёд",
+   "video_source_id": "xst2FFsIa74"
+  },
+  {
+   "name": "Подтягивания нейтральный хват",
+   "video_source_id": "YVhtkpPpSvs"
+  },
+  {
+   "name": "Полумостик с удержанием на 1 ноге",
+   "video_source_id": "pp4HOUNZmYE"
+  },
+  {
+   "name": "Поясница - ролл",
+   "video_source_id": "XxA2QQBgJ0U"
+  },
+  {
+   "name": "Пресс Паллофа",
+   "video_source_id": "Wyn0S-dzR1w"
+  },
+  {
+   "name": "Пресс Паллофа с удержанием",
+   "video_source_id": "4CfuTvicPz4"
+  },
+  {
+   "name": "Привод ПНФ",
+   "video_source_id": "5VpXk_ZcRA8"
+  },
+  {
+   "name": "Приводящие в длинной позиции (ПНФ)",
+   "video_source_id": "5VpXk_ZcRA8"
+  },
+  {
+   "name": "Приводящие мышцы - ролл",
+   "video_source_id": "36MANCcIs-o"
+  },
+  {
+   "name": "Присед на 1 ноге с опорой",
+   "video_source_id": "lLoOl9ZvnNA"
+  },
+  {
+   "name": "Присед с лентой над коленями",
+   "video_source_id": "7splSNbKakE"
+  },
+  {
+   "name": "Присед с паузой в нижней точке",
+   "video_source_id": "cB7S76A29hw"
+  },
+  {
+   "name": "Присед со штангой на груди",
+   "video_source_id": "PxTmTBt4lLA"
+  },
+  {
+   "name": "Присед со штангой на спине",
+   "video_source_id": "mvL8WNOEXQo"
+  },
+  {
+   "name": "Приседание с мини-выпрыгиванием",
+   "video_source_id": "21j_CuY4FyQ"
+  },
+  {
+   "name": "Приседания с выпрыгиванием",
+   "video_source_id": "RQVcG83xBxY"
+  },
+  {
+   "name": "Приставной шаг",
+   "video_source_id": "xlhZlT9PV7I"
+  },
+  {
+   "name": "Приставные шаги в стойке",
+   "video_source_id": "h9q5yuwXoSg"
+  },
+  {
+   "name": "Прогулка фермера 1 рука",
+   "video_source_id": "bAnCoDrvXc4"
+  },
+  {
+   "name": "Прогулка фермера 2 руки",
+   "video_source_id": "qNZmhDMRReQ"
+  },
+  {
+   "name": "Прыжки в сторону (имитация конькобежного бега)",
+   "video_source_id": "s0fRi6x-1Og"
+  },
+  {
+   "name": "Прыжки на тумбу",
+   "video_source_id": "y_gBMNZgrus"
+  },
+  {
+   "name": "Прыжок в глубину с последующим спринтом",
+   "video_source_id": "F3MYw4oZ4MU"
+  },
+  {
+   "name": "Прыжок на бокс на 1 ноге",
+   "video_source_id": "YHeVBdfJ_kk"
+  },
+  {
+   "name": "Прыжок на тумбу",
+   "video_source_id": "y_gBMNZgrus"
+  },
+  {
+   "name": "Прыжок на тумбу 1 нога боком",
+   "video_source_id": "1lyt9WFPUdg"
+  },
+  {
+   "name": "Прыжок на тумбу 1 нога лицом",
+   "video_source_id": "YHeVBdfJ_kk"
+  },
+  {
+   "name": "Прыжок тумба 1 нога",
+   "video_source_id": "YHeVBdfJ_kk"
+  },
+  {
+   "name": "Прыжок через барьер 1 нога боком",
+   "video_source_id": "joyJlck_jV8"
+  },
+  {
+   "name": "Прыжок через барьер 1 нога лицом",
+   "video_source_id": "RNRKsZDRM1g"
+  },
+  {
+   "name": "Прыжок через барьеры сериями",
+   "video_source_id": "Ube_E1v94IQ"
+  },
+  {
+   "name": "Прыжок-переход вперёд-назад",
+   "video_source_id": "zqK5Z_ufjLE"
+  },
+  {
+   "name": "Прямая планка",
+   "video_source_id": "0ol3YFpOrTs"
+  },
+  {
+   "name": "Раскрытие грудного отдела в шаге",
+   "video_source_id": "TMPoG9XprVA"
+  },
+  {
+   "name": "Растяжка груди под 90 градусов",
+   "video_source_id": "wfkqJ6WGy8o"
+  },
+  {
+   "name": "Растяжка грушевидной мышцы",
+   "video_source_id": "9Z3z62QqIOY"
+  },
+  {
+   "name": "Растяжка квадрицепса стоя",
+   "video_source_id": "UqZIKzqywY8"
+  },
+  {
+   "name": "Растяжка кушетка",
+   "video_source_id": "fMZh78bIiIw"
+  },
+  {
+   "name": "Растяжка передней поверхности бедра стоя",
+   "video_source_id": "kkychxRAzhU"
+  },
+  {
+   "name": "Растяжка сгибателя бедра в полуприседе на колене",
+   "video_source_id": "nxCwu20bS_0"
+  },
+  {
+   "name": "Реактивное приземление с немедленным повторным прыжком",
+   "video_source_id": "F3MYw4oZ4MU"
+  },
+  {
+   "name": "Реактивные прыжки на месте",
+   "video_source_id": "7ZPPui5vVPU"
+  },
+  {
+   "name": "Роллаут+кольца",
+   "video_source_id": "o_zeDxHKxWM"
+  },
+  {
+   "name": "Ротационный бросок медбола из сплита",
+   "video_source_id": "78ubErpRDs8"
+  },
+  {
+   "name": "Ротационный бросок мяча латерально",
+   "video_source_id": "ziQ1F4nJQ7s"
+  },
+  {
+   "name": "Ротационный бросок мяча с шагом",
+   "video_source_id": "txj8TLWacOE"
+  },
+  {
+   "name": "Ротационный бросок мяча стоя",
+   "video_source_id": "jQZ4c4f10DY"
+  },
+  {
+   "name": "Румынская тяга",
+   "video_source_id": "JCg4y3yy2Ic"
+  },
+  {
+   "name": "Румынская тяга 1 нога 2 гантели",
+   "video_source_id": "swlTcdzRJkg"
+  },
+  {
+   "name": "Румынская тяга гриф/гантели",
+   "video_source_id": "L-BDolRRNys"
+  },
+  {
+   "name": "Румынская тяга на одной ноге без веса",
+   "video_source_id": "MjW0Id6UzO4"
+  },
+  {
+   "name": "Сведение лопаток с резиной в полуприседе на колене",
+   "video_source_id": "AZaOsheWUi8"
+  },
+  {
+   "name": "Свинг гирей",
+   "video_source_id": "-_9rmNzjIyc"
+  },
+  {
+   "name": "Свинг гири одной рукой",
+   "video_source_id": "S-Vug7UVTrw"
+  },
+  {
+   "name": "Сгибание ноги со слайдом",
+   "video_source_id": "b1AuSWYU3c8"
+  },
+  {
+   "name": "Сгибатель бедра у стены",
+   "video_source_id": "O-Q4bAcyzBk"
+  },
+  {
+   "name": "Сжатие приводящих с прямыми ногами в среднем диапазоне",
+   "video_source_id": "GgxdiYQ4CmY"
+  },
+  {
+   "name": "Скейтер-прыжки непрерывной серией",
+   "video_source_id": "s0fRi6x-1Og"
+  },
+  {
+   "name": "Скейтер-прыжок",
+   "video_source_id": "XR1Edqlenlg"
+  },
+  {
+   "name": "Скип с высоким подъёмом бедра и захлёстом",
+   "video_source_id": "-O9H15yVc8s"
+  },
+  {
+   "name": "Скрестный шаг",
+   "video_source_id": "dTarZU6OsIc"
+  },
+  {
+   "name": "Слайд лопаток у стены",
+   "video_source_id": "1mTNn-im1A4"
+  },
+  {
+   "name": "Слайд-борд боковое скольжение",
+   "video_source_id": "FmRIxLi3YI8"
+  },
+  {
+   "name": "Слэм мяча в пол",
+   "video_source_id": "ryjp4FY6mMo"
+  },
+  {
+   "name": "Смещённая переноска",
+   "video_source_id": "bAnCoDrvXc4"
+  },
+  {
+   "name": "Спайдермен + рука",
+   "video_source_id": "Gsixxr6R9aM"
+  },
+  {
+   "name": "Сплит-присед изометрический",
+   "video_source_id": "_AkeA2CiJyw"
+  },
+  {
+   "name": "Сплит-присед на подставке",
+   "video_source_id": "ydP4mGO6MyU"
+  },
+  {
+   "name": "Сплит-присед с гантелями",
+   "video_source_id": "JeUP2Z5uk68"
+  },
+  {
+   "name": "Спринт 1/2 с колена",
+   "video_source_id": "fowwFggA9vE"
+  },
+  {
+   "name": "Спринт 2 точки",
+   "video_source_id": "ykjgTURojqw"
+  },
+  {
+   "name": "Спринт 5-10-5",
+   "video_source_id": "NYUgOGaRwMQ"
+  },
+  {
+   "name": "Спринт из положения полуколена",
+   "video_source_id": "y1rIsksOVYc"
+  },
+  {
+   "name": "Спринт с низкого старта из положения лёжа",
+   "video_source_id": "mXXTVsK03Sc"
+  },
+  {
+   "name": "Становая тяга на прямых ногах",
+   "video_source_id": "AvrNgJ0DSDU"
+  },
+  {
+   "name": "Степ-ап прыжок",
+   "video_source_id": "xsRUi0Z_VsE"
+  },
+  {
+   "name": "Темповый бег",
+   "video_source_id": "ydeUUd5SJTQ"
+  },
+  {
+   "name": "Толкание саней",
+   "video_source_id": "dYhnrdUQGNg"
+  },
+  {
+   "name": "Трёхпозиционное сжатие приводящих (статика)",
+   "video_source_id": "sfh4dPiid-s"
+  },
+  {
+   "name": "Тяга гантели в наклоне",
+   "video_source_id": "qnm7M1z-1yA"
+  },
+  {
+   "name": "Тяга гантели в наклоне на одной ноге",
+   "video_source_id": "sD-MN6z9ljA"
+  },
+  {
+   "name": "Тяга гантели в наклоне с паузой в верхней точке",
+   "video_source_id": "LFVDy92ps4U"
+  },
+  {
+   "name": "Тяга гантели одной рукой в упоре на скамью",
+   "video_source_id": "MrRKaA0SoMA"
+  },
+  {
+   "name": "Тяга к лицу (резина)",
+   "video_source_id": "LKZkugOZufU"
+  },
+  {
+   "name": "Тяга нижнего блока сидя",
+   "video_source_id": "ib4FG9yD43c"
+  },
+  {
+   "name": "Тяга резины на разведение лопаток",
+   "video_source_id": "AZaOsheWUi8"
+  },
+  {
+   "name": "Тяга саней",
+   "video_source_id": "8_jqIYRC-40"
+  },
+  {
+   "name": "Тяга сидя на одном колене (горизонтальная)",
+   "video_source_id": "t-yI8H49JEg"
+  },
+  {
+   "name": "Фронтальный/гоблет присед",
+   "video_source_id": "y4qwZhNf-qo"
+  },
+  {
+   "name": "Хлопок в отжимании",
+   "video_source_id": "Fn9USz76_NY"
+  },
+  {
+   "name": "Ходьба выпадами с гантелями",
+   "video_source_id": "vjN6_lo7XLA"
+  },
+  {
+   "name": "Ходьба через барьеры лицом",
+   "video_source_id": "AuY28Yuq8iE"
+  },
+  {
+   "name": "Ходьба через барьеры спиной",
+   "video_source_id": "cBEsn74esVg"
+  },
+  {
+   "name": "Чемоданная переноска",
+   "video_source_id": "bAnCoDrvXc4"
+  },
+  {
+   "name": "Шаттл-раны на выносливость",
+   "video_source_id": "gXDrHEzrPfg"
+  },
+  {
+   "name": "Широчайшая + рука под себя",
+   "video_source_id": "o82pxdVxUjk"
+  },
+  {
+   "name": "Широчайшая в висе",
+   "video_source_id": "hakQUexScAE"
+  },
+  {
+   "name": "Широчайшая крест-накрест",
+   "video_source_id": "g-k3FXsbxBI"
+  },
+  {
+   "name": "Эксцентрическое сгибание ног с полотенцем (5 сек вниз)",
+   "video_source_id": "JAptFsXWvt0"
+  },
+  {
+   "name": "Ягодица крест-накрест лёжа",
+   "video_source_id": "9Z3z62QqIOY"
+  },
+  {
+   "name": "Ягодицы - ролл",
+   "video_source_id": "SXM4BQsuEQA"
+  },
+  {
+   "name": "Ягодичный мост 1 нога",
+   "video_source_id": "pp4HOUNZmYE"
+  }
+ ]
+}

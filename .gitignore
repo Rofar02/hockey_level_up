@@ -26,3 +26,9 @@ static/team-logos/
 # docs/deploy.md. Not a template, shouldn't be committed.
 deploy/nginx/active.conf
 .env.prod
+
+# Self-hosted exercise clips -- large binaries, shipped to the server separately
+static/exercise-videos/
+
+# Untouched originals of the exercise clips (before the 480p re-encode)
+exercise-videos-originals/
