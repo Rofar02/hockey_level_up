@@ -18,8 +18,12 @@ import { renderLockScreenArtwork } from '../utils/lockScreenArtwork'
 import { exercisePosterUrl } from '../utils/media'
 import {
   cancelScheduledBeeps,
+  holdLockScreen,
+  isLockScreenHandoffPending,
   isLockScreenPlayerEnabled,
   isLockScreenPlayerSupported,
+  markLockScreenHandoff,
+  takeLockScreenHandoff,
   scheduleSegmentBeeps,
   startLockScreenSession,
   stopLockScreenSession,
@@ -75,6 +79,11 @@ function writeSnapshot(key: string, snapshot: TimerSnapshot | null): void {
   }
 }
 
+// Continuous warm-up / cool-down: the pause between one exercise and the
+// next, announced on the lock screen ("ДАЛЕЕ ...") and closed by the
+// face-off whistle, after which the next timed exercise starts by itself.
+const TRANSITION_SECONDS = 5
+
 // Fallback rest between rounds when the exercise has no configured
 // rest_seconds -- preserves the old always-advances behavior instead of
 // skipping straight to the next round with zero pause.
@@ -96,6 +105,7 @@ export function TimerPlayer({
   isDone,
   onComplete,
   onSettled,
+  nextExercise = null,
 }: {
   exercise: ExerciseRead
   trainingSessionId: string
@@ -111,6 +121,9 @@ export function TimerPlayer({
   // ExerciseDetailBodyProps' own comment for how this differs from
   // onComplete (which fires earlier, right as the last round finishes).
   onSettled?: () => void
+  // Next exercise of this phase (null = this is the last one). Used only by
+  // the continuous warm-up / cool-down mode of the lock-screen player.
+  nextExercise?: ExerciseRead | null
 }) {
   const [completedRounds, setCompletedRounds] = useState(0)
   const [phase, setPhase] = useState<'work' | 'rest'>('work')
@@ -168,12 +181,14 @@ export function TimerPlayer({
   // (e.g. the snapshot was lost). A deadline that passed while the app was
   // closed is handled by the normal end-of-segment path right after.
   const restoredRef = useRef(false)
+  const restoredActiveRef = useRef(false)
   useEffect(() => {
     if (isDone) {
       writeSnapshot(snapshotKey, null)
       return
     }
     const snapshot = readSnapshot(snapshotKey)
+    restoredActiveRef.current = snapshot !== null && snapshot.completedRounds < rounds
     if (snapshot !== null && snapshot.completedRounds < rounds) {
       setCompletedRounds(snapshot.completedRounds)
       setPhase(snapshot.phase)
@@ -253,6 +268,16 @@ export function TimerPlayer({
   // mount; the session itself starts on the first tap of the ring.
   const [lockScreen] = useState(() => isLockScreenPlayerEnabled() && isLockScreenPlayerSupported())
   const lockScreenStartedRef = useRef(false)
+  // Continuous mode: warm-up / cool-down with the lock-screen player on --
+  // finishing an exercise leads straight into the next one (see
+  // TRANSITION_SECONDS) instead of waiting for a tap on the next ring.
+  const continuous = lockScreen && (exercise.phase === 'warmup' || exercise.phase === 'cooldown')
+  const nextIsTimed = nextExercise !== null && nextExercise.target_duration_seconds !== null
+  const [transitionEndsAt, setTransitionEndsAt] = useState<number | null>(null)
+  const inTransitionRef = useRef(false)
+  // Set once the lock screen was handed to whatever comes next -- leaving
+  // this exercise must then not replace it with the idle card.
+  const handedOverRef = useRef(false)
 
   // The per-athlete target (time progression) arrives a moment after mount;
   // pick it up as long as nothing has started yet. Once the first round is
@@ -384,6 +409,11 @@ export function TimerPlayer({
     if (finishedSetNumber >= rounds) {
       setCompletedRounds(rounds)
       onCompleteRef.current?.()
+      if (continuous && lockScreenStartedRef.current && nextExercise !== null) {
+        inTransitionRef.current = true
+        setTransitionEndsAt(segmentStart + TRANSITION_SECONDS * 1000)
+        return
+      }
       if (exercise.phase === 'warmup' || exercise.phase === 'cooldown') {
         // Warm-up / cool-down are not rated -- go straight to "Готово".
         setFeedbackAnswered(true)
@@ -469,7 +499,9 @@ export function TimerPlayer({
       return true
     },
     next: () => {
-      if (phase === 'rest') {
+      if (inTransitionRef.current) {
+        finishTransitionRef.current()
+      } else if (phase === 'rest') {
         skipRest()
       }
     },
@@ -538,6 +570,9 @@ export function TimerPlayer({
       return
     }
     if (completedRounds >= rounds) {
+      if (inTransitionRef.current) {
+        return
+      }
       // Last round over -- let the final double tone finish, then release
       // the lock-screen widget.
       const idle = idleLockScreenInfo()
@@ -560,7 +595,17 @@ export function TimerPlayer({
     for (;;) {
       if (segmentPhase === 'work') {
         if (round >= rounds) {
-          segments.push({ endsIn: at, kind: 'done' })
+          if (continuous && nextExercise !== null) {
+            // Shift buzzer, then the hand-over: stick taps and the face-off
+            // whistle as the next exercise starts (or just the buzzer when
+            // the next one is done at the athlete's own pace).
+            segments.push({ endsIn: at, kind: 'work' })
+            if (nextIsTimed) {
+              segments.push({ endsIn: at + TRANSITION_SECONDS, kind: 'rest' })
+            }
+          } else {
+            segments.push({ endsIn: at, kind: 'done' })
+          }
           break
         }
         segments.push({ endsIn: at, kind: 'work' })
@@ -579,7 +624,7 @@ export function TimerPlayer({
 
   useEffect(() => {
     return () => {
-      if (lockScreenStartedRef.current) {
+      if (lockScreenStartedRef.current && !handedOverRef.current && !isLockScreenHandoffPending()) {
         stopLockScreenSession(idleCardRef.current())
       }
     }
@@ -610,6 +655,81 @@ export function TimerPlayer({
     }
   }, [])
 
+  // The hand-over: "ДАЛЕЕ <next>" on the lock screen with its own 5 s bar,
+  // "далее" there (or "Начать сейчас" here) cuts it short. At the end the
+  // session is handed to the next exercise's player (timed) or left on the
+  // next exercise's card (sets), then the page advances.
+  const finishTransitionRef = useRef(() => {})
+  finishTransitionRef.current = () => {
+    if (!inTransitionRef.current) {
+      return
+    }
+    inTransitionRef.current = false
+    handedOverRef.current = true
+    const next = nextExercise
+    if (next !== null) {
+      if (nextIsTimed) {
+        markLockScreenHandoff()
+      } else {
+        holdLockScreen(nextCard(next.name))
+      }
+    }
+    onSettledRef.current?.()
+  }
+
+  function nextCard(nextName: string) {
+    return {
+      title: nextName,
+      subtitle: `Далее · ${exercise.phase === 'warmup' ? 'разминка' : 'заминка'}`,
+      artworkUrl:
+        renderLockScreenArtwork({
+          phase: 'next',
+          exerciseName: nextName,
+          detail: nextIsTimed ? `через ${TRANSITION_SECONDS} сек` : 'в своём темпе',
+          rounds: 0,
+          completedRounds: 0,
+        }) ?? '/icon-512.png',
+    }
+  }
+
+  useEffect(() => {
+    if (transitionEndsAt === null || nextExercise === null) {
+      return
+    }
+    updateLockScreenInfo(nextCard(nextExercise.name))
+    updateLockScreenProgress(
+      TRANSITION_SECONDS,
+      Math.max(0, (transitionEndsAt - Date.now()) / 1000),
+      true,
+    )
+    const timeoutId = window.setTimeout(
+      () => finishTransitionRef.current(),
+      Math.max(0, transitionEndsAt - Date.now()),
+    )
+    return () => window.clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per transition
+  }, [transitionEndsAt])
+
+  // The other half of the hand-over: started by the previous exercise, so
+  // this one begins on its own -- no tap needed (the audio element was
+  // unlocked by the first tap of the session). Never over a restored
+  // round in progress.
+  useEffect(() => {
+    if (!continuous || restoredActiveRef.current || isDone) {
+      takeLockScreenHandoff()
+      return
+    }
+    if (!takeLockScreenHandoff()) {
+      return
+    }
+    startLockScreenIfOn()
+    deadlineRef.current = Date.now() + durationSeconds * 1000
+    setManualSeconds(null)
+    setRemaining(durationSeconds)
+    setRunning(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, [])
+
   function skipRest() {
     setRunning(false)
     advanceRest()
@@ -622,6 +742,25 @@ export function TimerPlayer({
   // race and hiding the feedback prompt before the athlete ever saw it).
   // showFeedback captures "still mid-flow, waiting on the feedback tap" and
   // must take priority regardless of what isDone becomes in the meantime.
+  if (transitionEndsAt !== null && nextExercise !== null) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-4">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-accent-ice bg-accent-ice/15">
+          <i className="ti ti-check text-4xl text-accent-ice" aria-hidden="true" />
+        </div>
+        <span className="text-sm font-medium text-accent-ice">Готово</span>
+        <TransitionCountdown endsAt={transitionEndsAt} nextName={nextExercise.name} />
+        <button
+          type="button"
+          onClick={() => finishTransitionRef.current()}
+          className="text-xs text-text-secondary underline underline-offset-2 hover:text-text-primary"
+        >
+          Начать сейчас
+        </button>
+      </div>
+    )
+  }
+
   if (showFeedback && !feedbackAnswered) {
     return (
       <div className="flex flex-col items-center gap-3 py-4">
@@ -733,5 +872,20 @@ export function TimerPlayer({
         </div>
       )}
     </div>
+  )
+}
+
+// "Дальше: <name> через N" under the hand-over's check mark.
+function TransitionCountdown({ endsAt, nextName }: { endsAt: number; nextName: string }) {
+  const [left, setLeft] = useState(() => Math.max(0, Math.ceil((endsAt - Date.now()) / 1000)))
+  useEffect(() => {
+    const interval = setInterval(() => setLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))), 250)
+    return () => clearInterval(interval)
+  }, [endsAt])
+  return (
+    <p className="text-center text-sm text-text-secondary">
+      Дальше: <span className="text-text-primary">{nextName}</span>
+      {left > 0 ? ` через ${left}` : ''}
+    </p>
   )
 }
