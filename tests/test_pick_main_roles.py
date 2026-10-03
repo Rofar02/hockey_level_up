@@ -102,7 +102,11 @@ async def test_explosive_role_picks_at_most_one_exercise(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_lower_body_role_prefers_unilateral_when_available(db_session) -> None:
+async def test_lower_body_role_prefers_unilateral_when_available(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # the preference roll comes out "prefer" (below UNILATERAL_PREFERENCE_RATE)
+    monkeypatch.setattr("app.services.schedule_service._UNILATERAL_RNG.random", lambda: 0.0)
     user = _make_user()
     db_session.add(user)
     pairs = [
@@ -117,6 +121,38 @@ async def test_lower_body_role_prefers_unilateral_when_available(db_session) -> 
     picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
 
     assert [e.name for e in picked] == ["B-unilateral-squat"]
+
+
+@pytest.mark.asyncio
+async def test_lower_body_role_sometimes_keeps_bilateral_in_the_pool(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2026-10-03: the preference applies on UNILATERAL_PREFERENCE_RATE of
+    picks only. On a roll above it both stay eligible -- random.choice is
+    pinned to alphabetically-first, the bilateral one, which a hard
+    unilateral filter would never allow."""
+    monkeypatch.setattr("app.services.schedule_service._UNILATERAL_RNG.random", lambda: 0.99)
+    monkeypatch.setattr("random.choice", lambda pool: sorted(pool, key=lambda e: e.name)[0])
+    user = _make_user()
+    db_session.add(user)
+    pairs = [
+        _make_exercise("A-bilateral-squat", MovementPattern.SQUAT, is_unilateral=False),
+        _make_exercise("B-unilateral-squat", MovementPattern.SQUAT, is_unilateral=True),
+    ]
+    db_session.add_all([e for e, _ in pairs] + [p for _, p in pairs])
+    await db_session.flush()
+
+    service = ScheduleService(db_session)
+    _isolate_candidates(service, [e for e, _ in pairs])
+    picked = await service._pick_main(ExerciseCategory.OFF_ICE, user, BlockPhase.ACCUMULATION)
+
+    assert [e.name for e in picked] == ["A-bilateral-squat"]
+
+
+def test_unilateral_preference_rate_keeps_unilateral_the_majority() -> None:
+    from app.services.schedule_service import UNILATERAL_PREFERENCE_RATE
+
+    assert 0.6 <= UNILATERAL_PREFERENCE_RATE <= 0.7
 
 
 @pytest.mark.asyncio
