@@ -217,6 +217,17 @@ _PUCK_MODULE_MAX_EXERCISES = 4
 # other picker in this file uses -- see that method's own docstring for why.
 _GUARANTEED_SLOT_RNG = random.Random()
 
+# 2026-10-03: how often role 2 (squat/hip_hinge) actually narrows to
+# unilateral candidates. Written as a tie-break back when few exercises
+# carried is_unilateral; once the catalog was tagged it became a filter,
+# and a year-long simulation of 18 different players showed the bilateral
+# staples (back squat, bodyweight squat, goblet, sumo, Smith, leg press)
+# were never programmed at all. Skating is one-legged, so unilateral stays
+# the majority -- just not the only option. Own RNG so it doesn't shift the
+# module-level random sequence other picks (and seeded tests) rely on.
+UNILATERAL_PREFERENCE_RATE = 0.65
+_UNILATERAL_RNG = random.Random()
+
 
 def _assembly_scoped(method):
     """Runs a plan-assembly entry point inside ExerciseRepository.assembly_cache
@@ -1325,10 +1336,10 @@ class ScheduleService:
 
         Unilateral preference (role 2 only, hip_hinge/squat): skating is
         an inherently one-legged push, so a squat/hip_hinge exercise
-        tagged Exercise.is_unilateral=True is softly preferred over a
-        bilateral one within whatever pool survives every earlier layer --
-        a tie-break, not a filter, since most of the catalog isn't
-        classified on this axis yet.
+        tagged Exercise.is_unilateral=True is preferred over a bilateral one
+        within whatever pool survives every earlier layer -- on
+        UNILATERAL_PREFERENCE_RATE of picks, not always, so bilateral
+        staples still come up (see the constant's comment).
 
         The count range itself can be tightened before any of this runs
         (Phase: П.4 seasonal mode) -- during the user's chosen SEASON/
@@ -1614,7 +1625,7 @@ class ScheduleService:
 
                 skill_pool = [e for e in stat_pool if e.id in priority_exercise_ids] or stat_pool
 
-                if prefer_unilateral:
+                if prefer_unilateral and _UNILATERAL_RNG.random() < UNILATERAL_PREFERENCE_RATE:
                     skill_pool = [e for e in skill_pool if e.is_unilateral] or skill_pool
 
                 # 2026-09-21: with real gym access, prefer the "real"
