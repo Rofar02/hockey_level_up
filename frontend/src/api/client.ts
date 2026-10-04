@@ -149,6 +149,86 @@ function buildRequestInit(method: string, options: RequestOptions, accessToken: 
   return { method, headers, body: requestBody }
 }
 
+// -- GET cache (2026-10-04): "открываю вкладку ещё раз -- всё уже на месте" --
+// A repeat GET is answered at once from memory and refreshed in the
+// background for the next visit. Any successful mutation clears the whole
+// cache (the player changed something -- nothing stale should show after
+// that), and so does logging in or out. Live/polling and admin endpoints
+// are never cached. Memory only: a fresh app start always asks the server.
+const CACHE_MAX_AGE_MS = 15 * 60 * 1000
+// Within this window a cached answer is served without a background refresh
+// (several components asking for the same thing on one screen).
+const CACHE_FRESH_MS = 5 * 1000
+const UNCACHED_PREFIXES = ['/auth/', '/admin/', '/training-parties']
+
+interface CacheEntry {
+  data: unknown
+  storedAt: number
+}
+
+const getCache = new Map<string, CacheEntry>()
+const inFlight = new Map<string, Promise<unknown>>()
+// Bumped on every clear: a response that left before a mutation must not
+// land in the cache after it.
+let cacheGeneration = 0
+
+function isCacheable(path: string): boolean {
+  return !UNCACHED_PREFIXES.some((prefix) => path.startsWith(prefix))
+}
+
+export function clearApiCache(): void {
+  cacheGeneration += 1
+  getCache.clear()
+  inFlight.clear()
+}
+
+function fetchAndStore<T>(path: string, accessToken: string): Promise<T> {
+  const pending = inFlight.get(path)
+  if (pending !== undefined) {
+    return pending as Promise<T>
+  }
+  const generation = cacheGeneration
+  const promise = request<T>(path, 'GET', { accessToken })
+    .then((data) => {
+      if (generation === cacheGeneration) {
+        getCache.set(path, { data, storedAt: Date.now() })
+      }
+      return data
+    })
+    .finally(() => {
+      if (inFlight.get(path) === promise) {
+        inFlight.delete(path)
+      }
+    })
+  inFlight.set(path, promise)
+  return promise
+}
+
+async function cachedGet<T>(path: string, accessToken: string): Promise<T> {
+  if (!isCacheable(path)) {
+    return request<T>(path, 'GET', { accessToken })
+  }
+  const entry = getCache.get(path)
+  const age = entry !== undefined ? Date.now() - entry.storedAt : Infinity
+  if (entry !== undefined && age < CACHE_MAX_AGE_MS) {
+    if (age > CACHE_FRESH_MS) {
+      void fetchAndStore<T>(path, accessToken).catch(() => undefined)
+    }
+    return entry.data as T
+  }
+  return fetchAndStore<T>(path, accessToken)
+}
+
+// Warms the cache for screens the player hasn't opened yet (used after login
+// next to the page-code prefetch). Failures are ignored.
+export function warmApiCache(paths: string[], accessToken: string): void {
+  for (const path of paths) {
+    if (!getCache.has(path)) {
+      void fetchAndStore(path, accessToken).catch(() => undefined)
+    }
+  }
+}
+
 async function request<T>(path: string, method: string, options: RequestOptions = {}): Promise<T> {
   const isAuthedRequest = options.accessToken !== undefined
 
@@ -165,7 +245,11 @@ async function request<T>(path: string, method: string, options: RequestOptions 
     }
   }
 
-  return handleResponse<T>(response)
+  const result = await handleResponse<T>(response)
+  if (method !== 'GET') {
+    clearApiCache()
+  }
+  return result
 }
 
 export function apiPost<T>(path: string, body: unknown): Promise<T> {
@@ -173,7 +257,7 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 export function apiGet<T>(path: string, accessToken: string): Promise<T> {
-  return request<T>(path, 'GET', { accessToken })
+  return cachedGet<T>(path, accessToken)
 }
 
 // Unauthenticated GET -- only for endpoints that don't need a logged-in

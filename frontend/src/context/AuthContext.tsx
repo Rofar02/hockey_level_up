@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as assessmentApi from '../api/assessment'
 import * as authApi from '../api/auth'
-import { ApiError } from '../api/client'
+import { ApiError, clearApiCache } from '../api/client'
 import {
   clearStoredTokens,
   getStoredAccessToken,
@@ -31,6 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // both succeed, persists the pair and commits it to state -- so a failed
   // restore attempt never leaves half-applied state.
   const applySession = useCallback(async (nextAccessToken: string, nextRefreshToken: string) => {
+    // Another account's cached answers must never show for this one.
+    clearApiCache()
     const [currentUser, status] = await Promise.all([
       authApi.getCurrentUser(nextAccessToken),
       assessmentApi.getStatus(nextAccessToken),
@@ -90,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(() => {
+    clearApiCache()
     clearStoredTokens()
     setAccessToken(null)
     setUser(null)

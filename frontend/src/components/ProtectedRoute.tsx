@@ -4,6 +4,7 @@ import { BottomNav } from './BottomNav'
 import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
+import { warmApiCache } from '../api/client'
 import { prefetchPages } from '../utils/prefetchPages'
 import { recordRoute } from '../utils/routeHistory'
 
@@ -24,8 +25,23 @@ import { recordRoute } from '../utils/routeHistory'
 // pattern keeps this component -- and BottomNav -- mounted continuously
 // across every protected-page navigation; only the <Outlet/> content
 // underneath it swaps.
+// GETs the main tabs (Сегодня, Профиль, Команда) ask for on open.
+const WARM_PATHS = [
+  '/users/me/stats',
+  '/users/me/streak',
+  '/skills',
+  '/training-block/current',
+  '/quests/status',
+  '/teams/me',
+  '/friends',
+  '/leaderboard/me',
+  '/users/me/equipment-items',
+  '/exercises/equipment-requirements',
+  '/users/me/restrictions',
+]
+
 export function ProtectedRoute() {
-  const { isAuthenticated, hasAssessment, isInitializing } = useAuth()
+  const { isAuthenticated, hasAssessment, isInitializing, accessToken } = useAuth()
   // The training diary is a full-screen notebook (2026-09-21) -- no
   // BottomNav and no space reserved for it, so nothing competes with the
   // text box. Matched here (not inside the page) because BottomNav lives in
@@ -39,14 +55,19 @@ export function ProtectedRoute() {
   // Recent screens, attached to feedback messages (utils/routeHistory).
   const { pathname } = useLocation()
   useEffect(() => recordRoute(pathname), [pathname])
-  // Once logged in, quietly fetch the other pages' code (utils/prefetchPages).
+  // Once logged in, quietly fetch the other pages' code (utils/prefetchPages)
+  // and the main tabs' data (api/client's GET cache), so a first visit to a
+  // tab is instant too.
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || accessToken === null) {
       return
     }
-    const timer = window.setTimeout(prefetchPages, 1500)
+    const timer = window.setTimeout(() => {
+      prefetchPages()
+      warmApiCache(WARM_PATHS, accessToken)
+    }, 1500)
     return () => window.clearTimeout(timer)
-  }, [isAuthenticated])
+  }, [isAuthenticated, accessToken])
 
   // Hold off on any redirect while a reload is still trying to restore the
   // session from localStorage -- isAuthenticated is false at this point
