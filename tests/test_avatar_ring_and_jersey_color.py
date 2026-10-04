@@ -12,7 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.user import AvatarRingAccent, JerseyColor, User
-from app.schemas.user import UserUpdate
+from app.schemas.user import UserAdminUpdate, UserUpdate
 from app.services.user_service import UserService
 
 
@@ -108,3 +108,35 @@ async def test_the_two_cosmetic_fields_are_independent(db_session) -> None:
 
     with pytest.raises(HTTPException):
         await service.update_profile(user, UserUpdate(jersey_color=JerseyColor.WHITE))
+
+
+# -- gold: premium-only, any level (2026-10-04) --
+
+
+@pytest.mark.asyncio
+async def test_gold_ring_needs_premium_not_level(db_session) -> None:
+    free_user, premium_user = _make_user(level=20), _make_user(level=1)
+    premium_user.has_premium = True
+    db_session.add_all([free_user, premium_user])
+    await db_session.flush()
+    service = UserService(db_session)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.update_profile(free_user, UserUpdate(avatar_ring_accent=AvatarRingAccent.GOLD))
+    assert exc_info.value.status_code == 400
+
+    result = await service.update_profile(premium_user, UserUpdate(avatar_ring_accent=AvatarRingAccent.GOLD))
+    assert result.avatar_ring_accent == AvatarRingAccent.GOLD
+
+
+@pytest.mark.asyncio
+async def test_losing_premium_drops_the_gold_ring(db_session) -> None:
+    user = _make_user(level=1)
+    user.has_premium = True
+    user.avatar_ring_accent = AvatarRingAccent.GOLD
+    db_session.add(user)
+    await db_session.flush()
+
+    result = await UserService(db_session).update_user_admin(user.id, UserAdminUpdate(has_premium=False))
+
+    assert result.avatar_ring_accent is None

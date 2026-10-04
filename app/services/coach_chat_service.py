@@ -31,16 +31,19 @@ import json
 import logging
 import re
 import uuid
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from openai import APIError, AsyncOpenAI
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.training_block import sessions_to_advance_phase
+from app.core.training_block import sessions_to_advance_phase, taper_start_dates
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
+from app.models.coach_memory import CoachMemoryFact
 from app.models.coach_chat_proposed_action import (
     CoachActionStatus,
     CoachActionType,
@@ -64,6 +67,7 @@ from app.schemas.training_diary import TrainingDiaryEntryListItem
 from app.schemas.user import UserUpdate
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
+from app.services.coach_philosophy import COACH_PHILOSOPHY, COACH_VOICE
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
 from app.services.training_diary_service import TrainingDiaryService
@@ -108,7 +112,15 @@ FREE_TRIAL_MESSAGE_LIMIT = 5
 # (2026-09-14, deliberate) -- cost impact is negligible on the current
 # free-tier model and stays small even on a future paid model (~15
 # messages of real back-and-forth is a much more honest "memory" than 5).
-HISTORY_REPLAY_TURNS = 30
+# 2026-10-04: down to 12 -- older messages now live on as coach memory
+# notes (CoachMemoryService, premium), which keeps the prompt bounded.
+HISTORY_REPLAY_TURNS = 12
+
+# 2026-10-04: "Полезный ответ? 👍 👎" -- asked under every Nth coach reply
+# and at most once per interval, so it reads as an occasional check-in, not
+# a survey after every message.
+FEEDBACK_EVERY_N_REPLIES = 5
+FEEDBACK_MIN_INTERVAL = timedelta(days=3)
 
 # Generous on purpose: cheap insurance against a truncated reply, and
 # glm-4.7-flash (the current default model) is free-tier, so there's no
@@ -132,16 +144,20 @@ MAX_RESPONSE_TOKENS = 2048
 # stays well within MAX_RESPONSE_TOKENS with this same param set, so one
 # constant covers both models rather than branching on which is active.
 COACH_REASONING_EFFORT = "high"
+# 2026-10-04: with actions moved from the text marker to native tool calls,
+# glm-5.x (prod) picks the right action 12/12 on a fixed scenario set at
+# "low" too, with ~30% fewer output tokens -- the marker was the only thing
+# "high" was buying. glm-4.7-flash (local dev) dropped to 9/12 at "low", so
+# it keeps "high".
+COACH_REASONING_EFFORT_LOW = "low"
+
+
+def _reasoning_effort_for(model: str) -> str:
+    return COACH_REASONING_EFFORT_LOW if model.startswith("glm-5") else COACH_REASONING_EFFORT
 
 TOP_MILESTONES_COUNT = 3
 RECENT_HISTORY_COUNT = 5
 
-# Matches a trailing <!--ACTION:{...}--> marker the model emits to propose
-# one action (see SYSTEM_PROMPT_GUARDRAILS's own instructions for the exact
-# format) -- DOTALL so the JSON body can itself contain newlines, anchored
-# to the end of the reply so it can't be confused with an example of the
-# format appearing mid-explanation.
-_ACTION_MARKER_RE = re.compile(r"<!--ACTION:(\{.*\})-->\s*$", re.DOTALL)
 
 STAT_LABELS: dict[TargetStat, str] = {
     TargetStat.STRENGTH: "Сила",
@@ -248,42 +264,42 @@ SYSTEM_PROMPT_GUARDRAILS = (
     "а не ты. Никогда не говори и не подразумевай фразы вроде \"я изменил "
     "твой план\", \"сделаю упражнения полегче\" или \"учту это в следующей "
     "тренировке\" -- это неправда, у тебя нет такой возможности технически.\n\n"
-    "Но для трёх конкретных вещей у тебя есть возможность ПРЕДЛОЖИТЬ "
-    "действие, которое реально применится -- только после того, как игрок "
-    "сам явно подтвердит его в интерфейсе (кнопкой), никогда не молча. "
-    "Никогда не говори, что уже сделал это, пока игрок не подтвердил. "
-    "Формат: в самом конце ответа, отдельной строкой, добавь маркер "
-    "вида <!--ACTION:{...}--> с JSON внутри -- игрок его не увидит, это "
-    "техническая метка для приложения. Не больше одного маркера на ответ, "
-    "и только когда ты действительно уверен, что это то, чего хочет игрок "
-    "-- если неоднозначно (например жалоба может относиться к разным "
-    "навыкам), сначала задай ОДИН уточняющий вопрос обычным текстом, без "
-    "маркера, и предложи действие только следующим сообщением, когда "
-    "станет ясно. Три допустимых действия:\n\n"
-    "1. Добавить навык в приоритетные (когда игрок жалуется на конкретную "
-    "игровую проблему, которая явно указывает на один навык из списка "
-    "навыков игрока выше -- например \"часто отбирают шайбу под "
-    "давлением\" ближе к Обводке, а \"выталкивают силой\" -- к Силовой "
-    "борьбе): <!--ACTION:{\"type\":\"skill_priority_add\","
-    "\"skill_name\":\"<точное название навыка из списка выше>\"}-->\n"
-    "2. Установить дату турнира (когда игрок упоминает конкретную дату "
-    "предстоящего турнира/матча, к которому готовится): "
-    "<!--ACTION:{\"type\":\"set_tournament_date\","
-    "\"tournament_date\":\"<ГГГГ-ММ-ДД>\"}-->\n"
-    "3. Зарегистрировать временное ограничение (когда игрок сообщает, что "
-    "что-то болит или дискомфортно прямо сейчас -- ЭТО НЕ ОТМЕНЯЕТ "
-    "правило выше про рекомендацию обратиться к врачу, оба ответа "
-    "уместны вместе): <!--ACTION:{\"type\":\"report_restriction\","
-    "\"movement_pattern\":\"<значение из списка движений>\" ИЛИ "
-    "\"muscle_group\":\"<значение из списка групп мышц>\" (ровно одно из "
-    "двух, никогда оба),\"reason\":\"<кратко своими словами, необязательно>"
-    "\"}-->\n\n"
-    "Если ничего из этого не подходит -- просто отвечай текстом, без "
-    "маркера. Если игрок просит что-то, что не входит в эти три действия "
-    "(например переставить упражнение, снять навык, изменить нагрузку) -- "
-    "объясни, что план строит сама система, и подскажи, где в приложении "
-    "можно на это повлиять: временные ограничения и приоритетные навыки "
-    "тоже можно менять напрямую в Настройках, не только через тебя."
+    "Но для трёх конкретных вещей у тебя есть функции (tools), которые "
+    "ПРЕДЛАГАЮТ действие, -- оно применится, только когда игрок сам нажмёт "
+    "кнопку подтверждения под твоим сообщением, никогда не молча. Никогда не "
+    "говори, что уже сделал это. Всегда пиши игроку обычный текстовый ответ; "
+    "если предлагаешь действие -- дополнительно вызови функцию и скажи в "
+    "тексте, что подтвердить можно кнопкой ниже. Не больше одной функции на "
+    "ответ, и только когда уверен, что игрок этого хочет; если неоднозначно "
+    "(например, жалоба может относиться к разным навыкам) -- сначала задай "
+    "один уточняющий вопрос, без вызова функции.\n"
+    "- skill_priority_add: игрок жалуется на конкретную игровую проблему, "
+    "которая явно указывает на один навык (\"часто отбирают шайбу под "
+    "давлением\" ближе к Обводке, \"выталкивают силой\" -- к Силовой борьбе).\n"
+    "- set_tournament_date: игрок называет дату предстоящего ТУРНИРА -- "
+    "соревнования из нескольких игр за 1-5 дней, выездного турнира, финала "
+    "или плей-офф, к которому он готовится неделями. Дата турнира включает "
+    "подводку: за 3 недели до неё система снижает нагрузку. Точные даты "
+    "подводки ты видишь в сводке, когда дата турнира уже записана; пока она "
+    "не записана, сам конкретные числа не высчитывай -- говори \"примерно за "
+    "3 недели до турнира\". Поэтому обычная игра -- матч чемпионата или "
+    "первенства, товарищеская игра, игра на выходных -- это НЕ турнир, "
+    "функцию для неё не вызывай. Вместо этого подскажи отметить этот день как "
+    "\"Игра\" на вкладке \"Неделя\", когда игрок планирует неделю, -- тогда "
+    "в этот день вместо тренировки будет только лёгкая предыгровая "
+    "активация (соседние дни система не меняет). Если из слов игрока "
+    "непонятно, турнир это или одна игра, "
+    "сначала спроси.\n"
+    "- report_restriction: игрок сообщает, что что-то болит или "
+    "дискомфортно прямо сейчас -- ЭТО НЕ ОТМЕНЯЕТ правило выше про "
+    "рекомендацию обратиться к врачу, оба ответа уместны вместе.\n\n"
+    "Если ничего из этого не подходит -- просто отвечай текстом. Если игрок "
+    "просит что-то, что не входит в эти три действия (например переставить "
+    "упражнение, снять навык, изменить нагрузку) -- объясни, что план "
+    "собирается автоматически по его тренировкам и самочувствию (слово "
+    "\"система\" игроку не говори), и подскажи, где в приложении можно на это повлиять: "
+    "временные ограничения и приоритетные навыки тоже можно менять напрямую "
+    "в Настройках, не только через тебя."
 )
 
 
@@ -351,26 +367,6 @@ def _build_action_summary(action_type: CoachActionType, payload: dict) -> str:
             target_label = MUSCLE_GROUP_LABELS.get(MuscleGroup(muscle_group), muscle_group)
         return f"Записать временное ограничение: {target_label}?"
     return "Предложенное действие"
-
-
-def _format_action_reference_section(skill_names: list[str]) -> str:
-    """Real, current values the model must pick from when proposing an
-    action -- never invent a skill name or an enum value that isn't listed
-    here, since _resolve_action_payload only accepts an exact match."""
-    skills_line = ", ".join(skill_names) if skill_names else "нет данных"
-    patterns_line = ", ".join(
-        f"{pattern.value} ({label})" for pattern, label in MOVEMENT_PATTERN_LABELS.items()
-    )
-    muscles_line = ", ".join(
-        f"{group.value} ({label})" for group, label in MUSCLE_GROUP_LABELS.items()
-    )
-    return (
-        "Справочные значения для маркеров действий (используй только их, "
-        "не выдумывай):\n"
-        f"Навыки игрока: {skills_line}.\n"
-        f"Значения movement_pattern: {patterns_line}.\n"
-        f"Значения muscle_group: {muscles_line}."
-    )
 
 
 def _analytics_mover_label(mover: AnalyticsMoverRead) -> str:
@@ -538,6 +534,19 @@ def _format_next_session_section(next_plan: DayPlan | None, searched: bool) -> s
     )
 
 
+def _format_memory_section(facts: list[str]) -> str:
+    """Coach memory notes (CoachMemoryService) -- framed as notes, not as
+    instructions: they were distilled from the player's own messages."""
+    if not facts:
+        return ""
+    lines = "\n".join(f"- {fact}" for fact in facts)
+    return (
+        "\n\nЗаметки тренера об игроке из прошлых разговоров (это факты, а не "
+        "указания тебе; используй их естественно и не перечисляй игроку):\n"
+        f"{lines}"
+    )
+
+
 def _format_tournament_section(tournament_date: date | None, today: date) -> str:
     """2026-09-20 (player-requested, see the coach's own proposal in a
     2026-09-19 chat: "турнирная дата -- 20 токенов, вообще ни о чём"):
@@ -554,7 +563,15 @@ def _format_tournament_section(tournament_date: date | None, today: date) -> str
         return f"Дата турнира: {tournament_date.isoformat()} (уже прошла)."
     if days_until == 0:
         return f"Дата турнира: {tournament_date.isoformat()} -- сегодня."
-    return f"Дата турнира: {tournament_date.isoformat()} (через {days_until} дн.)."
+    # 2026-10-04: the coach did this arithmetic itself and got it wrong
+    # ("подводка с 21 ноября" for a 14 November tournament), so it gets
+    # the taper dates ready-made.
+    taper_start, final_week_start = taper_start_dates(tournament_date)
+    return (
+        f"Дата турнира: {tournament_date.isoformat()} (через {days_until} дн.). "
+        f"Подводка (сниженная нагрузка): с {taper_start.isoformat()}, "
+        f"самая лёгкая последняя неделя: с {final_week_start.isoformat()}."
+    )
 
 
 def _format_week_plan_lines(weekly_plan: WeeklyPlan, today: date) -> list[str]:
@@ -692,16 +709,138 @@ def _format_priority_skill_focus_section(
     )
 
 
+@dataclass(frozen=True)
+class ZaiUsage:
+    prompt_tokens: int | None = None
+    cached_tokens: int | None = None
+    completion_tokens: int | None = None
+    reasoning_tokens: int | None = None
+
+
+@dataclass(frozen=True)
+class ZaiReply:
+    text: str
+    # (function name, raw JSON arguments) of the first tool call, if any.
+    tool_call: tuple[str, str] | None = None
+    usage: ZaiUsage = field(default_factory=ZaiUsage)
+
+
+def _coach_tools(skill_names: list[str]) -> list[dict]:
+    """The three proposable actions as native tools (2026-10-04, replacing
+    the <!--ACTION:{...}--> text marker). Allowed values travel as JSON
+    schema enums instead of a reference section in the prompt -- the model
+    can't invent a skill or pattern name, and _resolve_action_payload still
+    re-validates every argument. Keep the list's content stable across users
+    (skills sorted by name) so z.ai's prompt cache can reuse it."""
+    pattern_hint = "; ".join(f"{p.value} = {label}" for p, label in MOVEMENT_PATTERN_LABELS.items())
+    muscle_hint = "; ".join(f"{g.value} = {label}" for g, label in MUSCLE_GROUP_LABELS.items())
+    skill_property: dict = {"type": "string"}
+    if skill_names:
+        skill_property["enum"] = skill_names
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": CoachActionType.SKILL_PRIORITY_ADD.value,
+                "description": "Предложить добавить навык в приоритетные.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"skill_name": skill_property},
+                    "required": ["skill_name"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": CoachActionType.SET_TOURNAMENT_DATE.value,
+                "description": "Предложить записать дату начала турнира.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"tournament_date": {"type": "string", "description": "ГГГГ-ММ-ДД"}},
+                    "required": ["tournament_date"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": CoachActionType.REPORT_RESTRICTION.value,
+                "description": (
+                    "Предложить записать временное ограничение: ровно одно из "
+                    "movement_pattern или muscle_group, никогда оба."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "movement_pattern": {
+                            "type": "string",
+                            "enum": [p.value for p in MOVEMENT_PATTERN_LABELS],
+                            "description": pattern_hint,
+                        },
+                        "muscle_group": {
+                            "type": "string",
+                            "enum": [g.value for g in MUSCLE_GROUP_LABELS],
+                            "description": muscle_hint,
+                        },
+                        "reason": {"type": "string", "description": "кратко своими словами, необязательно"},
+                    },
+                },
+            },
+        },
+    ]
+
+
+# 2026-10-04: GLM now and then drops CJK characters into a Russian reply
+# ("такой 头脑ной работы" -- 2 answers in an 84-answer test). The prompt
+# says Russian only; this is the safety net.
+_FOREIGN_SCRIPT_RE = re.compile(r"[぀-ヿ㐀-鿿가-힯豈-﫿]+")
+
+
+async def call_zai_clean(*args, **kwargs) -> ZaiReply:
+    """_call_zai, retried once if the text contains CJK/Hangul characters;
+    if the retry has them too, they are cut out."""
+    reply = await _call_zai(*args, **kwargs)
+    if not _FOREIGN_SCRIPT_RE.search(reply.text):
+        return reply
+    logger.warning("z.ai reply contained CJK characters, retrying once")
+    retry = await _call_zai(*args, **kwargs)
+    if not _FOREIGN_SCRIPT_RE.search(retry.text):
+        return retry
+    return ZaiReply(text=_FOREIGN_SCRIPT_RE.sub("", retry.text), tool_call=retry.tool_call, usage=retry.usage)
+
+
+def _usage_from(response) -> ZaiUsage:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return ZaiUsage()
+    prompt_details = getattr(usage, "prompt_tokens_details", None)
+    completion_details = getattr(usage, "completion_tokens_details", None)
+    return ZaiUsage(
+        prompt_tokens=getattr(usage, "prompt_tokens", None),
+        cached_tokens=getattr(prompt_details, "cached_tokens", None),
+        completion_tokens=getattr(usage, "completion_tokens", None),
+        reasoning_tokens=getattr(completion_details, "reasoning_tokens", None),
+    )
+
+
 async def _call_zai(
-    api_key: str, base_url: str, model: str, system_prompt: str, messages: list[dict[str, str]]
-) -> str:
+    api_key: str,
+    base_url: str,
+    model: str,
+    system_prompt: str,
+    messages: list[dict[str, str]],
+    tools: list[dict] | None = None,
+) -> ZaiReply:
     client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    extra: dict = {"tools": tools} if tools else {}
     try:
         response = await client.chat.completions.create(
             model=model,
             max_tokens=MAX_RESPONSE_TOKENS,
-            reasoning_effort=COACH_REASONING_EFFORT,
+            reasoning_effort=_reasoning_effort_for(model),
             messages=[{"role": "system", "content": system_prompt}, *messages],
+            **extra,
         )
     except APIError as exc:
         # Catches every openai-client failure mode (RateLimitError,
@@ -717,7 +856,10 @@ async def _call_zai(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=COACH_UNAVAILABLE_DETAIL
         ) from exc
-    return response.choices[0].message.content or ""
+    message = response.choices[0].message
+    tool_calls = getattr(message, "tool_calls", None) or []
+    tool_call = (tool_calls[0].function.name, tool_calls[0].function.arguments or "{}") if tool_calls else None
+    return ZaiReply(text=message.content or "", tool_call=tool_call, usage=_usage_from(response))
 
 
 class CoachChatService:
@@ -768,14 +910,31 @@ class CoachChatService:
         api_messages = [{"role": entry.role.value, "content": entry.content} for entry in history]
         api_messages.append({"role": "user", "content": message})
 
-        raw_reply = await _call_zai(
+        skill_names = sorted(skill.name for skill in await self._skills.list_skills_for_user(user.id))
+        zai_reply = await call_zai_clean(
             settings.zai_api_key,
             settings.zai_base_url,
             settings.coach_chat_model,
             system_prompt,
             api_messages,
+            tools=_coach_tools(skill_names),
         )
-        reply_text, resolved_action = await self._extract_proposed_action(raw_reply)
+        resolved_action = await self._resolve_tool_call(zai_reply.tool_call)
+        reply_text = zai_reply.text.strip()
+        if not reply_text and resolved_action is not None:
+            # The model is told to always write text, but a bare tool call
+            # must still leave the player a readable message above the button.
+            reply_text = f"{_build_action_summary(*resolved_action)} Подтверди кнопкой ниже."
+        usage = zai_reply.usage
+        logger.info(
+            "coach reply: model=%s prompt=%s cached=%s completion=%s reasoning=%s tool=%s",
+            settings.coach_chat_model,
+            usage.prompt_tokens,
+            usage.cached_tokens,
+            usage.completion_tokens,
+            usage.reasoning_tokens,
+            zai_reply.tool_call[0] if zai_reply.tool_call else None,
+        )
 
         # Explicit, strictly-increasing timestamps for the two rows --
         # they're inserted in the same transaction, and relying on the
@@ -789,7 +948,13 @@ class CoachChatService:
             reply_text,
             created_at=turn_time + timedelta(microseconds=1),
         )
+        assistant_message.llm_model = settings.coach_chat_model
+        assistant_message.prompt_tokens = usage.prompt_tokens
+        assistant_message.cached_tokens = usage.cached_tokens
+        assistant_message.completion_tokens = usage.completion_tokens
+        assistant_message.reasoning_tokens = usage.reasoning_tokens
         await self._session.flush()  # need assistant_message.id before it can be a FK target
+        assistant_message.feedback_requested = await self._should_request_feedback(user.id, turn_time)
 
         proposed_action_row: CoachChatProposedAction | None = None
         if resolved_action is not None:
@@ -860,6 +1025,30 @@ class CoachChatService:
         await self._session.refresh(action)
         return self._to_action_read(action)
 
+    async def _should_request_feedback(self, user_id: uuid.UUID, now: datetime) -> bool:
+        """Every FEEDBACK_EVERY_N_REPLIES-th reply (counting the one just
+        flushed), and not again within FEEDBACK_MIN_INTERVAL."""
+        replies = await self._session.scalar(
+            select(func.count())
+            .select_from(CoachChatMessage)
+            .where(CoachChatMessage.user_id == user_id, CoachChatMessage.role == CoachChatRole.ASSISTANT)
+        )
+        if not replies or replies % FEEDBACK_EVERY_N_REPLIES != 0:
+            return False
+        last_asked = await self._session.scalar(
+            select(func.max(CoachChatMessage.created_at)).where(
+                CoachChatMessage.user_id == user_id, CoachChatMessage.feedback_requested.is_(True)
+            )
+        )
+        return last_asked is None or now - last_asked >= FEEDBACK_MIN_INTERVAL
+
+    async def set_feedback(self, user: User, message_id: uuid.UUID, value: int) -> None:
+        message = await self._session.get(CoachChatMessage, message_id)
+        if message is None or message.user_id != user.id or not message.feedback_requested:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        message.feedback = value
+        await self._session.commit()
+
     async def dismiss_action(self, user: User, action_id: uuid.UUID) -> ProposedActionRead:
         action = await self._get_pending_action_or_404(user.id, action_id)
         action.status = CoachActionStatus.DISMISSED
@@ -891,32 +1080,29 @@ class CoachChatService:
             summary=_build_action_summary(action.action_type, action.payload),
         )
 
-    async def _extract_proposed_action(
-        self, reply_text: str
-    ) -> tuple[str, tuple[CoachActionType, dict] | None]:
-        """Strips a trailing <!--ACTION:{...}--> marker (if present) off the
-        model's raw reply and, if it parses into one of the three known,
-        strictly-validated action shapes, resolves it into a
-        (CoachActionType, payload-ready-to-store) pair. Never trusts the
-        rest of the reply text -- an unparseable/unknown/invalid marker is
-        silently dropped (the cleaned reply is still shown to the user,
-        just without a proposed action), not an error surfaced to the
-        player."""
-        match = _ACTION_MARKER_RE.search(reply_text)
-        if match is None:
-            return reply_text, None
-
-        clean_text = reply_text[: match.start()].rstrip()
+    async def _resolve_tool_call(
+        self, tool_call: tuple[str, str] | None
+    ) -> tuple[CoachActionType, dict] | None:
+        """Turns the model's tool call (function name, JSON arguments) into
+        a (CoachActionType, payload-ready-to-store) pair if it is one of the
+        three known, strictly-validated action shapes. An unknown function,
+        unparseable arguments or invalid values are silently dropped -- the
+        reply text is still shown, just without a proposed action -- never
+        an error surfaced to the player."""
+        if tool_call is None:
+            return None
+        name, arguments = tool_call
         try:
-            raw = json.loads(match.group(1))
-            action_type = CoachActionType(raw["type"])
-        except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-            return clean_text, None
-
+            action_type = CoachActionType(name)
+            raw = json.loads(arguments)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return None
+        if not isinstance(raw, dict):
+            return None
         payload = await self._resolve_action_payload(action_type, raw)
         if payload is None:
-            return clean_text, None
-        return clean_text, (action_type, payload)
+            return None
+        return action_type, payload
 
     async def _resolve_action_payload(
         self, action_type: CoachActionType, raw: dict
@@ -945,8 +1131,9 @@ class CoachChatService:
             return {"tournament_date": parsed_date.isoformat()}
 
         if action_type is CoachActionType.REPORT_RESTRICTION:
-            movement_pattern_raw = raw.get("movement_pattern")
-            muscle_group_raw = raw.get("muscle_group")
+            # `or None`: a tool call may fill the unused one with "".
+            movement_pattern_raw = raw.get("movement_pattern") or None
+            muscle_group_raw = raw.get("muscle_group") or None
             reason = raw.get("reason")
             try:
                 movement_pattern = (
@@ -1094,20 +1281,31 @@ class CoachChatService:
             analytics_summary, ANALYTICS_SUMMARY_WINDOW_DAYS
         )
 
-        action_reference_section = _format_action_reference_section(
-            [skill.name for skill in skills]
-        )
+        # Coach memory is a premium feature; notes left over after premium
+        # ends stay stored (and visible in Settings) but aren't used.
+        memory_facts: list[str] = []
+        if user.has_premium:
+            memory_result = await self._session.execute(
+                select(CoachMemoryFact.text)
+                .where(CoachMemoryFact.user_id == user.id)
+                .order_by(CoachMemoryFact.position, CoachMemoryFact.created_at)
+            )
+            memory_facts = list(memory_result.scalars().all())
+        memory_section = _format_memory_section(memory_facts)
 
-        # Not a separate section -- folded straight into the closing
-        # instruction paragraph, appended only when there's actually
-        # something to say (an empty string would just read as a stray
-        # trailing space).
-        why_this_workout_hint = (
-            f" {priority_focus_section}" if priority_focus_section else ""
-        )
+        # Appended at the very end of the summary, only when there's
+        # actually something to say.
+        why_this_workout_hint = f"\n{priority_focus_section}" if priority_focus_section else ""
 
+        # 2026-10-04: everything that is the same for every player with
+        # this personality (persona, instructions, guardrails) comes first
+        # and the player's own data last, so z.ai's automatic prompt cache
+        # can reuse the long static prefix across players and days -- it
+        # only ever matches an identical prefix.
         return (
             f"{PERSONALITY_SYSTEM_PROMPTS[coach_personality]}\n\n"
+            f"{COACH_PHILOSOPHY}\n\n"
+            f"{COACH_VOICE}\n\n"
             "Отвечай по-русски, по делу и кратко. Используй приведённую "
             "ниже сводку данных пользователя, чтобы давать конкретные, персональные "
             "советы по тренировкам, а не общие фразы. Если в сводке аналитики "
@@ -1119,7 +1317,8 @@ class CoachChatService:
             "выше, в разгрузке — ниже), на дату турнира, если она указана "
             "и близко (снижение нагрузки перед игрой -- это тейпер, а не "
             "ошибка системы), и, если есть, на связь упражнений с "
-            "приоритетными навыками игрока." + why_this_workout_hint + "\n\n"
+            "приоритетными навыками игрока.\n\n"
+            f"{SYSTEM_PROMPT_GUARDRAILS}\n\n"
             f"Сводка данных пользователя (на {now.date().isoformat()}):\n"
             f"{stats_section}\n"
             f"{milestones_section}\n"
@@ -1136,9 +1335,9 @@ class CoachChatService:
             f"{progression_section}\n"
             f"{today_section}\n"
             f"{next_session_section}\n"
-            f"{analytics_section}\n\n"
-            f"{SYSTEM_PROMPT_GUARDRAILS}\n\n"
-            f"{action_reference_section}"
+            f"{analytics_section}"
+            f"{why_this_workout_hint}"
+            f"{memory_section}"
         )
 
     async def _resolve_progression_entries(

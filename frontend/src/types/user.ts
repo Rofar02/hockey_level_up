@@ -34,13 +34,16 @@ export const SEASON_PERIOD_CHOICES: { value: SeasonPeriod; title: string; descri
 
 // Level-gated cosmetics (item 6, 2026-08-30 gamification pass) -- see
 // utils/levelUnlocks.ts for the level thresholds.
-export const AVATAR_RING_ACCENTS = ['ice', 'persimmon', 'mix'] as const
+// 'gold' (2026-10-04) is premium-only at any level; the others unlock at level 10.
+export const AVATAR_RING_ACCENTS = ['ice', 'persimmon', 'mix', 'gold'] as const
+export const LEVEL_RING_ACCENTS = ['ice', 'persimmon', 'mix'] as const
 export type AvatarRingAccent = (typeof AVATAR_RING_ACCENTS)[number]
 
 export const AVATAR_RING_ACCENT_LABELS: Record<AvatarRingAccent, string> = {
   ice: 'Лёд',
   persimmon: 'Огонь',
   mix: 'Микс',
+  gold: 'Золото',
 }
 
 export const JERSEY_COLORS = ['white', 'ice', 'persimmon', 'gold'] as const
@@ -67,7 +70,7 @@ export const COACH_PERSONALITY_CHOICES: {
   { value: 'calm', title: 'Спокойный', description: 'Ровный тон, по фактам, без эмоций' },
   { value: 'strict', title: 'Жёсткая дисциплина', description: 'Строго по делу, никаких поблажек' },
   { value: 'humor', title: 'С юмором', description: 'Жёсткий хоккейный юмор, подколки в раздевалочном стиле' },
-  { value: 'vibe', title: 'Свой чел', description: 'Неформально, по-дружески, без напряга' },
+  { value: 'vibe', title: 'Друг по команде', description: 'Неформально, по-дружески, без напряга' },
 ]
 
 export interface UserRead {

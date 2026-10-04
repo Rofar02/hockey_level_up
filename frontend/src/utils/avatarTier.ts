@@ -30,12 +30,33 @@ export interface AvatarTierStyle {
 // border-box. Shared by the automatic level-15+ tier and the level-10+
 // "Микс" ring choice (2026-08-30 gamification pass) -- same visual, two
 // different reasons to show it.
+// 2026-10-04 redesign: "Лёд и пламя" -- a conic ring with ice on the left
+// and fire on the right (it was a washed-out diagonal pink-to-orange).
 const GRADIENT_RING_STYLE: CSSProperties = {
   border: '3px solid transparent',
-  backgroundImage: `linear-gradient(${DARK_BG}, ${DARK_BG}), linear-gradient(135deg, ${ICE}, ${PERSIMMON})`,
+  backgroundImage: `linear-gradient(${DARK_BG}, ${DARK_BG}), conic-gradient(from 180deg, ${ICE}, #7FC4FF 20%, ${ICE} 40%, #FF8A3D 55%, ${PERSIMMON} 75%, #FF8A3D 90%, ${ICE})`,
   backgroundOrigin: 'border-box',
   backgroundClip: 'padding-box, border-box',
-  boxShadow: `0 0 16px rgba(215,239,255,0.45), 0 0 16px rgba(255,92,52,0.3)`,
+  boxShadow: '-6px 0 14px rgba(127,196,255,0.4), 6px 0 14px rgba(255,92,52,0.4)',
+}
+
+// "Пламя" -- deep red through orange to amber around the ring (was a flat
+// persimmon border).
+const FIRE_RING_STYLE: CSSProperties = {
+  border: '3px solid transparent',
+  backgroundImage: `linear-gradient(${DARK_BG}, ${DARK_BG}), conic-gradient(from 210deg, #8C1D0B, #FF3D1F 25%, #FF8A3D 45%, #FFC56B 55%, #FF8A3D 65%, #FF3D1F 80%, #8C1D0B)`,
+  backgroundOrigin: 'border-box',
+  backgroundClip: 'padding-box, border-box',
+  boxShadow: '0 0 14px rgba(255,92,52,0.55), 0 0 28px rgba(255,61,31,0.25)',
+}
+
+// Premium gold ring (2026-10-04) -- same two-layer gradient trick as above.
+const GOLD_RING_STYLE: CSSProperties = {
+  border: '3px solid transparent',
+  backgroundImage: `linear-gradient(${DARK_BG}, ${DARK_BG}), linear-gradient(135deg, #FFF4D6, #E6C36A 50%, #FFF0C2)`,
+  backgroundOrigin: 'border-box',
+  backgroundClip: 'padding-box, border-box',
+  boxShadow: '0 0 16px rgba(246,224,160,0.45)',
 }
 
 function solidRingStyle(color: string): CSSProperties {
@@ -56,13 +77,17 @@ export function getAvatarTierStyle(
   ringAccent?: AvatarRingAccent | null,
 ): AvatarTierStyle {
   const tier = level >= AVATAR_TIER_LEVEL_THRESHOLDS.TOP ? 3 : 2
+  // Premium gold: any level (the server only keeps it while premium lasts).
+  if (ringAccent === 'gold') {
+    return { tier, style: GOLD_RING_STYLE }
+  }
   // The player's own pick wins at every level it's unlocked at -- at 15+ it
   // used to be overridden by the gradient, so the setting did nothing there.
   if (hasAvatarRingChoice(level) && ringAccent != null) {
     if (ringAccent === 'mix') {
       return { tier, style: GRADIENT_RING_STYLE }
     }
-    return { tier, style: solidRingStyle(ringAccent === 'persimmon' ? PERSIMMON : ICE) }
+    return { tier, style: ringAccent === 'persimmon' ? FIRE_RING_STYLE : solidRingStyle(ICE) }
   }
   if (level >= AVATAR_TIER_LEVEL_THRESHOLDS.TOP) {
     return { tier: 3, style: GRADIENT_RING_STYLE }

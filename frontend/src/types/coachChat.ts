@@ -21,6 +21,9 @@ export interface CoachChatMessageRead {
   content: string
   created_at: string
   proposed_action: ProposedActionRead | null
+  // Occasional "Полезный ответ?" -- 1 = 👍, -1 = 👎, null = not answered.
+  feedback_requested: boolean
+  feedback: 1 | -1 | null
 }
 
 export interface CoachChatReplyRead {
@@ -37,3 +40,23 @@ export interface CoachAttentionRead {
 
 // Marked seen when the chat is opened -- ends the first_visit glow.
 export const COACH_CHAT_OPENED_HINT = 'coach-chat-opened'
+
+// One coach memory note (CoachMemoryFactRead in app/schemas/coach_chat.py).
+export interface CoachMemoryFactRead {
+  id: string
+  text: string
+  created_at: string
+}
+
+// The coach's weekly review (WeeklyReviewRead in app/schemas/coach_chat.py).
+export interface WeeklyReviewRead {
+  id: string
+  week_start: string
+  sessions_completed: number
+  sessions_planned: number
+  records_count: number
+  top_stat: string | null
+  top_stat_delta: number | null
+  text: string
+  created_at: string
+}

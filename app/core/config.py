@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     # separate mount needed.
     reference_article_image_upload_dir: str = "static/reference-articles"
     team_logo_upload_dir: str = "static/team-logos"
+    # 2026-10-04: feedback screenshots -- deliberately NOT under static/
+    # (that's served publicly); only admins get them, through
+    # GET /admin/feedback/{id}/screenshot.
+    feedback_upload_dir: str = "uploads/feedback"
+    # Where a "new feedback" email goes (needs resend_api_key too); unset =
+    # feedback only shows up in the admin panel.
+    feedback_notify_email: str | None = None
 
     # VAPID key pair for Web Push (RFC 8292) -- generated once via
     # py_vapid.Vapid().generate_keys(), raw EC key bytes, base64url-encoded

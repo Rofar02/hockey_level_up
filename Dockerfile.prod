@@ -41,7 +41,7 @@ COPY . .
 # container start -- Docker seeds a fresh named volume from whatever is at
 # that path in the image, ownership included, so this is what makes
 # uploads writable by the non-root user instead of ending up root-owned.
-RUN mkdir -p static/avatars static/reference-articles static/team-logos \
+RUN mkdir -p static/avatars static/reference-articles static/team-logos uploads/feedback \
     && chown -R appuser:appuser /app
 
 USER appuser

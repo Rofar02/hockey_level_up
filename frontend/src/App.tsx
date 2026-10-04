@@ -68,6 +68,9 @@ const SettingsNotificationsPage = lazy(() =>
     default: m.SettingsNotificationsPage,
   })),
 )
+const SettingsCoachMemoryPage = lazy(() =>
+  import('./pages/SettingsCoachMemoryPage').then((m) => ({ default: m.SettingsCoachMemoryPage })),
+)
 const SettingsAccountPage = lazy(() =>
   import('./pages/SettingsAccountPage').then((m) => ({ default: m.SettingsAccountPage })),
 )
@@ -99,6 +102,11 @@ const AnalyticsPage = lazy(() =>
   import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })),
 )
 const CoachPage = lazy(() => import('./pages/CoachPage').then((m) => ({ default: m.CoachPage })))
+const PremiumPage = lazy(() => import('./pages/PremiumPage').then((m) => ({ default: m.PremiumPage })))
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage').then((m) => ({ default: m.FeedbackPage })))
+const AdminFeedbackPage = lazy(() =>
+  import('./pages/admin/AdminFeedbackPage').then((m) => ({ default: m.AdminFeedbackPage })),
+)
 const ReferencePage = lazy(() =>
   import('./pages/ReferencePage').then((m) => ({ default: m.ReferencePage })),
 )
@@ -199,6 +207,7 @@ function App() {
         <Route path="/settings/assessments" element={<SettingsAssessmentsPage />} />
         <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
         <Route path="/settings/account" element={<SettingsAccountPage />} />
+        <Route path="/settings/coach-memory" element={<SettingsCoachMemoryPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/team" element={<TeamHubPage />} />
         <Route path="/teams" element={<TeamsPage />} />
@@ -212,6 +221,8 @@ function App() {
         />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/coach" element={<CoachPage />} />
+        <Route path="/premium" element={<PremiumPage />} />
+        <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/reference" element={<ReferencePage />} />
         <Route path="/exercise-catalog" element={<ExerciseCatalogPage />} />
         <Route path="/quests" element={<QuestsPage />} />
@@ -262,6 +273,14 @@ function App() {
         element={
           <AdminRoute>
             <AdminUsersPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/feedback"
+        element={
+          <AdminRoute>
+            <AdminFeedbackPage />
           </AdminRoute>
         }
       />

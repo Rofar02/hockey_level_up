@@ -413,7 +413,8 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'План', exact: true }).click()
   await expect(page).toHaveURL(/\/schedule\/new$/)
   await expect(page.getByText('Командная тренировка')).toBeVisible()
-  await expect(page.getByText(/План · 25 мин · 1 схема/)).toBeVisible()
+  // The week line reads "Начало в 19:00 · 2 упражнения · 25 мин · 1 схема" (TeamDayWeekLine).
+  await expect(page.getByText(/25 мин · 1 схема/)).toBeVisible()
   await shot(page, '12-week-team-day')
   await expectNoHorizontalOverflow(page)
   await page.getByRole('button', { name: 'План тренировки' }).click()

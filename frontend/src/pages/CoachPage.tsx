@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { CoachPersonalityIntroModal } from '../components/CoachPersonalityIntroModal'
 import { MarkdownContent } from '../components/MarkdownContent'
 import { BackLink } from '../components/ui/BackLink'
@@ -17,6 +17,7 @@ import { useAuth } from '../hooks/useAuth'
 import { COACH_CHAT_OPENED_HINT } from '../types/coachChat'
 import type { CoachAttentionReason, CoachChatMessageRead, ProposedActionRead } from '../types/coachChat'
 import type { CoachPersonality } from '../types/user'
+import { ChatSkeleton } from '../components/ui/Skeleton'
 
 export function CoachPage() {
   const { user, accessToken } = useAuth()
@@ -278,7 +279,7 @@ function CoachChatContent({
     <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
       <FormError message={loadError} />
       <div className="flex max-h-[60vh] min-h-[240px] flex-col gap-4 overflow-y-auto">
-        {messages === null && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+        {messages === null && <ChatSkeleton />}
         {messages !== null && messages.length === 0 && (
           // Same icon-in-a-circle language as the shared EmptyState, but
           // without its own CARD_CLASS wrapper -- this already sits inside
@@ -311,7 +312,10 @@ function CoachChatContent({
 
       {!hasPremium && (
         <p className="text-xs text-[#8A94A6]">
-          Бесплатная проба AI-тренера. С премиум-подпиской — без ограничения по числу сообщений.
+          Бесплатная проба AI-тренера. С премиум-подпиской — 150 сообщений в месяц.{' '}
+          <Link to="/premium" className="text-accent-ice hover:text-text-primary">
+            Подробнее
+          </Link>
         </p>
       )}
 
@@ -391,6 +395,9 @@ function ChatBubble({
           {isUser ? message.content : <MarkdownContent content={message.content} />}
         </div>
         <span className="px-1 text-[10px] text-[#8A94A6]">{time}</span>
+        {!isUser && message.feedback_requested && (
+          <ReplyFeedback messageId={message.id} initial={message.feedback} />
+        )}
         {message.proposed_action !== null && (
           <ProposedActionCard
             action={message.proposed_action}
@@ -400,6 +407,47 @@ function ChatBubble({
           />
         )}
       </div>
+    </div>
+  )
+}
+
+// "Полезный ответ?" (2026-10-04) -- only under the occasional reply the
+// server flagged (every 5th, at most once per 3 days), so it reads as a
+// check-in, not a survey. Optimistic: the row turns into "Спасибо" at once.
+function ReplyFeedback({ messageId, initial }: { messageId: string; initial: 1 | -1 | null }) {
+  const { accessToken } = useAuth()
+  const [value, setValue] = useState<1 | -1 | null>(initial)
+
+  function send(next: 1 | -1) {
+    if (accessToken === null) {
+      return
+    }
+    setValue(next)
+    void coachChatApi.sendCoachReplyFeedback(messageId, next, accessToken).catch(() => setValue(null))
+  }
+
+  if (value !== null) {
+    return <span className="px-1 text-[11px] text-[#8A94A6]">Спасибо, это поможет тренеру стать лучше</span>
+  }
+  return (
+    <div className="flex items-center gap-1 px-1 text-[11px] text-[#8A94A6]">
+      <span>Полезный ответ?</span>
+      <button
+        type="button"
+        aria-label="Полезный ответ"
+        onClick={() => send(1)}
+        className="flex h-9 w-9 items-center justify-center rounded hover:text-accent-ice"
+      >
+        <i className="ti ti-thumb-up text-base" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        aria-label="Бесполезный ответ"
+        onClick={() => send(-1)}
+        className="flex h-9 w-9 items-center justify-center rounded hover:text-accent-persimmon"
+      >
+        <i className="ti ti-thumb-down text-base" aria-hidden="true" />
+      </button>
     </div>
   )
 }

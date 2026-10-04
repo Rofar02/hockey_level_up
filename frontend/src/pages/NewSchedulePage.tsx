@@ -31,6 +31,7 @@ import type {
 import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
 import { hasExerciseTechnique } from '../utils/exerciseTechnique'
 import { loadOptional } from '../utils/loadOptional'
+import { WeekSkeleton } from '../components/ui/Skeleton'
 
 const SESSION_TYPE_OPTIONS: DaySessionType[] = ['on_ice', 'off_ice', 'rest', 'game']
 
@@ -446,7 +447,7 @@ export function NewSchedulePage() {
 
         <FormError message={loadError} />
 
-        {weekStatus === 'loading' && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+        {weekStatus === 'loading' && <WeekSkeleton />}
 
         {weekStatus === 'plan' && loadError === null && (
           <>

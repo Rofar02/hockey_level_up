@@ -57,6 +57,8 @@ interface PlayerCardProps {
   stats: PlayerCardStat[]
   isUploadingAvatar?: boolean
   statGridRef?: Ref<HTMLDivElement>
+  // Overrides the level rule for the sheen (the premium preview always has it).
+  shine?: boolean
   // All optional: without them the card is read-only (someone else's
   // profile) -- no camera button, nothing tappable.
   onAvatarClick?: () => void
@@ -80,6 +82,7 @@ export function PlayerCard({
   stats,
   isUploadingAvatar = false,
   statGridRef,
+  shine,
   onAvatarClick,
   onChangePhoto,
   onLevelClick,
@@ -141,7 +144,27 @@ export function PlayerCard({
             background: `radial-gradient(ellipse at 75% -5%, ${look.tint}, transparent 60%), linear-gradient(180deg, rgba(14,21,36,0.10) 0%, rgba(14,21,36,0.45) 48%, #0E1524 80%)`,
           }}
         />
-        <div data-card="stripe-line" className="absolute inset-x-0 top-0 z-[2] h-1" style={{ background: look.stripe }} />
+
+        {/* Premium gold card (2026-10-04): a "PREMIUM" plate in the free top-right corner.
+            The shared PNG draws the plate from [data-card="premium-badge"] and its text. */}
+        {cardStyle === 'gold' && (
+          // Frosted glass: the photo behind is blurred and tinted dark enough
+          // that the gold letters read on a light photo as well as a dark one
+          // (a plain see-through plate vanished on light backgrounds), with a
+          // light rim and a top highlight for the glass look.
+          <span
+            data-card="premium-badge"
+            className="absolute right-4 top-5 z-[3] rounded-full border border-white/35 px-2.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md backdrop-saturate-150"
+            style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(10,14,24,0.55))' }}
+          >
+            <span
+              data-card-text
+              className="block font-display text-[11px] font-bold tracking-[1.5px] text-[#FBE7B0] [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]"
+            >
+              PREMIUM
+            </span>
+          </span>
+        )}
 
         <div className="absolute left-5 top-5 z-[2] flex flex-col items-start gap-1">
           <span data-card-text className="font-display text-[62px] font-bold leading-[0.9]" style={accent}>
@@ -258,7 +281,7 @@ export function PlayerCard({
       {/* From LEVEL_CARD_SHINE: a sheen sweeps across the whole card now and
           then, like a rare card in the games. Over everything, never tappable;
           the shared picture (utils/cardImage) is a still and leaves it out. */}
-      {hasCardShine(level) && (
+      {(shine ?? (hasCardShine(level) || cardStyle === 'gold')) && (
         <span className="card-shine pointer-events-none absolute inset-0 z-[5] rounded-2xl" aria-hidden="true" />
       )}
     </div>

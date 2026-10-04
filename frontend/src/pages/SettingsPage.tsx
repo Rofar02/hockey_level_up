@@ -36,6 +36,12 @@ const GROUPS: SettingsGroup[] = [
         to: '/settings/training',
       },
       {
+        icon: 'ti-brain',
+        label: 'Что помнит тренер',
+        description: 'Заметки ИИ-тренера о тебе',
+        to: '/settings/coach-memory',
+      },
+      {
         icon: 'ti-clipboard-list',
         label: 'Тестирование',
         description: 'Оценка физподготовки и катания',

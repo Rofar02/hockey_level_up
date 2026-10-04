@@ -1,14 +1,14 @@
 """Coach chat proposed actions (CoachChatProposedAction): the model can
-propose exactly 3 actions via a trailing <!--ACTION:{...}--> marker in its
-reply (see coach_chat_service.SYSTEM_PROMPT_GUARDRAILS for the exact
-protocol), which only ever gets applied through
+propose exactly 3 actions as native tool calls (see
+coach_chat_service._coach_tools; until 2026-10-04 a <!--ACTION:{...}-->
+text marker), which only ever gets applied through
 POST /users/me/coach-chat/actions/{id}/confirm -- never silently, never
 bypassing the real service method the corresponding Settings screen would
 call itself.
 
-Covers: marker parsing/validation (valid marker resolves and is stripped
-from the visible text; invalid/unknown/ambiguous markers are silently
-dropped, text still stripped), the one-pending-action-at-a-time rule,
+Covers: tool-call validation (a valid call resolves; invalid/unknown/
+ambiguous calls are silently dropped, the text is still shown; a bare call
+with no text gets a readable fallback), the one-pending-action-at-a-time rule,
 list_history attaching the right proposed_action to the right message, and
 confirm_action actually dispatching to SkillService.add_priority_skill /
 UserService.update_profile / UserTemporaryRestrictionService.report for
@@ -26,13 +26,14 @@ from sqlalchemy import select
 
 from app.core.config import Settings
 from app.core.level_unlocks import max_skill_slots_for_level
+from app.models.coach_chat import CoachChatMessage
 from app.models.coach_chat_proposed_action import CoachActionStatus, CoachActionType
 from app.models.exercise import MovementPattern
 from app.models.skill import Skill, UserSkillPreference
 from app.models.user import User
 from app.models.user_temporary_restriction import UserTemporaryRestriction
 from app.services import coach_chat_service
-from app.services.coach_chat_service import CoachChatService
+from app.services.coach_chat_service import CoachChatService, ZaiReply, ZaiUsage
 
 
 def _make_user(*, has_premium: bool = True, level: int = 1) -> User:
@@ -55,28 +56,29 @@ def _settings_with_key() -> Settings:
     return Settings(zai_api_key="test-key")
 
 
-def _reply_with_marker(action: dict, text: str = "Вот что предлагаю.") -> str:
-    return f"{text}\n<!--ACTION:{json.dumps(action, ensure_ascii=False)}-->"
+def _reply_with_tool(action: dict, text: str = "Вот что предлагаю.") -> ZaiReply:
+    arguments = {key: value for key, value in action.items() if key != "type"}
+    return ZaiReply(text=text, tool_call=(action["type"], json.dumps(arguments, ensure_ascii=False)))
 
 
-def _install_fake_call(monkeypatch, *, reply: str):
-    async def _fake_call_zai(api_key, base_url, model, system_prompt, messages) -> str:
-        return reply
+def _install_fake_call(monkeypatch, *, reply: str | ZaiReply):
+    async def _fake_call_zai(api_key, base_url, model, system_prompt, messages, tools=None) -> ZaiReply:
+        return reply if isinstance(reply, ZaiReply) else ZaiReply(text=reply)
 
     monkeypatch.setattr(coach_chat_service, "_call_zai", _fake_call_zai)
 
 
-async def _send(db_session, monkeypatch, user: User, reply: str, message: str = "сообщение"):
+async def _send(db_session, monkeypatch, user: User, reply: str | ZaiReply, message: str = "сообщение"):
     monkeypatch.setattr(coach_chat_service, "get_settings", lambda: _settings_with_key())
     _install_fake_call(monkeypatch, reply=reply)
     return await CoachChatService(db_session).send_message(user, message)
 
 
-# -- marker parsing/validation --
+# -- tool-call validation --
 
 
 @pytest.mark.asyncio
-async def test_tournament_date_marker_creates_pending_action_and_cleans_text(
+async def test_tournament_date_tool_call_creates_pending_action(
     db_session, monkeypatch
 ) -> None:
     user = _make_user()
@@ -87,13 +89,13 @@ async def test_tournament_date_marker_creates_pending_action_and_cleans_text(
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker(
+        _reply_with_tool(
             {"type": "set_tournament_date", "tournament_date": "2027-03-15"},
             text="Записал дату турнира.",
         ),
     )
 
-    assert reply.content == "Записал дату турнира."  # marker stripped, never shown
+    assert reply.content == "Записал дату турнира."
     assert reply.proposed_action is not None
     assert reply.proposed_action.action_type == CoachActionType.SET_TOURNAMENT_DATE
     assert reply.proposed_action.status == CoachActionStatus.PENDING
@@ -102,7 +104,7 @@ async def test_tournament_date_marker_creates_pending_action_and_cleans_text(
 
 
 @pytest.mark.asyncio
-async def test_skill_priority_marker_resolves_real_skill_by_name(db_session, monkeypatch) -> None:
+async def test_skill_priority_tool_call_resolves_real_skill_by_name(db_session, monkeypatch) -> None:
     user = _make_user()
     skill = _make_skill()
     db_session.add_all([user, skill])
@@ -112,7 +114,7 @@ async def test_skill_priority_marker_resolves_real_skill_by_name(db_session, mon
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "skill_priority_add", "skill_name": skill.name}),
+        _reply_with_tool({"type": "skill_priority_add", "skill_name": skill.name}),
     )
 
     assert reply.proposed_action is not None
@@ -122,7 +124,7 @@ async def test_skill_priority_marker_resolves_real_skill_by_name(db_session, mon
 
 
 @pytest.mark.asyncio
-async def test_skill_priority_marker_unknown_name_creates_no_action(db_session, monkeypatch) -> None:
+async def test_skill_priority_tool_call_unknown_name_creates_no_action(db_session, monkeypatch) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -131,18 +133,18 @@ async def test_skill_priority_marker_unknown_name_creates_no_action(db_session, 
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker(
+        _reply_with_tool(
             {"type": "skill_priority_add", "skill_name": "Несуществующий навык 12345"},
             text="Хочу предложить кое-что.",
         ),
     )
 
-    assert reply.content == "Хочу предложить кое-что."  # marker still stripped
+    assert reply.content == "Хочу предложить кое-что."  # text still shown
     assert reply.proposed_action is None  # but not created -- name didn't resolve
 
 
 @pytest.mark.asyncio
-async def test_malformed_json_marker_creates_no_action_but_still_strips_marker(
+async def test_malformed_tool_arguments_create_no_action_but_text_is_shown(
     db_session, monkeypatch
 ) -> None:
     user = _make_user()
@@ -153,7 +155,7 @@ async def test_malformed_json_marker_creates_no_action_but_still_strips_marker(
         db_session,
         monkeypatch,
         user,
-        "Обычный ответ.\n<!--ACTION:{not valid json}-->",
+        ZaiReply(text="Обычный ответ.", tool_call=("set_tournament_date", "{not valid json")),
     )
 
     assert reply.content == "Обычный ответ."
@@ -170,14 +172,14 @@ async def test_unknown_action_type_creates_no_action(db_session, monkeypatch) ->
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "delete_account", "target": "everything"}),
+        _reply_with_tool({"type": "delete_account", "target": "everything"}),
     )
 
     assert reply.proposed_action is None
 
 
 @pytest.mark.asyncio
-async def test_reply_with_no_marker_at_all_is_unaffected(db_session, monkeypatch) -> None:
+async def test_reply_with_no_tool_call_is_unaffected(db_session, monkeypatch) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -189,7 +191,7 @@ async def test_reply_with_no_marker_at_all_is_unaffected(db_session, monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_restriction_marker_both_targets_creates_no_action(db_session, monkeypatch) -> None:
+async def test_restriction_tool_call_both_targets_creates_no_action(db_session, monkeypatch) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -198,7 +200,7 @@ async def test_restriction_marker_both_targets_creates_no_action(db_session, mon
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker(
+        _reply_with_tool(
             {
                 "type": "report_restriction",
                 "movement_pattern": "shoulder_mobility",
@@ -211,20 +213,20 @@ async def test_restriction_marker_both_targets_creates_no_action(db_session, mon
 
 
 @pytest.mark.asyncio
-async def test_restriction_marker_neither_target_creates_no_action(db_session, monkeypatch) -> None:
+async def test_restriction_tool_call_neither_target_creates_no_action(db_session, monkeypatch) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
 
     reply = await _send(
-        db_session, monkeypatch, user, _reply_with_marker({"type": "report_restriction", "reason": "болит"})
+        db_session, monkeypatch, user, _reply_with_tool({"type": "report_restriction", "reason": "болит"})
     )
 
     assert reply.proposed_action is None
 
 
 @pytest.mark.asyncio
-async def test_restriction_marker_valid_movement_pattern_resolves(db_session, monkeypatch) -> None:
+async def test_restriction_tool_call_valid_movement_pattern_resolves(db_session, monkeypatch) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -233,7 +235,7 @@ async def test_restriction_marker_valid_movement_pattern_resolves(db_session, mo
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker(
+        _reply_with_tool(
             {
                 "type": "report_restriction",
                 "movement_pattern": "shoulder_mobility",
@@ -264,7 +266,7 @@ async def test_new_proposal_expires_previous_pending_one(db_session, monkeypatch
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "set_tournament_date", "tournament_date": "2027-01-01"}),
+        _reply_with_tool({"type": "set_tournament_date", "tournament_date": "2027-01-01"}),
         message="первое",
     )
     first_action_id = first_reply.proposed_action.id
@@ -273,7 +275,7 @@ async def test_new_proposal_expires_previous_pending_one(db_session, monkeypatch
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "set_tournament_date", "tournament_date": "2027-06-01"}),
+        _reply_with_tool({"type": "set_tournament_date", "tournament_date": "2027-06-01"}),
         message="второе",
     )
 
@@ -301,7 +303,7 @@ async def test_list_history_attaches_proposed_action_to_the_right_message(
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
+        _reply_with_tool({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
         message="второе",
     )
 
@@ -328,7 +330,7 @@ async def test_confirm_tournament_date_action_sets_user_field(db_session, monkey
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
+        _reply_with_tool({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
     )
 
     service = CoachChatService(db_session)
@@ -349,7 +351,7 @@ async def test_confirm_skill_priority_action_adds_preference(db_session, monkeyp
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "skill_priority_add", "skill_name": skill.name}),
+        _reply_with_tool({"type": "skill_priority_add", "skill_name": skill.name}),
     )
 
     service = CoachChatService(db_session)
@@ -373,7 +375,7 @@ async def test_confirm_restriction_action_creates_restriction_row(db_session, mo
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker(
+        _reply_with_tool(
             {
                 "type": "report_restriction",
                 "movement_pattern": "shoulder_mobility",
@@ -409,7 +411,7 @@ async def test_confirm_action_owned_by_another_user_returns_404(db_session, monk
         db_session,
         monkeypatch,
         owner,
-        _reply_with_marker({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
+        _reply_with_tool({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
     )
 
     service = CoachChatService(db_session)
@@ -428,7 +430,7 @@ async def test_confirm_already_confirmed_action_returns_400(db_session, monkeypa
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
+        _reply_with_tool({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
     )
 
     service = CoachChatService(db_session)
@@ -459,7 +461,7 @@ async def test_confirm_reraises_the_real_slot_cap_error_when_since_exceeded(
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "skill_priority_add", "skill_name": proposed_skill.name}),
+        _reply_with_tool({"type": "skill_priority_add", "skill_name": proposed_skill.name}),
     )
 
     # Fill every slot with OTHER skills after the proposal was made, same
@@ -486,7 +488,7 @@ async def test_dismiss_action_marks_dismissed_without_applying(db_session, monke
         db_session,
         monkeypatch,
         user,
-        _reply_with_marker({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
+        _reply_with_tool({"type": "set_tournament_date", "tournament_date": "2027-03-15"}),
     )
 
     service = CoachChatService(db_session)
@@ -494,3 +496,103 @@ async def test_dismiss_action_marks_dismissed_without_applying(db_session, monke
 
     assert result.status == CoachActionStatus.DISMISSED
     assert user.tournament_date is None
+
+
+@pytest.mark.asyncio
+async def test_bare_tool_call_without_text_gets_a_readable_fallback(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    reply = await _send(
+        db_session,
+        monkeypatch,
+        user,
+        _reply_with_tool({"type": "set_tournament_date", "tournament_date": "2027-03-15"}, text=""),
+    )
+
+    assert reply.proposed_action is not None
+    assert "15.03.2027" in reply.content
+    assert "кнопкой" in reply.content
+
+
+@pytest.mark.asyncio
+async def test_restriction_tool_call_with_empty_other_target_resolves(db_session, monkeypatch) -> None:
+    """A tool call may fill the unused target with "" instead of leaving it out."""
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    reply = await _send(
+        db_session,
+        monkeypatch,
+        user,
+        _reply_with_tool({"type": "report_restriction", "movement_pattern": "squat", "muscle_group": ""}),
+    )
+
+    assert reply.proposed_action is not None
+    assert reply.proposed_action.payload["movement_pattern"] == MovementPattern.SQUAT.value
+    assert reply.proposed_action.payload["muscle_group"] is None
+
+
+@pytest.mark.asyncio
+async def test_token_usage_is_stored_on_the_assistant_message(db_session, monkeypatch) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    reply = await _send(
+        db_session,
+        monkeypatch,
+        user,
+        ZaiReply(
+            text="Ответ.",
+            usage=ZaiUsage(prompt_tokens=2800, cached_tokens=2500, completion_tokens=140, reasoning_tokens=30),
+        ),
+    )
+
+    stored = await db_session.get(CoachChatMessage, reply.id)
+    assert (stored.prompt_tokens, stored.cached_tokens, stored.completion_tokens, stored.reasoning_tokens) == (
+        2800,
+        2500,
+        140,
+        30,
+    )
+    assert stored.llm_model == _settings_with_key().coach_chat_model
+
+
+# -- occasional reply feedback (2026-10-04) --
+
+
+@pytest.mark.asyncio
+async def test_feedback_is_asked_on_every_fifth_reply_and_not_again_within_three_days(
+    db_session, monkeypatch
+) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    replies = [await _send(db_session, monkeypatch, user, f"Ответ {i}") for i in range(10)]
+
+    asked = [reply.feedback_requested for reply in replies]
+    assert asked[4] is True  # 5th reply
+    assert asked.count(True) == 1  # the 10th is within 3 days of the 5th
+
+
+@pytest.mark.asyncio
+async def test_feedback_is_saved_only_on_own_requested_reply(db_session, monkeypatch) -> None:
+    user, stranger = _make_user(), _make_user()
+    db_session.add_all([user, stranger])
+    await db_session.flush()
+    replies = [await _send(db_session, monkeypatch, user, f"Ответ {i}") for i in range(5)]
+    requested, plain = replies[4], replies[0]
+    service = CoachChatService(db_session)
+
+    with pytest.raises(HTTPException):
+        await service.set_feedback(stranger, requested.id, 1)
+    with pytest.raises(HTTPException):
+        await service.set_feedback(user, plain.id, 1)
+    await service.set_feedback(user, requested.id, -1)
+
+    stored = await db_session.get(CoachChatMessage, requested.id)
+    assert stored.feedback == -1

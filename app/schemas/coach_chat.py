@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,6 +37,13 @@ class CoachChatMessageRead(BaseModel):
     content: str
     created_at: datetime
     proposed_action: ProposedActionRead | None = None
+    # Occasional "Полезный ответ?" (CoachChatService._should_request_feedback).
+    feedback_requested: bool = False
+    feedback: int | None = None
+
+
+class CoachReplyFeedbackIn(BaseModel):
+    value: Literal[1, -1]
 
 
 class CoachChatReplyRead(BaseModel):
@@ -53,3 +60,29 @@ class CoachAttentionRead(BaseModel):
     CoachAttentionService for what each reason means."""
 
     reason: Literal["pending_action", "checkin", "first_visit"] | None
+
+
+class CoachMemoryFactRead(BaseModel):
+    """One coach memory note -- GET /users/me/coach-memory."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    text: str
+    created_at: datetime
+
+
+class WeeklyReviewRead(BaseModel):
+    """The coach's weekly review -- GET /users/me/weekly-review."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    week_start: date
+    sessions_completed: int
+    sessions_planned: int
+    records_count: int
+    top_stat: str | None
+    top_stat_delta: float | None
+    text: str
+    created_at: datetime

@@ -11,7 +11,7 @@ import math
 import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -148,9 +148,14 @@ class AnalyticsOverviewService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get_overview(self, user: User, days: int) -> AnalyticsOverviewRead:
+    async def get_overview(self, user: User, days: int, until: date | None = None) -> AnalyticsOverviewRead:
+        """`until` (2026-10-04, weekly coach review): end the period on that
+        local day -- e.g. last Sunday on a Monday morning -- instead of today."""
         tz = ZoneInfo(user.timezone)
         now = datetime.now(timezone.utc)
+        if until is not None:
+            end_of_until = datetime.combine(until, time.max, tzinfo=tz).astimezone(timezone.utc)
+            now = min(now, end_of_until)
         today = now.astimezone(tz).date()
         period_start = today - timedelta(days=days - 1)
         since = now - timedelta(days=days)

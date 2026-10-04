@@ -31,6 +31,7 @@ import type { UserTemporaryRestrictionRead } from '../types/userTemporaryRestric
 import type { UserPublicRead } from '../types/user'
 import { renderCardImage } from '../utils/cardImage'
 import { countAvailableExercises } from '../utils/equipmentAvailability'
+import { ProfileSkeleton } from '../components/ui/Skeleton'
 
 // Thin dispatcher: /profile (no :userId, or :userId === your own id) keeps
 // the existing full self-view (stats, skills, avatar upload -- all of it
@@ -298,7 +299,7 @@ function OwnProfileView() {
       </div>
 
       <FormError message={loadError} />
-      {isLoading && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+      {isLoading && <ProfileSkeleton />}
 
       {!isLoading && stats !== null && (
         <div className="mx-auto flex w-full max-w-[360px] flex-col gap-3">
@@ -369,6 +370,12 @@ function OwnProfileView() {
       </div>
 
       <div className={`flex flex-col rounded-md ${CARD_BORDER} bg-dark-card`}>
+        <ProfileRow
+          icon="ti-crown"
+          label="Премиум"
+          hint={user?.has_premium === true ? 'Активен' : 'Тренер, разбор недели, аналитика'}
+          to="/premium"
+        />
         <ProfileRow icon="ti-notebook" label="Дневник" hint="Записи после льда и игр" to="/diary" />
         <ProfileRow
           icon="ti-bandage"
@@ -382,6 +389,7 @@ function OwnProfileView() {
         />
         <ProfileRow icon="ti-book" label="Справочник" hint="Статьи об экипировке и основах" to="/reference" />
         <ProfileRow icon="ti-clipboard-list" label="Каталог упражнений" hint="Все упражнения с техникой" to="/exercise-catalog" />
+        <ProfileRow icon="ti-message-report" label="Обратная связь" hint="Нашёл ошибку или есть идея — напиши" to="/feedback" />
       </div>
       {!isLoading && user !== null && !user.email_verified && (
         <div className={`flex flex-col gap-1.5 rounded-md ${CARD_BORDER} bg-dark-card p-3`}>

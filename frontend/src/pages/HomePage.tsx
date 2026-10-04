@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
+import { WeeklyReviewCard } from '../components/WeeklyReviewCard'
 import { CoachPlanReminderCard } from '../components/teamEvents/CoachPlanReminderCard'
 import { TeamDayCard } from '../components/teamEvents/TeamDayCard'
 import { Button } from '../components/ui/Button'
@@ -45,6 +46,7 @@ import { getAvatarTierStyle } from '../utils/avatarTier'
 import { getDisplayName } from '../utils/displayName'
 import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
+import { HomeSkeleton } from '../components/ui/Skeleton'
 
 const MONTH_LABELS = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
@@ -483,13 +485,16 @@ export function HomePage() {
         )}
 
         <FormError message={error} />
-        {isLoading && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+        {isLoading && <HomeSkeleton />}
 
         {!isLoading && (
           <div className="flex flex-col gap-4">
             {/* Captains only, and only while a training this week has no
                 published plan -- renders nothing otherwise. */}
             <CoachPlanReminderCard />
+
+            {/* Premium: the coach's Monday review of last week, until closed. */}
+            <WeeklyReviewCard />
 
             {(() => {
               const personalCard = (

@@ -58,21 +58,85 @@ function isTabActive(tab: Tab, pathname: string): boolean {
   )
 }
 
-// The on-screen keyboard shrinks the visual viewport; on Android a fixed
-// bar then rides up above the keyboard and covers the field being typed
-// into. While it's open the bar steps aside.
-function useKeyboardOpen(): boolean {
-  const [isOpen, setIsOpen] = useState(false)
+const NON_TEXT_INPUT_TYPES = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image'])
+
+function isTextField(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) {
+    return false
+  }
+  if (element.isContentEditable || element instanceof HTMLTextAreaElement) {
+    return true
+  }
+  return element instanceof HTMLInputElement && !NON_TEXT_INPUT_TYPES.has(element.type)
+}
+
+interface NavPlacement {
+  // The on-screen keyboard is up: the bar steps aside so it doesn't ride
+  // up over the field being typed into (Android) or float mid-screen (iOS).
+  hidden: boolean
+  // Shift that keeps the bar on the visible bottom edge when the visual
+  // viewport no longer ends where the layout viewport does.
+  offsetY: number
+}
+
+const RESTING: NavPlacement = { hidden: false, offsetY: 0 }
+
+// 2026-10-04 fix for "капсула то уезжает в середину, то пропадает, помогает
+// только перезапуск" (iOS home-screen app). The old hook hid the bar while
+// innerHeight - visualViewport.height > 150 and recomputed that ONLY on a
+// visualViewport resize: if the keyboard went away without one (app sent to
+// the background, tab switch) the bar stayed hidden until a reload, and a
+// pinch zoom also read as "keyboard". And a fixed bar is pinned to the
+// layout viewport, which iOS can leave offset after the keyboard closes, so
+// the bar showed up in the middle of the screen. Now the keyboard counts
+// only while a text field has focus, the state is recomputed on focus
+// changes, viewport scroll/resize, rotation and return to the foreground,
+// and the bar is shifted onto the visible bottom edge.
+function useNavPlacement(): NavPlacement {
+  const [placement, setPlacement] = useState<NavPlacement>(RESTING)
   useEffect(() => {
     const viewport = window.visualViewport
     if (viewport == null) {
       return
     }
-    const update = () => setIsOpen(window.innerHeight - viewport.height > 150)
+    const update = () => {
+      const zoomed = viewport.scale > 1.01
+      const hidden = !zoomed && window.innerHeight - viewport.height > 150 && isTextField(document.activeElement)
+      const gap = viewport.offsetTop + viewport.height - window.innerHeight
+      const offsetY = hidden || zoomed || Math.abs(gap) < 2 ? 0 : Math.round(gap)
+      setPlacement((current) =>
+        current.hidden === hidden && current.offsetY === offsetY ? current : { hidden, offsetY },
+      )
+    }
+    // The keyboard animates away after blur -- check again once it's gone.
+    let settleTimer: number | undefined
+    const updateSoon = () => {
+      update()
+      window.clearTimeout(settleTimer)
+      settleTimer = window.setTimeout(update, 350)
+    }
     viewport.addEventListener('resize', update)
-    return () => viewport.removeEventListener('resize', update)
+    viewport.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', updateSoon)
+    window.addEventListener('focusin', updateSoon)
+    window.addEventListener('focusout', updateSoon)
+    window.addEventListener('pageshow', updateSoon)
+    document.addEventListener('visibilitychange', updateSoon)
+    update()
+    return () => {
+      window.clearTimeout(settleTimer)
+      viewport.removeEventListener('resize', update)
+      viewport.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', updateSoon)
+      window.removeEventListener('focusin', updateSoon)
+      window.removeEventListener('focusout', updateSoon)
+      window.removeEventListener('pageshow', updateSoon)
+      document.removeEventListener('visibilitychange', updateSoon)
+    }
   }, [])
-  return isOpen
+  return placement
 }
 
 // A floating frosted-glass capsule with the AI coach in the middle, raised
@@ -84,12 +148,13 @@ function useKeyboardOpen(): boolean {
 // catches them. CoachmarkOverlay measures this element to keep tooltips
 // clear of it, so its box must be the full strip, raised button included.
 export function BottomNav() {
-  const isKeyboardOpen = useKeyboardOpen()
+  const { hidden: isKeyboardOpen, offsetY } = useNavPlacement()
   const teamAttention = useTeamAttention()
 
   return (
     <nav
       data-app-bottom-nav
+      data-nav-state={isKeyboardOpen ? 'hidden' : 'shown'}
       aria-label="Основная навигация"
       className={`pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pt-7 transition-transform duration-200 ${
         isKeyboardOpen ? 'translate-y-[120%]' : ''
@@ -102,7 +167,7 @@ export function BottomNav() {
       // WebKit quirk.
       style={{
         paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-        transform: isKeyboardOpen ? undefined : 'translateZ(0)',
+        transform: isKeyboardOpen ? undefined : `translate3d(0, ${offsetY}px, 0)`,
         willChange: 'transform',
       }}
     >

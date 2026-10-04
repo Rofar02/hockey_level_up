@@ -6,7 +6,7 @@ of this).
 """
 import math
 from collections.abc import Callable
-from datetime import date
+from datetime import date, timedelta
 
 from app.models.exercise import Exercise, ExerciseCategory
 from app.models.schedule import BlockPhase
@@ -113,6 +113,17 @@ def is_tapering(today: date, tournament_date: date | None) -> bool:
         return False
     days_until = (tournament_date - today).days
     return 0 <= days_until < TAPER_WINDOW_WEEKS * 7
+
+
+def taper_start_dates(tournament_date: date) -> tuple[date, date]:
+    """(first taper day, first day of the final taper week) -- the first
+    dates on which is_tapering / is_final_taper_week turn True, so the
+    coach can quote them instead of doing the date arithmetic itself.
+    """
+    return (
+        tournament_date - timedelta(days=TAPER_WINDOW_WEEKS * 7 - 1),
+        tournament_date - timedelta(days=_TAPER_FINAL_WEEK_DAYS - 1),
+    )
 
 
 def is_final_taper_week(today: date, tournament_date: date | None) -> bool:

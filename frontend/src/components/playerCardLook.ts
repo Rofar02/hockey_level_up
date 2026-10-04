@@ -19,9 +19,14 @@ export interface TierLook {
   // canvas (utils/cardImage) -- canvas can't take CSS gradient strings.
   frameStops: [number, string][]
   stripeStops: [string, string]
+  // Direction of the frame gradient, shared by the CSS frame and the canvas
+  // (degrees, CSS convention); 150 when not set.
+  frameAngle?: number
 }
 
-export type CardStyle = 'steel' | 'ice' | 'fire' | 'mix'
+// 'gold' is the premium look -- not a level tier: picked as the 'gold' ring
+// accent (premium only), and the premium page previews it.
+export type CardStyle = 'steel' | 'ice' | 'fire' | 'mix' | 'gold'
 
 const CARD_LOOKS: Record<CardStyle, TierLook> = {
   steel: {
@@ -42,28 +47,47 @@ const CARD_LOOKS: Record<CardStyle, TierLook> = {
     frameStops: [[0, '#FFFFFF'], [0.3, '#D7EFFF'], [0.62, '#6F92B5'], [1, '#D7EFFF']],
     stripeStops: ['#7FA6C9', '#D7EFFF'],
   },
+  // 2026-10-04 redesign (owner picked from a preview): "Пламя" -- amber to
+  // deep red instead of a flat persimmon; "Лёд и пламя" -- ice on the left,
+  // fire on the right instead of a washed-out pink-to-orange.
   fire: {
-    frame: 'linear-gradient(150deg, #FFD2C4, #FF5C34 45%, #7A2410 78%, #FF8A6B)',
-    glow: '0 0 28px rgba(255,92,52,0.35), 0 14px 30px -12px rgba(0,0,0,0.7)',
-    stripe: 'linear-gradient(90deg, #FF8A6B, #FF5C34)',
-    accent: '#FFB199',
+    frame: 'linear-gradient(150deg, #FFC56B, #FF8A3D 30%, #FF3D1F 60%, #8C1D0B)',
+    glow: '0 0 26px rgba(255,92,52,0.5), 0 0 40px rgba(255,61,31,0.2), 0 14px 30px -12px rgba(0,0,0,0.7)',
+    stripe: 'linear-gradient(90deg, #FF8A3D, #FF3D1F)',
+    accent: '#FFC9A8',
     tint: 'rgba(255,92,52,0.34)',
-    frameStops: [[0, '#FFD2C4'], [0.45, '#FF5C34'], [0.78, '#7A2410'], [1, '#FF8A6B']],
-    stripeStops: ['#FF8A6B', '#FF5C34'],
+    frameStops: [[0, '#FFC56B'], [0.3, '#FF8A3D'], [0.6, '#FF3D1F'], [1, '#8C1D0B']],
+    stripeStops: ['#FF8A3D', '#FF3D1F'],
   },
   mix: {
-    frame: 'linear-gradient(150deg, #D7EFFF, #FF5C34 55%, #FFB199)',
-    glow: '0 0 30px rgba(255,92,52,0.35), 0 0 18px rgba(215,239,255,0.25), 0 14px 30px -12px rgba(0,0,0,0.7)',
-    stripe: 'linear-gradient(90deg, #D7EFFF, #FF5C34)',
+    frame: 'linear-gradient(90deg, #7FC4FF, #D7EFFF 40%, #FF8A3D 60%, #FF5C34)',
+    glow: '-10px 0 26px rgba(127,196,255,0.35), 10px 0 26px rgba(255,92,52,0.35), 0 14px 30px -12px rgba(0,0,0,0.7)',
+    stripe: 'linear-gradient(90deg, #7FC4FF, #FF5C34)',
     accent: '#FFD2C4',
-    tint: 'rgba(255,92,52,0.30)',
-    frameStops: [[0, '#D7EFFF'], [0.55, '#FF5C34'], [1, '#FFB199']],
-    stripeStops: ['#D7EFFF', '#FF5C34'],
+    tint: 'rgba(255,92,52,0.26)',
+    frameStops: [[0, '#7FC4FF'], [0.4, '#D7EFFF'], [0.6, '#FF8A3D'], [1, '#FF5C34']],
+    stripeStops: ['#7FC4FF', '#FF5C34'],
+    frameAngle: 90,
+  },
+  // 2026-10-04: champagne gold -- the first palette's dark end (#B8862F ->
+  // #9C6B1E) and amber glow read as an orange outline on a phone screen.
+  gold: {
+    frame: 'linear-gradient(150deg, #FFF4D6, #E6C36A 40%, #FFF0C2 65%, #D4AE55)',
+    glow: '0 0 28px rgba(246,224,160,0.3), 0 14px 30px -12px rgba(0,0,0,0.7)',
+    stripe: 'linear-gradient(90deg, #D9B458, #FFF0C2)',
+    accent: '#FBE7B0',
+    tint: 'rgba(246,224,160,0.24)',
+    frameStops: [[0, '#FFF4D6'], [0.4, '#E6C36A'], [0.65, '#FFF0C2'], [1, '#D4AE55']],
+    stripeStops: ['#D9B458', '#FFF0C2'],
   },
 }
 
 // Mirrors getAvatarTierStyle, so the card and the avatar ring always agree.
 export function cardStyleFor(level: number, ringAccent: AvatarRingAccent | null | undefined): CardStyle {
+  // Premium gold (2026-10-04): any level -- the server only stores it for premium players.
+  if (ringAccent === 'gold') {
+    return 'gold'
+  }
   if (hasAvatarRingChoice(level) && ringAccent != null) {
     return ringAccent === 'persimmon' ? 'fire' : ringAccent
   }

@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -47,3 +47,18 @@ class CoachChatMessage(Base):
         nullable=False,
         index=True,
     )
+    # 2026-10-04: token usage of the z.ai call that produced an assistant
+    # turn (NULL on user turns and on rows from before this was recorded) --
+    # so the real cost of live conversations can be queried, not estimated.
+    llm_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 2026-10-04: an occasional "Полезный ответ?" under an assistant turn
+    # (see CoachChatService._should_request_feedback) and the player's
+    # answer: 1 = 👍, -1 = 👎, NULL = not answered.
+    feedback_requested: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    feedback: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)

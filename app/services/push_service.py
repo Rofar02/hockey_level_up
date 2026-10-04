@@ -23,11 +23,13 @@ GONE_STATUS = 410
 
 
 async def send_push(
-    session: AsyncSession, subscription: PushSubscription, title: str, body: str
+    session: AsyncSession, subscription: PushSubscription, title: str, body: str, url: str | None = None
 ) -> bool:
     """Sends one Web Push notification. Returns whether it was actually
     delivered. On a 410 from the push service, deletes `subscription` from
-    the DB (flushed, not committed -- the caller owns the transaction)."""
+    the DB (flushed, not committed -- the caller owns the transaction).
+    `url` (2026-10-04): an in-app path the notification opens on tap (see
+    public/sw.js); without it the tap opens the home screen."""
     settings = get_settings()
     try:
         await webpush_async(
@@ -35,7 +37,7 @@ async def send_push(
                 "endpoint": subscription.endpoint,
                 "keys": {"p256dh": subscription.p256dh_key, "auth": subscription.auth_key},
             },
-            data=json.dumps({"title": title, "body": body}),
+            data=json.dumps({"title": title, "body": body, **({"url": url} if url else {})}),
             vapid_private_key=settings.vapid_private_key,
             vapid_claims={"sub": settings.vapid_subject},
         )

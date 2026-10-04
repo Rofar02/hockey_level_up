@@ -1,6 +1,6 @@
 """Long-running background loops: the RabbitMQ consumer, the outbox relay,
-the reminder / check-in / team-event schedulers and the daily event-table
-cleanup.
+the reminder / check-in / team-event schedulers, the coach memory
+summarizer, the weekly coach review and the daily event-table cleanup.
 
 Started by the API's lifespan when settings.run_background_tasks is true
 (local dev: one process does everything), or on their own:
@@ -29,6 +29,8 @@ from app.events.consumer import run_consumer
 from app.events.outbox_relay import run_outbox_relay
 from app.events.publisher import close_publisher
 from app.services.checkin_scheduler import run_checkin_scheduler
+from app.services.coach_memory_service import run_coach_memory_scheduler
+from app.services.weekly_review_service import run_weekly_review_scheduler
 from app.services.event_retention import run_event_retention
 from app.services.reminder_scheduler import run_reminder_scheduler
 from app.services.team_event_scheduler import run_team_event_scheduler
@@ -42,6 +44,8 @@ def start_background_tasks() -> list[asyncio.Task]:
         asyncio.create_task(run_checkin_scheduler()),
         asyncio.create_task(run_team_event_scheduler()),
         asyncio.create_task(run_event_retention()),
+        asyncio.create_task(run_coach_memory_scheduler()),
+        asyncio.create_task(run_weekly_review_scheduler()),
     ]
 
 

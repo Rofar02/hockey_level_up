@@ -250,6 +250,13 @@ export function SettingsNotificationsPage() {
                   Эксперимент: упражнения на время показываются в плеере на экране блокировки, сигналы
                   звучат и при выключенном экране.
                 </p>
+                {/* The silent <audio> + audioSession 'playback' that put the
+                    timer on the lock screen take the "now playing" slot, so
+                    iOS/Android pause the athlete's music app (2026-10-04). */}
+                <p className="mt-1.5 flex items-start gap-1.5 text-sm text-accent-persimmon">
+                  <i className="ti ti-music-off mt-0.5" aria-hidden="true" />
+                  Пока таймер на экране блокировки, музыка в других приложениях встаёт на паузу.
+                </p>
               </div>
               <Switch
                 checked={lockScreenPlayer}
