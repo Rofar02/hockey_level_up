@@ -148,11 +148,19 @@ export function PlayerCard({
         {/* Premium gold card (2026-10-04): a "PREMIUM" plate in the free top-right corner.
             The shared PNG draws the plate from [data-card="premium-badge"] and its text. */}
         {cardStyle === 'gold' && (
+          // Frosted glass: the photo behind is blurred and tinted dark enough
+          // that the gold letters read on a light photo as well as a dark one
+          // (a plain see-through plate vanished on light backgrounds), with a
+          // light rim and a top highlight for the glass look.
           <span
             data-card="premium-badge"
-            className="absolute right-4 top-5 z-[3] rounded-full border border-[#FBE7B0]/60 bg-[#FBE7B0]/15 px-2.5 py-1"
+            className="absolute right-4 top-5 z-[3] rounded-full border border-white/35 px-2.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md backdrop-saturate-150"
+            style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18), rgba(10,14,24,0.55))' }}
           >
-            <span data-card-text className="block font-display text-[11px] font-semibold tracking-[1.5px] text-[#FBE7B0]">
+            <span
+              data-card-text
+              className="block font-display text-[11px] font-bold tracking-[1.5px] text-[#FBE7B0] [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]"
+            >
               PREMIUM
             </span>
           </span>

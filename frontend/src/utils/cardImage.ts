@@ -347,11 +347,16 @@ export async function renderCardImage(frame: HTMLElement, look: TierLook): Promi
   const premiumBadge = frame.querySelector('[data-card="premium-badge"]')
   if (premiumBadge !== null) {
     const badge = boxOf(premiumBadge, origin)
+    // Canvas can't blur what's behind, so the glass is a tinted fill with the
+    // same light rim; the gold text comes with drawTexts.
     roundRectPath(ctx, badge, badge.h / 2)
-    ctx.fillStyle = 'rgba(251,231,176,0.15)'
+    ctx.fillStyle = angled(ctx, badge, 180, [
+      [0, 'rgba(255,255,255,0.18)'],
+      [1, 'rgba(10,14,24,0.55)'],
+    ])
     ctx.fill()
     ctx.lineWidth = 1
-    ctx.strokeStyle = 'rgba(251,231,176,0.6)'
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'
     ctx.stroke()
   }
   const emblem = frame.querySelector('[data-card="emblem"]')
