@@ -8,7 +8,10 @@ Reads scripts/data/catalog_metadata_fixes.json: a list of
   target_duration_seconds  int
   sets_reps                [target_sets, rep_range_min, rep_range_max]
   muscles                  {muscle_group: weight}
-  description, phase, warmup_stage, stimulus_type, admin_reviewed, is_archived
+  skills                   old: sorted skill names; new: [{"skill": name, "note": transfer_note}]
+                           (replaces the exercise's skill tags)
+  description, phase, warmup_stage, stimulus_type, exercise_type, admin_reviewed,
+  is_archived
                            plain scalar values (enums as their string value)
 
 Written for a catalog the product owner has edited by hand, so it only ever
@@ -35,7 +38,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.db.session import AsyncSessionLocal
 from app.models.exercise import (
@@ -44,10 +47,13 @@ from app.models.exercise import (
     ExerciseEquipmentItem,
     ExerciseMuscleGroup,
 )
+from app.models.skill import Skill, SkillTag
 from app.schemas.exercise import ExerciseUpdate, MuscleGroupWeight
 from app.services.exercise_service import ExerciseService
 
-SCALAR_FIELDS = {"description", "phase", "warmup_stage", "stimulus_type", "admin_reviewed", "is_archived"}
+SCALAR_FIELDS = {
+    "description", "phase", "warmup_stage", "stimulus_type", "exercise_type", "admin_reviewed", "is_archived",
+}
 DEFAULT_DATA = Path(__file__).resolve().parent / "data" / "catalog_metadata_fixes.json"
 
 
@@ -74,6 +80,13 @@ async def main(args: argparse.Namespace) -> int:
         muscles: dict = {}
         for r in muscle_rows.scalars().all():
             muscles.setdefault(r.exercise_id, {})[val(r.muscle_group)] = round(float(r.weight), 4)
+        skill_rows = await session.execute(select(Skill))
+        skill_by_name = {sk.name: sk for sk in skill_rows.scalars().all()}
+        skill_names_by_id = {sk.id: sk.name for sk in skill_by_name.values()}
+        tag_rows = await session.execute(select(SkillTag))
+        skills: dict = {}
+        for r in tag_rows.scalars().all():
+            skills.setdefault(r.exercise_id, []).append(skill_names_by_id[r.skill_id])
 
         for item in items:
             name = item["name"]
@@ -101,6 +114,12 @@ async def main(args: argparse.Namespace) -> int:
                     ok = {k: round(float(v), 4) for k, v in current.items()} == {
                         k: round(float(v), 4) for k, v in old.items()
                     }
+                elif field == "skills":
+                    current = sorted(skills.get(ex.id, []))
+                    ok = current == sorted(old)
+                    unknown = [t["skill"] for t in new if t["skill"] not in skill_by_name]
+                    if unknown:
+                        raise SystemExit(f"{name}: unknown skill(s) {unknown}")
                 elif field in SCALAR_FIELDS:
                     current = val(getattr(ex, field))
                     ok = current == old
@@ -118,6 +137,17 @@ async def main(args: argparse.Namespace) -> int:
                         await service.replace_muscle_groups(
                             ex.id, [MuscleGroupWeight(muscle_group=g, weight=w) for g, w in new.items()]
                         )
+                    elif field == "skills":
+                        await session.execute(delete(SkillTag).where(SkillTag.exercise_id == ex.id))
+                        for tag in new:
+                            session.add(
+                                SkillTag(
+                                    exercise_id=ex.id,
+                                    skill_id=skill_by_name[tag["skill"]].id,
+                                    transfer_note=tag["note"],
+                                )
+                            )
+                        await session.commit()
                     elif field == "sets_reps":
                         await service.update_exercise(
                             ex.id,
