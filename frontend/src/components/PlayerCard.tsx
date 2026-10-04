@@ -57,6 +57,8 @@ interface PlayerCardProps {
   stats: PlayerCardStat[]
   isUploadingAvatar?: boolean
   statGridRef?: Ref<HTMLDivElement>
+  // Overrides the level rule for the sheen (the premium preview always has it).
+  shine?: boolean
   // All optional: without them the card is read-only (someone else's
   // profile) -- no camera button, nothing tappable.
   onAvatarClick?: () => void
@@ -80,6 +82,7 @@ export function PlayerCard({
   stats,
   isUploadingAvatar = false,
   statGridRef,
+  shine,
   onAvatarClick,
   onChangePhoto,
   onLevelClick,
@@ -258,7 +261,7 @@ export function PlayerCard({
       {/* From LEVEL_CARD_SHINE: a sheen sweeps across the whole card now and
           then, like a rare card in the games. Over everything, never tappable;
           the shared picture (utils/cardImage) is a still and leaves it out. */}
-      {hasCardShine(level) && (
+      {(shine ?? hasCardShine(level)) && (
         <span className="card-shine pointer-events-none absolute inset-0 z-[5] rounded-2xl" aria-hidden="true" />
       )}
     </div>

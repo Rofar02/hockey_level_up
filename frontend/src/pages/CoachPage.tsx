@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { CoachPersonalityIntroModal } from '../components/CoachPersonalityIntroModal'
 import { MarkdownContent } from '../components/MarkdownContent'
 import { BackLink } from '../components/ui/BackLink'
@@ -311,7 +311,10 @@ function CoachChatContent({
 
       {!hasPremium && (
         <p className="text-xs text-[#8A94A6]">
-          Бесплатная проба AI-тренера. С премиум-подпиской — без ограничения по числу сообщений.
+          Бесплатная проба AI-тренера. С премиум-подпиской — 150 сообщений в месяц.{' '}
+          <Link to="/premium" className="text-accent-ice hover:text-text-primary">
+            Подробнее
+          </Link>
         </p>
       )}
 

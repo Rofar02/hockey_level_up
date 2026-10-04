@@ -369,6 +369,12 @@ function OwnProfileView() {
       </div>
 
       <div className={`flex flex-col rounded-md ${CARD_BORDER} bg-dark-card`}>
+        <ProfileRow
+          icon="ti-crown"
+          label="Премиум"
+          hint={user?.has_premium === true ? 'Активен' : 'Тренер, разбор недели, аналитика'}
+          to="/premium"
+        />
         <ProfileRow icon="ti-notebook" label="Дневник" hint="Записи после льда и игр" to="/diary" />
         <ProfileRow
           icon="ti-bandage"

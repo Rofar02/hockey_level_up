@@ -21,7 +21,9 @@ export interface TierLook {
   stripeStops: [string, string]
 }
 
-export type CardStyle = 'steel' | 'ice' | 'fire' | 'mix'
+// 'gold' is the premium look -- not a level tier, so cardStyleFor never
+// returns it; the premium page shows the player's own card in it.
+export type CardStyle = 'steel' | 'ice' | 'fire' | 'mix' | 'gold'
 
 const CARD_LOOKS: Record<CardStyle, TierLook> = {
   steel: {
@@ -59,6 +61,15 @@ const CARD_LOOKS: Record<CardStyle, TierLook> = {
     tint: 'rgba(255,92,52,0.30)',
     frameStops: [[0, '#D7EFFF'], [0.55, '#FF5C34'], [1, '#FFB199']],
     stripeStops: ['#D7EFFF', '#FF5C34'],
+  },
+  gold: {
+    frame: 'linear-gradient(150deg, #FBE7B0, #B8862F 45%, #F6D98A 70%, #9C6B1E)',
+    glow: '0 0 30px rgba(214,170,80,0.32), 0 14px 30px -12px rgba(0,0,0,0.7)',
+    stripe: 'linear-gradient(90deg, #B8862F, #FBE7B0)',
+    accent: '#FBE7B0',
+    tint: 'rgba(246,217,138,0.28)',
+    frameStops: [[0, '#FBE7B0'], [0.45, '#B8862F'], [0.7, '#F6D98A'], [1, '#9C6B1E']],
+    stripeStops: ['#B8862F', '#FBE7B0'],
   },
 }
 

@@ -99,6 +99,7 @@ const AnalyticsPage = lazy(() =>
   import('./pages/AnalyticsPage').then((m) => ({ default: m.AnalyticsPage })),
 )
 const CoachPage = lazy(() => import('./pages/CoachPage').then((m) => ({ default: m.CoachPage })))
+const PremiumPage = lazy(() => import('./pages/PremiumPage').then((m) => ({ default: m.PremiumPage })))
 const ReferencePage = lazy(() =>
   import('./pages/ReferencePage').then((m) => ({ default: m.ReferencePage })),
 )
@@ -212,6 +213,7 @@ function App() {
         />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/coach" element={<CoachPage />} />
+        <Route path="/premium" element={<PremiumPage />} />
         <Route path="/reference" element={<ReferencePage />} />
         <Route path="/exercise-catalog" element={<ExerciseCatalogPage />} />
         <Route path="/quests" element={<QuestsPage />} />

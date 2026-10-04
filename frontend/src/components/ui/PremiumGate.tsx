@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { CARD_BORDER } from './cardStyle'
 
 interface PremiumGateProps {
@@ -5,8 +6,8 @@ interface PremiumGateProps {
   description?: string
 }
 
-// Purely informational -- no payment flow exists yet, so this is a preview
-// of what premium unlocks, not an upsell with a call to action. Shared by
+// A preview of what premium unlocks, linking to the /premium sales page
+// (2026-10-04; payment itself isn't wired yet, see PremiumPage). Shared by
 // every premium-gated screen (analytics, AI coach, ...) so the visual
 // treatment and default copy only live in one place. Both real call sites
 // (AnalyticsPage/CoachPage) override title/description with copy specific
@@ -27,6 +28,12 @@ export function PremiumGate({
         <h2 className="text-lg font-semibold text-[#F5F7FA]">{title}</h2>
         <p className="text-sm text-[#8A94A6]">{description}</p>
       </div>
+      <Link
+        to="/premium"
+        className="rounded bg-accent-persimmon px-4 py-2.5 font-medium text-dark-bg transition-colors hover:bg-accent-persimmon/90"
+      >
+        Узнать про премиум
+      </Link>
     </div>
   )
 }
