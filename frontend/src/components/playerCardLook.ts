@@ -21,8 +21,8 @@ export interface TierLook {
   stripeStops: [string, string]
 }
 
-// 'gold' is the premium look -- not a level tier, so cardStyleFor never
-// returns it; the premium page shows the player's own card in it.
+// 'gold' is the premium look -- not a level tier: picked as the 'gold' ring
+// accent (premium only), and the premium page previews it.
 export type CardStyle = 'steel' | 'ice' | 'fire' | 'mix' | 'gold'
 
 const CARD_LOOKS: Record<CardStyle, TierLook> = {
@@ -75,6 +75,10 @@ const CARD_LOOKS: Record<CardStyle, TierLook> = {
 
 // Mirrors getAvatarTierStyle, so the card and the avatar ring always agree.
 export function cardStyleFor(level: number, ringAccent: AvatarRingAccent | null | undefined): CardStyle {
+  // Premium gold (2026-10-04): any level -- the server only stores it for premium players.
+  if (ringAccent === 'gold') {
+    return 'gold'
+  }
   if (hasAvatarRingChoice(level) && ringAccent != null) {
     return ringAccent === 'persimmon' ? 'fire' : ringAccent
   }

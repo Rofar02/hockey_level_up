@@ -261,7 +261,7 @@ export function PlayerCard({
       {/* From LEVEL_CARD_SHINE: a sheen sweeps across the whole card now and
           then, like a rare card in the games. Over everything, never tappable;
           the shared picture (utils/cardImage) is a still and leaves it out. */}
-      {(shine ?? hasCardShine(level)) && (
+      {(shine ?? (hasCardShine(level) || cardStyle === 'gold')) && (
         <span className="card-shine pointer-events-none absolute inset-0 z-[5] rounded-2xl" aria-hidden="true" />
       )}
     </div>

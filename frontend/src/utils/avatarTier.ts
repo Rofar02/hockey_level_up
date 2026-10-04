@@ -38,6 +38,15 @@ const GRADIENT_RING_STYLE: CSSProperties = {
   boxShadow: `0 0 16px rgba(215,239,255,0.45), 0 0 16px rgba(255,92,52,0.3)`,
 }
 
+// Premium gold ring (2026-10-04) -- same two-layer gradient trick as above.
+const GOLD_RING_STYLE: CSSProperties = {
+  border: '3px solid transparent',
+  backgroundImage: `linear-gradient(${DARK_BG}, ${DARK_BG}), linear-gradient(135deg, #FBE7B0, #B8862F 50%, #F6D98A)`,
+  backgroundOrigin: 'border-box',
+  backgroundClip: 'padding-box, border-box',
+  boxShadow: '0 0 16px rgba(214,170,80,0.45)',
+}
+
 function solidRingStyle(color: string): CSSProperties {
   return { border: `3px solid ${color}`, boxShadow: `0 0 12px ${color}66` }
 }
@@ -56,6 +65,10 @@ export function getAvatarTierStyle(
   ringAccent?: AvatarRingAccent | null,
 ): AvatarTierStyle {
   const tier = level >= AVATAR_TIER_LEVEL_THRESHOLDS.TOP ? 3 : 2
+  // Premium gold: any level (the server only keeps it while premium lasts).
+  if (ringAccent === 'gold') {
+    return { tier, style: GOLD_RING_STYLE }
+  }
   // The player's own pick wins at every level it's unlocked at -- at 15+ it
   // used to be overridden by the gradient, so the setting did nothing there.
   if (hasAvatarRingChoice(level) && ringAccent != null) {

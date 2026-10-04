@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties, FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { PlayerCard } from '../components/PlayerCard'
 import { cardStyleFor } from '../components/playerCardLook'
 import { cardStatsFrom, overallRatingOf } from '../components/playerCardStats'
@@ -14,7 +15,7 @@ import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import {
-  AVATAR_RING_ACCENTS,
+  LEVEL_RING_ACCENTS,
   AVATAR_RING_ACCENT_LABELS,
   JERSEY_COLORS,
   JERSEY_COLOR_LABELS,
@@ -32,6 +33,7 @@ const AVATAR_RING_SWATCH_STYLE: Record<AvatarRingAccent, CSSProperties> = {
   ice: { background: '#D7EFFF' },
   persimmon: { background: '#FF5C34' },
   mix: { background: 'linear-gradient(135deg, #D7EFFF, #FF5C34)' },
+  gold: { background: 'linear-gradient(135deg, #FBE7B0, #B8862F 50%, #F6D98A)' },
 }
 
 const JERSEY_COLOR_SWATCH_STYLE: Record<JerseyColor, CSSProperties> = {
@@ -54,6 +56,7 @@ function toOptionalNumber(value: string): number | null {
 
 export function SettingsProfilePage() {
   const { user, accessToken, updateUser } = useAuth()
+  const hasPremium = user?.has_premium === true
 
   const [lastName, setLastName] = useState(user?.last_name ?? '')
   const [firstName, setFirstName] = useState(user?.first_name ?? '')
@@ -347,34 +350,57 @@ export function SettingsProfilePage() {
             Кольцо аватарки
             <span className="h-px flex-1 bg-white/10" aria-hidden="true" />
           </h2>
-          {hasAvatarRingChoice(userLevel) ? (
-            <>
-              <div className="flex gap-3">
-                {AVATAR_RING_ACCENTS.map((accent) => (
-                  <button
-                    key={accent}
-                    type="button"
-                    onClick={() => handleAvatarRingSelect(accent)}
-                    disabled={isSavingAvatarRing}
-                    className={`flex flex-1 flex-col items-center gap-2 rounded-md border p-3 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                      avatarRingAccent === accent
-                        ? 'border-accent-ice bg-accent-ice/10'
-                        : 'border-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    <span className="h-8 w-8 rounded-full" style={AVATAR_RING_SWATCH_STYLE[accent]} />
-                    <span className="text-xs text-text-secondary">{AVATAR_RING_ACCENT_LABELS[accent]}</span>
-                  </button>
-                ))}
-              </div>
-              <FormError message={avatarRingError} />
-            </>
-          ) : (
+          <div className="flex gap-3">
+            {(hasAvatarRingChoice(userLevel) ? LEVEL_RING_ACCENTS : []).map((accent) => (
+              <button
+                key={accent}
+                type="button"
+                onClick={() => handleAvatarRingSelect(accent)}
+                disabled={isSavingAvatarRing}
+                className={`flex flex-1 flex-col items-center gap-2 rounded-md border p-3 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  avatarRingAccent === accent
+                    ? 'border-accent-ice bg-accent-ice/10'
+                    : 'border-white/10 hover:border-white/20'
+                }`}
+              >
+                <span className="h-8 w-8 rounded-full" style={AVATAR_RING_SWATCH_STYLE[accent]} />
+                <span className="text-xs text-text-secondary">{AVATAR_RING_ACCENT_LABELS[accent]}</span>
+              </button>
+            ))}
+            {/* Premium gold (2026-10-04): any level; ring + gold player card with a sheen. */}
+            {hasPremium ? (
+              <button
+                type="button"
+                onClick={() => handleAvatarRingSelect('gold')}
+                disabled={isSavingAvatarRing}
+                className={`flex flex-1 flex-col items-center gap-2 rounded-md border p-3 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  avatarRingAccent === 'gold'
+                    ? 'border-[#F6D98A] bg-[#F6D98A]/10'
+                    : 'border-white/10 hover:border-white/20'
+                }`}
+              >
+                <span className="h-8 w-8 rounded-full" style={AVATAR_RING_SWATCH_STYLE.gold} />
+                <span className="text-xs text-text-secondary">{AVATAR_RING_ACCENT_LABELS.gold}</span>
+              </button>
+            ) : (
+              <Link
+                to="/premium"
+                className="flex flex-1 flex-col items-center gap-2 rounded-md border border-dashed border-[#F6D98A]/40 p-3 transition-colors hover:border-[#F6D98A]/70"
+              >
+                <span className="relative h-8 w-8 rounded-full opacity-60" style={AVATAR_RING_SWATCH_STYLE.gold}>
+                  <i className="ti ti-crown absolute inset-0 flex items-center justify-center text-sm text-dark-bg" aria-hidden="true" />
+                </span>
+                <span className="text-xs text-[#F6D98A]">Премиум</span>
+              </Link>
+            )}
+          </div>
+          {!hasAvatarRingChoice(userLevel) && (
             <p className="flex items-center gap-1.5 text-xs text-[#8A94A6]">
               <i className="ti ti-lock text-xs" aria-hidden="true" />
-              Доступно с уровня {LEVEL_AVATAR_RING_CHOICE}
+              Лёд, Огонь и Микс — с уровня {LEVEL_AVATAR_RING_CHOICE}
             </p>
           )}
+          <FormError message={avatarRingError} />
         </section>
 
         <section className="flex flex-col gap-4">

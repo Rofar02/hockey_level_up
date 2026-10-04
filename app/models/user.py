@@ -34,6 +34,8 @@ class AvatarRingAccent(enum.StrEnum):
     ICE = "ice"
     PERSIMMON = "persimmon"
     MIX = "mix"
+    # 2026-10-04: premium-only, any level (ring + gold player card).
+    GOLD = "gold"
 
 
 class JerseyColor(enum.StrEnum):

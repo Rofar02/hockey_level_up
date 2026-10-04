@@ -12,7 +12,7 @@ from app.core.level_unlocks import has_avatar_ring_choice, has_jersey_color_choi
 from app.core.security import verify_password_async
 from app.models.exercise import EquipmentItem
 from app.models.team import TeamMembership
-from app.models.user import User
+from app.models.user import AvatarRingAccent, User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserAdminUpdate, UserUpdate
@@ -41,7 +41,15 @@ class UserService:
         # of level, only *setting* a real value is gated. Checked here, not
         # via a pydantic validator, since the gate depends on `user` (the
         # request's authenticated user), which the schema itself never sees.
-        if updates.get("avatar_ring_accent") is not None and not has_avatar_ring_choice(user.level):
+        # 2026-10-04: gold (ring + player card) is a premium perk at any
+        # level instead of a level unlock.
+        if updates.get("avatar_ring_accent") == AvatarRingAccent.GOLD:
+            if not user.has_premium:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Золотая карточка — часть премиум-подписки",
+                )
+        elif updates.get("avatar_ring_accent") is not None and not has_avatar_ring_choice(user.level):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Выбор кольца аватарки станет доступен с 10 уровня",
@@ -219,6 +227,10 @@ class UserService:
 
         for field, value in updates.items():
             setattr(user, field, value)
+        # The gold ring/card is a premium look: losing premium drops it back
+        # to the automatic default, so no screen has to re-check premium.
+        if updates.get("has_premium") is False and user.avatar_ring_accent == AvatarRingAccent.GOLD:
+            user.avatar_ring_accent = None
         await self._session.commit()
         await self._session.refresh(user)
         return user

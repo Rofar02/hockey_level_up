@@ -14,12 +14,10 @@ import type { UserStatRead } from '../types/progress'
 // The premium sales page (2026-10-04, mockup variant A: the player's own card
 // in gold on top). No prices yet and no payment provider wired (YooKassa is
 // planned), so "Оформить" opens a "coming soon" stub instead of a checkout.
-// Benefits not built yet (the gold card on the
-// profile) carry a "СКОРО" badge -- drop it as each one ships.
 
 type Plan = 'year' | 'month'
 
-const BENEFITS: { icon: string; title: string; text: string; isSoon?: boolean }[] = [
+const BENEFITS: { icon: string; title: string; text: string }[] = [
   {
     icon: 'ti-message-chatbot',
     title: 'ИИ-тренер без ограничений',
@@ -43,8 +41,7 @@ const BENEFITS: { icon: string; title: string; text: string; isSoon?: boolean }[
   {
     icon: 'ti-star',
     title: 'Премиальная карточка',
-    text: 'Золотая рамка и блеск — видно друзьям и команде.',
-    isSoon: true,
+    text: 'Золотая карточка с блеском и золотое кольцо аватарки — видно друзьям и команде. Включается в Настройки → Профиль.',
   },
 ]
 
@@ -116,12 +113,7 @@ export function PremiumPage() {
             <li key={benefit.title} className="flex items-start gap-3.5 rounded-md bg-dark-card p-3.5">
               <i className={`ti ${benefit.icon} mt-0.5 text-2xl text-accent-ice`} aria-hidden="true" />
               <div className="flex flex-col gap-1">
-                <span className="flex items-center gap-2 text-[15px] font-semibold">
-                  {benefit.title}
-                  {benefit.isSoon === true && (
-                    <span className="rounded border border-accent-ice/40 px-1.5 py-0.5 text-[10px] font-bold text-accent-ice">СКОРО</span>
-                  )}
-                </span>
+                <span className="text-[15px] font-semibold">{benefit.title}</span>
                 <span className="text-[13px] leading-snug text-text-secondary">{benefit.text}</span>
               </div>
             </li>
