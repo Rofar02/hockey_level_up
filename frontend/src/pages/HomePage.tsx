@@ -411,7 +411,7 @@ export function HomePage() {
                   circle. Both on the same element would clip the glow itself
                   -- overflow-hidden clips a box's own box-shadow, not just
                   its content. */}
-              <div className="h-20 w-20 shrink-0 rounded-full" style={avatarTierStyle.style}>
+              <div className="relative h-20 w-20 shrink-0 rounded-full" style={avatarTierStyle.style}>
                 <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-dark-bg">
                   {avatarUrl !== null ? (
                     <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -419,6 +419,30 @@ export function HomePage() {
                     <i className="ti ti-user text-3xl text-[#8A94A6]" aria-hidden="true" />
                   )}
                 </div>
+                {/* Premium gold ring (2026-10-04): a crown on top. Inline SVG --
+                    the filled Tabler glyphs have rendered blank in prod before. */}
+                {user?.avatar_ring_accent === 'gold' && (
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="absolute -top-4 left-1/2 h-7 w-7 -translate-x-1/2 drop-shadow-[0_0_6px_rgba(214,170,80,0.6)]"
+                    aria-hidden="true"
+                  >
+                    <defs>
+                      <linearGradient id="home-crown-gold" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor="#FBE7B0" />
+                        <stop offset="0.5" stopColor="#D9A441" />
+                        <stop offset="1" stopColor="#F6D98A" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M3 8l4.5 4l4.5 -7l4.5 7l4.5 -4l-2 11h-14z"
+                      fill="url(#home-crown-gold)"
+                      stroke="#8A6420"
+                      strokeWidth="1"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
               </div>
               <div className="flex min-w-0 flex-col gap-1">
                 <span className="text-xl font-bold leading-tight text-[#F5F7FA]">
