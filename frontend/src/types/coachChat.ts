@@ -21,6 +21,9 @@ export interface CoachChatMessageRead {
   content: string
   created_at: string
   proposed_action: ProposedActionRead | null
+  // Occasional "Полезный ответ?" -- 1 = 👍, -1 = 👎, null = not answered.
+  feedback_requested: boolean
+  feedback: 1 | -1 | null
 }
 
 export interface CoachChatReplyRead {

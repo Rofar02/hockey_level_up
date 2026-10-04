@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,3 +55,10 @@ class CoachChatMessage(Base):
     cached_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 2026-10-04: an occasional "Полезный ответ?" under an assistant turn
+    # (see CoachChatService._should_request_feedback) and the player's
+    # answer: 1 = 👍, -1 = 👎, NULL = not answered.
+    feedback_requested: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    feedback: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)

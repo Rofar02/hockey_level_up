@@ -26,6 +26,7 @@ from app.schemas.coach_chat import (
     CoachChatMessageRead,
     CoachChatReplyRead,
     CoachMemoryFactRead,
+    CoachReplyFeedbackIn,
     ProposedActionRead,
     WeeklyReviewRead,
 )
@@ -281,6 +282,17 @@ async def send_coach_chat_message(
     429 the monthly cap raises."""
     reply = await CoachChatService(session).send_message(current_user, body.message)
     return CoachChatReplyRead(reply=reply)
+
+
+@router.post("/me/coach-chat/messages/{message_id}/feedback", status_code=status.HTTP_204_NO_CONTENT)
+async def send_coach_reply_feedback(
+    message_id: uuid.UUID,
+    body: CoachReplyFeedbackIn,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """👍/👎 on a coach reply that asked for it (feedback_requested)."""
+    await CoachChatService(session).set_feedback(current_user, message_id, body.value)
 
 
 @router.get("/me/weekly-review", response_model=WeeklyReviewRead | None)

@@ -394,6 +394,9 @@ function ChatBubble({
           {isUser ? message.content : <MarkdownContent content={message.content} />}
         </div>
         <span className="px-1 text-[10px] text-[#8A94A6]">{time}</span>
+        {!isUser && message.feedback_requested && (
+          <ReplyFeedback messageId={message.id} initial={message.feedback} />
+        )}
         {message.proposed_action !== null && (
           <ProposedActionCard
             action={message.proposed_action}
@@ -403,6 +406,47 @@ function ChatBubble({
           />
         )}
       </div>
+    </div>
+  )
+}
+
+// "Полезный ответ?" (2026-10-04) -- only under the occasional reply the
+// server flagged (every 5th, at most once per 3 days), so it reads as a
+// check-in, not a survey. Optimistic: the row turns into "Спасибо" at once.
+function ReplyFeedback({ messageId, initial }: { messageId: string; initial: 1 | -1 | null }) {
+  const { accessToken } = useAuth()
+  const [value, setValue] = useState<1 | -1 | null>(initial)
+
+  function send(next: 1 | -1) {
+    if (accessToken === null) {
+      return
+    }
+    setValue(next)
+    void coachChatApi.sendCoachReplyFeedback(messageId, next, accessToken).catch(() => setValue(null))
+  }
+
+  if (value !== null) {
+    return <span className="px-1 text-[11px] text-[#8A94A6]">Спасибо, это поможет тренеру стать лучше</span>
+  }
+  return (
+    <div className="flex items-center gap-1 px-1 text-[11px] text-[#8A94A6]">
+      <span>Полезный ответ?</span>
+      <button
+        type="button"
+        aria-label="Полезный ответ"
+        onClick={() => send(1)}
+        className="flex h-9 w-9 items-center justify-center rounded hover:text-accent-ice"
+      >
+        <i className="ti ti-thumb-up text-base" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        aria-label="Бесполезный ответ"
+        onClick={() => send(-1)}
+        className="flex h-9 w-9 items-center justify-center rounded hover:text-accent-persimmon"
+      >
+        <i className="ti ti-thumb-down text-base" aria-hidden="true" />
+      </button>
     </div>
   )
 }

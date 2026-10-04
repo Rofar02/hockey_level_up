@@ -37,6 +37,13 @@ class CoachChatMessageRead(BaseModel):
     content: str
     created_at: datetime
     proposed_action: ProposedActionRead | None = None
+    # Occasional "Полезный ответ?" (CoachChatService._should_request_feedback).
+    feedback_requested: bool = False
+    feedback: int | None = None
+
+
+class CoachReplyFeedbackIn(BaseModel):
+    value: Literal[1, -1]
 
 
 class CoachChatReplyRead(BaseModel):

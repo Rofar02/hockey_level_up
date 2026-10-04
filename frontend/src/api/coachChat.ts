@@ -69,3 +69,8 @@ export function getWeeklyReview(accessToken: string): Promise<WeeklyReviewRead |
 export function markWeeklyReviewRead(reviewId: string, accessToken: string): Promise<void> {
   return apiPostAuth<void>(`/users/me/weekly-review/${reviewId}/read`, {}, accessToken)
 }
+
+// 👍/👎 on a coach reply that asked for it (2026-10-04).
+export function sendCoachReplyFeedback(messageId: string, value: 1 | -1, accessToken: string): Promise<void> {
+  return apiPostAuth<void>(`/users/me/coach-chat/messages/${messageId}/feedback`, { value }, accessToken)
+}

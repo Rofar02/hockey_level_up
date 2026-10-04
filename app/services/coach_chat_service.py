@@ -36,7 +36,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from openai import APIError, AsyncOpenAI
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -114,6 +114,12 @@ FREE_TRIAL_MESSAGE_LIMIT = 5
 # 2026-10-04: down to 12 -- older messages now live on as coach memory
 # notes (CoachMemoryService, premium), which keeps the prompt bounded.
 HISTORY_REPLAY_TURNS = 12
+
+# 2026-10-04: "Полезный ответ? 👍 👎" -- asked under every Nth coach reply
+# and at most once per interval, so it reads as an occasional check-in, not
+# a survey after every message.
+FEEDBACK_EVERY_N_REPLIES = 5
+FEEDBACK_MIN_INTERVAL = timedelta(days=3)
 
 # Generous on purpose: cheap insurance against a truncated reply, and
 # glm-4.7-flash (the current default model) is free-tier, so there's no
@@ -927,6 +933,7 @@ class CoachChatService:
         assistant_message.completion_tokens = usage.completion_tokens
         assistant_message.reasoning_tokens = usage.reasoning_tokens
         await self._session.flush()  # need assistant_message.id before it can be a FK target
+        assistant_message.feedback_requested = await self._should_request_feedback(user.id, turn_time)
 
         proposed_action_row: CoachChatProposedAction | None = None
         if resolved_action is not None:
@@ -996,6 +1003,30 @@ class CoachChatService:
         await self._session.commit()
         await self._session.refresh(action)
         return self._to_action_read(action)
+
+    async def _should_request_feedback(self, user_id: uuid.UUID, now: datetime) -> bool:
+        """Every FEEDBACK_EVERY_N_REPLIES-th reply (counting the one just
+        flushed), and not again within FEEDBACK_MIN_INTERVAL."""
+        replies = await self._session.scalar(
+            select(func.count())
+            .select_from(CoachChatMessage)
+            .where(CoachChatMessage.user_id == user_id, CoachChatMessage.role == CoachChatRole.ASSISTANT)
+        )
+        if not replies or replies % FEEDBACK_EVERY_N_REPLIES != 0:
+            return False
+        last_asked = await self._session.scalar(
+            select(func.max(CoachChatMessage.created_at)).where(
+                CoachChatMessage.user_id == user_id, CoachChatMessage.feedback_requested.is_(True)
+            )
+        )
+        return last_asked is None or now - last_asked >= FEEDBACK_MIN_INTERVAL
+
+    async def set_feedback(self, user: User, message_id: uuid.UUID, value: int) -> None:
+        message = await self._session.get(CoachChatMessage, message_id)
+        if message is None or message.user_id != user.id or not message.feedback_requested:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+        message.feedback = value
+        await self._session.commit()
 
     async def dismiss_action(self, user: User, action_id: uuid.UUID) -> ProposedActionRead:
         action = await self._get_pending_action_or_404(user.id, action_id)

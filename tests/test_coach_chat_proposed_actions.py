@@ -559,3 +559,40 @@ async def test_token_usage_is_stored_on_the_assistant_message(db_session, monkey
         30,
     )
     assert stored.llm_model == _settings_with_key().coach_chat_model
+
+
+# -- occasional reply feedback (2026-10-04) --
+
+
+@pytest.mark.asyncio
+async def test_feedback_is_asked_on_every_fifth_reply_and_not_again_within_three_days(
+    db_session, monkeypatch
+) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+
+    replies = [await _send(db_session, monkeypatch, user, f"Ответ {i}") for i in range(10)]
+
+    asked = [reply.feedback_requested for reply in replies]
+    assert asked[4] is True  # 5th reply
+    assert asked.count(True) == 1  # the 10th is within 3 days of the 5th
+
+
+@pytest.mark.asyncio
+async def test_feedback_is_saved_only_on_own_requested_reply(db_session, monkeypatch) -> None:
+    user, stranger = _make_user(), _make_user()
+    db_session.add_all([user, stranger])
+    await db_session.flush()
+    replies = [await _send(db_session, monkeypatch, user, f"Ответ {i}") for i in range(5)]
+    requested, plain = replies[4], replies[0]
+    service = CoachChatService(db_session)
+
+    with pytest.raises(HTTPException):
+        await service.set_feedback(stranger, requested.id, 1)
+    with pytest.raises(HTTPException):
+        await service.set_feedback(user, plain.id, 1)
+    await service.set_feedback(user, requested.id, -1)
+
+    stored = await db_session.get(CoachChatMessage, requested.id)
+    assert stored.feedback == -1
