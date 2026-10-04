@@ -68,6 +68,9 @@ const SettingsNotificationsPage = lazy(() =>
     default: m.SettingsNotificationsPage,
   })),
 )
+const SettingsCoachMemoryPage = lazy(() =>
+  import('./pages/SettingsCoachMemoryPage').then((m) => ({ default: m.SettingsCoachMemoryPage })),
+)
 const SettingsAccountPage = lazy(() =>
   import('./pages/SettingsAccountPage').then((m) => ({ default: m.SettingsAccountPage })),
 )
@@ -200,6 +203,7 @@ function App() {
         <Route path="/settings/assessments" element={<SettingsAssessmentsPage />} />
         <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
         <Route path="/settings/account" element={<SettingsAccountPage />} />
+        <Route path="/settings/coach-memory" element={<SettingsCoachMemoryPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/team" element={<TeamHubPage />} />
         <Route path="/teams" element={<TeamsPage />} />

@@ -37,3 +37,10 @@ export interface CoachAttentionRead {
 
 // Marked seen when the chat is opened -- ends the first_visit glow.
 export const COACH_CHAT_OPENED_HINT = 'coach-chat-opened'
+
+// One coach memory note (CoachMemoryFactRead in app/schemas/coach_chat.py).
+export interface CoachMemoryFactRead {
+  id: string
+  text: string
+  created_at: string
+}

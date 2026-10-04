@@ -53,3 +53,13 @@ class CoachAttentionRead(BaseModel):
     CoachAttentionService for what each reason means."""
 
     reason: Literal["pending_action", "checkin", "first_visit"] | None
+
+
+class CoachMemoryFactRead(BaseModel):
+    """One coach memory note -- GET /users/me/coach-memory."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    text: str
+    created_at: datetime

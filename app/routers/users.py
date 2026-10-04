@@ -2,7 +2,17 @@ import uuid
 from datetime import date, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Header, Path, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Header,
+    HTTPException,
+    Path,
+    Query,
+    UploadFile,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -15,6 +25,7 @@ from app.schemas.coach_chat import (
     CoachChatMessageCreate,
     CoachChatMessageRead,
     CoachChatReplyRead,
+    CoachMemoryFactRead,
     ProposedActionRead,
 )
 from app.schemas.exercise import EquipmentItemsReplace
@@ -51,6 +62,7 @@ from app.services.analytics_overview_service import AnalyticsOverviewService
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_attention_service import CoachAttentionService
 from app.services.coach_chat_service import CoachChatService
+from app.services.coach_memory_service import CoachMemoryService
 from app.services.coach_personality_phrases import get_rest_done_body
 from app.services.coachmark_service import CoachmarkService
 from app.services.progress_service import ProgressService
@@ -59,7 +71,9 @@ from app.services.skill_service import SkillService
 from app.services.team_attention_service import TeamAttentionService
 from app.services.training_diary_service import TrainingDiaryService
 from app.services.user_service import UserService
-from app.services.user_temporary_restriction_service import UserTemporaryRestrictionService
+from app.services.user_temporary_restriction_service import (
+    UserTemporaryRestrictionService,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -265,6 +279,34 @@ async def send_coach_chat_message(
     429 the monthly cap raises."""
     reply = await CoachChatService(session).send_message(current_user, body.message)
     return CoachChatReplyRead(reply=reply)
+
+
+@router.get("/me/coach-memory", response_model=list[CoachMemoryFactRead])
+async def list_coach_memory(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """The coach's notes about the player (CoachMemoryService). Not
+    premium-gated: seeing and deleting your own data is always allowed."""
+    return await CoachMemoryService(session).list_facts(current_user.id)
+
+
+@router.delete("/me/coach-memory/{fact_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_coach_memory_fact(
+    fact_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    if not await CoachMemoryService(session).delete_fact(current_user.id, fact_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+
+
+@router.delete("/me/coach-memory", status_code=status.HTTP_204_NO_CONTENT)
+async def forget_coach_memory(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    await CoachMemoryService(session).forget_all(current_user.id)
 
 
 @router.get("/me/coach-chat/history", response_model=list[CoachChatMessageRead])
