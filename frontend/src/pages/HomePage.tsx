@@ -419,59 +419,49 @@ export function HomePage() {
                     <i className="ti ti-user text-3xl text-[#8A94A6]" aria-hidden="true" />
                   )}
                 </div>
-                {/* Premium gold ring (2026-10-04): a crown on top. Inline SVG --
+                {/* Premium gold ring (2026-10-04): a fantasy-style circlet on top. Inline SVG --
                     the filled Tabler glyphs have rendered blank in prod before. */}
                 {user?.avatar_ring_accent === 'gold' && (
                   <svg
-                    viewBox="0 0 32 28"
-                    className="absolute -top-6 left-1/2 h-9 w-10 -translate-x-1/2 drop-shadow-[0_1px_6px_rgba(214,170,80,0.65)]"
+                    viewBox="0 0 40 18"
+                    className="absolute -top-3 left-1/2 h-[36px] w-[80px] -translate-x-1/2 drop-shadow-[0_1px_5px_rgba(214,170,80,0.6)]"
                     aria-hidden="true"
                   >
                     <defs>
-                      <linearGradient id="home-crown-gold" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="home-circlet-gold" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0" stopColor="#FFF1C4" />
-                        <stop offset="0.45" stopColor="#E8B84A" />
+                        <stop offset="0.5" stopColor="#E3B04A" />
                         <stop offset="1" stopColor="#A8741F" />
                       </linearGradient>
-                      <linearGradient id="home-crown-band" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stopColor="#F6D98A" />
-                        <stop offset="1" stopColor="#9C6B1E" />
-                      </linearGradient>
-                      <radialGradient id="home-crown-ruby" cx="0.35" cy="0.35" r="0.7">
-                        <stop offset="0" stopColor="#FF9A8A" />
-                        <stop offset="1" stopColor="#B3122B" />
-                      </radialGradient>
-                      <radialGradient id="home-crown-sapphire" cx="0.35" cy="0.35" r="0.7">
-                        <stop offset="0" stopColor="#9FD3FF" />
-                        <stop offset="1" stopColor="#1D4FA8" />
-                      </radialGradient>
-                      <radialGradient id="home-crown-pearl" cx="0.35" cy="0.35" r="0.7">
-                        <stop offset="0" stopColor="#FFFFFF" />
-                        <stop offset="1" stopColor="#E3D3A6" />
+                      <radialGradient id="home-circlet-gem" cx="0.4" cy="0.35" r="0.75">
+                        <stop offset="0" stopColor="#C9F0FF" />
+                        <stop offset="0.5" stopColor="#4FA8E8" />
+                        <stop offset="1" stopColor="#1B4F9C" />
                       </radialGradient>
                     </defs>
-                    {/* Five points, the middle one tallest. */}
+                    {/* A slender band following the top of the ring. */}
                     <path
-                      d="M3 20 L4 9 L7.5 15 L10 6 L13 13 L16 3 L19 13 L22 6 L24.5 15 L28 9 L29 20 Z"
-                      fill="url(#home-crown-gold)"
+                      d="M1.5 15.5 Q20 4.5 38.5 15.5 L38 17.2 Q20 7 2 17.2 Z"
+                      fill="url(#home-circlet-gold)"
                       stroke="#7A5418"
-                      strokeWidth="0.8"
+                      strokeWidth="0.5"
                       strokeLinejoin="round"
                     />
-                    {/* Band with a highlight along its top edge. */}
-                    <rect x="2.5" y="19" width="27" height="6.5" rx="1.6" fill="url(#home-crown-band)" stroke="#7A5418" strokeWidth="0.8" />
-                    <path d="M4 20.3 H28" stroke="#FFF1C4" strokeWidth="0.7" strokeLinecap="round" opacity="0.8" />
-                    {/* Pearls on the tips. */}
-                    <circle cx="4" cy="8.6" r="1.7" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
-                    <circle cx="10" cy="5.6" r="1.7" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
-                    <circle cx="16" cy="2.6" r="1.9" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
-                    <circle cx="22" cy="5.6" r="1.7" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
-                    <circle cx="28" cy="8.6" r="1.7" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
-                    {/* Ruby on the middle point, gems on the band. */}
-                    <path d="M16 8.5 L17.6 10.8 L16 13.1 L14.4 10.8 Z" fill="url(#home-crown-ruby)" stroke="#6E0A18" strokeWidth="0.4" />
-                    <ellipse cx="16" cy="22.3" rx="2.3" ry="1.9" fill="url(#home-crown-ruby)" stroke="#6E0A18" strokeWidth="0.4" />
-                    <circle cx="9.5" cy="22.3" r="1.5" fill="url(#home-crown-sapphire)" stroke="#0F2E66" strokeWidth="0.4" />
-                    <circle cx="22.5" cy="22.3" r="1.5" fill="url(#home-crown-sapphire)" stroke="#0F2E66" strokeWidth="0.4" />
+                    {/* Tall leaf-shaped centre point and two small side points. */}
+                    <path
+                      d="M17 10.6 Q18.6 6 20 1 Q21.4 6 23 10.6 Q20 9.6 17 10.6 Z"
+                      fill="url(#home-circlet-gold)"
+                      stroke="#7A5418"
+                      strokeWidth="0.5"
+                      strokeLinejoin="round"
+                    />
+                    <path d="M10.3 12.4 L12 8.2 L13.6 11.4 Z" fill="url(#home-circlet-gold)" stroke="#7A5418" strokeWidth="0.45" strokeLinejoin="round" />
+                    <path d="M26.4 11.4 L28 8.2 L29.7 12.4 Z" fill="url(#home-circlet-gold)" stroke="#7A5418" strokeWidth="0.45" strokeLinejoin="round" />
+                    {/* Teardrop gem in the centre, small stones along the band. */}
+                    <path d="M20 4.6 Q21.6 7 20.9 8.4 Q20 9.3 19.1 8.4 Q18.4 7 20 4.6 Z" fill="url(#home-circlet-gem)" stroke="#0F2E66" strokeWidth="0.3" />
+                    <circle cx="7" cy="14.2" r="0.9" fill="url(#home-circlet-gem)" stroke="#0F2E66" strokeWidth="0.25" />
+                    <circle cx="33" cy="14.2" r="0.9" fill="url(#home-circlet-gem)" stroke="#0F2E66" strokeWidth="0.25" />
+                    <path d="M4 15.4 Q20 6 36 15.4" fill="none" stroke="#FFF1C4" strokeWidth="0.35" strokeLinecap="round" opacity="0.8" />
                   </svg>
                 )}
               </div>
