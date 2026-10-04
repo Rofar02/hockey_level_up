@@ -31,6 +31,7 @@ import type { UserTemporaryRestrictionRead } from '../types/userTemporaryRestric
 import type { UserPublicRead } from '../types/user'
 import { renderCardImage } from '../utils/cardImage'
 import { countAvailableExercises } from '../utils/equipmentAvailability'
+import { ProfileSkeleton } from '../components/ui/Skeleton'
 
 // Thin dispatcher: /profile (no :userId, or :userId === your own id) keeps
 // the existing full self-view (stats, skills, avatar upload -- all of it
@@ -298,7 +299,7 @@ function OwnProfileView() {
       </div>
 
       <FormError message={loadError} />
-      {isLoading && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+      {isLoading && <ProfileSkeleton />}
 
       {!isLoading && stats !== null && (
         <div className="mx-auto flex w-full max-w-[360px] flex-col gap-3">

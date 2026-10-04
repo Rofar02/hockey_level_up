@@ -4,6 +4,7 @@ import { BottomNav } from './BottomNav'
 import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
+import { prefetchPages } from '../utils/prefetchPages'
 import { recordRoute } from '../utils/routeHistory'
 
 // A layout route (rendered once via App.tsx's <Route element={<ProtectedRoute />}>
@@ -38,6 +39,14 @@ export function ProtectedRoute() {
   // Recent screens, attached to feedback messages (utils/routeHistory).
   const { pathname } = useLocation()
   useEffect(() => recordRoute(pathname), [pathname])
+  // Once logged in, quietly fetch the other pages' code (utils/prefetchPages).
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return
+    }
+    const timer = window.setTimeout(prefetchPages, 1500)
+    return () => window.clearTimeout(timer)
+  }, [isAuthenticated])
 
   // Hold off on any redirect while a reload is still trying to restore the
   // session from localStorage -- isAuthenticated is false at this point

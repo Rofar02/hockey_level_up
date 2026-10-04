@@ -46,6 +46,7 @@ import { getAvatarTierStyle } from '../utils/avatarTier'
 import { getDisplayName } from '../utils/displayName'
 import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
+import { HomeSkeleton } from '../components/ui/Skeleton'
 
 const MONTH_LABELS = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
@@ -484,7 +485,7 @@ export function HomePage() {
         )}
 
         <FormError message={error} />
-        {isLoading && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+        {isLoading && <HomeSkeleton />}
 
         {!isLoading && (
           <div className="flex flex-col gap-4">

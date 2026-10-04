@@ -17,6 +17,7 @@ import { useAuth } from '../hooks/useAuth'
 import { COACH_CHAT_OPENED_HINT } from '../types/coachChat'
 import type { CoachAttentionReason, CoachChatMessageRead, ProposedActionRead } from '../types/coachChat'
 import type { CoachPersonality } from '../types/user'
+import { ChatSkeleton } from '../components/ui/Skeleton'
 
 export function CoachPage() {
   const { user, accessToken } = useAuth()
@@ -278,7 +279,7 @@ function CoachChatContent({
     <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
       <FormError message={loadError} />
       <div className="flex max-h-[60vh] min-h-[240px] flex-col gap-4 overflow-y-auto">
-        {messages === null && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+        {messages === null && <ChatSkeleton />}
         {messages !== null && messages.length === 0 && (
           // Same icon-in-a-circle language as the shared EmptyState, but
           // without its own CARD_CLASS wrapper -- this already sits inside

@@ -16,6 +16,7 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { AnalyticsOverviewRead } from '../types/analytics'
 import type { TargetStat } from '../types/exercise'
+import { ListSkeleton } from '../components/ui/Skeleton'
 
 const PERIODS = [7, 30, 90] as const
 type Days = (typeof PERIODS)[number]
@@ -96,7 +97,7 @@ function AnalyticsContent({ accessToken }: { accessToken: string }) {
       </div>
 
       <FormError message={error} />
-      {overview === null && error === null && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+      {overview === null && error === null && <ListSkeleton rows={3} />}
 
       {overview !== null && (
         <>

@@ -18,6 +18,7 @@ import type { TeamRead, TeamScoreRead, TeamSummaryRead } from '../types/team'
 import type { TeamAttentionRead } from '../types/user'
 import { formatDateTime } from '../utils/date'
 import { copyText } from '../utils/clipboard'
+import { ListSkeleton } from '../components/ui/Skeleton'
 
 // The "Команда" tab: the player's team up top (next event, schedule,
 // ranking, invite code), then the friends side -- activity feed, joint
@@ -150,7 +151,7 @@ export function TeamHubPage() {
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-4 px-4 py-6">
-        {teams === null && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
+        {teams === null && <ListSkeleton rows={3} />}
 
         {/* Whatever put the dot on the tab -- answered from here in one tap. */}
         {waiting.length > 0 && (
