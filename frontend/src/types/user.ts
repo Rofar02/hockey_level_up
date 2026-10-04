@@ -67,7 +67,7 @@ export const COACH_PERSONALITY_CHOICES: {
   { value: 'calm', title: 'Спокойный', description: 'Ровный тон, по фактам, без эмоций' },
   { value: 'strict', title: 'Жёсткая дисциплина', description: 'Строго по делу, никаких поблажек' },
   { value: 'humor', title: 'С юмором', description: 'Жёсткий хоккейный юмор, подколки в раздевалочном стиле' },
-  { value: 'vibe', title: 'Свой чел', description: 'Неформально, по-дружески, без напряга' },
+  { value: 'vibe', title: 'Друг по команде', description: 'Неформально, по-дружески, без напряга' },
 ]
 
 export interface UserRead {
