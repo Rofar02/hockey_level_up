@@ -423,24 +423,55 @@ export function HomePage() {
                     the filled Tabler glyphs have rendered blank in prod before. */}
                 {user?.avatar_ring_accent === 'gold' && (
                   <svg
-                    viewBox="0 0 24 24"
-                    className="absolute -top-4 left-1/2 h-7 w-7 -translate-x-1/2 drop-shadow-[0_0_6px_rgba(214,170,80,0.6)]"
+                    viewBox="0 0 32 28"
+                    className="absolute -top-6 left-1/2 h-9 w-10 -translate-x-1/2 drop-shadow-[0_1px_6px_rgba(214,170,80,0.65)]"
                     aria-hidden="true"
                   >
                     <defs>
-                      <linearGradient id="home-crown-gold" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0" stopColor="#FBE7B0" />
-                        <stop offset="0.5" stopColor="#D9A441" />
-                        <stop offset="1" stopColor="#F6D98A" />
+                      <linearGradient id="home-crown-gold" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor="#FFF1C4" />
+                        <stop offset="0.45" stopColor="#E8B84A" />
+                        <stop offset="1" stopColor="#A8741F" />
                       </linearGradient>
+                      <linearGradient id="home-crown-band" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor="#F6D98A" />
+                        <stop offset="1" stopColor="#9C6B1E" />
+                      </linearGradient>
+                      <radialGradient id="home-crown-ruby" cx="0.35" cy="0.35" r="0.7">
+                        <stop offset="0" stopColor="#FF9A8A" />
+                        <stop offset="1" stopColor="#B3122B" />
+                      </radialGradient>
+                      <radialGradient id="home-crown-sapphire" cx="0.35" cy="0.35" r="0.7">
+                        <stop offset="0" stopColor="#9FD3FF" />
+                        <stop offset="1" stopColor="#1D4FA8" />
+                      </radialGradient>
+                      <radialGradient id="home-crown-pearl" cx="0.35" cy="0.35" r="0.7">
+                        <stop offset="0" stopColor="#FFFFFF" />
+                        <stop offset="1" stopColor="#E3D3A6" />
+                      </radialGradient>
                     </defs>
+                    {/* Five points, the middle one tallest. */}
                     <path
-                      d="M3 8l4.5 4l4.5 -7l4.5 7l4.5 -4l-2 11h-14z"
+                      d="M3 20 L4 9 L7.5 15 L10 6 L13 13 L16 3 L19 13 L22 6 L24.5 15 L28 9 L29 20 Z"
                       fill="url(#home-crown-gold)"
-                      stroke="#8A6420"
-                      strokeWidth="1"
+                      stroke="#7A5418"
+                      strokeWidth="0.8"
                       strokeLinejoin="round"
                     />
+                    {/* Band with a highlight along its top edge. */}
+                    <rect x="2.5" y="19" width="27" height="6.5" rx="1.6" fill="url(#home-crown-band)" stroke="#7A5418" strokeWidth="0.8" />
+                    <path d="M4 20.3 H28" stroke="#FFF1C4" strokeWidth="0.7" strokeLinecap="round" opacity="0.8" />
+                    {/* Pearls on the tips. */}
+                    <circle cx="4" cy="8.6" r="1.7" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
+                    <circle cx="10" cy="5.6" r="1.7" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
+                    <circle cx="16" cy="2.6" r="1.9" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
+                    <circle cx="22" cy="5.6" r="1.7" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
+                    <circle cx="28" cy="8.6" r="1.7" fill="url(#home-crown-pearl)" stroke="#9C7A3A" strokeWidth="0.4" />
+                    {/* Ruby on the middle point, gems on the band. */}
+                    <path d="M16 8.5 L17.6 10.8 L16 13.1 L14.4 10.8 Z" fill="url(#home-crown-ruby)" stroke="#6E0A18" strokeWidth="0.4" />
+                    <ellipse cx="16" cy="22.3" rx="2.3" ry="1.9" fill="url(#home-crown-ruby)" stroke="#6E0A18" strokeWidth="0.4" />
+                    <circle cx="9.5" cy="22.3" r="1.5" fill="url(#home-crown-sapphire)" stroke="#0F2E66" strokeWidth="0.4" />
+                    <circle cx="22.5" cy="22.3" r="1.5" fill="url(#home-crown-sapphire)" stroke="#0F2E66" strokeWidth="0.4" />
                   </svg>
                 )}
               </div>
