@@ -80,6 +80,7 @@ from app.services.coach_chat_service import (
     _call_zai,
 )
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
+from app.services.coach_philosophy import COACH_PHILOSOPHY
 from tests.dates import utc_today
 
 
@@ -1468,3 +1469,17 @@ async def test_system_prompt_puts_static_rules_before_player_data(db_session, mo
 
     assert prompt.index(coach_chat_service.SYSTEM_PROMPT_GUARDRAILS) < prompt.index("Сводка данных пользователя")
     assert "Справочные значения" not in prompt  # allowed values now live in the tool schemas
+
+
+@pytest.mark.asyncio
+async def test_coach_philosophy_is_shared_by_every_personality(db_session) -> None:
+    """2026-10-04: the philosophy is static and the same for every
+    personality -- right after the persona, inside the cached prefix."""
+    user = _make_user(has_premium=True)
+    db_session.add(user)
+    await db_session.flush()
+    service = CoachChatService(db_session)
+
+    for personality in CoachPersonality:
+        prompt = await service._build_system_prompt(user, personality)
+        assert prompt.startswith(PERSONALITY_SYSTEM_PROMPTS[personality] + "\n\n" + COACH_PHILOSOPHY)

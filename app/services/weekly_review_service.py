@@ -34,6 +34,7 @@ from app.schemas.analytics import AnalyticsOverviewRead
 from app.services import coach_chat_service
 from app.services.analytics_overview_service import AnalyticsOverviewService
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
+from app.services.coach_philosophy import COACH_PHILOSOPHY
 from app.services.push_service import send_push
 
 logger = logging.getLogger(__name__)
@@ -164,7 +165,7 @@ class WeeklyReviewService:
             settings.zai_api_key,
             settings.zai_base_url,
             settings.coach_chat_model,
-            f"{PERSONALITY_SYSTEM_PROMPTS[user.coach_personality]}\n\n{REVIEW_INSTRUCTIONS}",
+            f"{PERSONALITY_SYSTEM_PROMPTS[user.coach_personality]}\n\n{COACH_PHILOSOPHY}\n\n{REVIEW_INSTRUCTIONS}",
             [
                 {
                     "role": "user",

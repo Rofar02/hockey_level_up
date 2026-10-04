@@ -66,6 +66,7 @@ from app.schemas.training_diary import TrainingDiaryEntryListItem
 from app.schemas.user import UserUpdate
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
+from app.services.coach_philosophy import COACH_PHILOSOPHY
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
 from app.services.training_diary_service import TrainingDiaryService
@@ -1251,6 +1252,7 @@ class CoachChatService:
         # only ever matches an identical prefix.
         return (
             f"{PERSONALITY_SYSTEM_PROMPTS[coach_personality]}\n\n"
+            f"{COACH_PHILOSOPHY}\n\n"
             "Отвечай по-русски, по делу и кратко. Используй приведённую "
             "ниже сводку данных пользователя, чтобы давать конкретные, персональные "
             "советы по тренировкам, а не общие фразы. Если в сводке аналитики "
