@@ -39,7 +39,7 @@ from openai import APIError, AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.training_block import sessions_to_advance_phase
+from app.core.training_block import sessions_to_advance_phase, taper_start_dates
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.coach_chat_proposed_action import (
     CoachActionStatus,
@@ -277,7 +277,9 @@ SYSTEM_PROMPT_GUARDRAILS = (
     "неделями): <!--ACTION:{\"type\":\"set_tournament_date\","
     "\"tournament_date\":\"<ГГГГ-ММ-ДД>\"}-->\n"
     "Дата турнира включает подводку: за 3 недели до неё система снижает "
-    "нагрузку. Поэтому обычная игра -- матч чемпионата или первенства, "
+    "нагрузку. Точные даты подводки ты видишь в сводке, когда дата турнира "
+    "уже записана; пока она не записана, сам конкретные числа не "
+    "высчитывай -- говори \"примерно за 3 недели до турнира\". Поэтому обычная игра -- матч чемпионата или первенства, "
     "товарищеская игра, игра на выходных -- это НЕ турнир, маркер "
     "set_tournament_date для неё не ставь. Вместо этого подскажи отметить "
     "этот день как \"Игра\" на вкладке \"Неделя\", когда игрок планирует "
@@ -568,7 +570,15 @@ def _format_tournament_section(tournament_date: date | None, today: date) -> str
         return f"Дата турнира: {tournament_date.isoformat()} (уже прошла)."
     if days_until == 0:
         return f"Дата турнира: {tournament_date.isoformat()} -- сегодня."
-    return f"Дата турнира: {tournament_date.isoformat()} (через {days_until} дн.)."
+    # 2026-10-04: the coach did this arithmetic itself and got it wrong
+    # ("подводка с 21 ноября" for a 14 November tournament), so it gets
+    # the taper dates ready-made.
+    taper_start, final_week_start = taper_start_dates(tournament_date)
+    return (
+        f"Дата турнира: {tournament_date.isoformat()} (через {days_until} дн.). "
+        f"Подводка (сниженная нагрузка): с {taper_start.isoformat()}, "
+        f"самая лёгкая последняя неделя: с {final_week_start.isoformat()}."
+    )
 
 
 def _format_week_plan_lines(weekly_plan: WeeklyPlan, today: date) -> list[str]:

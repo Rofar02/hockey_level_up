@@ -21,6 +21,7 @@ from app.core.training_block import (
     phase_calendar_ceiling_weeks,
     phase_transition_due,
     sessions_to_advance_phase,
+    taper_start_dates,
 )
 from app.models.exercise import ExerciseCategory
 from app.models.schedule import BlockPhase
@@ -292,3 +293,16 @@ def test_deload_runs_half_as_long_as_a_working_phase(
     assert phase_transition_due(
         sessions_completed_in_phase=0, weeks_since_phase_started=deload_weeks, season_period=season_period, phase=BlockPhase.DELOAD
     )
+
+
+def test_taper_start_dates_match_the_taper_rules() -> None:
+    """The dates the coach quotes must be exactly the first days the taper
+    rules turn on (2026-10-04: the coach got this arithmetic wrong itself)."""
+    tournament = date(2026, 11, 14)
+    taper_start, final_week_start = taper_start_dates(tournament)
+    assert taper_start == date(2026, 10, 25)
+    assert final_week_start == date(2026, 11, 8)
+    assert is_tapering(taper_start, tournament)
+    assert not is_tapering(taper_start - timedelta(days=1), tournament)
+    assert is_final_taper_week(final_week_start, tournament)
+    assert not is_final_taper_week(final_week_start - timedelta(days=1), tournament)
