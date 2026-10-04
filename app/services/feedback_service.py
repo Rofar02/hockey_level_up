@@ -5,8 +5,9 @@ app attaches by itself.
 Screenshots are re-encoded (which drops EXIF, GPS included), downscaled and
 kept in a private directory -- never under static/ -- since the players are
 mostly minors and a screenshot can hold anything; only admins can fetch one.
-A new message also emails settings.feedback_notify_email when configured,
-best-effort: the player's submission never fails because of email.
+A new message pushes every admin's devices (tap opens the admin inbox) and
+emails settings.feedback_notify_email when configured -- both best-effort:
+the player's submission never fails because of a notification.
 """
 import logging
 import uuid
@@ -20,8 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.feedback import Feedback, FeedbackKind, FeedbackStatus
+from app.models.push_subscription import PushSubscription
 from app.models.user import User
-from app.services import email_service, image_processing
+from app.services import email_service, image_processing, push_service
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,8 @@ DAILY_LIMIT = 5
 MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024
 SCREENSHOT_MAX_SIDE = 1600
 CONTEXT_MAX_CHARS = 300
+PUSH_PREVIEW_CHARS = 100
+ADMIN_INBOX_PATH = "/admin/feedback"
 KIND_LABELS = {FeedbackKind.BUG: "Ошибка", FeedbackKind.IDEA: "Идея", FeedbackKind.OTHER: "Другое"}
 
 
@@ -110,6 +114,26 @@ class FeedbackService:
         return image_processing.save_new_image_file(Path(get_settings().feedback_upload_dir), processed, extension)
 
     async def _notify(self, user: User, feedback: Feedback) -> None:
+        await self._push_admins(user, feedback)
+        await self._email_developer(user, feedback)
+
+    async def _push_admins(self, user: User, feedback: Feedback) -> None:
+        """A push to every admin's devices on each new message, opening the
+        admin inbox on tap. Best-effort, like the email."""
+        try:
+            subscriptions = await self._session.scalars(
+                select(PushSubscription).join(User, User.id == PushSubscription.user_id).where(User.is_admin.is_(True))
+            )
+            title = f"Обратная связь: {KIND_LABELS[feedback.kind]}"
+            preview = feedback.text if len(feedback.text) <= PUSH_PREVIEW_CHARS else feedback.text[:PUSH_PREVIEW_CHARS] + "…"
+            body = f"{user.first_name or 'Игрок'}: {preview}"
+            for subscription in list(subscriptions):
+                await push_service.send_push(self._session, subscription, title, body, url=ADMIN_INBOX_PATH)
+            await self._session.commit()  # send_push may have dropped dead subscriptions
+        except Exception:
+            logger.exception("feedback: admin push failed for %s", feedback.id)
+
+    async def _email_developer(self, user: User, feedback: Feedback) -> None:
         settings = get_settings()
         if not settings.resend_api_key or not settings.feedback_notify_email:
             return

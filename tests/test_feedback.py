@@ -139,3 +139,57 @@ async def test_admin_list_and_status(db_session, monkeypatch, tmp_path) -> None:
 
     rows = await service.list_for_admin(FeedbackStatus.DONE, 500)
     assert any(item.id == feedback.id and owner.id == user.id for item, owner in rows)
+
+
+@pytest.mark.asyncio
+async def test_every_admin_device_gets_a_push_opening_the_inbox(db_session, monkeypatch, tmp_path) -> None:
+    from app.models.push_subscription import PushSubscription
+
+    player, admin, other_admin, regular = _user(), _user(), _user(), _user()
+    admin.is_admin = True
+    other_admin.is_admin = True
+    db_session.add_all([player, admin, other_admin, regular])
+    await db_session.flush()
+    for owner in (admin, other_admin, regular):
+        db_session.add(
+            PushSubscription(user_id=owner.id, endpoint=f"https://push.example/{owner.id}", p256dh_key="k", auth_key="a")
+        )
+    await db_session.flush()
+    pushed: list[dict] = []
+
+    async def _fake_push(session, subscription, title, body, url=None):
+        pushed.append({"endpoint": subscription.endpoint, "title": title, "body": body, "url": url})
+        return True
+
+    monkeypatch.setattr(feedback_service.push_service, "send_push", _fake_push)
+    monkeypatch.setattr(feedback_service, "get_settings", lambda: _settings(tmp_path))
+
+    await FeedbackService(db_session).create(player, FeedbackKind.BUG, "Пропало нижнее меню после сворачивания")
+
+    endpoints = {item["endpoint"] for item in pushed}
+    assert endpoints == {f"https://push.example/{admin.id}", f"https://push.example/{other_admin.id}"}
+    assert all(item["url"] == "/admin/feedback" for item in pushed)
+    assert pushed[0]["title"] == "Обратная связь: Ошибка"
+    assert "Пропало нижнее меню" in pushed[0]["body"]
+
+
+@pytest.mark.asyncio
+async def test_a_failing_push_never_breaks_the_submission(db_session, monkeypatch, tmp_path) -> None:
+    from app.models.push_subscription import PushSubscription
+
+    player, admin = _user(), _user()
+    admin.is_admin = True
+    db_session.add_all([player, admin])
+    await db_session.flush()
+    db_session.add(PushSubscription(user_id=admin.id, endpoint="https://push.example/x", p256dh_key="k", auth_key="a"))
+    await db_session.flush()
+
+    async def _boom(*_args, **_kwargs):
+        raise RuntimeError("push service down")
+
+    monkeypatch.setattr(feedback_service.push_service, "send_push", _boom)
+    monkeypatch.setattr(feedback_service, "get_settings", lambda: _settings(tmp_path))
+
+    feedback = await FeedbackService(db_session).create(player, FeedbackKind.IDEA, "Добавьте тёмную тему")
+
+    assert feedback.id is not None
