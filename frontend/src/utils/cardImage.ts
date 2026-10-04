@@ -343,6 +343,17 @@ export async function renderCardImage(frame: HTMLElement, look: TierLook): Promi
   }
 
   drawLines(ctx, frame, origin, look)
+  // Premium gold card: the "PREMIUM" plate (its text comes with drawTexts).
+  const premiumBadge = frame.querySelector('[data-card="premium-badge"]')
+  if (premiumBadge !== null) {
+    const badge = boxOf(premiumBadge, origin)
+    roundRectPath(ctx, badge, badge.h / 2)
+    ctx.fillStyle = 'rgba(251,231,176,0.15)'
+    ctx.fill()
+    ctx.lineWidth = 1
+    ctx.strokeStyle = 'rgba(251,231,176,0.6)'
+    ctx.stroke()
+  }
   const emblem = frame.querySelector('[data-card="emblem"]')
   if (emblem !== null) {
     await drawEmblem(ctx, emblem, origin)

@@ -146,6 +146,19 @@ export function PlayerCard({
         />
         <div data-card="stripe-line" className="absolute inset-x-0 top-0 z-[2] h-1" style={{ background: look.stripe }} />
 
+        {/* Premium gold card (2026-10-04): a "PREMIUM" plate in the free top-right corner.
+            The shared PNG draws the plate from [data-card="premium-badge"] and its text. */}
+        {cardStyle === 'gold' && (
+          <span
+            data-card="premium-badge"
+            className="absolute right-4 top-5 z-[3] rounded-full border border-[#FBE7B0]/60 bg-[#FBE7B0]/15 px-2.5 py-1"
+          >
+            <span data-card-text className="block font-display text-[11px] font-semibold tracking-[1.5px] text-[#FBE7B0]">
+              PREMIUM
+            </span>
+          </span>
+        )}
+
         <div className="absolute left-5 top-5 z-[2] flex flex-col items-start gap-1">
           <span data-card-text className="font-display text-[62px] font-bold leading-[0.9]" style={accent}>
             {rating ?? '—'}
