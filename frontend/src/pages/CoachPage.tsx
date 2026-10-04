@@ -252,6 +252,8 @@ function CoachChatContent({
       content: trimmed,
       created_at: new Date().toISOString(),
       proposed_action: null,
+      feedback_requested: false,
+      feedback: null,
     }
     setMessages((prev) => [...(prev ?? []), pendingUserMessage])
     setInput('')
