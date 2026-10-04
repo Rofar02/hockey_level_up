@@ -411,7 +411,7 @@ export function HomePage() {
                   circle. Both on the same element would clip the glow itself
                   -- overflow-hidden clips a box's own box-shadow, not just
                   its content. */}
-              <div className="relative h-20 w-20 shrink-0 rounded-full" style={avatarTierStyle.style}>
+              <div className="h-20 w-20 shrink-0 rounded-full" style={avatarTierStyle.style}>
                 <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-dark-bg">
                   {avatarUrl !== null ? (
                     <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -419,51 +419,6 @@ export function HomePage() {
                     <i className="ti ti-user text-3xl text-[#8A94A6]" aria-hidden="true" />
                   )}
                 </div>
-                {/* Premium gold ring (2026-10-04): a fantasy-style circlet on top. Inline SVG --
-                    the filled Tabler glyphs have rendered blank in prod before. */}
-                {user?.avatar_ring_accent === 'gold' && (
-                  <svg
-                    viewBox="0 0 40 18"
-                    className="absolute -top-3 left-1/2 h-[36px] w-[80px] -translate-x-1/2 drop-shadow-[0_1px_5px_rgba(214,170,80,0.6)]"
-                    aria-hidden="true"
-                  >
-                    <defs>
-                      <linearGradient id="home-circlet-gold" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" stopColor="#FFF1C4" />
-                        <stop offset="0.5" stopColor="#E3B04A" />
-                        <stop offset="1" stopColor="#A8741F" />
-                      </linearGradient>
-                      <radialGradient id="home-circlet-gem" cx="0.4" cy="0.35" r="0.75">
-                        <stop offset="0" stopColor="#C9F0FF" />
-                        <stop offset="0.5" stopColor="#4FA8E8" />
-                        <stop offset="1" stopColor="#1B4F9C" />
-                      </radialGradient>
-                    </defs>
-                    {/* A slender band following the top of the ring. */}
-                    <path
-                      d="M1.5 15.5 Q20 4.5 38.5 15.5 L38 17.2 Q20 7 2 17.2 Z"
-                      fill="url(#home-circlet-gold)"
-                      stroke="#7A5418"
-                      strokeWidth="0.5"
-                      strokeLinejoin="round"
-                    />
-                    {/* Tall leaf-shaped centre point and two small side points. */}
-                    <path
-                      d="M17 10.6 Q18.6 6 20 1 Q21.4 6 23 10.6 Q20 9.6 17 10.6 Z"
-                      fill="url(#home-circlet-gold)"
-                      stroke="#7A5418"
-                      strokeWidth="0.5"
-                      strokeLinejoin="round"
-                    />
-                    <path d="M10.3 12.4 L12 8.2 L13.6 11.4 Z" fill="url(#home-circlet-gold)" stroke="#7A5418" strokeWidth="0.45" strokeLinejoin="round" />
-                    <path d="M26.4 11.4 L28 8.2 L29.7 12.4 Z" fill="url(#home-circlet-gold)" stroke="#7A5418" strokeWidth="0.45" strokeLinejoin="round" />
-                    {/* Teardrop gem in the centre, small stones along the band. */}
-                    <path d="M20 4.6 Q21.6 7 20.9 8.4 Q20 9.3 19.1 8.4 Q18.4 7 20 4.6 Z" fill="url(#home-circlet-gem)" stroke="#0F2E66" strokeWidth="0.3" />
-                    <circle cx="7" cy="14.2" r="0.9" fill="url(#home-circlet-gem)" stroke="#0F2E66" strokeWidth="0.25" />
-                    <circle cx="33" cy="14.2" r="0.9" fill="url(#home-circlet-gem)" stroke="#0F2E66" strokeWidth="0.25" />
-                    <path d="M4 15.4 Q20 6 36 15.4" fill="none" stroke="#FFF1C4" strokeWidth="0.35" strokeLinecap="round" opacity="0.8" />
-                  </svg>
-                )}
               </div>
               <div className="flex min-w-0 flex-col gap-1">
                 <span className="text-xl font-bold leading-tight text-[#F5F7FA]">
