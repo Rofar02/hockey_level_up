@@ -62,14 +62,16 @@ const CARD_LOOKS: Record<CardStyle, TierLook> = {
     frameStops: [[0, '#D7EFFF'], [0.55, '#FF5C34'], [1, '#FFB199']],
     stripeStops: ['#D7EFFF', '#FF5C34'],
   },
+  // 2026-10-04: champagne gold -- the first palette's dark end (#B8862F ->
+  // #9C6B1E) and amber glow read as an orange outline on a phone screen.
   gold: {
-    frame: 'linear-gradient(150deg, #FBE7B0, #B8862F 45%, #F6D98A 70%, #9C6B1E)',
-    glow: '0 0 30px rgba(214,170,80,0.32), 0 14px 30px -12px rgba(0,0,0,0.7)',
-    stripe: 'linear-gradient(90deg, #B8862F, #FBE7B0)',
+    frame: 'linear-gradient(150deg, #FFF4D6, #E6C36A 40%, #FFF0C2 65%, #D4AE55)',
+    glow: '0 0 28px rgba(246,224,160,0.3), 0 14px 30px -12px rgba(0,0,0,0.7)',
+    stripe: 'linear-gradient(90deg, #D9B458, #FFF0C2)',
     accent: '#FBE7B0',
-    tint: 'rgba(246,217,138,0.28)',
-    frameStops: [[0, '#FBE7B0'], [0.45, '#B8862F'], [0.7, '#F6D98A'], [1, '#9C6B1E']],
-    stripeStops: ['#B8862F', '#FBE7B0'],
+    tint: 'rgba(246,224,160,0.24)',
+    frameStops: [[0, '#FFF4D6'], [0.4, '#E6C36A'], [0.65, '#FFF0C2'], [1, '#D4AE55']],
+    stripeStops: ['#D9B458', '#FFF0C2'],
   },
 }
 

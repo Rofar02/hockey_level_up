@@ -41,10 +41,10 @@ const GRADIENT_RING_STYLE: CSSProperties = {
 // Premium gold ring (2026-10-04) -- same two-layer gradient trick as above.
 const GOLD_RING_STYLE: CSSProperties = {
   border: '3px solid transparent',
-  backgroundImage: `linear-gradient(${DARK_BG}, ${DARK_BG}), linear-gradient(135deg, #FBE7B0, #B8862F 50%, #F6D98A)`,
+  backgroundImage: `linear-gradient(${DARK_BG}, ${DARK_BG}), linear-gradient(135deg, #FFF4D6, #E6C36A 50%, #FFF0C2)`,
   backgroundOrigin: 'border-box',
   backgroundClip: 'padding-box, border-box',
-  boxShadow: '0 0 16px rgba(214,170,80,0.45)',
+  boxShadow: '0 0 16px rgba(246,224,160,0.45)',
 }
 
 function solidRingStyle(color: string): CSSProperties {

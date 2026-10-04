@@ -33,7 +33,7 @@ const AVATAR_RING_SWATCH_STYLE: Record<AvatarRingAccent, CSSProperties> = {
   ice: { background: '#D7EFFF' },
   persimmon: { background: '#FF5C34' },
   mix: { background: 'linear-gradient(135deg, #D7EFFF, #FF5C34)' },
-  gold: { background: 'linear-gradient(135deg, #FBE7B0, #B8862F 50%, #F6D98A)' },
+  gold: { background: 'linear-gradient(135deg, #FFF4D6, #E6C36A 50%, #FFF0C2)' },
 }
 
 const JERSEY_COLOR_SWATCH_STYLE: Record<JerseyColor, CSSProperties> = {
