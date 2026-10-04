@@ -295,7 +295,7 @@ export async function renderCardImage(frame: HTMLElement, look: TierLook): Promi
   // The frame, then everything inside clipped to the inner rounded box.
   const full = { x: 0, y: 0, w: origin.width, h: origin.height }
   roundRectPath(ctx, full, 16)
-  ctx.fillStyle = angled(ctx, full, 150, look.frameStops)
+  ctx.fillStyle = angled(ctx, full, look.frameAngle ?? 150, look.frameStops)
   ctx.fill()
 
   const card = boxOf(inner, origin)

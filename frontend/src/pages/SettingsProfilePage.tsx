@@ -31,8 +31,8 @@ import { LEVEL_AVATAR_RING_CHOICE, LEVEL_JERSEY_COLOR_CHOICE, hasAvatarRingChoic
 // around a photo), this is just "which color am I picking" at a glance.
 const AVATAR_RING_SWATCH_STYLE: Record<AvatarRingAccent, CSSProperties> = {
   ice: { background: '#D7EFFF' },
-  persimmon: { background: '#FF5C34' },
-  mix: { background: 'linear-gradient(135deg, #D7EFFF, #FF5C34)' },
+  persimmon: { background: 'conic-gradient(from 210deg, #8C1D0B, #FF3D1F 25%, #FF8A3D 45%, #FFC56B 55%, #FF8A3D 65%, #FF3D1F 80%, #8C1D0B)' },
+  mix: { background: 'conic-gradient(from 180deg, #D7EFFF, #7FC4FF 20%, #D7EFFF 40%, #FF8A3D 55%, #FF5C34 75%, #FF8A3D 90%, #D7EFFF)' },
   gold: { background: 'linear-gradient(135deg, #FFF4D6, #E6C36A 50%, #FFF0C2)' },
 }
 
