@@ -76,6 +76,7 @@ from app.services.coach_chat_service import (
     FREE_TRIAL_MESSAGE_LIMIT,
     MONTHLY_MESSAGE_LIMIT,
     CoachChatService,
+    ZaiReply,
     _call_zai,
 )
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
@@ -107,14 +108,20 @@ def _install_fake_call(monkeypatch, *, reply: str = "Тестовый ответ
     captured: dict = {}
 
     async def _fake_call_zai(
-        api_key: str, base_url: str, model: str, system_prompt: str, messages: list[dict]
-    ) -> str:
+        api_key: str,
+        base_url: str,
+        model: str,
+        system_prompt: str,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+    ) -> ZaiReply:
         captured["api_key"] = api_key
         captured["base_url"] = base_url
         captured["model"] = model
         captured["system_prompt"] = system_prompt
         captured["messages"] = messages
-        return reply
+        captured["tools"] = tools
+        return ZaiReply(text=reply)
 
     monkeypatch.setattr(coach_chat_service, "_call_zai", _fake_call_zai)
     return captured
@@ -1339,7 +1346,8 @@ async def test_call_zai_success_path_is_unaffected(monkeypatch, caplog) -> None:
     with caplog.at_level(logging.ERROR, logger="app.services.coach_chat_service"):
         result = await _call_zai("test-key", "https://api.z.ai/v1", "glm-4.7-flash", "system", [])
 
-    assert result == "Тестовый ответ"
+    assert result.text == "Тестовый ответ"
+    assert result.tool_call is None
     assert caplog.records == []
 
 
@@ -1379,6 +1387,84 @@ async def test_call_zai_passes_reasoning_effort_to_zai(monkeypatch) -> None:
     )
 
     await _call_zai("test-key", "https://api.z.ai/v1", "glm-5.3", "system", [])
+    # 2026-10-04: glm-5.x goes to "low" now that actions are tool calls;
+    # glm-4.7-flash keeps "high" (it lost accuracy at "low").
+    assert captured_kwargs["reasoning_effort"] == "low"
 
-    assert captured_kwargs["reasoning_effort"] == coach_chat_service.COACH_REASONING_EFFORT
-    assert coach_chat_service.COACH_REASONING_EFFORT == "high"
+    await _call_zai("test-key", "https://api.z.ai/v1", "glm-4.7-flash", "system", [])
+    assert captured_kwargs["reasoning_effort"] == "high"
+
+
+@pytest.mark.asyncio
+async def test_call_zai_sends_tools_and_returns_tool_call_and_usage(monkeypatch) -> None:
+    captured_kwargs: dict = {}
+
+    class _FakeFunction:
+        name = "set_tournament_date"
+        arguments = '{"tournament_date": "2027-03-15"}'
+
+    class _FakeToolCall:
+        function = _FakeFunction()
+
+    class _FakeMessage:
+        content = "Записать дату турнира? Подтверди кнопкой ниже."
+        tool_calls = [_FakeToolCall()]
+
+    class _FakeChoice:
+        message = _FakeMessage()
+
+    class _FakePromptDetails:
+        cached_tokens = 2500
+
+    class _FakeCompletionDetails:
+        reasoning_tokens = 30
+
+    class _FakeUsage:
+        prompt_tokens = 2800
+        completion_tokens = 140
+        prompt_tokens_details = _FakePromptDetails()
+        completion_tokens_details = _FakeCompletionDetails()
+
+    class _FakeResponse:
+        choices = [_FakeChoice()]
+        usage = _FakeUsage()
+
+    class _FakeCompletions:
+        async def create(self, **kwargs):
+            captured_kwargs.update(kwargs)
+            return _FakeResponse()
+
+    class _FakeChat:
+        completions = _FakeCompletions()
+
+    class _FakeClient:
+        chat = _FakeChat()
+
+    monkeypatch.setattr(
+        coach_chat_service, "AsyncOpenAI", lambda *, api_key, base_url: _FakeClient()
+    )
+    tools = coach_chat_service._coach_tools(["Обводка"])
+
+    result = await _call_zai("test-key", "https://api.z.ai/v1", "glm-5.3", "system", [], tools=tools)
+
+    assert captured_kwargs["tools"] == tools
+    assert result.tool_call == ("set_tournament_date", '{"tournament_date": "2027-03-15"}')
+    assert result.usage.prompt_tokens == 2800
+    assert result.usage.cached_tokens == 2500
+    assert result.usage.completion_tokens == 140
+    assert result.usage.reasoning_tokens == 30
+
+
+@pytest.mark.asyncio
+async def test_system_prompt_puts_static_rules_before_player_data(db_session, monkeypatch) -> None:
+    """Cache-friendly order (2026-10-04): persona, instructions and guardrails
+    are identical for every player of a personality, so they come before the
+    player's own summary -- z.ai's prompt cache only matches a shared prefix."""
+    user = _make_user(has_premium=True)
+    db_session.add(user)
+    await db_session.flush()
+
+    prompt = await CoachChatService(db_session)._build_system_prompt(user, CoachPersonality.STRICT)
+
+    assert prompt.index(coach_chat_service.SYSTEM_PROMPT_GUARDRAILS) < prompt.index("Сводка данных пользователя")
+    assert "Справочные значения" not in prompt  # allowed values now live in the tool schemas
