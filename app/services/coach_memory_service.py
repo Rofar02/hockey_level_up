@@ -155,7 +155,7 @@ class CoachMemoryService:
         batch = due[-SUMMARIZE_MAX_MESSAGES:]
         current = [fact.text for fact in await self.list_facts(user.id)]
         current_block = "\n".join(f"- {text}" for text in current) if current else "(заметок пока нет)"
-        reply = await coach_chat_service._call_zai(
+        reply = await coach_chat_service.call_zai_clean(
             settings.zai_api_key,
             settings.zai_base_url,
             settings.coach_chat_model,

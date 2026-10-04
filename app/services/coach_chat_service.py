@@ -29,6 +29,7 @@ it and assert on exactly what was sent, with no real network call.
 """
 import json
 import logging
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -66,7 +67,7 @@ from app.schemas.training_diary import TrainingDiaryEntryListItem
 from app.schemas.user import UserUpdate
 from app.services.analytics_service import AnalyticsService
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
-from app.services.coach_philosophy import COACH_PHILOSOPHY
+from app.services.coach_philosophy import COACH_PHILOSOPHY, COACH_VOICE
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
 from app.services.training_diary_service import TrainingDiaryService
@@ -294,8 +295,9 @@ SYSTEM_PROMPT_GUARDRAILS = (
     "рекомендацию обратиться к врачу, оба ответа уместны вместе.\n\n"
     "Если ничего из этого не подходит -- просто отвечай текстом. Если игрок "
     "просит что-то, что не входит в эти три действия (например переставить "
-    "упражнение, снять навык, изменить нагрузку) -- объясни, что план строит "
-    "сама система, и подскажи, где в приложении можно на это повлиять: "
+    "упражнение, снять навык, изменить нагрузку) -- объясни, что план "
+    "собирается автоматически по его тренировкам и самочувствию (слово "
+    "\"система\" игроку не говори), и подскажи, где в приложении можно на это повлиять: "
     "временные ограничения и приоритетные навыки тоже можно менять напрямую "
     "в Настройках, не только через тебя."
 )
@@ -789,6 +791,25 @@ def _coach_tools(skill_names: list[str]) -> list[dict]:
     ]
 
 
+# 2026-10-04: GLM now and then drops CJK characters into a Russian reply
+# ("такой 头脑ной работы" -- 2 answers in an 84-answer test). The prompt
+# says Russian only; this is the safety net.
+_FOREIGN_SCRIPT_RE = re.compile(r"[぀-ヿ㐀-鿿가-힯豈-﫿]+")
+
+
+async def call_zai_clean(*args, **kwargs) -> ZaiReply:
+    """_call_zai, retried once if the text contains CJK/Hangul characters;
+    if the retry has them too, they are cut out."""
+    reply = await _call_zai(*args, **kwargs)
+    if not _FOREIGN_SCRIPT_RE.search(reply.text):
+        return reply
+    logger.warning("z.ai reply contained CJK characters, retrying once")
+    retry = await _call_zai(*args, **kwargs)
+    if not _FOREIGN_SCRIPT_RE.search(retry.text):
+        return retry
+    return ZaiReply(text=_FOREIGN_SCRIPT_RE.sub("", retry.text), tool_call=retry.tool_call, usage=retry.usage)
+
+
 def _usage_from(response) -> ZaiUsage:
     usage = getattr(response, "usage", None)
     if usage is None:
@@ -890,7 +911,7 @@ class CoachChatService:
         api_messages.append({"role": "user", "content": message})
 
         skill_names = sorted(skill.name for skill in await self._skills.list_skills_for_user(user.id))
-        zai_reply = await _call_zai(
+        zai_reply = await call_zai_clean(
             settings.zai_api_key,
             settings.zai_base_url,
             settings.coach_chat_model,
@@ -1284,6 +1305,7 @@ class CoachChatService:
         return (
             f"{PERSONALITY_SYSTEM_PROMPTS[coach_personality]}\n\n"
             f"{COACH_PHILOSOPHY}\n\n"
+            f"{COACH_VOICE}\n\n"
             "Отвечай по-русски, по делу и кратко. Используй приведённую "
             "ниже сводку данных пользователя, чтобы давать конкретные, персональные "
             "советы по тренировкам, а не общие фразы. Если в сводке аналитики "

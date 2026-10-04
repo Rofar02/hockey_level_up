@@ -34,7 +34,7 @@ from app.schemas.analytics import AnalyticsOverviewRead
 from app.services import coach_chat_service
 from app.services.analytics_overview_service import AnalyticsOverviewService
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
-from app.services.coach_philosophy import COACH_PHILOSOPHY
+from app.services.coach_philosophy import COACH_PHILOSOPHY, COACH_VOICE
 from app.services.push_service import send_push
 
 logger = logging.getLogger(__name__)
@@ -161,11 +161,12 @@ class WeeklyReviewService:
         tournament_line = coach_chat_service._format_tournament_section(user.tournament_date, today)
         by_type = await self._sessions_by_type(user.id, week_start, week_end)
 
-        reply = await coach_chat_service._call_zai(
+        reply = await coach_chat_service.call_zai_clean(
             settings.zai_api_key,
             settings.zai_base_url,
             settings.coach_chat_model,
-            f"{PERSONALITY_SYSTEM_PROMPTS[user.coach_personality]}\n\n{COACH_PHILOSOPHY}\n\n{REVIEW_INSTRUCTIONS}",
+            f"{PERSONALITY_SYSTEM_PROMPTS[user.coach_personality]}\n\n{COACH_PHILOSOPHY}\n\n"
+            f"{COACH_VOICE}\n\n{REVIEW_INSTRUCTIONS}",
             [
                 {
                     "role": "user",

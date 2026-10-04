@@ -80,7 +80,7 @@ from app.services.coach_chat_service import (
     _call_zai,
 )
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
-from app.services.coach_philosophy import COACH_PHILOSOPHY
+from app.services.coach_philosophy import COACH_PHILOSOPHY, COACH_VOICE
 from tests.dates import utc_today
 
 
@@ -1482,4 +1482,28 @@ async def test_coach_philosophy_is_shared_by_every_personality(db_session) -> No
 
     for personality in CoachPersonality:
         prompt = await service._build_system_prompt(user, personality)
-        assert prompt.startswith(PERSONALITY_SYSTEM_PROMPTS[personality] + "\n\n" + COACH_PHILOSOPHY)
+        assert prompt.startswith(
+            PERSONALITY_SYSTEM_PROMPTS[personality] + "\n\n" + COACH_PHILOSOPHY + "\n\n" + COACH_VOICE
+        )
+
+
+@pytest.mark.asyncio
+async def test_cjk_in_a_reply_triggers_one_retry_then_gets_cut(monkeypatch) -> None:
+    """GLM occasionally leaks CJK characters into Russian text (2026-10-04)."""
+    replies = iter(
+        [ZaiReply(text="время для такой 头脑ной работы"), ZaiReply(text="время для спокойной работы")]
+    )
+
+    async def _fake(*_args, **_kwargs) -> ZaiReply:
+        return next(replies)
+
+    monkeypatch.setattr(coach_chat_service, "_call_zai", _fake)
+    assert (await coach_chat_service.call_zai_clean()).text == "время для спокойной работы"
+
+    stubborn = iter([ZaiReply(text="такой 头脑ной"), ZaiReply(text="опять 头脑ной")])
+
+    async def _fake_stubborn(*_args, **_kwargs) -> ZaiReply:
+        return next(stubborn)
+
+    monkeypatch.setattr(coach_chat_service, "_call_zai", _fake_stubborn)
+    assert (await coach_chat_service.call_zai_clean()).text == "опять ной"
