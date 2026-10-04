@@ -1,6 +1,7 @@
 from app.models.auth_token import AuthToken, AuthTokenPurpose
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.coach_memory import CoachMemoryFact, CoachMemoryState
+from app.models.feedback import Feedback, FeedbackKind, FeedbackStatus
 from app.models.weekly_review import WeeklyReview
 from app.models.coach_chat_proposed_action import (
     CoachActionStatus,
@@ -68,6 +69,9 @@ __all__ = [
     "CoachChatMessage",
     "CoachMemoryFact",
     "CoachMemoryState",
+    "Feedback",
+    "FeedbackKind",
+    "FeedbackStatus",
     "CoachChatProposedAction",
     "CoachChatRole",
     "DayPlan",

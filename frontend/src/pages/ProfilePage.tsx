@@ -388,6 +388,7 @@ function OwnProfileView() {
         />
         <ProfileRow icon="ti-book" label="Справочник" hint="Статьи об экипировке и основах" to="/reference" />
         <ProfileRow icon="ti-clipboard-list" label="Каталог упражнений" hint="Все упражнения с техникой" to="/exercise-catalog" />
+        <ProfileRow icon="ti-message-report" label="Обратная связь" hint="Нашёл ошибку или есть идея — напиши" to="/feedback" />
       </div>
       {!isLoading && user !== null && !user.email_verified && (
         <div className={`flex flex-col gap-1.5 rounded-md ${CARD_BORDER} bg-dark-card p-3`}>

@@ -39,6 +39,13 @@ export function AdminHomePage() {
             Список пользователей, права администратора и премиум-доступ.
           </p>
         </Link>
+        <Link
+          to="/admin/feedback"
+          className="rounded-md border border-white/10 bg-dark-card p-6 transition-colors hover:border-accent-ice/40"
+        >
+          <h2 className="text-lg font-semibold">Обратная связь</h2>
+          <p className="mt-1 text-sm text-text-secondary">Ошибки, идеи и сообщения от игроков, со скриншотами.</p>
+        </Link>
       </div>
     </AdminLayout>
   )

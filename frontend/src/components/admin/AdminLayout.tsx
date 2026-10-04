@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: '/admin/skills', label: 'Навыки' },
   { to: '/admin/reference-articles', label: 'Справочник' },
   { to: '/admin/users', label: 'Пользователи' },
+  { to: '/admin/feedback', label: 'Обратная связь' },
 ]
 
 // Deliberately plain: dark-bg/dark-card/text-* tokens already used

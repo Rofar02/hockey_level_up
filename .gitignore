@@ -32,3 +32,6 @@ static/exercise-videos/
 
 # Untouched originals of the exercise clips (before the 480p re-encode)
 exercise-videos-originals/
+
+# Feedback screenshots (private uploads, see Settings.feedback_upload_dir).
+uploads/

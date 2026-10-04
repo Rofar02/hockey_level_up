@@ -151,6 +151,8 @@ services:
       - avatars_data:/app/static/avatars
       - reference_articles_data:/app/static/reference-articles
       - team_logos_data:/app/static/team-logos
+      # Feedback screenshots: private, served to admins only (not under static/).
+      - feedback_data:/app/uploads/feedback
     depends_on:
       # Required, not optional: app/events/consumer.py's initial RabbitMQ
       # connect attempt gives up permanently (logs "consumer disabled" and
@@ -342,6 +344,7 @@ volumes:
   avatars_data:
   reference_articles_data:
   team_logos_data:
+  feedback_data:
   certbot_etc:
   certbot_www:
   glitchtip_postgres_data:

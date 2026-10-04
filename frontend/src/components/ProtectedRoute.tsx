@@ -1,9 +1,10 @@
-import { Suspense } from 'react'
-import { Navigate, Outlet, useMatch } from 'react-router-dom'
+import { Suspense, useEffect } from 'react'
+import { Navigate, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
+import { recordRoute } from '../utils/routeHistory'
 
 // A layout route (rendered once via App.tsx's <Route element={<ProtectedRoute />}>
 // wrapping every protected page as a child route, matched through <Outlet/>)
@@ -34,6 +35,9 @@ export function ProtectedRoute() {
   // screen too (its header has its own back link).
   const isCoachChat = useMatch('/coach') !== null
   const isFullScreenRoute = isDiary || isCoachChat
+  // Recent screens, attached to feedback messages (utils/routeHistory).
+  const { pathname } = useLocation()
+  useEffect(() => recordRoute(pathname), [pathname])
 
   // Hold off on any redirect while a reload is still trying to restore the
   // session from localStorage -- isAuthenticated is false at this point

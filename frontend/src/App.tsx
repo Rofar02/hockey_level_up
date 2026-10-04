@@ -103,6 +103,10 @@ const AnalyticsPage = lazy(() =>
 )
 const CoachPage = lazy(() => import('./pages/CoachPage').then((m) => ({ default: m.CoachPage })))
 const PremiumPage = lazy(() => import('./pages/PremiumPage').then((m) => ({ default: m.PremiumPage })))
+const FeedbackPage = lazy(() => import('./pages/FeedbackPage').then((m) => ({ default: m.FeedbackPage })))
+const AdminFeedbackPage = lazy(() =>
+  import('./pages/admin/AdminFeedbackPage').then((m) => ({ default: m.AdminFeedbackPage })),
+)
 const ReferencePage = lazy(() =>
   import('./pages/ReferencePage').then((m) => ({ default: m.ReferencePage })),
 )
@@ -218,6 +222,7 @@ function App() {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/coach" element={<CoachPage />} />
         <Route path="/premium" element={<PremiumPage />} />
+        <Route path="/feedback" element={<FeedbackPage />} />
         <Route path="/reference" element={<ReferencePage />} />
         <Route path="/exercise-catalog" element={<ExerciseCatalogPage />} />
         <Route path="/quests" element={<QuestsPage />} />
@@ -268,6 +273,14 @@ function App() {
         element={
           <AdminRoute>
             <AdminUsersPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/feedback"
+        element={
+          <AdminRoute>
+            <AdminFeedbackPage />
           </AdminRoute>
         }
       />
