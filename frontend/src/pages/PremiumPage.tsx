@@ -85,6 +85,7 @@ export function PremiumPage() {
           <PlayerCard
             cardStyle="gold"
             shine
+            premium
             jerseyColor={user?.jersey_color ?? null}
             rating={overallRatingOf(stats)}
             position={user?.position ?? null}

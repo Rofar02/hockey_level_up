@@ -59,6 +59,8 @@ interface PlayerCardProps {
   statGridRef?: Ref<HTMLDivElement>
   // Overrides the level rule for the sheen (the premium preview always has it).
   shine?: boolean
+  // The card owner has premium: a PREMIUM plate on any card colour (2026-10-04).
+  premium?: boolean
   // All optional: without them the card is read-only (someone else's
   // profile) -- no camera button, nothing tappable.
   onAvatarClick?: () => void
@@ -83,6 +85,7 @@ export function PlayerCard({
   isUploadingAvatar = false,
   statGridRef,
   shine,
+  premium = false,
   onAvatarClick,
   onChangePhoto,
   onLevelClick,
@@ -145,9 +148,9 @@ export function PlayerCard({
           }}
         />
 
-        {/* Premium gold card (2026-10-04): a "PREMIUM" plate in the free top-right corner.
+        {/* Premium players (2026-10-04): a "PREMIUM" plate in the free top-right corner, on any card colour.
             The shared PNG draws the plate from [data-card="premium-badge"] and its text. */}
-        {cardStyle === 'gold' && (
+        {premium && (
           // Frosted glass: the photo behind is blurred and tinted dark enough
           // that the gold letters read on a light photo as well as a dark one
           // (a plain see-through plate vanished on light backgrounds), with a

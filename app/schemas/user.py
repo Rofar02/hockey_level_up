@@ -101,10 +101,12 @@ class UserPublicRead(BaseModel):
     UserService.get_public_profile for the friend-or-teammate 403 gate.
     Deliberately excludes weight/height (never included here regardless of
     relationship, per spec) and everything private on UserRead: email,
-    is_admin, has_premium, has_gym_access, timezone, reminder_preference,
+    is_admin, has_gym_access, timezone, reminder_preference,
     season_period, coach_personality, tournament_date,
     has_seen_onboarding_tour, has_seen_weight_hint,
     has_seen_coach_personality_intro, friend_code.
+    has_premium IS included (2026-10-04, owner's decision): the player card
+    shows a PREMIUM plate to friends and teammates too.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -118,6 +120,7 @@ class UserPublicRead(BaseModel):
     position: Position | None = None
     jersey_number: int | None = None
     jersey_color: JerseyColor | None = None
+    has_premium: bool = False
     years_of_experience: float | None = None
     level: int
     xp: int
