@@ -144,11 +144,6 @@ export function PlayerCard({
             background: `radial-gradient(ellipse at 75% -5%, ${look.tint}, transparent 60%), linear-gradient(180deg, rgba(14,21,36,0.10) 0%, rgba(14,21,36,0.45) 48%, #0E1524 80%)`,
           }}
         />
-        {/* Top stripe under the frame. Not on the gold card (2026-10-04): there it
-            doubled the frame into a thick two-tone line along the top edge. */}
-        {cardStyle !== 'gold' && (
-          <div data-card="stripe-line" className="absolute inset-x-0 top-0 z-[2] h-1" style={{ background: look.stripe }} />
-        )}
 
         {/* Premium gold card (2026-10-04): a "PREMIUM" plate in the free top-right corner.
             The shared PNG draws the plate from [data-card="premium-badge"] and its text. */}
