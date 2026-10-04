@@ -1,6 +1,7 @@
 from app.models.auth_token import AuthToken, AuthTokenPurpose
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.coach_memory import CoachMemoryFact, CoachMemoryState
+from app.models.weekly_review import WeeklyReview
 from app.models.coach_chat_proposed_action import (
     CoachActionStatus,
     CoachActionType,
@@ -124,4 +125,5 @@ __all__ = [
     "UserStat",
     "UserTemporaryRestriction",
     "WeeklyPlan",
+    "WeeklyReview",
 ]

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
+import { WeeklyReviewCard } from '../components/WeeklyReviewCard'
 import { CoachPlanReminderCard } from '../components/teamEvents/CoachPlanReminderCard'
 import { TeamDayCard } from '../components/teamEvents/TeamDayCard'
 import { Button } from '../components/ui/Button'
@@ -490,6 +491,9 @@ export function HomePage() {
             {/* Captains only, and only while a training this week has no
                 published plan -- renders nothing otherwise. */}
             <CoachPlanReminderCard />
+
+            {/* Premium: the coach's Monday review of last week, until closed. */}
+            <WeeklyReviewCard />
 
             {(() => {
               const personalCard = (

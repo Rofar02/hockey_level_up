@@ -27,6 +27,7 @@ from app.schemas.coach_chat import (
     CoachChatReplyRead,
     CoachMemoryFactRead,
     ProposedActionRead,
+    WeeklyReviewRead,
 )
 from app.schemas.exercise import EquipmentItemsReplace
 from app.schemas.progress import (
@@ -74,6 +75,7 @@ from app.services.user_service import UserService
 from app.services.user_temporary_restriction_service import (
     UserTemporaryRestrictionService,
 )
+from app.services.weekly_review_service import WeeklyReviewService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -279,6 +281,26 @@ async def send_coach_chat_message(
     429 the monthly cap raises."""
     reply = await CoachChatService(session).send_message(current_user, body.message)
     return CoachChatReplyRead(reply=reply)
+
+
+@router.get("/me/weekly-review", response_model=WeeklyReviewRead | None)
+async def get_weekly_review(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """The coach's weekly review for the Home card (WeeklyReviewService),
+    or null when there's none to show."""
+    return await WeeklyReviewService(session).latest_for_card(current_user)
+
+
+@router.post("/me/weekly-review/{review_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_weekly_review_read(
+    review_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    if not await WeeklyReviewService(session).mark_read(current_user, review_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
 
 
 @router.get("/me/coach-memory", response_model=list[CoachMemoryFactRead])

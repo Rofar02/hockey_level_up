@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -61,5 +61,21 @@ class CoachMemoryFactRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    text: str
+    created_at: datetime
+
+
+class WeeklyReviewRead(BaseModel):
+    """The coach's weekly review -- GET /users/me/weekly-review."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    week_start: date
+    sessions_completed: int
+    sessions_planned: int
+    records_count: int
+    top_stat: str | None
+    top_stat_delta: float | None
     text: str
     created_at: datetime

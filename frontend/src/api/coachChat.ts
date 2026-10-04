@@ -5,6 +5,7 @@ import type {
   CoachChatReplyRead,
   CoachMemoryFactRead,
   ProposedActionRead,
+  WeeklyReviewRead,
 } from '../types/coachChat'
 
 export function sendCoachChatMessage(
@@ -58,4 +59,13 @@ export function deleteCoachMemoryFact(factId: string, accessToken: string): Prom
 
 export function forgetCoachMemory(accessToken: string): Promise<void> {
   return apiDeleteAuth<void>('/users/me/coach-memory', accessToken)
+}
+
+// Weekly coach review ("Разбор недели", 2026-10-04) -- null when none to show.
+export function getWeeklyReview(accessToken: string): Promise<WeeklyReviewRead | null> {
+  return apiGet<WeeklyReviewRead | null>('/users/me/weekly-review', accessToken)
+}
+
+export function markWeeklyReviewRead(reviewId: string, accessToken: string): Promise<void> {
+  return apiPostAuth<void>(`/users/me/weekly-review/${reviewId}/read`, {}, accessToken)
 }

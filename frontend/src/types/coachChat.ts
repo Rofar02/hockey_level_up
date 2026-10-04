@@ -44,3 +44,16 @@ export interface CoachMemoryFactRead {
   text: string
   created_at: string
 }
+
+// The coach's weekly review (WeeklyReviewRead in app/schemas/coach_chat.py).
+export interface WeeklyReviewRead {
+  id: string
+  week_start: string
+  sessions_completed: number
+  sessions_planned: number
+  records_count: number
+  top_stat: string | null
+  top_stat_delta: number | null
+  text: string
+  created_at: string
+}

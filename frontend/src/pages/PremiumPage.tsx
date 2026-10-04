@@ -14,7 +14,7 @@ import type { UserStatRead } from '../types/progress'
 // The premium sales page (2026-10-04, mockup variant A: the player's own card
 // in gold on top). No prices yet and no payment provider wired (YooKassa is
 // planned), so "Оформить" opens a "coming soon" stub instead of a checkout.
-// Benefits not built yet (weekly review, the gold card on the
+// Benefits not built yet (the gold card on the
 // profile) carry a "СКОРО" badge -- drop it as each one ships.
 
 type Plan = 'year' | 'month'
@@ -29,7 +29,6 @@ const BENEFITS: { icon: string; title: string; text: string; isSoon?: boolean }[
     icon: 'ti-calendar-stats',
     title: 'Разбор недели',
     text: 'Каждый понедельник тренер подводит итоги: рекорды, что просело и на чём сфокусироваться.',
-    isSoon: true,
   },
   {
     icon: 'ti-brain',
