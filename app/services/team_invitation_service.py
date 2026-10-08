@@ -55,9 +55,11 @@ class TeamInvitationService:
         """Without a query, the captain's friends; with one, the name search
         (its rules and rate limit)."""
         team = await self._captains_team(captain, team_id)
+        similar: set[uuid.UUID] = set()
         if query is not None and query.strip():
             hits = await FriendDiscoveryService(self._session).search(captain, query)
             ids = [hit.id for hit in hits]
+            similar = {hit.id for hit in hits if hit.match == "similar"}
         else:
             ids = await FriendService(self._session).list_friend_ids(captain.id)
         if not ids:
@@ -112,6 +114,7 @@ class TeamInvitationService:
                     position=player.position,
                     team_name=membership[1] if membership is not None else None,
                     status=state,
+                    match="similar" if user_id in similar else "exact",
                 )
             )
         return reads

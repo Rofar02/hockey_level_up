@@ -1,20 +1,16 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import * as teamsApi from '../../api/teams'
 import { API_BASE_URL, ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import type { TeamInviteCandidateRead, TeamRead } from '../../types/team'
 import { POSITION_LABELS } from '../../types/user'
 import { copyText } from '../../utils/clipboard'
-import { isSearchable } from '../friends/AddFriendsTab'
+import { isFullName, isSearchable, teamInviteLink } from '../../utils/friendSearch'
 import { Button } from '../ui/Button'
 import { FormError } from '../ui/FormError'
 import { Modal } from '../ui/Modal'
 
 const SEARCH_DELAY_MS = 400
-
-export function teamInviteLink(code: string): string {
-  return `${window.location.origin}/t/${code}`
-}
 
 // "Позвать в команду" (2026-10-08), on the team hub and the team page: the
 // invite link for anyone in the team to share (it opens the team's page;
@@ -51,8 +47,8 @@ export function TeamInviteBlock({ team }: { team: TeamRead }) {
         <h2 className="font-display text-base font-semibold uppercase tracking-wide">Позвать в команду</h2>
         <p className="text-[13px] leading-relaxed text-text-secondary">
           {team.is_captain
-            ? 'Отправь ссылку в чат команды или пригласи игрока из друзей и по имени.'
-            : 'Отправь ссылку другу — капитану придёт его заявка.'}
+            ? `Это приглашение в «${team.name}», не в друзья. Отправь ссылку в чат команды или пригласи конкретного игрока — он сможет сразу вступить.`
+            : `Это приглашение в «${team.name}», не в друзья. Отправь ссылку — капитану придёт заявка на вступление.`}
         </p>
       </div>
       <div className="flex items-center justify-between gap-2 rounded-lg bg-dark-bg py-1 pl-3 pr-1 text-sm">
@@ -69,12 +65,12 @@ export function TeamInviteBlock({ team }: { team: TeamRead }) {
       <div className="flex flex-wrap gap-2">
         <Button type="button" onClick={() => void share()} className="min-w-[150px] flex-1">
           <i className="ti ti-share mr-2" aria-hidden="true" />
-          Поделиться ссылкой
+          Ссылка на команду
         </Button>
         {team.is_captain && (
           <Button type="button" variant="neutral" onClick={() => setIsPicking(true)} className="min-w-[150px] flex-1">
             <i className="ti ti-user-plus mr-2" aria-hidden="true" />
-            Пригласить игрока
+            Пригласить в команду
           </Button>
         )}
       </div>
@@ -95,7 +91,7 @@ export function TeamInviteBlock({ team }: { team: TeamRead }) {
 }
 
 const STATUS_LABELS: Record<Exclude<TeamInviteCandidateRead['status'], 'none'>, string> = {
-  invited: 'Приглашён',
+  invited: 'Приглашён в команду',
   member: 'В команде',
   in_team: 'В другой команде',
 }
@@ -155,28 +151,35 @@ function InvitePlayersSheet({ team, onClose }: { team: TeamRead; onClose: () => 
   }
 
   return (
-    <Modal title="Пригласить игрока" onClose={onClose}>
+    <Modal title={`Пригласить в «${team.name}»`} onClose={onClose}>
       <div className="flex flex-col gap-3">
+        <p className="text-[13px] leading-relaxed text-text-secondary">
+          Игрок получит приглашение вступить в команду и сразу окажется в ней, когда примет. В друзья это не добавляет.
+        </p>
         <label className="flex min-h-12 items-center gap-2.5 rounded-xl border border-white/10 bg-dark-bg px-3.5 focus-within:border-accent-ice">
           <i className="ti ti-search text-lg text-text-secondary" aria-hidden="true" />
-          <span className="sr-only">Найти по имени и фамилии</span>
+          <span className="sr-only">Найти игрока</span>
           <input
             type="text"
             inputMode="search"
             enterKeyHint="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Найти по имени и фамилии"
+            placeholder="Имя или фамилия игрока"
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-[15px] text-text-primary outline-none placeholder:text-text-secondary"
           />
         </label>
         <p className="px-1 text-xs text-text-secondary">
-          {searching ? 'Поиск среди тех, кто разрешил себя находить' : 'Твои друзья'}
+          {!searching
+            ? 'Твои друзья'
+            : isFullName(query)
+              ? 'Среди всех, кто разрешил себя находить'
+              : 'Среди твоих знакомых — для любого игрока напиши имя и фамилию'}
         </p>
         <FormError message={loadError ?? actionError} />
         {searching && !searchable && (
-          <p className="px-1 text-sm text-text-secondary">Напиши имя и фамилию — хотя бы по 2 буквы</p>
+          <p className="px-1 text-sm text-text-secondary">Напиши хотя бы 2 буквы</p>
         )}
         {rows === null && loadError === null && (!searching || searchable) && (
           <p className="px-1 text-sm text-text-secondary">Загрузка...</p>
@@ -189,40 +192,45 @@ function InvitePlayersSheet({ team, onClose }: { team: TeamRead; onClose: () => 
           </p>
         )}
         {rows !== null &&
-          rows.map((player) => (
-            <div key={player.id} className="flex items-center gap-3 rounded-xl bg-dark-bg/60 p-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-accent-ice bg-[#22304A]">
-                {player.avatar_url !== null ? (
-                  <img src={`${API_BASE_URL}${player.avatar_url}`} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="font-display text-sm font-semibold text-accent-ice">
-                    {`${player.first_name.charAt(0)}${player.last_name.charAt(0)}`.toUpperCase()}
-                  </span>
-                )}
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate text-sm font-semibold">
-                  {player.first_name} {player.last_name}
-                </span>
-                <span className="truncate text-xs text-text-secondary">
-                  {[player.team_name ?? 'Без команды', player.position !== null ? POSITION_LABELS[player.position] : null, `ур. ${player.level}`]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-              </span>
-              {player.status === 'none' ? (
-                <Button
-                  type="button"
-                  onClick={() => void invite(player)}
-                  isLoading={invitingId === player.id}
-                  className="!min-h-9 shrink-0 !rounded-full !px-3.5 !py-1.5 !text-xs"
-                >
-                  Пригласить
-                </Button>
-              ) : (
-                <span className="shrink-0 px-1.5 text-xs text-text-secondary">{STATUS_LABELS[player.status]}</span>
+          rows.map((player, index) => (
+            <Fragment key={player.id}>
+              {player.match === 'similar' && rows[index - 1]?.match !== 'similar' && (
+                <h3 className="mt-2 px-1 text-xs font-medium uppercase tracking-wide text-text-secondary">Похожие</h3>
               )}
-            </div>
+              <div className="flex items-center gap-3 rounded-xl bg-dark-bg/60 p-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-accent-ice bg-[#22304A]">
+                  {player.avatar_url !== null ? (
+                    <img src={`${API_BASE_URL}${player.avatar_url}`} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="font-display text-sm font-semibold text-accent-ice">
+                      {`${player.first_name.charAt(0)}${player.last_name.charAt(0)}`.toUpperCase()}
+                    </span>
+                  )}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="truncate text-sm font-semibold">
+                    {player.first_name} {player.last_name}
+                  </span>
+                  <span className="truncate text-xs text-text-secondary">
+                    {[player.team_name ?? 'Без команды', player.position !== null ? POSITION_LABELS[player.position] : null, `ур. ${player.level}`]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </span>
+                {player.status === 'none' ? (
+                  <Button
+                    type="button"
+                    onClick={() => void invite(player)}
+                    isLoading={invitingId === player.id}
+                    className="!min-h-9 shrink-0 !rounded-full !px-3.5 !py-1.5 !text-xs"
+                  >
+                    В команду
+                  </Button>
+                ) : (
+                  <span className="shrink-0 px-1.5 text-xs text-text-secondary">{STATUS_LABELS[player.status]}</span>
+                )}
+              </div>
+            </Fragment>
           ))}
       </div>
     </Modal>

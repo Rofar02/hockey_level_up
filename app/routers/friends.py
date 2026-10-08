@@ -22,6 +22,7 @@ from app.services.friend_activity_service import FriendActivityService
 from app.services.friend_discovery_service import FriendDiscoveryService
 from app.services.friend_service import FriendService
 from app.services.leaderboard_service import LeaderboardService
+from app.services.user_service import UserService
 
 router = APIRouter(prefix="/friends", tags=["friends"])
 
@@ -63,9 +64,22 @@ async def search_players(
     session: Annotated[AsyncSession, Depends(get_db)],
     q: str = Query(min_length=1, max_length=100),
 ):
-    """By first and last name, among the players findable by name. Same
+    """Smart name search (FriendDiscoveryService.search). Same
     route-ordering note as /leaderboard above (and for the routes below)."""
     return await FriendDiscoveryService(session).search(current_user, q)
+
+
+@router.get("/players/{user_id}", response_model=PlayerSuggestionRead)
+async def get_player(
+    user_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Who this player is to me (relation, team, mutual friends) -- for the
+    card sheet opened from the leaderboard. 403 when their card is hidden
+    from me, same rule as GET /users/{id}/profile."""
+    await UserService(session).get_public_profile(current_user, user_id)
+    return await FriendDiscoveryService(session).player(current_user, user_id)
 
 
 @router.get("/teammates", response_model=list[PlayerSuggestionRead])

@@ -50,13 +50,14 @@ test('the captain invites a player by name and the player joins from the hub', a
   await loginAs(page, captain)
   await page.goto(`/teams/${team.id}`)
   await expect(page.getByRole('heading', { name: 'Позвать в команду' })).toBeVisible()
-  await page.getByRole('button', { name: 'Пригласить игрока' }).click()
-  const sheet = page.getByRole('dialog', { name: 'Пригласить игрока' })
-  await sheet.getByPlaceholder('Найти по имени и фамилии').fill(`Егор ${surname}`)
+  await page.getByRole('button', { name: 'Пригласить в команду' }).click()
+  const sheet = page.getByRole('dialog', { name: `Пригласить в «${teamName}»` })
+  await sheet.getByPlaceholder('Имя или фамилия игрока').fill(`Егор ${surname}`)
   await expect(sheet.getByText(`Егор ${surname}`)).toBeVisible()
   await shot(page, 'team-invite-sheet')
-  await sheet.getByRole('button', { name: 'Пригласить' }).click()
-  await expect(sheet.getByText('Приглашён')).toBeVisible()
+  // Exact hit's own row -- similar spellings from earlier runs show too.
+  await sheet.locator('div.flex.items-center.gap-3', { hasText: `Егор ${surname}` }).getByRole('button', { name: 'В команду' }).click()
+  await expect(sheet.getByText('Приглашён в команду')).toBeVisible()
 
   // The player in a browser of their own -- a second login in the same tab
   // keeps the captain's session.

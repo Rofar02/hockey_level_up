@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { PlayerSheet } from '../components/friends/PlayerSheet'
 import { BackLink } from '../components/ui/BackLink'
 import { CARD_BORDER } from '../components/ui/cardStyle'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -32,6 +34,18 @@ export function LeaderboardPage() {
   const [me, setMe] = useState<LeaderboardMeRead | null>(null)
   const [meError, setMeError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  // 2026-10-08: a tap on a player opens their card with the friend button;
+  // on yourself -- your own profile.
+  const [opened, setOpened] = useState<LeaderboardEntryRead | null>(null)
+  const navigate = useNavigate()
+
+  function openEntry(entry: LeaderboardEntryRead) {
+    if (entry.id === user?.id) {
+      navigate('/profile')
+    } else {
+      setOpened(entry)
+    }
+  }
 
   useEffect(() => {
     if (accessToken === null) {
@@ -95,7 +109,8 @@ export function LeaderboardPage() {
         <BackLink />
         <h1 className="text-xl font-semibold">Рейтинг</h1>
         <p className="text-sm text-[#8A94A6]">
-          Превышение над ожидаемым уровнем для вашего возраста и стажа — не сырые характеристики.
+          Превышение над ожидаемым уровнем для вашего возраста и стажа — не сырые характеристики. Нажми на игрока,
+          чтобы открыть его карточку и добавить в друзья.
         </p>
       </div>
 
@@ -110,7 +125,9 @@ export function LeaderboardPage() {
 
       {entries !== null && (entries.length > 0 || pinnedMe !== null) && (
         <div className="flex flex-col gap-2">
-          {entries.length > 0 && <LeaderboardPodium entries={entries.slice(0, 3)} meId={user?.id ?? null} />}
+          {entries.length > 0 && (
+            <LeaderboardPodium entries={entries.slice(0, 3)} meId={user?.id ?? null} onOpen={openEntry} />
+          )}
 
           {pinnedMe !== null && (
             <>
@@ -122,6 +139,7 @@ export function LeaderboardPage() {
                 avatarUrl={user?.avatar_url ?? null}
                 ratingExcess={pinnedMe.rating_excess}
                 highlighted
+                onClick={() => navigate('/profile')}
               />
               <div className="my-1 border-t border-dashed border-white/10" />
             </>
@@ -137,6 +155,7 @@ export function LeaderboardPage() {
               avatarUrl={entry.avatar_url}
               ratingExcess={entry.rating_excess}
               highlighted={index + 3 === myIndex}
+              onClick={() => openEntry(entry)}
             />
           ))}
         </div>
@@ -144,6 +163,13 @@ export function LeaderboardPage() {
 
       <FormError message={meError} />
       </div>
+      {opened !== null && (
+        <PlayerSheet
+          userId={opened.id}
+          title={getDisplayName(opened, { patronymic: false })}
+          onClose={() => setOpened(null)}
+        />
+      )}
     </div>
   )
 }
@@ -156,6 +182,7 @@ function LeaderboardRow({
   avatarUrl,
   ratingExcess,
   highlighted,
+  onClick,
 }: {
   rank: number
   displayName: string
@@ -164,10 +191,14 @@ function LeaderboardRow({
   avatarUrl: string | null
   ratingExcess: number
   highlighted: boolean
+  onClick: () => void
 }) {
   return (
-    <div
-      className={`flex items-center gap-3 rounded-md p-3 ${
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Открыть карточку: ${displayName}`}
+      className={`flex w-full items-center gap-3 rounded-md p-3 text-left transition-colors hover:border-white/20 ${
         highlighted
           ? 'border border-accent-ice/40 bg-accent-ice/10'
           : `${CARD_BORDER} bg-dark-card`
@@ -192,7 +223,8 @@ function LeaderboardRow({
         </span>
       </div>
       <RatingExcess value={ratingExcess} />
-    </div>
+      <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />
+    </button>
   )
 }
 
@@ -213,7 +245,15 @@ const PODIUM_AVATAR_SIZE: Record<number, string> = {
 }
 const PODIUM_PEDESTAL_HEIGHT: Record<number, string> = { 1: 'h-[82px]', 2: 'h-14', 3: 'h-10' }
 
-function LeaderboardPodium({ entries, meId }: { entries: LeaderboardEntryRead[]; meId: string | null }) {
+function LeaderboardPodium({
+  entries,
+  meId,
+  onOpen,
+}: {
+  entries: LeaderboardEntryRead[]
+  meId: string | null
+  onOpen: (entry: LeaderboardEntryRead) => void
+}) {
   return (
     <div className="mb-2 flex items-end justify-center gap-2.5">
       {PODIUM_DISPLAY_ORDER.map((rank) => {
@@ -221,7 +261,9 @@ function LeaderboardPodium({ entries, meId }: { entries: LeaderboardEntryRead[];
         if (entry === undefined) {
           return null
         }
-        return <PodiumSlot key={entry.id} rank={rank} entry={entry} isSelf={entry.id === meId} />
+        return (
+          <PodiumSlot key={entry.id} rank={rank} entry={entry} isSelf={entry.id === meId} onOpen={() => onOpen(entry)} />
+        )
       })}
     </div>
   )
@@ -231,10 +273,12 @@ function PodiumSlot({
   rank,
   entry,
   isSelf,
+  onOpen,
 }: {
   rank: number
   entry: LeaderboardEntryRead
   isSelf: boolean
+  onOpen: () => void
 }) {
   const medalColor = MEDAL_COLORS[rank]
   const avatarUrl = entry.avatar_url !== null ? `${API_BASE_URL}${entry.avatar_url}` : null
@@ -246,7 +290,12 @@ function PodiumSlot({
     // has nothing to actually clip against, so the name just runs past the
     // screen edge instead of ellipsizing. min-w-0 lets the slot shrink to
     // its flex-basis so truncate has a real boundary.
-    <div className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Открыть карточку: ${getDisplayName(entry, { patronymic: false })}`}
+      className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
+    >
       <div
         className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border-[3px] ${PODIUM_AVATAR_SIZE[rank]}`}
         style={{ borderColor: medalColor, boxShadow: `0 0 ${rank === 1 ? 16 : 10}px ${medalColor}80` }}
@@ -279,7 +328,7 @@ function PodiumSlot({
           </span>
         )}
       </div>
-    </div>
+    </button>
   )
 }
 

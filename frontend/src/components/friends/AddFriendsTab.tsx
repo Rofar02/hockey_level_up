@@ -1,31 +1,31 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import * as friendsApi from '../../api/friends'
-import * as usersApi from '../../api/users'
 import { API_BASE_URL, ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
 import type { FriendRelation, PlayerSuggestionRead } from '../../types/friend'
 import { POSITION_LABELS } from '../../types/user'
-import type { UserPublicRead } from '../../types/user'
 import { copyText } from '../../utils/clipboard'
-import { PublicPlayerCard } from '../PublicPlayerCard'
 import { Button } from '../ui/Button'
 import { FormError } from '../ui/FormError'
-import { Modal } from '../ui/Modal'
+import { FriendAction, PlayerSheet } from './PlayerSheet'
+import { inviteLink, isFullName, isSearchable, mutualLine } from '../../utils/friendSearch'
 
-const SEARCH_DELAY_MS = 400
+const SEARCH_DELAY_MS = 350
 const TEAMMATES_SHOWN = 3
 
-// Same rule as the server's search_tokens: a first and a last name, two
-// letters each.
-export function isSearchable(query: string): boolean {
-  const words = query.trim().split(/\s+/)
-  return words.length >= 2 && words.slice(0, 2).every((word) => word.length >= 2)
-}
-
-export function inviteLink(code: string): string {
-  return `${window.location.origin}/f/${code}`
+export function PlayerAvatar({ player, size = 'h-11 w-11' }: { player: PlayerSuggestionRead; size?: string }) {
+  const initials = `${player.first_name.charAt(0)}${player.last_name.charAt(0)}`.toUpperCase()
+  return (
+    <span className={`flex ${size} shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-accent-ice bg-[#22304A]`}>
+      {player.avatar_url !== null ? (
+        <img src={`${API_BASE_URL}${player.avatar_url}`} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span className="font-display text-sm font-semibold text-accent-ice">{initials}</span>
+      )}
+    </span>
+  )
 }
 
 function metaLine(player: PlayerSuggestionRead, withTeam: boolean): string {
@@ -33,24 +33,17 @@ function metaLine(player: PlayerSuggestionRead, withTeam: boolean): string {
     withTeam ? (player.team_name ?? 'Без команды') : player.jersey_number !== null ? `#${player.jersey_number}` : null,
     player.position !== null ? POSITION_LABELS[player.position] : null,
     `ур. ${player.level}`,
+    withTeam ? mutualLine(player.mutual_friends) : null,
   ]
     .filter(Boolean)
     .join(' · ')
 }
 
-function mutualLine(count: number): string | null {
-  if (count === 0) {
-    return null
-  }
-  const mod10 = count % 10
-  const mod100 = count % 100
-  const word = mod10 === 1 && mod100 !== 11 ? 'общий друг' : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'общих друга' : 'общих друзей'
-  return `${count} ${word}`
-}
-
-// The "Добавить" tab (2026-10-08): find by name, teammates, friends of
-// friends, and the invite link -- the code stays at the bottom. A tap on a
-// player opens their card; the button sends the request right away.
+// The "Добавить" tab (2026-10-08): friend requests only -- teams invite on
+// their own page. Smart search (one word among the people around me, first
+// and last name among everyone findable, similar spellings), teammates,
+// friends of friends, and the invite link; the code stays at the bottom. A
+// tap on a player opens their card.
 export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Promise<void> | void }) {
   const { user, accessToken } = useAuth()
   const [query, setQuery] = useState('')
@@ -166,7 +159,9 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
     if (user?.friend_code == null) {
       return
     }
-    setLinkState((await copyText(inviteLink(user.friend_code))) ? 'Ссылка скопирована' : 'Не удалось скопировать — выделите ссылку вручную')
+    setLinkState(
+      (await copyText(inviteLink(user.friend_code))) ? 'Ссылка скопирована' : 'Не удалось скопировать — выделите ссылку вручную',
+    )
   }
 
   async function sendByCode(event: FormEvent) {
@@ -207,20 +202,28 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
 
   const visibleTeammates = showAllTeammates ? (teammates ?? []) : (teammates ?? []).slice(0, TEAMMATES_SHOWN)
   const teamTitle = teammates !== null && teammates.length > 0 ? teammates[0].team_name : null
+  const exact = results?.filter((player) => player.match === 'exact') ?? []
+  const similar = results?.filter((player) => player.match === 'similar') ?? []
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-0.5 px-1">
+          <h2 className="text-[15px] font-semibold">Добавить в друзья</h2>
+          <p className="text-[13px] leading-relaxed text-text-secondary">
+            Игроку придёт заявка в друзья. В команду зовут на странице команды.
+          </p>
+        </div>
         <label className="flex min-h-12 items-center gap-2.5 rounded-xl border border-white/10 bg-dark-card px-3.5 focus-within:border-accent-ice">
           <i className="ti ti-search text-lg text-text-secondary" aria-hidden="true" />
-          <span className="sr-only">Найти по имени и фамилии</span>
+          <span className="sr-only">Найти игрока</span>
           <input
             type="text"
             inputMode="search"
             enterKeyHint="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Найти по имени и фамилии"
+            placeholder="Имя или фамилия игрока"
             autoComplete="off"
             className="min-w-0 flex-1 bg-transparent text-[15px] text-text-primary outline-none placeholder:text-text-secondary"
           />
@@ -248,13 +251,34 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
       <FormError message={actionError} />
 
       {searching ? (
-        <SearchResults
-          searchable={searchable}
-          results={results}
-          error={searchError}
-          renderRow={(player) => row(player, metaLine(player, true))}
-          onShareLink={() => void shareLink()}
-        />
+        <div className="flex flex-col gap-2">
+          {!searchable && <p className="px-1 text-sm text-text-secondary">Напиши хотя бы 2 буквы</p>}
+          {searchable && searchError !== null && <FormError message={searchError} />}
+          {searchable && searchError === null && results === null && (
+            <p className="px-1 text-sm text-text-secondary">Ищем...</p>
+          )}
+          {searchable && results !== null && (
+            <>
+              <p className="px-1 text-xs leading-relaxed text-text-secondary">
+                {isFullName(query)
+                  ? 'Ищем среди всех, кто разрешил себя находить. Нажми на игрока — откроется его карточка.'
+                  : 'Ищем среди твоих знакомых: друзья, команда, друзья друзей. Чтобы найти любого — напиши имя и фамилию.'}
+              </p>
+              {exact.map((player) => row(player, metaLine(player, true)))}
+              {similar.length > 0 && (
+                <>
+                  <h3 className="mt-2 px-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
+                    Похожие
+                  </h3>
+                  {similar.map((player) => row(player, metaLine(player, true)))}
+                </>
+              )}
+              {results.length === 0 && (
+                <NothingFound fullName={isFullName(query)} onShareLink={() => void shareLink()} />
+              )}
+            </>
+          )}
+        </div>
       ) : (
         <>
           {teammates !== null && teammates.length > 0 && (
@@ -286,9 +310,9 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
 
           <section className="flex flex-col gap-3.5 rounded-2xl border border-accent-ice/15 bg-dark-card p-4">
             <div className="flex flex-col gap-1">
-              <h2 className="font-display text-base font-semibold uppercase tracking-wide">Позвать друга</h2>
+              <h2 className="font-display text-base font-semibold uppercase tracking-wide">Ссылка для друга</h2>
               <p className="text-[13px] leading-relaxed text-text-secondary">
-                Отправь ссылку в мессенджер. Друг откроет её — и заявка придёт тебе, даже если он только что
+                Отправь её в мессенджер. Друг откроет — и тебе придёт его заявка в друзья, даже если он только что
                 зарегистрировался.
               </p>
             </div>
@@ -340,112 +364,35 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
 
       {opened !== null && (
         <PlayerSheet
-          player={opened}
-          relation={relationOf(opened)}
-          isSending={sendingId === opened.id}
-          onAdd={() => void addPlayer(opened)}
+          userId={opened.id}
+          title={`${opened.first_name} ${opened.last_name}`}
           onClose={() => setOpened(null)}
+          onChanged={(relation) => {
+            setSentTo((prev) => ({ ...prev, [opened.id]: relation }))
+            void onFriendsChanged()
+          }}
         />
       )}
     </div>
   )
 }
 
-function SearchResults({
-  searchable,
-  results,
-  error,
-  renderRow,
-  onShareLink,
-}: {
-  searchable: boolean
-  results: PlayerSuggestionRead[] | null
-  error: string | null
-  renderRow: (player: PlayerSuggestionRead) => ReactNode
-  onShareLink: () => void
-}) {
-  if (!searchable) {
-    return <p className="px-1 text-sm text-text-secondary">Напиши имя и фамилию — хотя бы по 2 буквы</p>
-  }
-  if (error !== null) {
-    return <FormError message={error} />
-  }
-  if (results === null) {
-    return <p className="px-1 text-sm text-text-secondary">Ищем...</p>
-  }
-  if (results.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/15 px-4 py-6 text-center">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-dark-card text-text-secondary">
-          <i className="ti ti-user-search text-2xl" aria-hidden="true" />
-        </span>
-        <p className="text-[15px] font-semibold">Никого не нашли</p>
-        <p className="max-w-[280px] text-[13px] leading-relaxed text-text-secondary">
-          Возможно, он скрыт из поиска или ещё не в IceLevel. Отправь ему ссылку — заявка придёт сама.
-        </p>
-        <Button type="button" onClick={onShareLink}>
-          Поделиться ссылкой
-        </Button>
-      </div>
-    )
-  }
+function NothingFound({ fullName, onShareLink }: { fullName: boolean; onShareLink: () => void }) {
   return (
-    <div className="flex flex-col gap-2">
-      <p className="px-1 text-xs text-text-secondary">
-        Найдено {results.length} · нажми на игрока, чтобы открыть его карточку
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/15 px-4 py-6 text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-dark-card text-text-secondary">
+        <i className="ti ti-user-search text-2xl" aria-hidden="true" />
+      </span>
+      <p className="text-[15px] font-semibold">Никого не нашли</p>
+      <p className="max-w-[290px] text-[13px] leading-relaxed text-text-secondary">
+        {fullName
+          ? 'Возможно, он скрыт из поиска или ещё не в IceLevel. Отправь ему ссылку — заявка придёт сама.'
+          : 'Среди знакомых таких нет. Напиши имя и фамилию, чтобы искать среди всех, или отправь ссылку.'}
       </p>
-      {results.map(renderRow)}
+      <Button type="button" onClick={onShareLink}>
+        Поделиться ссылкой
+      </Button>
     </div>
-  )
-}
-
-function Avatar({ player, size = 'h-11 w-11' }: { player: PlayerSuggestionRead; size?: string }) {
-  const initials = `${player.first_name.charAt(0)}${player.last_name.charAt(0)}`.toUpperCase()
-  return (
-    <span className={`flex ${size} shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-accent-ice bg-[#22304A]`}>
-      {player.avatar_url !== null ? (
-        <img src={`${API_BASE_URL}${player.avatar_url}`} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <span className="font-display text-sm font-semibold text-accent-ice">{initials}</span>
-      )}
-    </span>
-  )
-}
-
-function RelationAction({
-  relation,
-  isSending,
-  onAdd,
-  wide = false,
-}: {
-  relation: FriendRelation
-  isSending: boolean
-  onAdd: () => void
-  wide?: boolean
-}) {
-  if (relation === 'friend') {
-    return (
-      <span className="flex min-h-9 shrink-0 items-center justify-center gap-1 px-1.5 text-xs font-medium text-accent-ice">
-        <i className="ti ti-check" aria-hidden="true" />В друзьях
-      </span>
-    )
-  }
-  if (relation === 'outgoing') {
-    return (
-      <span className="flex min-h-9 shrink-0 items-center justify-center rounded-full border border-white/15 px-3 text-xs text-text-secondary">
-        Заявка отправлена
-      </span>
-    )
-  }
-  return (
-    <Button
-      type="button"
-      onClick={onAdd}
-      isLoading={isSending}
-      className={wide ? 'w-full' : '!min-h-9 shrink-0 !rounded-full !px-3.5 !py-1.5 !text-xs'}
-    >
-      {relation === 'incoming' ? 'Принять заявку' : wide ? 'Добавить в друзья' : 'Добавить'}
-    </Button>
   )
 }
 
@@ -472,7 +419,7 @@ function PlayerRow({
         aria-label={`Открыть карточку: ${player.first_name} ${player.last_name}`}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
-        <Avatar player={player} />
+        <PlayerAvatar player={player} />
         <span className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-sm font-semibold text-text-primary">
             {player.first_name} {player.last_name}
@@ -480,78 +427,7 @@ function PlayerRow({
           <span className="truncate text-xs text-text-secondary">{meta}</span>
         </span>
       </button>
-      <RelationAction relation={relation} isSending={isSending} onAdd={onAdd} />
+      <FriendAction relation={relation} isSending={isSending} onAdd={onAdd} />
     </div>
-  )
-}
-
-// Their player card -- the one a friend would see, minus nothing (it never
-// carries the age) -- with the same add button.
-function PlayerSheet({
-  player,
-  relation,
-  isSending,
-  onAdd,
-  onClose,
-}: {
-  player: PlayerSuggestionRead
-  relation: FriendRelation
-  isSending: boolean
-  onAdd: () => void
-  onClose: () => void
-}) {
-  const { accessToken } = useAuth()
-  const [profile, setProfile] = useState<UserPublicRead | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (accessToken === null) {
-      return
-    }
-    let cancelled = false
-    usersApi
-      .getUserPublicProfile(player.id, accessToken)
-      .then((result) => {
-        if (!cancelled) {
-          setProfile(result)
-        }
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setLoadError(err instanceof ApiError ? err.message : 'Не удалось загрузить карточку.')
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [accessToken, player.id])
-
-  const mutual = mutualLine(player.mutual_friends)
-
-  return (
-    <Modal title={`${player.first_name} ${player.last_name}`} onClose={onClose}>
-      <div className="flex flex-col items-center gap-4">
-        <FormError message={loadError} />
-        {profile === null && loadError === null && <p className="text-sm text-text-secondary">Загрузка...</p>}
-        {profile !== null && (
-          <div className="w-full max-w-[340px]">
-            <PublicPlayerCard profile={profile} />
-          </div>
-        )}
-        {(player.team_name !== null || mutual !== null) && (
-          <p className="text-center text-[13px] text-text-secondary">
-            {[player.team_name, mutual].filter(Boolean).join(' · ')}
-          </p>
-        )}
-        <div className="flex w-full justify-center">
-          <RelationAction relation={relation} isSending={isSending} onAdd={onAdd} wide />
-        </div>
-        {relation !== 'friend' && (
-          <p className="text-center text-xs leading-relaxed text-text-secondary">
-            Возраст и лента тренировок откроются, когда вы станете друзьями
-          </p>
-        )}
-      </div>
-    </Modal>
   )
 }

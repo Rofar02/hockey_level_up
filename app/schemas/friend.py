@@ -1,5 +1,6 @@
 import enum
 import uuid
+from typing import Literal
 from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
@@ -58,6 +59,8 @@ class PlayerSuggestionRead(BaseModel):
     team_name: str | None = None
     mutual_friends: int = 0
     relation: FriendRelation = FriendRelation.NONE
+    # Search only: "similar" for a spelling-tolerant hit (Питров -> Петров).
+    match: Literal["exact", "similar"] = "exact"
 
 
 class FriendRequestSentRead(BaseModel):

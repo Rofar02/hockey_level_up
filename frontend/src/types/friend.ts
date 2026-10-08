@@ -33,6 +33,8 @@ export interface PlayerSuggestionRead {
   team_name: string | null
   mutual_friends: number
   relation: FriendRelation
+  // Search only: "similar" for a spelling-tolerant hit (Питров -> Петров).
+  match: 'exact' | 'similar'
 }
 
 // Response to POST /friends/requests -- the receiver's info, since the

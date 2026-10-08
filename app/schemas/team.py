@@ -1,5 +1,6 @@
 import enum
 import uuid
+from typing import Literal
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -133,6 +134,8 @@ class TeamInviteCandidateRead(BaseModel):
     position: Position | None = None
     team_name: str | None = None
     status: TeamInviteStatus
+    # A name-search hit by similar spelling (see FriendDiscoveryService.search).
+    match: Literal["exact", "similar"] = "exact"
 
 
 class TeamInvitationRead(BaseModel):
