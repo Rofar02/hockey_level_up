@@ -47,6 +47,7 @@ from app.schemas.push_subscription import (
     PushTestResultRead,
 )
 from app.schemas.skill import UserSkillPreferenceRead, UserSkillPreferencesReplace
+from app.schemas.game_stats import SeasonRead
 from app.schemas.training_diary import TrainingDiaryEntryListItem
 from app.schemas.user import (
     PublicStatRead,
@@ -71,6 +72,7 @@ from app.services.progress_service import ProgressService
 from app.services.push_subscription_service import PushSubscriptionService
 from app.services.skill_service import SkillService
 from app.services.team_attention_service import TeamAttentionService
+from app.services.game_stats_service import GameStatsService
 from app.services.training_diary_service import TrainingDiaryService
 from app.services.user_service import UserService
 from app.services.user_temporary_restriction_service import (
@@ -404,6 +406,15 @@ async def get_my_training_diary(
     the one they're currently on (see TrainingDiaryCard on
     TrainingSessionPage.tsx for where entries are written)."""
     return await TrainingDiaryService(session).list_entries(current_user)
+
+
+@router.get("/me/season", response_model=SeasonRead)
+async def get_my_season(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """This season's games from the player's own game reports."""
+    return await GameStatsService(session).my_season(current_user)
 
 
 @router.get("/me/restrictions", response_model=list[UserTemporaryRestrictionRead])

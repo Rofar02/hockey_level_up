@@ -39,6 +39,7 @@ const RIGHT_TABS: Tab[] = [
       '/settings',
       '/analytics',
       '/diary',
+      '/season',
       '/restrictions',
       '/reference',
       '/exercise-catalog',

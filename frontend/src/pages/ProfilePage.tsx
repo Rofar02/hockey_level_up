@@ -378,6 +378,7 @@ function OwnProfileView() {
           to="/premium"
         />
         <ProfileRow icon="ti-notebook" label="Дневник" hint="Записи после льда и игр" to="/diary" />
+        <ProfileRow icon="ti-trophy" label="Сезон" hint="Игры, голы, передачи" to="/season" />
         <ProfileRow
           icon="ti-bandage"
           label="Ограничения"

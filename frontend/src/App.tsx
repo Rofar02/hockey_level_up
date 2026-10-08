@@ -37,6 +37,8 @@ const TrainingDiaryPage = lazy(() =>
   import('./pages/TrainingDiaryPage').then((m) => ({ default: m.TrainingDiaryPage })),
 )
 const DiaryPage = lazy(() => import('./pages/DiaryPage').then((m) => ({ default: m.DiaryPage })))
+const SeasonPage = lazy(() => import('./pages/SeasonPage').then((m) => ({ default: m.SeasonPage })))
+const TeamStatsPage = lazy(() => import('./pages/TeamStatsPage').then((m) => ({ default: m.TeamStatsPage })))
 const RestrictionsPage = lazy(() =>
   import('./pages/RestrictionsPage').then((m) => ({ default: m.RestrictionsPage })),
 )
@@ -188,6 +190,7 @@ function App() {
         <Route path="/training/:dayPlanId" element={<TrainingSessionPage />} />
         <Route path="/training/:dayPlanId/diary" element={<TrainingDiaryPage />} />
         <Route path="/diary" element={<DiaryPage />} />
+        <Route path="/season" element={<SeasonPage />} />
         {/* "Ещё" is gone from the tab bar; its items now live under Команда and Профиль. */}
         <Route path="/more" element={<Navigate to="/profile" replace />} />
         <Route path="/restrictions" element={<RestrictionsPage />} />
@@ -214,6 +217,7 @@ function App() {
         <Route path="/teams/leaderboard" element={<TeamRankingPage />} />
         <Route path="/teams/:teamId" element={<TeamDetailPage />} />
         <Route path="/teams/:teamId/events" element={<TeamEventsPage />} />
+        <Route path="/teams/:teamId/stats" element={<TeamStatsPage />} />
         <Route path="/teams/:teamId/events/:eventId" element={<TeamEventDetailPage />} />
         <Route
           path="/teams/:teamId/ice-schedule-templates"
