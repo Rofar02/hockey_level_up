@@ -1,6 +1,7 @@
 import { Suspense, useEffect } from 'react'
 import { Navigate, Outlet, useLocation, useMatch } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
+import { PendingFriendInvite } from './friends/PendingFriendInvite'
 import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
@@ -106,6 +107,7 @@ export function ProtectedRoute() {
         </Suspense>
       </div>
       {!isFullScreenRoute && <BottomNav />}
+      <PendingFriendInvite />
     </CoachmarkProvider>
   )
 }

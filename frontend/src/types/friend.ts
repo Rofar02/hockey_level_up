@@ -14,8 +14,25 @@ export interface FriendRead {
   position: Position | null
 }
 
-export interface FriendCodePayload {
-  code: string
+// By the friend's code (typed in or from their invite link) or, from the
+// search/teammate/suggestion lists, by their id -- one of the two.
+export type FriendCodePayload = { code: string } | { user_id: string }
+
+export type FriendRelation = 'none' | 'outgoing' | 'incoming' | 'friend'
+
+// GET /friends/search, /friends/teammates, /friends/suggestions (2026-10-08):
+// what anyone may see about a player before being friends -- no age.
+export interface PlayerSuggestionRead {
+  id: string
+  first_name: string
+  last_name: string
+  avatar_url: string | null
+  level: number
+  jersey_number: number | null
+  position: Position | null
+  team_name: string | null
+  mutual_friends: number
+  relation: FriendRelation
 }
 
 // Response to POST /friends/requests -- the receiver's info, since the

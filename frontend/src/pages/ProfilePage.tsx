@@ -11,6 +11,7 @@ import { LevelUnlocksModal } from '../components/ui/LevelUnlocksModal'
 import { Modal } from '../components/ui/Modal'
 import { AvatarCropModal } from '../components/AvatarCropModal'
 import { PlayerCard } from '../components/PlayerCard'
+import { PublicPlayerCard } from '../components/PublicPlayerCard'
 import { cardStatsFrom, overallRatingOf } from '../components/playerCardStats'
 import { cardStyleFor, getPlayerCardLook } from '../components/playerCardLook'
 import { ShareCardModal } from '../components/ShareCardModal'
@@ -500,16 +501,6 @@ function OtherUserProfileView({ userId }: { userId: string }) {
     }
   }, [accessToken, userId])
 
-  const avatarUrl = profile?.avatar_url != null ? `${API_BASE_URL}${profile.avatar_url}` : null
-  const cardStats = cardStatsFrom(profile?.stats ?? [])
-  const overallRating = overallRatingOf(profile?.stats ?? [])
-  const subtitle = [
-    profile?.first_name ?? null,
-    profile?.years_of_experience != null ? `${profile.years_of_experience} лет стажа` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
@@ -518,7 +509,7 @@ function OtherUserProfileView({ userId }: { userId: string }) {
 
         {isForbidden && (
           <p className="text-sm text-[#8A94A6]">
-            Этот профиль виден только друзьям и сокомандникам.
+            Этот игрок скрыт из поиска — его карточку видят друзья и сокомандники.
           </p>
         )}
         <FormError message={loadError} />
@@ -530,21 +521,7 @@ function OtherUserProfileView({ userId }: { userId: string }) {
             teammates compare cards, which is half the point of having one. */}
         {profile !== null && (
           <div className="mx-auto w-full max-w-[360px]">
-            <PlayerCard
-              cardStyle={cardStyleFor(profile.level, profile.avatar_ring_accent)}
-              premium={profile.has_premium}
-              jerseyColor={profile.jersey_color}
-              rating={overallRating}
-              position={profile.position}
-              jerseyNumber={profile.jersey_number}
-              surname={profile.last_name || profile.first_name}
-              subtitle={subtitle}
-              level={profile.level}
-              xp={profile.xp}
-              avatarUrl={avatarUrl}
-              teamLogoUrl={null}
-              stats={cardStats}
-            />
+            <PublicPlayerCard profile={profile} />
           </div>
         )}
       </div>

@@ -575,6 +575,11 @@ async def get_user_public_profile(
     "/me"-style ordering landmine to worry about here today.
     """
     profile = await UserService(session).get_public_profile(current_user, user_id)
+    return await public_card(session, profile)
+
+
+async def public_card(session: AsyncSession, profile: User) -> UserPublicRead:
+    """The player card someone else sees -- also behind the invite link."""
     stats = await ProgressService(session).list_user_stats(profile.id)
     return UserPublicRead.model_validate(profile).model_copy(
         update={

@@ -109,7 +109,7 @@ export function PlayerCard({
         />
       ) : (
         // No photo yet: the player's own jersey stands in for them.
-        <svg data-card="jersey" viewBox="0 0 130 110" className="mb-[92px] ml-auto mr-6 w-[196px] opacity-90" aria-hidden="true" style={{ color: numberColor }}>
+        <svg data-card="jersey" viewBox="0 0 130 110" className="mb-[112px] ml-auto mr-3 w-[min(196px,56%)] opacity-90" aria-hidden="true" style={{ color: numberColor }}>
           <path d={JERSEY_PATH} fill="rgba(14,21,36,0.55)" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round" />
           <path d={COLLAR_PATH} fill="none" stroke="currentColor" strokeWidth={1.5} />
           <text x={65} y={34} textAnchor="middle" fontSize={10} letterSpacing={0.5} fill="currentColor" className="font-display font-semibold uppercase">

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
@@ -9,7 +8,7 @@ import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { RankBadge } from '../components/ui/RankBadge'
 import { TabButton } from '../components/ui/TabButton'
-import { TextField } from '../components/ui/TextField'
+import { AddFriendsTab } from '../components/friends/AddFriendsTab'
 import * as friendsApi from '../api/friends'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -18,7 +17,6 @@ import type { ActivityFeedEntryRead } from '../types/friendActivity'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
 import { getDisplayName } from '../utils/displayName'
-import { copyText } from '../utils/clipboard'
 
 type FriendsTab = 'friends' | 'add' | 'feed' | 'leaderboard'
 
@@ -60,7 +58,7 @@ function formatActivityDate(value: string): string {
 
 export function FriendsPage() {
   const navigate = useNavigate()
-  const { user, accessToken } = useAuth()
+  const { accessToken } = useAuth()
 
   const [activeTab, setActiveTab] = useState<FriendsTab>('friends')
 
@@ -72,13 +70,6 @@ export function FriendsPage() {
 
   const [decidingIds, setDecidingIds] = useState<Set<string>>(new Set())
   const [actionError, setActionError] = useState<string | null>(null)
-
-  const [code, setCode] = useState('')
-  const [isSending, setIsSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const [sendSuccess, setSendSuccess] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
-  const [copyError, setCopyError] = useState<string | null>(null)
 
   async function refreshFriendsAndRequests() {
     if (accessToken === null) {
@@ -192,43 +183,6 @@ export function FriendsPage() {
     }
   }
 
-  async function handleSendRequest(event: FormEvent) {
-    event.preventDefault()
-    if (accessToken === null || code.trim() === '') {
-      return
-    }
-    setSendError(null)
-    setSendSuccess(null)
-    setIsSending(true)
-    try {
-      const sent = await friendsApi.sendFriendRequest({ code: code.trim().toUpperCase() }, accessToken)
-      setCode('')
-      setSendSuccess(
-        sent.status === 'accepted'
-          ? `Вы теперь друзья с ${sent.receiver_first_name} ${sent.receiver_last_name}`
-          : `Заявка отправлена: ${sent.receiver_first_name} ${sent.receiver_last_name}`,
-      )
-      await refreshFriendsAndRequests()
-    } catch (err) {
-      setSendError(err instanceof ApiError ? err.message : 'Не удалось отправить заявку.')
-    } finally {
-      setIsSending(false)
-    }
-  }
-
-  async function handleCopyCode() {
-    if (user?.friend_code == null) {
-      return
-    }
-    setCopyError(null)
-    if (await copyText(user.friend_code)) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } else {
-      setCopyError('Не удалось скопировать — выделите код вручную.')
-    }
-  }
-
   const isLoading = friends === null || incomingRequests === null
 
   return (
@@ -317,12 +271,16 @@ export function FriendsPage() {
                         key={request.id}
                         className={`flex items-center justify-between gap-4 p-4 ${CARD_CLASS}`}
                       >
-                        <span className="min-w-0 truncate text-sm text-[#F5F7FA]">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/profile/${request.sender_id}`)}
+                          className="min-w-0 truncate text-left text-sm text-[#F5F7FA] hover:underline"
+                        >
                           {getDisplayName({
                             first_name: request.sender_first_name,
                             last_name: request.sender_last_name,
                           })}
-                        </span>
+                        </button>
                         <div className="flex shrink-0 gap-2">
                           <Button
                             type="button"
@@ -352,41 +310,7 @@ export function FriendsPage() {
             )}
 
             {activeTab === 'add' && (
-              <div className="flex flex-col gap-6">
-                <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
-                  <span className="text-xs uppercase tracking-wide text-[#8A94A6]">Ваш код</span>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-mono text-sm text-[#F5F7FA]">
-                      {user?.friend_code ?? '—'}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="neutral"
-                      onClick={handleCopyCode}
-                      disabled={user?.friend_code == null}
-                      className="shrink-0 !px-3 !py-1.5 !text-xs"
-                    >
-                      {copied ? 'Скопировано' : 'Копировать'}
-                    </Button>
-                  </div>
-                  <FormError message={copyError} />
-                </div>
-
-                <form onSubmit={handleSendRequest} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <TextField
-                    label="Код друга"
-                    value={code}
-                    onChange={(event) => setCode(event.target.value)}
-                    maxLength={16}
-                    className="flex-1 uppercase"
-                  />
-                  <Button type="submit" isLoading={isSending} disabled={code.trim() === ''}>
-                    Отправить заявку
-                  </Button>
-                </form>
-                <FormError message={sendError} />
-                {sendSuccess !== null && <p className="text-sm text-accent-ice">{sendSuccess}</p>}
-              </div>
+              <AddFriendsTab onFriendsChanged={() => refreshFriendsAndRequests().catch(() => undefined)} />
             )}
 
             {activeTab === 'feed' &&

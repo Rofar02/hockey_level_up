@@ -1,10 +1,12 @@
-import { apiDeleteAuth, apiGet, apiPostAuth } from './client'
+import { apiDeleteAuth, apiGet, apiGetPublic, apiPostAuth } from './client'
 import type {
   FriendCodePayload,
   FriendRead,
   FriendRequestRead,
   FriendRequestSentRead,
+  PlayerSuggestionRead,
 } from '../types/friend'
+import type { UserPublicRead } from '../types/user'
 import type { ActivityFeedEntryRead } from '../types/friendActivity'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 
@@ -52,4 +54,21 @@ export function declineFriendRequest(
 
 export function removeFriend(friendId: string, accessToken: string): Promise<void> {
   return apiDeleteAuth<void>(`/friends/${friendId}`, accessToken)
+}
+
+export function searchPlayers(query: string, accessToken: string): Promise<PlayerSuggestionRead[]> {
+  return apiGet<PlayerSuggestionRead[]>(`/friends/search?q=${encodeURIComponent(query)}`, accessToken)
+}
+
+export function listTeammatesToAdd(accessToken: string): Promise<PlayerSuggestionRead[]> {
+  return apiGet<PlayerSuggestionRead[]>('/friends/teammates', accessToken)
+}
+
+export function listFriendSuggestions(accessToken: string): Promise<PlayerSuggestionRead[]> {
+  return apiGet<PlayerSuggestionRead[]>('/friends/suggestions', accessToken)
+}
+
+// Whose invite link this is -- no login needed (the page opens for anyone).
+export function getInvite(code: string): Promise<UserPublicRead> {
+  return apiGetPublic<UserPublicRead>(`/friends/invite/${encodeURIComponent(code)}`)
 }

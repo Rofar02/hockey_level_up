@@ -59,6 +59,12 @@ const GROUPS: SettingsGroup[] = [
         to: '/settings/notifications',
       },
       {
+        icon: 'ti-lock',
+        label: 'Приватность',
+        description: 'Кто может найти тебя по имени',
+        to: '/settings/privacy',
+      },
+      {
         icon: 'ti-user-circle',
         label: 'Аккаунт',
         description: 'Выход, удаление аккаунта',

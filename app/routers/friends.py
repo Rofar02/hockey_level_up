@@ -1,21 +1,25 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
+from app.routers.users import public_card
 from app.schemas.friend import (
     FriendCodePayload,
     FriendRead,
     FriendRequestRead,
     FriendRequestSentRead,
+    PlayerSuggestionRead,
 )
+from app.schemas.user import UserPublicRead
 from app.schemas.friend_activity import ActivityFeedEntryRead
 from app.schemas.leaderboard import LeaderboardEntryRead
 from app.services.friend_activity_service import FriendActivityService
+from app.services.friend_discovery_service import FriendDiscoveryService
 from app.services.friend_service import FriendService
 from app.services.leaderboard_service import LeaderboardService
 
@@ -53,6 +57,47 @@ async def get_friend_activity_feed(
     return await FriendActivityService(session).get_feed(current_user.id, limit, offset)
 
 
+@router.get("/search", response_model=list[PlayerSuggestionRead])
+async def search_players(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    q: str = Query(min_length=1, max_length=100),
+):
+    """By first and last name, among the players findable by name. Same
+    route-ordering note as /leaderboard above (and for the routes below)."""
+    return await FriendDiscoveryService(session).search(current_user, q)
+
+
+@router.get("/teammates", response_model=list[PlayerSuggestionRead])
+async def list_teammates_to_add(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await FriendDiscoveryService(session).teammates(current_user)
+
+
+@router.get("/suggestions", response_model=list[PlayerSuggestionRead])
+async def list_friend_suggestions(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await FriendDiscoveryService(session).suggestions(current_user)
+
+
+@router.get("/invite/{code}", response_model=UserPublicRead)
+async def get_invite(
+    code: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Whose invite link this is -- their player card, for the page the
+    link opens. No login needed: the link is the owner's own, shared on
+    purpose, and the card carries no age."""
+    inviter = await FriendService(session).get_user_by_code(code)
+    if inviter is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Приглашение не найдено")
+    return await public_card(session, inviter)
+
+
 @router.get("/requests", response_model=list[FriendRequestRead])
 async def list_incoming_requests(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -68,7 +113,9 @@ async def send_friend_request(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await FriendService(session).send_request_by_code(current_user, body.code)
+    if body.user_id is not None:
+        return await FriendService(session).send_request_to_user(current_user, body.user_id)
+    return await FriendService(session).send_request_by_code(current_user, body.code or "")
 
 
 @router.post("/requests/{request_id}/accept", response_model=FriendRequestRead)

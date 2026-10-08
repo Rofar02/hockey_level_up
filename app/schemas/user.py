@@ -67,6 +67,9 @@ class UserRead(UserBase):
     # other users) -- shared out-of-band so a friend can send a request to
     # it (FriendService.send_request_by_code).
     friend_code: str | None = None
+    # Whether the name search finds this player now (the explicit choice or
+    # the age default, see User.findable_by_name).
+    findable_by_name: bool = False
     # Stage 2.2: bypasses the equipment filter entirely when true. Owned
     # items themselves (UserEquipmentItem) aren't a passthrough field here,
     # same "not part of the main Read schema" treatment ExerciseRead gives
@@ -155,6 +158,7 @@ class UserUpdate(BaseModel):
     has_seen_weight_hint: bool | None = None
     avatar_ring_accent: AvatarRingAccent | None = None
     jersey_color: JerseyColor | None = None
+    name_search: bool | None = None
 
     @field_validator("timezone")
     @classmethod

@@ -2,9 +2,11 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.friend import FriendRequest, FriendRequestStatus
+from app.models.team import TeamMembership
 from app.models.user import User
 from app.repositories.friend_repository import FriendRepository
 from app.schemas.friend import FriendRead, FriendRequestRead, FriendRequestSentRead
@@ -16,9 +18,51 @@ class FriendService:
         self._friends = FriendRepository(session)
 
     async def send_request_by_code(self, sender: User, code: str) -> FriendRequestSentRead:
-        receiver = await self._friends.get_user_by_friend_code(code)
+        receiver = await self._friends.get_user_by_friend_code(code.strip().upper())
         if receiver is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid friend code")
+        return await self._send(sender, receiver)
+
+    async def send_request_to_user(self, sender: User, user_id: uuid.UUID) -> FriendRequestSentRead:
+        """From the search, teammate and suggestion lists (2026-10-08). Only
+        to someone those lists could show: findable by name, a teammate, or
+        someone who already asked us -- not to any id guessed or copied."""
+        receiver = await self._session.get(User, user_id)
+        if receiver is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        if receiver.id != sender.id and not (
+            receiver.findable_by_name
+            or await self.share_a_team(sender.id, receiver.id)
+            or await self._friends.get_request(sender_id=receiver.id, receiver_id=sender.id) is not None
+            or await self._friends.get_request(sender_id=sender.id, receiver_id=receiver.id) is not None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Этого игрока можно добавить только по его коду или ссылке",
+            )
+        return await self._send(sender, receiver)
+
+    async def share_a_team(self, user_id: uuid.UUID, other_id: uuid.UUID) -> bool:
+        mine = select(TeamMembership.team_id).where(TeamMembership.user_id == user_id)
+        result = await self._session.execute(
+            select(TeamMembership.id)
+            .where(TeamMembership.user_id == other_id, TeamMembership.team_id.in_(mine))
+            .limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def has_request_between(self, user_id: uuid.UUID, other_id: uuid.UUID) -> bool:
+        """Any request either way, pending or answered -- either side may see
+        the other's card while deciding."""
+        return (
+            await self._friends.get_request(sender_id=user_id, receiver_id=other_id) is not None
+            or await self._friends.get_request(sender_id=other_id, receiver_id=user_id) is not None
+        )
+
+    async def get_user_by_code(self, code: str) -> User | None:
+        return await self._friends.get_user_by_friend_code(code.strip().upper())
+
+    async def _send(self, sender: User, receiver: User) -> FriendRequestSentRead:
         if receiver.id == sender.id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Can't send a friend request to yourself"
