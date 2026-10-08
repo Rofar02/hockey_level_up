@@ -2,12 +2,27 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, Integer, String, false, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    String,
+    false,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.db.enum_column import enum_column
+
+# Below this age a player is hidden from the name search by default.
+ADULT_AGE = 18
 
 
 class Position(enum.StrEnum):
@@ -77,6 +92,9 @@ class User(Base):
             "jersey_number IS NULL OR (jersey_number >= 0 AND jersey_number <= 99)",
             name="ck_users_jersey_number",
         ),
+        # Prefix lookups for the friend search by name (2026-10-08).
+        Index("ix_users_lower_last_name", func.lower(text("last_name"))),
+        Index("ix_users_lower_first_name", func.lower(text("first_name"))),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -202,6 +220,12 @@ class User(Base):
     # test-only User rows built without going through either path.
     friend_code: Mapped[str | None] = mapped_column(String(16), unique=True, index=True, nullable=True)
 
+    # "Меня можно найти по имени" (2026-10-08): the player's own choice, or
+    # NULL for the default -- found by name from 18, hidden below it (and
+    # when the age is unknown), so a kid isn't findable unless they chose
+    # it. See findable_by_name and FriendService.search.
+    name_search: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
     # IANA zone name (e.g. "Europe/Moscow"), auto-detected client-side via
     # Intl.DateTimeFormat().resolvedOptions().timeZone when the user turns
     # reminders on -- without it, reminder_scheduler would have no way to
@@ -266,6 +290,12 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    @property
+    def findable_by_name(self) -> bool:
+        if self.name_search is not None:
+            return self.name_search
+        return self.age is not None and self.age >= ADULT_AGE
 
     @property
     def avatar_url(self) -> str | None:

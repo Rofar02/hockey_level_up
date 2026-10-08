@@ -186,7 +186,16 @@ class UserService:
     async def _can_view_profile(self, requester_id: uuid.UUID, target_id: uuid.UUID) -> bool:
         if await self._friends.are_friends(requester_id, target_id):
             return True
-        return await self._share_a_team(requester_id, target_id)
+        if await self._share_a_team(requester_id, target_id):
+            return True
+        # 2026-10-08: the card (no age -- UserPublicRead never has it) is
+        # what the name search and a friend request show, so it's open to
+        # whoever could find the player by name, and to both sides of a
+        # request.
+        target = await self._users.get_by_id(target_id)
+        if target is not None and target.findable_by_name:
+            return True
+        return await self._friends.has_request_between(requester_id, target_id)
 
     async def _share_a_team(self, requester_id: uuid.UUID, target_id: uuid.UUID) -> bool:
         requester_team_ids = select(TeamMembership.team_id).where(
