@@ -6,6 +6,7 @@ import { WeeklyReviewCard } from '../components/WeeklyReviewCard'
 import { CoachPlanReminderCard } from '../components/teamEvents/CoachPlanReminderCard'
 import { TeamDayCard } from '../components/teamEvents/TeamDayCard'
 import { IceFocusCard } from '../components/IceFocusCard'
+import { OnboardingCard } from '../components/OnboardingCard'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
 import { CARD_BORDER, CARD_CLASS } from '../components/ui/cardStyle'
@@ -490,6 +491,10 @@ export function HomePage() {
 
         {!isLoading && (
           <div className="flex flex-col gap-4">
+            {/* New players: the main loop as a paid checklist, until done or
+                hidden. */}
+            <OnboardingCard />
+
             {/* Captains only, and only while a training this week has no
                 published plan -- renders nothing otherwise. */}
             <CoachPlanReminderCard />
