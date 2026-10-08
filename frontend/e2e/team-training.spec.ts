@@ -110,6 +110,10 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   // chained pass from the end of that arrow; an opponent; undo; save.
   const editor = page.getByRole('dialog', { name: 'Схема: 2 в 1 через центр' })
   await expect(editor).toBeVisible()
+  // First open: the four-step tour card -- skipped, it would cover the palette.
+  await expect(editor.getByText('Расставьте игроков')).toBeVisible()
+  await editor.getByRole('button', { name: 'Пропустить' }).click()
+  await expect(editor.getByText('Расставьте игроков')).toBeHidden()
   // Empty rink: a hint, and "Сохранить" explains instead of closing.
   await expect(editor.getByText('Добавь игрока кнопкой «Свой» внизу')).toBeVisible()
   await editor.getByRole('button', { name: 'Сохранить' }).click()
@@ -458,7 +462,10 @@ test('after the start the home card leads to the report, which grants the team r
   await loginAs(page, setup.player)
   await page.goto('/')
   await expect(page.getByText(/Началась в/)).toBeVisible()
-  const xpBefore = (await api<{ xp: number }>('GET', '/auth/me', { token: setup.player.token })).xp
+  // The "Путь новичка" card pays its steps on load -- let it settle first.
+  await expect(page.getByText('Путь новичка')).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  const before = await api<{ xp: number; level: number }>('GET', '/auth/me', { token: setup.player.token })
   await page.getByRole('button', { name: 'Отчёт после тренировки' }).click()
   // The ordinary personal diary's report -- there is no separate team diary.
   await expect(page).toHaveURL(/\/training\/[^/]+\/diary$/)
@@ -472,8 +479,9 @@ test('after the start the home card leads to the report, which grants the team r
   // reward screen.
   await expect(page.getByText('Лёд закрыт')).toBeVisible()
   await expect(page.getByText('+50 XP')).toBeVisible()
-  const xpAfter = (await api<{ xp: number }>('GET', '/auth/me', { token: setup.player.token })).xp
-  expect(xpAfter - xpBefore).toBe(50)
+  const after = await api<{ xp: number; level: number }>('GET', '/auth/me', { token: setup.player.token })
+  // +50, unless it tipped the player into the next level (XP restarts there).
+  expect(after.level > before.level || after.xp - before.xp === 50).toBe(true)
   await page.getByRole('button', { name: 'Отлично' }).click()
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByText('Выполнено')).toBeVisible()

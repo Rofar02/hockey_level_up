@@ -31,7 +31,9 @@ function alreadySeen(): boolean {
 
 // First open of the rink scheme editor (2026-10-08): four short steps on how
 // to draw. The editor covers the whole app and keeps the app-wide coachmark
-// tour suppressed, so it has its own card. Once per device.
+// tour suppressed, so it has its own card -- at the top, over the far end of
+// the rink, so the palette, frames and toolbar below stay usable. Once per
+// device.
 export function BoardTour() {
   const [step, setStep] = useState<number | null>(() => (alreadySeen() ? null : 0))
   if (step === null) {
@@ -50,7 +52,7 @@ export function BoardTour() {
   const current = STEPS[step]
   const isLast = step === STEPS.length - 1
   return (
-    <div className="pointer-events-none absolute inset-x-3 bottom-[calc(84px+env(safe-area-inset-bottom,0px))] z-20 flex justify-center">
+    <div className="pointer-events-none absolute inset-x-3 top-[calc(92px+env(safe-area-inset-top,0px))] z-20 flex justify-center">
       <section
         role="dialog"
         aria-label="Как рисовать схему"

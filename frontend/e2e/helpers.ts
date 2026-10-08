@@ -204,9 +204,11 @@ export async function expectBottomNotHiddenByNav(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle')
   let previousHeight = -1
   for (let attempt = 0; attempt < 8; attempt++) {
+    // The app scrolls #root, not the document (2026-10-08 app shell).
     const height = await page.evaluate(() => {
-      window.scrollTo(0, document.documentElement.scrollHeight)
-      return document.documentElement.scrollHeight
+      const scroller = document.getElementById('root') ?? document.documentElement
+      scroller.scrollTo(0, scroller.scrollHeight)
+      return scroller.scrollHeight
     })
     if (height === previousHeight) {
       break

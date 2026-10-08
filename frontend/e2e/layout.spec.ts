@@ -108,6 +108,8 @@ test('coach screens fit the phone', async ({ page }) => {
   // Scheme editor: the whole rink and the toolbar visible without scrolling.
   await page.getByRole('button', { name: 'Изменить схему: Бросок с кистей от синей' }).click()
   const editor = page.getByRole('dialog', { name: /Схема:/ })
+  // First open shows the four-step tour card -- out of the way.
+  await editor.getByRole('button', { name: 'Пропустить' }).click()
   await expect(editor.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeInViewport({ ratio: 1 })
   await expect(editor.getByRole('button', { name: 'Отменить' })).toBeInViewport({ ratio: 1 })
   await expect(editor.getByRole('button', { name: 'Сохранить' })).toBeInViewport({ ratio: 1 })
