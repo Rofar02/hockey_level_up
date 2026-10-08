@@ -59,6 +59,8 @@ class SessionBlockService:
                 "exercise_id": str(block.exercise_id),
                 "target_stats": [stat.value for stat in target_stats],
                 "difficulty_level": block.exercise.difficulty_level,
+                # Warm-up/cool-down credit less (see stat_consumer).
+                "phase": block.phase.value,
             },
         )
         await self._maybe_publish_training_completed(block, user)

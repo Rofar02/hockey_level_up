@@ -166,12 +166,21 @@ function formatStatGain(value: number): string {
   return value.toFixed(1)
 }
 
-function formatCompletionFeedback(exercise: ExerciseRead): string {
+// Mirrors PHASE_GAIN_MULTIPLIERS in app/events/handlers/block_completed.py
+// (2026-10-08): warm-up and cool-down credit a fraction of the stat gain.
+const WARMUP_COOLDOWN_GAIN_MULTIPLIER = 0.4
+
+function statShare(exercise: ExerciseRead, phase: TrainingPhase): number {
+  const multiplier = phase === 'warmup' || phase === 'cooldown' ? WARMUP_COOLDOWN_GAIN_MULTIPLIER : 1
+  return ((exercise.difficulty_level * 0.5) / exercise.target_stats.length) * multiplier
+}
+
+function formatCompletionFeedback(exercise: ExerciseRead, phase: TrainingPhase): string {
   const xpGain = exercise.difficulty_level * 10
   if (exercise.target_stats.length === 0) {
     return `+${xpGain} XP`
   }
-  const statGain = (exercise.difficulty_level * 0.5) / exercise.target_stats.length
+  const statGain = statShare(exercise, phase)
   const statsText = exercise.target_stats
     .map((stat) => `+${formatStatGain(statGain)} ${TARGET_STAT_LABELS[stat]}`)
     .join(' ')
@@ -191,7 +200,7 @@ function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
   for (const block of sessionBlocks) {
     const stats = block.exercise.target_stats
     if (stats.length > 0) {
-      const share = (block.exercise.difficulty_level * 0.5) / stats.length
+      const share = statShare(block.exercise, block.phase)
       for (const stat of stats) {
         statTotals[stat] = (statTotals[stat] ?? 0) + share
       }
@@ -472,7 +481,7 @@ export function TrainingSessionPage() {
       } else {
         setFeedbackByBlockId((previous) => ({
           ...previous,
-          [block.id]: formatCompletionFeedback(block.exercise),
+          [block.id]: formatCompletionFeedback(block.exercise, block.phase),
         }))
       }
     } catch (err) {

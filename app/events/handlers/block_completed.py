@@ -10,7 +10,7 @@ from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, MAX_INTENSITY, get_e
 from app.db.session import AsyncSessionLocal
 from app.events.idempotency import try_claim
 from app.events.registry import register_handler
-from app.models.exercise import ExerciseMuscleGroup, TargetStat
+from app.models.exercise import ExerciseMuscleGroup, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, TrainingStreak, UserMuscleLoad, UserStat
 from app.models.skill import SkillStatWeight, SkillTag
 from app.models.user import User
@@ -41,6 +41,19 @@ BASE_MULTIPLIER = 1.0
 # meant to stay a asymptotic ceiling, not a normal-play target.
 STAT_HARD_CAP = 100.0
 DIMINISHING_EXPONENT = 2.2
+
+WARMUP_COOLDOWN_GAIN_MULTIPLIER = 0.4
+
+# 2026-10-08: every warm-up and cool-down block credited the full gain, and
+# almost all of them are tagged agility -- a 6-month simulation put agility
+# at 83 (the curve above means ~32 weeks for 80) and far ahead of every
+# other stat. They're preparation and recovery, not training, so they now
+# credit a fraction. MAIN and the puck module keep the full gain; an event
+# without "phase" (queued before this change) counts as MAIN.
+PHASE_GAIN_MULTIPLIERS: dict[TrainingPhase, float] = {
+    TrainingPhase.WARMUP: WARMUP_COOLDOWN_GAIN_MULTIPLIER,
+    TrainingPhase.COOLDOWN: WARMUP_COOLDOWN_GAIN_MULTIPLIER,
+}
 
 STAT_CONSUMER_HANDLER_NAME = "stat_consumer"
 STREAK_CONSUMER_HANDLER_NAME = "streak_consumer"
@@ -98,7 +111,8 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
         # relevance_multiplier below, computed independently, since those are
         # legitimately per-(user, stat) and per-(exercise, stat) quantities, not
         # something to also split.
-        base_gain = (difficulty_level * 0.5) / len(stat_types)
+        phase = TrainingPhase(payload.get("phase", TrainingPhase.MAIN.value))
+        base_gain = (difficulty_level * 0.5) / len(stat_types) * PHASE_GAIN_MULTIPLIERS.get(phase, 1.0)
 
         skill_ids = (
             await session.execute(

@@ -28,6 +28,7 @@ from app.db.session import engine as app_engine
 from app.events.handlers.block_completed import (
     STAT_CONSUMER_HANDLER_NAME,
     STREAK_CONSUMER_HANDLER_NAME,
+    WARMUP_COOLDOWN_GAIN_MULTIPLIER,
     XP_CONSUMER_HANDLER_NAME,
     stat_consumer,
     streak_consumer,
@@ -496,3 +497,29 @@ async def test_streak_consumer_handles_a_deleted_user_without_crashing() -> None
         assert claimed is not None  # but still claimed, so redelivery doesn't retry forever
     finally:
         await _cleanup_processed_events(event_id)
+
+
+@pytest.mark.asyncio
+async def test_warmup_and_cooldown_credit_a_fraction_of_the_gain(real_user) -> None:
+    """2026-10-08: warm-up/cool-down blocks credit WARMUP_COOLDOWN_GAIN_MULTIPLIER
+    of the gain; MAIN keeps it whole, and an event queued before "phase"
+    was added to the payload counts as MAIN."""
+    cases = [
+        (TargetStat.AGILITY, "warmup", 2 * 0.5 * WARMUP_COOLDOWN_GAIN_MULTIPLIER),
+        (TargetStat.ENDURANCE, "cooldown", 2 * 0.5 * WARMUP_COOLDOWN_GAIN_MULTIPLIER),
+        (TargetStat.STRENGTH, "main", 2 * 0.5),
+        (TargetStat.INTELLECT, None, 2 * 0.5),
+    ]
+    event_ids = []
+    try:
+        for stat, phase, _ in cases:
+            payload = _payload(real_user.id, difficulty_level=2, stats=[stat])
+            if phase is not None:
+                payload["phase"] = phase
+            event_id = uuid.uuid4()
+            event_ids.append(event_id)
+            await stat_consumer(payload, event_id)
+        for stat, _, expected in cases:
+            assert await _stat_value(real_user.id, stat) == pytest.approx(expected)
+    finally:
+        await _cleanup_processed_events(*event_ids)
