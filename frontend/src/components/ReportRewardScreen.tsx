@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FullScreenOverlay } from './ui/FullScreenOverlay'
 import { useNavigate } from 'react-router-dom'
 import * as authApi from '../api/auth'
 import * as progressApi from '../api/progress'
@@ -61,7 +62,7 @@ export function ReportRewardScreen({
   const stats = (Object.entries(statRewards) as [TargetStat, number][]).sort((a, b) => b[1] - a[1])
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-dark-bg">
+    <FullScreenOverlay className="flex flex-col overflow-y-auto bg-dark-bg">
       <IceGlowBackground />
       <div className="relative z-[1] mx-auto flex w-full max-w-sm flex-1 flex-col items-center gap-6 px-5 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(3.5rem+env(safe-area-inset-top))]">
         <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-accent-ice bg-accent-ice/10">
@@ -126,6 +127,6 @@ export function ReportRewardScreen({
           </button>
         </div>
       </div>
-    </div>
+    </FullScreenOverlay>
   )
 }

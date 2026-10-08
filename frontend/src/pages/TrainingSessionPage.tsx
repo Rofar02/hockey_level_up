@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { TouchEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
+import { FullScreenOverlay } from '../components/ui/FullScreenOverlay'
 import { CardGlow } from '../components/ui/CardGlow'
 import { CARD_CLASS } from '../components/ui/cardStyle'
 import { Checkbox } from '../components/ui/Checkbox'
@@ -1174,7 +1176,9 @@ function PhasePreviewSheet({
     setDragOffset(0)
   }
 
-  return (
+  // Portaled like Modal: fixed inside #root (the app's scroller) it
+  // could ride along with the page on iOS.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
         onClick={(event) => event.stopPropagation()}
@@ -1245,7 +1249,8 @@ function PhasePreviewSheet({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -1460,7 +1465,7 @@ function SessionCompleteModal({
     freshLevel > levelBeforeSession
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-dark-bg px-4 py-10">
+    <FullScreenOverlay className="flex flex-col items-center overflow-y-auto bg-dark-bg px-4 py-10">
       <div className="flex w-full max-w-sm flex-col items-center gap-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <i className="ti ti-check text-5xl text-accent-ice" aria-hidden="true" />
@@ -1583,7 +1588,7 @@ function SessionCompleteModal({
           </Button>
         )}
       </div>
-    </div>
+    </FullScreenOverlay>
   )
 }
 

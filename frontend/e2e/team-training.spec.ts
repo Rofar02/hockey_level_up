@@ -48,6 +48,9 @@ async function rinkBox(page: Page) {
 }
 
 test('coach finds the plan from the team page and builds it', async ({ page }) => {
+  // The longest walk in the suite (plan, scheme, publish) -- past 90s on a
+  // busy machine.
+  test.setTimeout(180_000)
   await loginAs(page, setup.captain)
 
   // The captain's home screen nudges about the unfinished plan and leads

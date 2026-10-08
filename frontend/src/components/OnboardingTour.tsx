@@ -1,4 +1,5 @@
 import { Button } from './ui/Button'
+import { FullScreenOverlay } from './ui/FullScreenOverlay'
 import { CARD_BORDER } from './ui/cardStyle'
 
 interface OnboardingTourProps {
@@ -18,7 +19,7 @@ interface OnboardingTourProps {
 // your first week", not a feature tour.
 export function OnboardingTour({ onSkip, onComplete }: OnboardingTourProps) {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-dark-bg">
+    <FullScreenOverlay className="flex flex-col overflow-hidden bg-dark-bg">
       {/* Same arena-bg + logo treatment as Login/Register/Onboarding --
           this is still part of that "welcome" sequence (shown once, right
           after finishing onboarding), not a regular in-app screen --
@@ -57,6 +58,6 @@ export function OnboardingTour({ onSkip, onComplete }: OnboardingTourProps) {
           Начать
         </Button>
       </div>
-    </div>
+    </FullScreenOverlay>
   )
 }
