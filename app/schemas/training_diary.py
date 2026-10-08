@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.exercise import TargetStat
 from app.models.schedule import DaySessionType
 
 
@@ -18,7 +19,11 @@ class TrainingDiaryEntryRead(BaseModel):
     note: str | None
     created_at: datetime
     updated_at: datetime
-
+    # Set by TrainingDiaryService as plain attributes on the entry (not
+    # columns): whether this day's diary reward has been credited, and what
+    # this particular save credited (empty on every other save).
+    rewarded: bool = False
+    stat_rewards: dict[TargetStat, float] = {}
 
 class TrainingDiaryEntryListItem(BaseModel):
     """GET /users/me/training-diary -- includes the day's own date/

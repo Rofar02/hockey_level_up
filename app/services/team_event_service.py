@@ -3,18 +3,14 @@ from datetime import datetime, timedelta, timezone
 from datetime import time as time_
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.events.handlers.block_completed import (
-    DIMINISHING_EXPONENT,
     LEVEL_UP_EVENT,
-    STAT_HARD_CAP,
     xp_to_next_level,
 )
 from app.models.exercise import TargetStat
-from app.models.progress import StatHistory, UserStat
 from app.models.push_subscription import PushSubscription
 from app.models.team import Team
 from app.models.team_event import (
@@ -51,6 +47,7 @@ from app.schemas.team_event import (
 )
 from app.services.push_service import send_push
 from app.services.schedule_service import ScheduleService
+from app.services.stat_award import credit_stats
 
 # -2h from starts_at -- see TeamEventAttendance's own docstring.
 ATTENDANCE_DEADLINE = timedelta(hours=2)
@@ -762,50 +759,20 @@ class TeamEventService:
         return True
 
     async def _award_team_training_rewards(self, user_id: uuid.UUID, team_event_id: uuid.UUID) -> None:
-        """Same shape as block_completed.stat_consumer's per-stat upsert
-        (atomic, clamped to STAT_HARD_CAP in SQL) and xp_consumer's atomic
-        XP increment + level-up check -- reused directly here rather than
+        """Stats via stat_award.credit_stats (stat_consumer's curve and
+        upsert) and xp_consumer's atomic XP increment + level-up check --
+        reused directly here rather than
         going through the outbox/block_completed event, since there's no
         Exercise/SessionBlock for this to be "about" and nothing else needs
         to react to it asynchronously; this already runs in
         save_diary_entry's own transaction.
         """
-        for stat_type in TEAM_TRAINING_STATS:
-            current_value = (
-                await self._session.execute(
-                    select(UserStat.current_value).where(
-                        UserStat.user_id == user_id, UserStat.stat_type == stat_type
-                    )
-                )
-            ).scalar_one_or_none() or 0.0
-            diminishing_factor = max(0.0, 1 - current_value / STAT_HARD_CAP) ** DIMINISHING_EXPONENT
-            gain = round(TEAM_TRAINING_BASE_GAIN_PER_STAT * diminishing_factor, 2)
-
-            upsert = pg_insert(UserStat).values(
-                user_id=user_id,
-                stat_type=stat_type,
-                current_value=gain,
-                last_updated_at=datetime.now(timezone.utc),
-            )
-            upsert = upsert.on_conflict_do_update(
-                constraint="uq_user_stats_user_stat_type",
-                set_={
-                    "current_value": func.least(
-                        UserStat.current_value + upsert.excluded.current_value, STAT_HARD_CAP
-                    ),
-                    "last_updated_at": upsert.excluded.last_updated_at,
-                },
-            ).returning(UserStat.current_value)
-            new_value = (await self._session.execute(upsert)).scalar_one()
-
-            self._session.add(
-                StatHistory(
-                    user_id=user_id,
-                    stat_type=stat_type,
-                    value=new_value,
-                    reason=f"team_training:{team_event_id}",
-                )
-            )
+        await credit_stats(
+            self._session,
+            user_id,
+            {stat_type: TEAM_TRAINING_BASE_GAIN_PER_STAT for stat_type in TEAM_TRAINING_STATS},
+            f"team_training:{team_event_id}",
+        )
 
         result = await self._session.execute(
             update(User)
