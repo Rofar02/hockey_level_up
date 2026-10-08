@@ -70,21 +70,7 @@ function isTextField(element: Element | null): boolean {
   return element instanceof HTMLInputElement && !NON_TEXT_INPUT_TYPES.has(element.type)
 }
 
-interface NavPlacement {
-  // The on-screen keyboard is up: the bar steps aside so it doesn't ride
-  // up over the field being typed into (Android) or float mid-screen (iOS).
-  hidden: boolean
-  // Shift that keeps the bar on the visible bottom edge when the visual
-  // viewport no longer ends where the layout viewport does.
-  offsetY: number
-}
-
-const RESTING: NavPlacement = { hidden: false, offsetY: 0 }
-
 const SETTLE_DELAYS_MS = [150, 400, 900, 2000]
-
-// How long the viewport must stay still before the bar's offset follows it.
-const OFFSET_SETTLE_MS = 250
 
 // Hidden longer than this counts as "was in the background" for the
 // capsule rebuild below.
@@ -124,76 +110,37 @@ function useRebuildKey(): number {
   return key
 }
 
-// 2026-10-04 fix for "капсула то уезжает в середину, то пропадает, помогает
-// только перезапуск" (iOS home-screen app). The old hook hid the bar while
-// innerHeight - visualViewport.height > 150 and recomputed that ONLY on a
-// visualViewport resize: if the keyboard went away without one (app sent to
-// the background, tab switch) the bar stayed hidden until a reload, and a
-// pinch zoom also read as "keyboard". And a fixed bar is pinned to the
-// layout viewport, which iOS can leave offset after the keyboard closes, so
-// the bar showed up in the middle of the screen. Now the keyboard counts
-// only while a text field has focus, the state is recomputed on focus
-// changes, viewport scroll/resize, rotation and return to the foreground,
-// and the bar is shifted onto the visible bottom edge.
-function useNavPlacement(): NavPlacement {
-  const [placement, setPlacement] = useState<NavPlacement>(RESTING)
+// The on-screen keyboard is up: the bar steps aside so it doesn't ride up
+// over the field being typed into. Counts only while a text field has focus
+// (a pinch zoom or a keyboard that left without a resize event once kept the
+// bar hidden until a reload), recomputed on focus changes, viewport resize,
+// rotation and return to the foreground -- several times, since the keyboard
+// animates away after blur and iOS settles its sizes after a thaw.
+//
+// 2026-10-08: no more shifting the bar onto the visual viewport (the
+// 10-04/10-08 offsetY): the document no longer scrolls (see index.css), so
+// the layout viewport the bar is pinned to doesn't move and the bar sits on
+// the bottom edge by CSS alone. Those offsets were what made it shake and
+// jump around the app.
+function useKeyboardOpen(): boolean {
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     const viewport = window.visualViewport
     if (viewport == null) {
       return
     }
-    // 2026-10-08 fix for "при движении капсула трясется": the offset used to
-    // follow every viewport scroll event, so the rubber-band bounce and the
-    // momentum scroll moved the bar every frame. Now a moving viewport (or a
-    // finger on the screen) only updates `hidden`; the offset is re-read once
-    // things have been still for OFFSET_SETTLE_MS.
-    let touching = false
-    let offsetTimer: number | undefined
-    const update = (settled = true) => {
+    const update = () => {
       const zoomed = viewport.scale > 1.01
-      const hidden = !zoomed && window.innerHeight - viewport.height > 150 && isTextField(document.activeElement)
-      const gap = viewport.offsetTop + viewport.height - window.innerHeight
-      // 2026-10-08: right after the app is thawed from the background iOS
-      // reports bogus sizes for a moment; a huge gap then pushed the bar off
-      // the screen and nothing moved it back. A real viewport mismatch is
-      // never half a screen, so anything that big is ignored.
-      const plausible = Math.abs(gap) >= 2 && Math.abs(gap) < window.innerHeight / 2
-      const measured = hidden || zoomed || !plausible ? 0 : Math.round(gap)
-      setPlacement((current) => {
-        const offsetY = settled && !touching ? measured : current.offsetY
-        return current.hidden === hidden && current.offsetY === offsetY ? current : { hidden, offsetY }
-      })
+      setOpen(!zoomed && window.innerHeight - viewport.height > 150 && isTextField(document.activeElement))
     }
-    const settleOffset = () => {
-      window.clearTimeout(offsetTimer)
-      offsetTimer = window.setTimeout(() => update(true), OFFSET_SETTLE_MS)
-    }
-    const onViewportMove = () => {
-      update(false)
-      settleOffset()
-    }
-    const onTouchStart = () => {
-      touching = true
-    }
-    const onTouchEnd = () => {
-      touching = false
-      settleOffset()
-    }
-    // The keyboard animates away after blur, and after a return from the
-    // background iOS settles its viewport sizes over a second or two --
-    // check again several times, so one bad reading never sticks.
     let settleTimers: number[] = []
     const updateSoon = () => {
       update()
       settleTimers.forEach((timer) => window.clearTimeout(timer))
       settleTimers = SETTLE_DELAYS_MS.map((delay) => window.setTimeout(update, delay))
     }
-    viewport.addEventListener('resize', onViewportMove)
-    viewport.addEventListener('scroll', onViewportMove)
-    window.addEventListener('resize', onViewportMove)
-    window.addEventListener('touchstart', onTouchStart, { passive: true })
-    window.addEventListener('touchend', onTouchEnd, { passive: true })
-    window.addEventListener('touchcancel', onTouchEnd, { passive: true })
+    viewport.addEventListener('resize', update)
+    window.addEventListener('resize', update)
     window.addEventListener('orientationchange', updateSoon)
     window.addEventListener('focusin', updateSoon)
     window.addEventListener('focusout', updateSoon)
@@ -203,13 +150,8 @@ function useNavPlacement(): NavPlacement {
     update()
     return () => {
       settleTimers.forEach((timer) => window.clearTimeout(timer))
-      window.clearTimeout(offsetTimer)
-      viewport.removeEventListener('resize', onViewportMove)
-      viewport.removeEventListener('scroll', onViewportMove)
-      window.removeEventListener('resize', onViewportMove)
-      window.removeEventListener('touchstart', onTouchStart)
-      window.removeEventListener('touchend', onTouchEnd)
-      window.removeEventListener('touchcancel', onTouchEnd)
+      viewport.removeEventListener('resize', update)
+      window.removeEventListener('resize', update)
       window.removeEventListener('orientationchange', updateSoon)
       window.removeEventListener('focusin', updateSoon)
       window.removeEventListener('focusout', updateSoon)
@@ -218,7 +160,7 @@ function useNavPlacement(): NavPlacement {
       document.removeEventListener('visibilitychange', updateSoon)
     }
   }, [])
-  return placement
+  return open
 }
 
 // A floating frosted-glass capsule with the AI coach in the middle, raised
@@ -230,7 +172,7 @@ function useNavPlacement(): NavPlacement {
 // catches them. CoachmarkOverlay measures this element to keep tooltips
 // clear of it, so its box must be the full strip, raised button included.
 export function BottomNav() {
-  const { hidden: isKeyboardOpen, offsetY } = useNavPlacement()
+  const isKeyboardOpen = useKeyboardOpen()
   const teamAttention = useTeamAttention()
   const rebuildKey = useRebuildKey()
 
@@ -250,7 +192,7 @@ export function BottomNav() {
       // WebKit quirk.
       style={{
         paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-        transform: isKeyboardOpen ? undefined : `translate3d(0, ${offsetY}px, 0)`,
+        transform: isKeyboardOpen ? undefined : 'translate3d(0, 0, 0)',
         willChange: 'transform',
       }}
     >

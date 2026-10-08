@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
+import { getAppScroller } from '../utils/appScroller'
 
 // React Router doesn't reset scroll position on navigation the way a
 // classic multi-page site does -- without this, pushing a new route while
@@ -11,7 +12,7 @@ export function ScrollToTop() {
   const { pathname } = useLocation()
 
   useEffect(() => {
-    window.scrollTo(0, 0)
+    getAppScroller().scrollTo(0, 0)
   }, [pathname])
 
   return null
