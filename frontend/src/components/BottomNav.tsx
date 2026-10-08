@@ -81,6 +81,46 @@ interface NavPlacement {
 
 const RESTING: NavPlacement = { hidden: false, offsetY: 0 }
 
+const SETTLE_DELAYS_MS = [150, 400, 900, 2000]
+
+// Hidden longer than this counts as "was in the background" for the
+// capsule rebuild below.
+const REBUILD_AFTER_HIDDEN_MS = 30_000
+
+// 2026-10-08: WebKit can drop the compositor layer of a backdrop-filter
+// element while a home-screen app sits in the background -- the capsule
+// comes back invisible but still tappable. A fresh element gets a fresh
+// layer, so the capsule is remounted (new key) after a long background stay
+// and on a bfcache restore.
+function useRebuildKey(): number {
+  const [key, setKey] = useState(0)
+  useEffect(() => {
+    let hiddenAt: number | null = null
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+        return
+      }
+      if (hiddenAt !== null && Date.now() - hiddenAt > REBUILD_AFTER_HIDDEN_MS) {
+        setKey((current) => current + 1)
+      }
+      hiddenAt = null
+    }
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        setKey((current) => current + 1)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pageshow', onPageShow)
+    }
+  }, [])
+  return key
+}
+
 // 2026-10-04 fix for "капсула то уезжает в середину, то пропадает, помогает
 // только перезапуск" (iOS home-screen app). The old hook hid the bar while
 // innerHeight - visualViewport.height > 150 and recomputed that ONLY on a
@@ -103,17 +143,24 @@ function useNavPlacement(): NavPlacement {
       const zoomed = viewport.scale > 1.01
       const hidden = !zoomed && window.innerHeight - viewport.height > 150 && isTextField(document.activeElement)
       const gap = viewport.offsetTop + viewport.height - window.innerHeight
-      const offsetY = hidden || zoomed || Math.abs(gap) < 2 ? 0 : Math.round(gap)
+      // 2026-10-08: right after the app is thawed from the background iOS
+      // reports bogus sizes for a moment; a huge gap then pushed the bar off
+      // the screen and nothing moved it back. A real viewport mismatch is
+      // never half a screen, so anything that big is ignored.
+      const plausible = Math.abs(gap) >= 2 && Math.abs(gap) < window.innerHeight / 2
+      const offsetY = hidden || zoomed || !plausible ? 0 : Math.round(gap)
       setPlacement((current) =>
         current.hidden === hidden && current.offsetY === offsetY ? current : { hidden, offsetY },
       )
     }
-    // The keyboard animates away after blur -- check again once it's gone.
-    let settleTimer: number | undefined
+    // The keyboard animates away after blur, and after a return from the
+    // background iOS settles its viewport sizes over a second or two --
+    // check again several times, so one bad reading never sticks.
+    let settleTimers: number[] = []
     const updateSoon = () => {
       update()
-      window.clearTimeout(settleTimer)
-      settleTimer = window.setTimeout(update, 350)
+      settleTimers.forEach((timer) => window.clearTimeout(timer))
+      settleTimers = SETTLE_DELAYS_MS.map((delay) => window.setTimeout(update, delay))
     }
     viewport.addEventListener('resize', update)
     viewport.addEventListener('scroll', update)
@@ -122,10 +169,11 @@ function useNavPlacement(): NavPlacement {
     window.addEventListener('focusin', updateSoon)
     window.addEventListener('focusout', updateSoon)
     window.addEventListener('pageshow', updateSoon)
+    window.addEventListener('focus', updateSoon)
     document.addEventListener('visibilitychange', updateSoon)
     update()
     return () => {
-      window.clearTimeout(settleTimer)
+      settleTimers.forEach((timer) => window.clearTimeout(timer))
       viewport.removeEventListener('resize', update)
       viewport.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
@@ -133,6 +181,7 @@ function useNavPlacement(): NavPlacement {
       window.removeEventListener('focusin', updateSoon)
       window.removeEventListener('focusout', updateSoon)
       window.removeEventListener('pageshow', updateSoon)
+      window.removeEventListener('focus', updateSoon)
       document.removeEventListener('visibilitychange', updateSoon)
     }
   }, [])
@@ -150,6 +199,7 @@ function useNavPlacement(): NavPlacement {
 export function BottomNav() {
   const { hidden: isKeyboardOpen, offsetY } = useNavPlacement()
   const teamAttention = useTeamAttention()
+  const rebuildKey = useRebuildKey()
 
   return (
     <nav
@@ -171,16 +221,22 @@ export function BottomNav() {
         willChange: 'transform',
       }}
     >
-      <div className="pointer-events-auto mx-auto flex h-16 max-w-md items-center rounded-full border border-white/15 bg-[#121820]/55 px-1.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.65)] backdrop-blur-3xl backdrop-saturate-150">
-        {LEFT_TABS.map((tab) => (
-          <TabLink key={tab.to} tab={tab} />
-        ))}
-        <CoachButton />
-        {RIGHT_TABS.map((tab) => (
-          <TabLink key={tab.to} tab={tab} hasAttention={tab.attention === 'team' && teamAttention} />
-        ))}
-      </div>
+      <NavCapsule key={rebuildKey} teamAttention={teamAttention} />
     </nav>
+  )
+}
+
+function NavCapsule({ teamAttention }: { teamAttention: boolean }) {
+  return (
+    <div className="pointer-events-auto mx-auto flex h-16 max-w-md items-center rounded-full border border-white/15 bg-[#121820]/55 px-1.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.65)] backdrop-blur-3xl backdrop-saturate-150">
+      {LEFT_TABS.map((tab) => (
+        <TabLink key={tab.to} tab={tab} />
+      ))}
+      <CoachButton />
+      {RIGHT_TABS.map((tab) => (
+        <TabLink key={tab.to} tab={tab} hasAttention={tab.attention === 'team' && teamAttention} />
+      ))}
+    </div>
   )
 }
 

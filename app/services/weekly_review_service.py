@@ -44,6 +44,10 @@ REVIEW_HOUR = 8
 # still be written.
 CATCH_UP_WEEKDAYS = (0, 1, 2)
 TICK_INTERVAL_SECONDS = 1800
+# 2026-10-08: an empty or failed model reply used to be retried every tick
+# for the whole Mon-Wed window -- up to ~120 paid calls per player. Now a
+# player's week gets this many tries per worker run, then it's skipped.
+MAX_ATTEMPTS_PER_WEEK = 3
 # The Home card shows the latest review for this many days after it's written.
 CARD_DAYS = 7
 PUSH_TITLE = "Разбор недели готов"
@@ -129,6 +133,14 @@ def _facts_text(
     return "\n".join(lines)
 
 
+class EmptyReviewReply(Exception):
+    """The model answered with no text -- counts as a failed attempt."""
+
+
+# (user id, week_start) -> failed attempts in this worker run.
+_failed_attempts: dict[tuple[uuid.UUID, date], int] = {}
+
+
 class WeeklyReviewService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -179,8 +191,7 @@ class WeeklyReviewService:
         )
         text = reply.text.strip()
         if not text:
-            logger.warning("weekly review: empty reply for user %s", user.id)
-            return None
+            raise EmptyReviewReply(f"empty reply for user {user.id}")
 
         message = CoachChatMessage(user_id=user.id, role=CoachChatRole.ASSISTANT, content=text)
         message.llm_model = settings.coach_chat_model
@@ -288,12 +299,34 @@ async def _review_tick() -> None:
         week_start = due_week_start(user, now)
         if week_start is None:
             continue
+        key = (user.id, week_start)
+        if _failed_attempts.get(key, 0) >= MAX_ATTEMPTS_PER_WEEK:
+            continue
         # One session per player: a failure for one never rolls back another.
         async with AsyncSessionLocal() as session:
             try:
                 await WeeklyReviewService(session).generate(user, week_start)
+            except EmptyReviewReply:
+                _failed_attempts[key] = _failed_attempts.get(key, 0) + 1
+                logger.warning(
+                    "weekly review: empty reply for user %s (attempt %s/%s)",
+                    user.id,
+                    _failed_attempts[key],
+                    MAX_ATTEMPTS_PER_WEEK,
+                )
             except Exception:
-                logger.exception("weekly review: generation failed for user %s", user.id)
+                _failed_attempts[key] = _failed_attempts.get(key, 0) + 1
+                logger.exception(
+                    "weekly review: generation failed for user %s (attempt %s/%s)",
+                    user.id,
+                    _failed_attempts[key],
+                    MAX_ATTEMPTS_PER_WEEK,
+                )
+    # A week is reviewed at most ~10 days after it starts (Wednesday of the
+    # next week); older entries can't matter any more.
+    oldest_relevant = now.date() - timedelta(days=14)
+    for stale in [key for key in _failed_attempts if key[1] < oldest_relevant]:
+        del _failed_attempts[stale]
 
 
 async def run_weekly_review_scheduler() -> None:

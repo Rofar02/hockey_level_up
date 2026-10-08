@@ -2,6 +2,7 @@
 Monday morning for the previous Mon-Sun week -- numbers from the analytics
 overview, text from the model (faked here), posted to the coach chat and
 shown on Home until closed."""
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -117,3 +118,37 @@ async def test_home_card_shows_review_until_read_and_only_to_its_owner(db_sessio
     assert await service.mark_read(stranger, review.id) is False
     assert await service.mark_read(user, review.id) is True
     assert await service.latest_for_card(user) is None
+
+
+@pytest.mark.asyncio
+async def test_empty_replies_stop_after_max_attempts(db_session, monkeypatch) -> None:
+    user = await _user_with_last_week(db_session)
+    user.has_premium = True
+    await db_session.flush()
+    _install_model(monkeypatch, text="   ")
+    monkeypatch.setattr(weekly_review_service, "_failed_attempts", {})
+    monkeypatch.setattr(
+        weekly_review_service, "due_week_start", lambda u, now: LAST_MONDAY if u.id == user.id else None
+    )
+
+    @asynccontextmanager
+    async def _session():
+        yield db_session
+
+    monkeypatch.setattr(weekly_review_service, "AsyncSessionLocal", _session)
+    real_generate = WeeklyReviewService.generate
+    generate_calls = 0
+
+    async def _counting_generate(self, u, week_start):
+        nonlocal generate_calls
+        if u.id == user.id:
+            generate_calls += 1
+        return await real_generate(self, u, week_start)
+
+    monkeypatch.setattr(WeeklyReviewService, "generate", _counting_generate)
+
+    for _ in range(10):
+        await weekly_review_service._review_tick()
+
+    assert generate_calls == weekly_review_service.MAX_ATTEMPTS_PER_WEEK == 3
+    assert (await db_session.scalars(select(WeeklyReview).where(WeeklyReview.user_id == user.id))).first() is None
