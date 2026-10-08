@@ -34,7 +34,14 @@ from app.models.schedule import (
 )
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.skill import Skill, SkillMilestone, SkillStatWeight, SkillTag, UserSkillPreference
-from app.models.team import Team, TeamJoinRequest, TeamJoinRequestStatus, TeamMembership
+from app.models.team import (
+    Team,
+    TeamInvitation,
+    TeamInvitationStatus,
+    TeamJoinRequest,
+    TeamJoinRequestStatus,
+    TeamMembership,
+)
 from app.models.team_event import (
     DrillTemplate,
     TeamEvent,
@@ -110,6 +117,8 @@ __all__ = [
     "TeamEventType",
     "TeamIceScheduleTemplate",
     "DrillTemplate",
+    "TeamInvitation",
+    "TeamInvitationStatus",
     "TeamJoinRequest",
     "TeamJoinRequestStatus",
     "TeamMembership",

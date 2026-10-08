@@ -1,9 +1,10 @@
+import enum
 import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.models.team import TeamJoinRequestStatus
+from app.models.team import TeamInvitationStatus, TeamJoinRequestStatus
 from app.models.user import Position
 
 
@@ -93,4 +94,56 @@ class TeamJoinRequestRead(BaseModel):
     last_name: str
     avatar_url: str | None = None
     status: TeamJoinRequestStatus
+    created_at: datetime
+
+
+class TeamInvitePreviewRead(BaseModel):
+    """GET /teams/invite/{code} (2026-10-08): what the invite link's page
+    shows to anyone, logged in or not -- the team, never its members."""
+
+    id: uuid.UUID
+    name: str
+    logo_url: str | None = None
+    member_count: int
+    captain_first_name: str
+    captain_last_name: str
+
+
+class TeamInvitationCreate(BaseModel):
+    user_id: uuid.UUID
+
+
+class TeamInviteStatus(str, enum.Enum):
+    NONE = "none"
+    INVITED = "invited"  # a pending invitation from this team
+    MEMBER = "member"  # already in this team
+    IN_TEAM = "in_team"  # in another team -- can't be invited
+
+
+class TeamInviteCandidateRead(BaseModel):
+    """A row in the captain's "Пригласить игрока" sheet: a friend, or a
+    name-search hit."""
+
+    id: uuid.UUID
+    first_name: str
+    last_name: str
+    avatar_url: str | None = None
+    level: int
+    jersey_number: int | None = None
+    position: Position | None = None
+    team_name: str | None = None
+    status: TeamInviteStatus
+
+
+class TeamInvitationRead(BaseModel):
+    """An invitation from a captain, as the invited player sees it."""
+
+    id: uuid.UUID
+    team_id: uuid.UUID
+    team_name: str
+    team_logo_url: str | None = None
+    member_count: int
+    invited_by_first_name: str
+    invited_by_last_name: str
+    status: TeamInvitationStatus
     created_at: datetime
