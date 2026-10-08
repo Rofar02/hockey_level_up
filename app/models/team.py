@@ -111,3 +111,39 @@ class TeamJoinRequest(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TeamInvitationStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+
+
+class TeamInvitation(Base):
+    """The captain asks a particular player in (2026-10-08) -- the other
+    way round from TeamJoinRequest: the player answers, and accepting puts
+    them straight into the team. One row per (team, player); a declined
+    one is reset to pending when the captain asks again."""
+
+    __tablename__ = "team_invitations"
+    __table_args__ = (UniqueConstraint("team_id", "user_id", name="uq_team_invitations_team_user"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    team_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    invited_by_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[TeamInvitationStatus] = mapped_column(
+        enum_column(TeamInvitationStatus, "team_invitation_status"),
+        nullable=False,
+        default=TeamInvitationStatus.PENDING,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

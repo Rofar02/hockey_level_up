@@ -7,8 +7,10 @@ from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.events.handlers.team_invites import JOIN_APPROVED_EVENT, JOIN_REQUESTED_EVENT
 from app.models.team import Team, TeamJoinRequest, TeamJoinRequestStatus
 from app.models.user import User
+from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.team_repository import TeamRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.leaderboard import LeaderboardEntryRead
@@ -181,7 +183,7 @@ class TeamService:
     # -- join requests --
 
     async def join_by_code(self, user: User, code: str) -> TeamJoinRequestRead:
-        team = await self._teams.get_by_invite_code(code)
+        team = await self._teams.get_by_invite_code(code.strip().upper())
         if team is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid invite code")
         if await self._teams.get_membership(team.id, user.id) is not None:
@@ -195,6 +197,8 @@ class TeamService:
                 detail="A join request for this team is already pending",
             )
         request = await self._teams.create_join_request(team.id, user.id)
+        # The captain's push (app/events/handlers/team_invites.py).
+        OutboxRepository(self._session).add(JOIN_REQUESTED_EVENT, {"request_id": str(request.id)})
         await self._session.commit()
         return self._to_join_request_read(request, team=team, requester=user)
 
@@ -241,6 +245,7 @@ class TeamService:
             )
         await self._teams.create_membership(team.id, requester.id)
         await self._teams.update_join_request_status(request, TeamJoinRequestStatus.APPROVED)
+        OutboxRepository(self._session).add(JOIN_APPROVED_EVENT, {"request_id": str(request.id)})
         await self._session.commit()
         return self._to_join_request_read(request, team=team, requester=requester)
 

@@ -11,6 +11,10 @@ from app.schemas.game_stats import TeamStatsRead, TeamStatsReminderRead
 from app.schemas.leaderboard import LeaderboardEntryRead
 from app.schemas.team import (
     TeamCreate,
+    TeamInvitationCreate,
+    TeamInvitationRead,
+    TeamInviteCandidateRead,
+    TeamInvitePreviewRead,
     TeamJoinPayload,
     TeamJoinRequestRead,
     TeamRead,
@@ -19,6 +23,7 @@ from app.schemas.team import (
     TeamTransferCaptaincyPayload,
 )
 from app.services.game_stats_service import GameStatsService
+from app.services.team_invitation_service import TeamInvitationService
 from app.services.team_service import TeamService
 
 router = APIRouter(prefix="/teams", tags=["teams"])
@@ -59,6 +64,43 @@ async def get_team_rankings(
     landmine noted there.
     """
     return await TeamService(session).get_team_rankings(limit, offset)
+
+
+@router.get("/invite/{code}", response_model=TeamInvitePreviewRead)
+async def get_team_invite(
+    code: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """The team behind an invite link (2026-10-08) -- no login needed, the
+    page opens for anyone; its members aren't listed. Literal "/invite"
+    stays above /{team_id}, same landmine as "/me"."""
+    return await TeamInvitationService(session).preview(code)
+
+
+@router.get("/invitations/me", response_model=list[TeamInvitationRead])
+async def list_my_team_invitations(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await TeamInvitationService(session).list_mine(current_user)
+
+
+@router.post("/invitations/{invitation_id}/accept", response_model=TeamInvitationRead)
+async def accept_team_invitation(
+    invitation_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await TeamInvitationService(session).respond(current_user, invitation_id, accept=True)
+
+
+@router.post("/invitations/{invitation_id}/decline", response_model=TeamInvitationRead)
+async def decline_team_invitation(
+    invitation_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await TeamInvitationService(session).respond(current_user, invitation_id, accept=False)
 
 
 @router.post("/join", response_model=TeamJoinRequestRead)
@@ -222,3 +264,24 @@ async def remind_team_reports(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await GameStatsService(session).remind_missing(current_user, team_id)
+
+
+@router.get("/{team_id}/invite-candidates", response_model=list[TeamInviteCandidateRead])
+async def list_team_invite_candidates(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    q: str | None = Query(default=None, max_length=100),
+):
+    """Captain only: their friends, or name-search hits with q."""
+    return await TeamInvitationService(session).candidates(current_user, team_id, q)
+
+
+@router.post("/{team_id}/invitations", response_model=TeamInviteCandidateRead)
+async def invite_to_team(
+    team_id: uuid.UUID,
+    body: TeamInvitationCreate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await TeamInvitationService(session).invite(current_user, team_id, body.user_id)

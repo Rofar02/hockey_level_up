@@ -19,9 +19,12 @@ export function HelpButton({ topic }: { topic: HelpTopicKey }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Как это работает"
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-accent-ice/35 bg-accent-ice/10 text-accent-ice transition-colors hover:bg-accent-ice/20"
+        // Quiet on purpose (2026-10-08, owner: "более незаметным"): a thin
+        // grey glyph, no ring or fill -- found when looked for, not shouting
+        // from every screen. The tap target stays 44px.
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-text-secondary/60 transition-colors hover:text-text-primary"
       >
-        <i className="ti ti-help text-xl" aria-hidden="true" />
+        <i className="ti ti-help-circle text-lg" aria-hidden="true" />
       </button>
       {open && (
         <Modal title={help.title} onClose={() => setOpen(false)}>

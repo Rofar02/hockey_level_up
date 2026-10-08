@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as friendsApi from '../../api/friends'
+import * as teamsApi from '../../api/teams'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
-import { friendRequestErrorText, takePendingFriendCode } from '../../utils/pendingFriendInvite'
+import {
+  friendRequestErrorText,
+  takePendingFriendCode,
+  takePendingTeamCode,
+  teamJoinErrorText,
+} from '../../utils/pendingFriendInvite'
 
-// Sends the request from an invite link opened before logging in, once
-// the player is in, and says so in a strip at the top.
+// Sends the request from an invite link -- a friend's or a team's --
+// opened before logging in, once the player is in, and says so in a strip
+// at the top.
 export function PendingFriendInvite() {
   const { accessToken } = useAuth()
   const [message, setMessage] = useState<string | null>(null)
@@ -14,6 +21,17 @@ export function PendingFriendInvite() {
   useEffect(() => {
     if (accessToken === null) {
       return
+    }
+    const teamCode = takePendingTeamCode()
+    if (teamCode !== null) {
+      teamsApi
+        .joinTeam({ code: teamCode }, accessToken)
+        .then((request) => setMessage(`Заявка в «${request.team_name}» отправлена — капитан её примет`))
+        .catch((err: unknown) => {
+          if (err instanceof ApiError) {
+            setMessage(teamJoinErrorText(err.message))
+          }
+        })
     }
     const code = takePendingFriendCode()
     if (code === null) {

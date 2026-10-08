@@ -199,3 +199,5 @@ class TeamAttentionRead(BaseModel):
     friend_requests: int
     party_invites: int
     team_join_requests: int
+    # Captains' invitations to the player, still unanswered (2026-10-08).
+    team_invitations: int = 0

@@ -1,6 +1,9 @@
-import { apiDeleteAuth, apiGet, apiPostAuth, apiPostMultipartAuth } from './client'
+import { apiDeleteAuth, apiGet, apiGetPublic, apiPostAuth, apiPostMultipartAuth } from './client'
 import type {
   TeamCreatePayload,
+  TeamInvitationRead,
+  TeamInviteCandidateRead,
+  TeamInvitePreviewRead,
   TeamJoinPayload,
   TeamJoinRequestRead,
   TeamRead,
@@ -104,4 +107,35 @@ const TEAM_RANKING_PAGE_SIZE = 100
 
 export function getTeamRankings(accessToken: string): Promise<TeamScoreRead[]> {
   return apiGet<TeamScoreRead[]>(`/teams/leaderboard?limit=${TEAM_RANKING_PAGE_SIZE}`, accessToken)
+}
+
+// The team behind an invite link -- no login needed.
+export function getTeamInvite(code: string): Promise<TeamInvitePreviewRead> {
+  return apiGetPublic<TeamInvitePreviewRead>(`/teams/invite/${encodeURIComponent(code)}`)
+}
+
+// Captain: their friends, or name-search hits with a query.
+export function listInviteCandidates(
+  teamId: string,
+  query: string,
+  accessToken: string,
+): Promise<TeamInviteCandidateRead[]> {
+  const q = query.trim() !== '' ? `?q=${encodeURIComponent(query.trim())}` : ''
+  return apiGet<TeamInviteCandidateRead[]>(`/teams/${teamId}/invite-candidates${q}`, accessToken)
+}
+
+export function inviteToTeam(teamId: string, userId: string, accessToken: string): Promise<TeamInviteCandidateRead> {
+  return apiPostAuth<TeamInviteCandidateRead>(`/teams/${teamId}/invitations`, { user_id: userId }, accessToken)
+}
+
+export function listMyTeamInvitations(accessToken: string): Promise<TeamInvitationRead[]> {
+  return apiGet<TeamInvitationRead[]>('/teams/invitations/me', accessToken)
+}
+
+export function acceptTeamInvitation(invitationId: string, accessToken: string): Promise<TeamInvitationRead> {
+  return apiPostAuth<TeamInvitationRead>(`/teams/invitations/${invitationId}/accept`, {}, accessToken)
+}
+
+export function declineTeamInvitation(invitationId: string, accessToken: string): Promise<TeamInvitationRead> {
+  return apiPostAuth<TeamInvitationRead>(`/teams/invitations/${invitationId}/decline`, {}, accessToken)
 }

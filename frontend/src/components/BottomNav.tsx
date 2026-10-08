@@ -295,7 +295,9 @@ function useTeamAttention(): boolean {
       .getTeamAttention(accessToken)
       .then((result) => {
         if (!cancelled) {
-          setHasAttention(result.friend_requests + result.party_invites + result.team_join_requests > 0)
+          setHasAttention(
+            result.friend_requests + result.party_invites + result.team_join_requests + result.team_invitations > 0,
+          )
         }
       })
       .catch(() => {

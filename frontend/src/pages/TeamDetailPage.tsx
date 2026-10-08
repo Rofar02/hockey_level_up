@@ -3,6 +3,7 @@ import type { ChangeEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { TeamCaptainSetupCard, TeamPlayerIntroCard } from '../components/teamEvents/TeamIntroCards'
 import { NextEventCard } from '../components/teamEvents/NextEventCard'
+import { TeamInviteBlock } from '../components/teams/TeamInviteBlock'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
@@ -19,7 +20,6 @@ import type { LeaderboardEntryRead } from '../types/leaderboard'
 import type { TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamScoreRead } from '../types/team'
 import { POSITION_LABELS } from '../types/user'
 import { getDisplayName } from '../utils/displayName'
-import { copyText } from '../utils/clipboard'
 
 type DetailTab = 'members' | 'leaderboard' | 'requests'
 
@@ -56,7 +56,6 @@ export function TeamDetailPage() {
   const [isLeaving, setIsLeaving] = useState(false)
   const [isDisbanding, setIsDisbanding] = useState(false)
   const [decidingIds, setDecidingIds] = useState<Set<string>>(new Set())
-  const [copied, setCopied] = useState(false)
 
   const [memberActionError, setMemberActionError] = useState<string | null>(null)
   const [actingMemberIds, setActingMemberIds] = useState<Set<string>>(new Set())
@@ -64,7 +63,6 @@ export function TeamDetailPage() {
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [logoError, setLogoError] = useState<string | null>(null)
-  const [copyError, setCopyError] = useState<string | null>(null)
 
   useEffect(() => {
     if (accessToken === null || teamId === undefined) {
@@ -122,19 +120,6 @@ export function TeamDetailPage() {
       setLogoError(err instanceof ApiError ? err.message : 'Не удалось загрузить эмблему.')
     } finally {
       setIsUploadingLogo(false)
-    }
-  }
-
-  async function handleCopyInviteCode() {
-    if (team === null) {
-      return
-    }
-    setCopyError(null)
-    if (await copyText(team.invite_code)) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } else {
-      setCopyError('Не удалось скопировать — выделите код вручную.')
     }
   }
 
@@ -331,23 +316,9 @@ export function TeamDetailPage() {
                 <h1 className="min-w-0 flex-1 truncate text-lg font-semibold text-[#F5F7FA]">{team.name}</h1>
               </div>
               <FormError message={logoError} />
-
-              <div className="flex items-center justify-between gap-3 border-t border-white/5 pt-3">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[10px] uppercase tracking-wide text-[#8A94A6]">Код приглашения</span>
-                  <span className="font-mono text-sm text-[#F5F7FA]">{team.invite_code}</span>
-                </div>
-                <Button
-                  type="button"
-                  variant="neutral"
-                  onClick={handleCopyInviteCode}
-                  className="shrink-0 !px-3 !py-1.5 !text-xs"
-                >
-                  {copied ? 'Скопировано' : 'Копировать'}
-                </Button>
-              </div>
-              <FormError message={copyError} />
             </div>
+
+            <TeamInviteBlock team={team} />
 
             <div className={`relative flex flex-col gap-2 overflow-hidden p-4 ${CARD_CLASS}`}>
               <CardGlow />

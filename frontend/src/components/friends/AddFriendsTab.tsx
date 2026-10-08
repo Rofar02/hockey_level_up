@@ -19,7 +19,7 @@ const TEAMMATES_SHOWN = 3
 
 // Same rule as the server's search_tokens: a first and a last name, two
 // letters each.
-function isSearchable(query: string): boolean {
+export function isSearchable(query: string): boolean {
   const words = query.trim().split(/\s+/)
   return words.length >= 2 && words.slice(0, 2).every((word) => word.length >= 2)
 }

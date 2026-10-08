@@ -78,6 +78,7 @@ const SettingsPrivacyPage = lazy(() =>
   import('./pages/SettingsPrivacyPage').then((m) => ({ default: m.SettingsPrivacyPage })),
 )
 const InvitePage = lazy(() => import('./pages/InvitePage').then((m) => ({ default: m.InvitePage })))
+const TeamInvitePage = lazy(() => import('./pages/TeamInvitePage').then((m) => ({ default: m.TeamInvitePage })))
 const SettingsAccountPage = lazy(() =>
   import('./pages/SettingsAccountPage').then((m) => ({ default: m.SettingsAccountPage })),
 )
@@ -183,6 +184,14 @@ function App() {
         element={
           <Suspense fallback={<AppLoadingScreen />}>
             <InvitePage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/t/:code"
+        element={
+          <Suspense fallback={<AppLoadingScreen />}>
+            <TeamInvitePage />
           </Suspense>
         }
       />

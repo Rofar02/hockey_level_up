@@ -1,11 +1,12 @@
 """What's waiting for the player on the "Команда" tab -- GET
 /users/me/team-attention. Drives the dot on the tab and the "waiting for
-you" rows at the top of the team hub. Three counts, each one COUNT query:
+you" rows at the top of the team hub. Four counts, each one COUNT query:
 
 - friend_requests -- incoming friend requests not answered yet;
 - party_invites -- invitations to a joint training that is still pending
   and not in the past (same filter as the invites list);
-- team_join_requests -- requests to join a team the player captains.
+- team_join_requests -- requests to join a team the player captains;
+- team_invitations -- captains' invitations to the player, unanswered.
 """
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -14,7 +15,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.friend import FriendRequest, FriendRequestStatus
-from app.models.team import Team, TeamJoinRequest, TeamJoinRequestStatus
+from app.models.team import (
+    Team,
+    TeamInvitation,
+    TeamInvitationStatus,
+    TeamJoinRequest,
+    TeamJoinRequestStatus,
+)
 from app.models.training_party import (
     TrainingParty,
     TrainingPartyMember,
@@ -59,10 +66,19 @@ class TeamAttentionService:
                 TeamJoinRequest.status == TeamJoinRequestStatus.PENDING,
             )
         )
+        team_invitations = await self._count(
+            select(func.count())
+            .select_from(TeamInvitation)
+            .where(
+                TeamInvitation.user_id == user.id,
+                TeamInvitation.status == TeamInvitationStatus.PENDING,
+            )
+        )
         return TeamAttentionRead(
             friend_requests=friend_requests,
             party_invites=party_invites,
             team_join_requests=team_join_requests,
+            team_invitations=team_invitations,
         )
 
     async def _count(self, statement) -> int:

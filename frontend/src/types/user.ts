@@ -149,6 +149,7 @@ export interface TeamAttentionRead {
   friend_requests: number
   party_invites: number
   team_join_requests: number
+  team_invitations: number
 }
 
 export interface UserAdminRead {

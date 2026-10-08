@@ -74,7 +74,8 @@ class LeaderboardService:
         result = await self._session.execute(query.order_by(User.id))
         users = list(result.scalars().all())
 
-        ranked = [(user, await self._progress.get_rating_excess(user)) for user in users]
+        excesses = await self._progress.get_rating_excesses(users)
+        ranked = [(user, excesses[user.id]) for user in users]
         ranked.sort(key=lambda pair: pair[1], reverse=True)
         return ranked
 
