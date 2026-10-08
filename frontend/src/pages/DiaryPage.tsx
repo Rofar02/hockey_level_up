@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -63,7 +64,10 @@ export function DiaryPage() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
         <div className="flex flex-col gap-2">
           <BackLink />
-          <h1 className="text-xl font-semibold">Дневник</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold">Дневник</h1>
+            <HelpButton topic="diary" />
+          </div>
         </div>
 
         <FormError message={loadError} />

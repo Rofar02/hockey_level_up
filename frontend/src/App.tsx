@@ -37,6 +37,7 @@ const TrainingDiaryPage = lazy(() =>
   import('./pages/TrainingDiaryPage').then((m) => ({ default: m.TrainingDiaryPage })),
 )
 const DiaryPage = lazy(() => import('./pages/DiaryPage').then((m) => ({ default: m.DiaryPage })))
+const GuidePage = lazy(() => import('./pages/GuidePage').then((m) => ({ default: m.GuidePage })))
 const SeasonPage = lazy(() => import('./pages/SeasonPage').then((m) => ({ default: m.SeasonPage })))
 const TeamStatsPage = lazy(() => import('./pages/TeamStatsPage').then((m) => ({ default: m.TeamStatsPage })))
 const RestrictionsPage = lazy(() =>
@@ -191,6 +192,8 @@ function App() {
         <Route path="/training/:dayPlanId/diary" element={<TrainingDiaryPage />} />
         <Route path="/diary" element={<DiaryPage />} />
         <Route path="/season" element={<SeasonPage />} />
+        <Route path="/guide" element={<GuidePage />} />
+        <Route path="/guide/:chapterId" element={<GuidePage />} />
         {/* "Ещё" is gone from the tab bar; its items now live under Команда and Профиль. */}
         <Route path="/more" element={<Navigate to="/profile" replace />} />
         <Route path="/restrictions" element={<RestrictionsPage />} />

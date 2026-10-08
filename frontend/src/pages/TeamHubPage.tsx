@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { CARD_CLASS } from '../components/ui/cardStyle'
@@ -189,6 +190,7 @@ export function TeamHubPage() {
                   {score !== null && ` · рейтинг ${Math.round(score.team_score).toLocaleString('ru-RU')}`}
                 </span>
               </div>
+              <HelpButton topic="team" />
               <Link
                 to="/teams"
                 aria-label="Все мои команды"
@@ -257,7 +259,10 @@ export function TeamHubPage() {
 
         {teams !== null && teams.length === 0 && (
           <>
-            <h1 className="text-xl font-semibold">Команда</h1>
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-xl font-semibold">Команда</h1>
+              <HelpButton topic="team" />
+            </div>
             <section className={`relative flex flex-col gap-3 overflow-hidden p-4 ${CARD_CLASS}`}>
               <CardGlow />
               <span className="relative font-display text-xl font-semibold uppercase tracking-wide text-[#F5F7FA]">

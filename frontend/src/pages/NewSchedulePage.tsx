@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
@@ -437,7 +438,10 @@ export function NewSchedulePage() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
         <div className="flex flex-col gap-2">
           <BackLink />
-          <h1 className="text-xl font-semibold">Неделя</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold">Неделя</h1>
+            <HelpButton topic="week" />
+          </div>
         </div>
 
         <div className={`flex overflow-hidden rounded-md ${CARD_BORDER} bg-dark-card`}>

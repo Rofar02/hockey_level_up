@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import { useNavigate } from 'react-router-dom'
 import * as gameStatsApi from '../api/gameStats'
 import { ApiError } from '../api/client'
@@ -60,6 +61,9 @@ export function SeasonPage() {
             <h1 className="font-display text-2xl font-semibold uppercase tracking-wide">
               Сезон {season?.label ?? ''}
             </h1>
+            <HelpButton topic="season" />
+          </div>
+          <div className="-mt-1 flex justify-end">
             {season !== null && (
               <span className="text-sm text-text-secondary">
                 {season.games} {plural(season.games, 'игра', 'игры', 'игр')}

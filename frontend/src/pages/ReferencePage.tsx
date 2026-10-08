@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { CARD_CLASS } from '../components/ui/cardStyle'
 import { FormError } from '../components/ui/FormError'
@@ -77,6 +77,20 @@ export function ReferencePage() {
         <BackLink />
         <h1 className="text-xl font-semibold">Справочник</h1>
       </div>
+
+      <Link
+        to="/guide"
+        className="flex min-h-16 items-center gap-3.5 rounded-xl border border-accent-ice/25 bg-dark-card px-4 py-2 transition-colors hover:bg-white/[0.04]"
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent-persimmon/15">
+          <i className="ti ti-map-2 text-xl text-accent-persimmon" aria-hidden="true" />
+        </span>
+        <span className="flex flex-1 flex-col">
+          <span className="text-sm font-semibold">Как пользоваться IceLevel</span>
+          <span className="text-xs text-text-secondary">Короткие главы: план, статы, лёд, команда, тренер</span>
+        </span>
+        <i className="ti ti-chevron-right text-text-secondary" aria-hidden="true" />
+      </Link>
 
       <FormError message={loadError} />
       {articles === null && loadError === null && (

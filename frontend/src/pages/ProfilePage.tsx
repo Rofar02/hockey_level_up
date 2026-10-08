@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import type { ChangeEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
@@ -280,6 +281,7 @@ function OwnProfileView() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-3 px-4 py-5">
       <div className="flex items-center justify-between">
         <h1 className="flex-1 text-xl font-semibold">Профиль</h1>
+        <HelpButton topic="profile" />
         <button
           type="button"
           onClick={handleShareCard}
