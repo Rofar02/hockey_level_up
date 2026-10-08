@@ -83,6 +83,9 @@ const RESTING: NavPlacement = { hidden: false, offsetY: 0 }
 
 const SETTLE_DELAYS_MS = [150, 400, 900, 2000]
 
+// How long the viewport must stay still before the bar's offset follows it.
+const OFFSET_SETTLE_MS = 250
+
 // Hidden longer than this counts as "was in the background" for the
 // capsule rebuild below.
 const REBUILD_AFTER_HIDDEN_MS = 30_000
@@ -139,7 +142,14 @@ function useNavPlacement(): NavPlacement {
     if (viewport == null) {
       return
     }
-    const update = () => {
+    // 2026-10-08 fix for "при движении капсула трясется": the offset used to
+    // follow every viewport scroll event, so the rubber-band bounce and the
+    // momentum scroll moved the bar every frame. Now a moving viewport (or a
+    // finger on the screen) only updates `hidden`; the offset is re-read once
+    // things have been still for OFFSET_SETTLE_MS.
+    let touching = false
+    let offsetTimer: number | undefined
+    const update = (settled = true) => {
       const zoomed = viewport.scale > 1.01
       const hidden = !zoomed && window.innerHeight - viewport.height > 150 && isTextField(document.activeElement)
       const gap = viewport.offsetTop + viewport.height - window.innerHeight
@@ -148,10 +158,26 @@ function useNavPlacement(): NavPlacement {
       // the screen and nothing moved it back. A real viewport mismatch is
       // never half a screen, so anything that big is ignored.
       const plausible = Math.abs(gap) >= 2 && Math.abs(gap) < window.innerHeight / 2
-      const offsetY = hidden || zoomed || !plausible ? 0 : Math.round(gap)
-      setPlacement((current) =>
-        current.hidden === hidden && current.offsetY === offsetY ? current : { hidden, offsetY },
-      )
+      const measured = hidden || zoomed || !plausible ? 0 : Math.round(gap)
+      setPlacement((current) => {
+        const offsetY = settled && !touching ? measured : current.offsetY
+        return current.hidden === hidden && current.offsetY === offsetY ? current : { hidden, offsetY }
+      })
+    }
+    const settleOffset = () => {
+      window.clearTimeout(offsetTimer)
+      offsetTimer = window.setTimeout(() => update(true), OFFSET_SETTLE_MS)
+    }
+    const onViewportMove = () => {
+      update(false)
+      settleOffset()
+    }
+    const onTouchStart = () => {
+      touching = true
+    }
+    const onTouchEnd = () => {
+      touching = false
+      settleOffset()
     }
     // The keyboard animates away after blur, and after a return from the
     // background iOS settles its viewport sizes over a second or two --
@@ -162,9 +188,12 @@ function useNavPlacement(): NavPlacement {
       settleTimers.forEach((timer) => window.clearTimeout(timer))
       settleTimers = SETTLE_DELAYS_MS.map((delay) => window.setTimeout(update, delay))
     }
-    viewport.addEventListener('resize', update)
-    viewport.addEventListener('scroll', update)
-    window.addEventListener('resize', update)
+    viewport.addEventListener('resize', onViewportMove)
+    viewport.addEventListener('scroll', onViewportMove)
+    window.addEventListener('resize', onViewportMove)
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchend', onTouchEnd, { passive: true })
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true })
     window.addEventListener('orientationchange', updateSoon)
     window.addEventListener('focusin', updateSoon)
     window.addEventListener('focusout', updateSoon)
@@ -174,9 +203,13 @@ function useNavPlacement(): NavPlacement {
     update()
     return () => {
       settleTimers.forEach((timer) => window.clearTimeout(timer))
-      viewport.removeEventListener('resize', update)
-      viewport.removeEventListener('scroll', update)
-      window.removeEventListener('resize', update)
+      window.clearTimeout(offsetTimer)
+      viewport.removeEventListener('resize', onViewportMove)
+      viewport.removeEventListener('scroll', onViewportMove)
+      window.removeEventListener('resize', onViewportMove)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchend', onTouchEnd)
+      window.removeEventListener('touchcancel', onTouchEnd)
       window.removeEventListener('orientationchange', updateSoon)
       window.removeEventListener('focusin', updateSoon)
       window.removeEventListener('focusout', updateSoon)
