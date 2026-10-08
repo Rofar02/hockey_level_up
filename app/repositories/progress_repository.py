@@ -19,6 +19,12 @@ class ProgressRepository:
         )
         return list(result.scalars().all())
 
+    async def list_stats_for_users(self, user_ids: list[uuid.UUID]) -> list[UserStat]:
+        if not user_ids:
+            return []
+        result = await self._session.execute(select(UserStat).where(UserStat.user_id.in_(user_ids)))
+        return list(result.scalars().all())
+
     async def list_stat_history(
         self, user_id: uuid.UUID, stat_type: TargetStat
     ) -> list[StatHistory]:

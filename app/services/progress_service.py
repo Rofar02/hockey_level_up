@@ -117,6 +117,24 @@ class ProgressService:
         ]
         return round(sum(excesses) / len(excesses), 1)
 
+    async def get_rating_excesses(self, users: list[User]) -> dict[uuid.UUID, float]:
+        """get_rating_excess for many players with one stats query -- the
+        leaderboard ranks everyone, and one query per player (~900 on
+        2026-10-08) took 10+ seconds and held up every other request
+        meanwhile."""
+        stats_by_user: dict[uuid.UUID, dict[TargetStat, UserStat]] = {}
+        for stat in await self._progress.list_stats_for_users([user.id for user in users if user.age is not None]):
+            stats_by_user.setdefault(stat.user_id, {})[stat.stat_type] = stat
+        now = datetime.now(timezone.utc)
+        excesses: dict[uuid.UUID, float] = {}
+        for user in users:
+            if user.age is None:
+                continue
+            own = stats_by_user.get(user.id, {})
+            values = [_stat_excess(stat_type, user, own.get(stat_type), now) for stat_type in RATED_STAT_TYPES]
+            excesses[user.id] = round(sum(values) / len(values), 1)
+        return excesses
+
     async def list_muscle_loads(self, user_id: uuid.UUID) -> list[MuscleLoadRead]:
         loads = await self._progress.list_muscle_loads(user_id)
         now = datetime.now(timezone.utc)
