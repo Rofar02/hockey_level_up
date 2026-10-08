@@ -3,14 +3,9 @@ from datetime import datetime, timedelta, timezone
 from datetime import time as time_
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.events.handlers.block_completed import (
-    LEVEL_UP_EVENT,
-    xp_to_next_level,
-)
-from app.models.exercise import TargetStat
 from app.models.push_subscription import PushSubscription
 from app.models.team import Team
 from app.models.team_event import (
@@ -28,7 +23,6 @@ from app.models.team_event import (
     TeamIceScheduleTemplate,
 )
 from app.models.user import User
-from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.team_event_repository import TeamEventRepository
 from app.repositories.team_repository import TeamRepository
 from app.schemas.team_event import (
@@ -47,24 +41,16 @@ from app.schemas.team_event import (
 )
 from app.services.push_service import send_push
 from app.services.schedule_service import ScheduleService
-from app.services.stat_award import credit_stats
 
 # -2h from starts_at -- see TeamEventAttendance's own docstring.
 ATTENDANCE_DEADLINE = timedelta(hours=2)
 # Nudge-button rate limit, checked server-side (see send_nudge).
 NUDGE_MIN_INTERVAL = timedelta(hours=1)
 
-# Rewards for a team training (see grant_team_training_reward) -- training
-# only, per the v2 plan (a game is too unpredictable to credit a specific
-# skill). Same diminishing-returns curve as block_completed.stat_consumer
-# (STAT_HARD_CAP/DIMINISHING_EXPONENT imported from there, not
-# redeclared, so the two curves can't drift apart), just with no
-# Exercise/difficulty_level to derive a base gain from -- this fixed
-# per-stat value stands in for it, sized to roughly a mid-difficulty
-# exercise's own per-stat share (difficulty_level=3, split 3 ways: see
-# stat_consumer's `base_gain = (difficulty_level * 0.5) / len(stat_types)`).
-TEAM_TRAINING_STATS = (TargetStat.INTELLECT, TargetStat.PUCK_HANDLING, TargetStat.ON_ICE_SKATING)
-TEAM_TRAINING_BASE_GAIN_PER_STAT = 0.5
+# XP for a team training's day (see claim_team_training_reward) -- training
+# only, a game is too unpredictable to credit a specific skill. Since
+# 2026-10-08 it is the day's XP in place of the ordinary report XP, and the
+# stats come from the report alone (one reward per day, not two).
 TEAM_TRAINING_XP_BONUS = 50
 
 
@@ -84,10 +70,10 @@ class TeamEventService:
     reminder_scheduler.py vs. an instant push: both need a clock, not a
     triggering API call.
 
-    Also the team-day reward: the first personal-diary save for a day a
-    TRAINING event took over (a note, or an explicit skip) grants the three
-    on-ice stats + a fixed XP bonus once -- see grant_team_training_reward,
-    called from TrainingDiaryService. Games grant nothing here.
+    Also the team-day reward: the first rewarded report for a day a
+    TRAINING event took over earns the team-training XP instead of the
+    ordinary report XP -- see claim_team_training_reward, called from
+    TrainingDiaryService. Games grant nothing extra here.
 
     And CRUD for TeamIceScheduleTemplate (the recurring weekday+time slot
     a captain sets up) -- the actual stamping of future TeamEvent rows
@@ -735,17 +721,16 @@ class TeamEventService:
 
     # -- rewards --
 
-    async def grant_team_training_reward(
+    async def claim_team_training_reward(
         self, user: User, team_event_id: uuid.UUID, note: str | None
     ) -> bool:
-        """Called by TrainingDiaryService on the first personal-diary save
-        for a day a team training took over (DayPlan.team_event_id): grants
-        the team-training stats + XP once per player per event. There is no
-        separate team diary any more -- players and the coach keep the
-        ordinary personal one. The TeamEventDiaryEntry row is kept as the
-        "already rewarded" marker (players rewarded through the old team
-        diary tab aren't rewarded twice). A game, a vanished event or a
-        player no longer in the team gets nothing. Doesn't commit.
+        """Called by TrainingDiaryService when it rewards the report for a
+        day a team training took over (DayPlan.team_event_id): whether this
+        day earns TEAM_TRAINING_XP_BONUS, once per player per event. The
+        TeamEventDiaryEntry row is the "already claimed" marker (players
+        rewarded through the old team diary tab aren't rewarded twice). A
+        game, a vanished event or a player no longer in the team gets
+        nothing. Credits nothing itself -- the caller does. Doesn't commit.
         """
         event = await self._events.get_event(team_event_id)
         if event is None or event.event_type != TeamEventType.TRAINING:
@@ -755,48 +740,7 @@ class TeamEventService:
         if await self._events.get_diary_entry(event.id, user.id) is not None:
             return False
         await self._events.create_diary_entry(event.id, user.id, note)
-        await self._award_team_training_rewards(user.id, event.id)
         return True
-
-    async def _award_team_training_rewards(self, user_id: uuid.UUID, team_event_id: uuid.UUID) -> None:
-        """Stats via stat_award.credit_stats (stat_consumer's curve and
-        upsert) and xp_consumer's atomic XP increment + level-up check --
-        reused directly here rather than
-        going through the outbox/block_completed event, since there's no
-        Exercise/SessionBlock for this to be "about" and nothing else needs
-        to react to it asynchronously; this already runs in
-        save_diary_entry's own transaction.
-        """
-        await credit_stats(
-            self._session,
-            user_id,
-            {stat_type: TEAM_TRAINING_BASE_GAIN_PER_STAT for stat_type in TEAM_TRAINING_STATS},
-            f"team_training:{team_event_id}",
-        )
-
-        result = await self._session.execute(
-            update(User)
-            .where(User.id == user_id)
-            .values(xp=User.xp + TEAM_TRAINING_XP_BONUS)
-            .returning(User.xp, User.level)
-        )
-        row = result.first()
-        if row is None:
-            return
-        xp, level = row
-        threshold = xp_to_next_level(level)
-        if xp >= threshold:
-            old_level = level
-            level += 1
-            xp -= threshold
-            await self._session.execute(
-                update(User).where(User.id == user_id).values(xp=xp, level=level)
-            )
-            OutboxRepository(self._session).add(
-                LEVEL_UP_EVENT,
-                {"user_id": str(user_id), "old_level": old_level, "new_level": level},
-            )
-
 
     # -- ice schedule template --
 

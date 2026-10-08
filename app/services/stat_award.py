@@ -8,13 +8,20 @@ credit leaves a StatHistory row with `reason`. Doesn't commit.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.events.handlers.block_completed import DIMINISHING_EXPONENT, STAT_HARD_CAP
+from app.events.handlers.block_completed import (
+    DIMINISHING_EXPONENT,
+    LEVEL_UP_EVENT,
+    STAT_HARD_CAP,
+    xp_to_next_level,
+)
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory, UserStat
+from app.models.user import User
+from app.repositories.outbox_repository import OutboxRepository
 
 
 async def credit_stats(
@@ -49,3 +56,25 @@ async def credit_stats(
         session.add(StatHistory(user_id=user_id, stat_type=stat_type, value=new_value, reason=reason))
         credited[stat_type] = gain
     return credited
+
+
+async def award_xp(session: AsyncSession, user_id: uuid.UUID, amount: int) -> None:
+    """xp_consumer's atomic XP increment + level-up check, for the same
+    exercise-less rewards as credit_stats. Doesn't commit."""
+    result = await session.execute(
+        update(User).where(User.id == user_id).values(xp=User.xp + amount).returning(User.xp, User.level)
+    )
+    row = result.first()
+    if row is None:
+        return
+    xp, level = row
+    threshold = xp_to_next_level(level)
+    if xp >= threshold:
+        old_level = level
+        level += 1
+        xp -= threshold
+        await session.execute(update(User).where(User.id == user_id).values(xp=xp, level=level))
+        OutboxRepository(session).add(
+            LEVEL_UP_EVENT,
+            {"user_id": str(user_id), "old_level": old_level, "new_level": level},
+        )

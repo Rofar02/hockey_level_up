@@ -51,6 +51,6 @@ async def save_diary_entry(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     entry = await TrainingDiaryService(session).save_entry(
-        user=current_user, training_session_id=session_id, note=body.note
+        user=current_user, training_session_id=session_id, note=body.note, report=body.report
     )
     return TrainingDiaryEntryRead.model_validate(entry)
