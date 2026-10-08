@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
@@ -160,6 +161,8 @@ interface DayRow {
   trainingSession: TrainingSessionRead | null
   // Set while a team event the user said "going" to has taken the day over.
   teamEventId: string | null
+  // What the day was before that team event (null otherwise).
+  replacedSessionType: DaySessionType | null
 }
 
 // "Started" (in-progress or done) is what actually gates editing controls
@@ -177,6 +180,7 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     completionStatus: completionStatusFromBlocks(day.training_session?.blocks),
     trainingSession: day.training_session,
     teamEventId: day.team_event_id,
+    replacedSessionType: day.replaced_session_type ?? null,
   }))
 }
 
@@ -188,6 +192,7 @@ function rowsForWeek(dates: Date[]): DayRow[] {
     completionStatus: 'not-started',
     trainingSession: null,
     teamEventId: null,
+    replacedSessionType: null,
   }))
 }
 
@@ -433,7 +438,10 @@ export function NewSchedulePage() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
         <div className="flex flex-col gap-2">
           <BackLink />
-          <h1 className="text-xl font-semibold">Неделя</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold">Неделя</h1>
+            <HelpButton topic="week" />
+          </div>
         </div>
 
         <div className={`flex overflow-hidden rounded-md ${CARD_BORDER} bg-dark-card`}>
@@ -476,6 +484,7 @@ export function NewSchedulePage() {
 
         {weekStatus === 'view' && loadError === null && editSnapshot === null && (
           <>
+            <DisplacedGymWarning rows={rows} onAdjust={handleStartEditing} />
             {/* "Campaign path" -- a connecting line + circular weekday node
                 per row, read-only view only (editing keeps EditableDayRow's
                 plain rows below: its interactive type-picker grid doesn't
@@ -578,6 +587,11 @@ export function NewSchedulePage() {
                           >
                             <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
                             {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+                          </span>
+                        )}
+                        {row.teamEventId !== null && row.replacedSessionType === 'off_ice' && !started && (
+                          <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium text-accent-persimmon">
+                            Было: зал
                           </span>
                         )}
                         {badgeLabel !== undefined && (
@@ -1116,6 +1130,82 @@ function DayPreviewPhaseSection({
         })}
       </div>
       )}
+    </div>
+  )
+}
+
+const DISMISSED_KEY_PREFIX = 'displaced-gym-dismissed:'
+// "в пятницу", "на воскресенье" -- Monday first.
+const WEEKDAY_ACCUSATIVE = ['понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу', 'воскресенье']
+
+function readDismissed(dayIds: string[]): boolean {
+  try {
+    return dayIds.every((id) => window.localStorage.getItem(DISMISSED_KEY_PREFIX + id) !== null)
+  } catch {
+    return false
+  }
+}
+
+// 2026-10-08: "going" to a team event turns that day into ice/a game, and a
+// gym workout planned there simply drops out of the week -- nothing moves it
+// elsewhere. This says so and offers the week editor, pointing at the first
+// free (rest) day after it. "Оставить" hides it for those days on this
+// device (a per-viewer convenience, the week itself is unchanged).
+function DisplacedGymWarning({ rows, onAdjust }: { rows: DayRow[]; onAdjust: () => void }) {
+  const todayIso = toIsoDate(new Date())
+  const displaced = rows.filter(
+    (row) =>
+      row.teamEventId !== null &&
+      row.replacedSessionType === 'off_ice' &&
+      row.isoDate >= todayIso &&
+      !isStarted(row),
+  )
+  const dayIds = displaced.map((row) => row.isoDate)
+  const [dismissed, setDismissed] = useState(() => readDismissed(dayIds))
+  if (displaced.length === 0 || dismissed) {
+    return null
+  }
+
+  const first = displaced[0]
+  const freeDay = rows.find((row) => row.isoDate > first.isoDate && row.sessionType === 'rest' && !isStarted(row))
+  const weekday = (row: DayRow) => WEEKDAY_ACCUSATIVE[(row.date.getDay() + 6) % 7]
+  const what = first.sessionType === 'game' ? 'командную игру' : 'лёд с командой'
+
+  function dismiss() {
+    try {
+      dayIds.forEach((id) => window.localStorage.setItem(DISMISSED_KEY_PREFIX + id, '1'))
+    } catch {
+      // Private mode etc. -- hidden for this visit only.
+    }
+    setDismissed(true)
+  }
+
+  return (
+    <div className="mb-4 rounded-2xl border border-accent-persimmon/45 bg-accent-persimmon/10 p-4">
+      <div className="flex gap-3">
+        <i className="ti ti-alert-triangle mt-0.5 text-xl text-accent-persimmon" aria-hidden="true" />
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-semibold text-text-primary">
+            {displaced.length === 1 ? 'Командный лёд занял день зала' : 'Командные дни заняли дни зала'}
+          </p>
+          <p className="text-sm leading-relaxed text-[#B7C2D4]">
+            {displaced.length === 1
+              ? `В ${weekday(first)} у вас ${what}, и тренировка в зале на этой неделе пропала.`
+              : `На этой неделе пропало тренировок в зале: ${displaced.length}.`}{' '}
+            {freeDay !== undefined
+              ? `Перенесите её на свободный день — например, на ${weekday(freeDay)}.`
+              : 'Перенесите её на свободный день, чтобы не потерять.'}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button onClick={onAdjust} className="flex-1">
+          Скорректировать неделю
+        </Button>
+        <Button variant="neutral" onClick={dismiss}>
+          Оставить
+        </Button>
+      </div>
     </div>
   )
 }

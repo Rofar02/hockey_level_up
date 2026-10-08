@@ -70,7 +70,7 @@ from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 from app.services.coach_philosophy import COACH_PHILOSOPHY, COACH_VOICE
 from app.services.skill_service import SkillService
 from app.services.training_block_service import TrainingBlockService
-from app.services.training_diary_service import TrainingDiaryService
+from app.services.training_diary_service import TrainingDiaryService, format_entry_for_coach
 from app.services.user_service import UserService
 from app.services.user_temporary_restriction_service import UserTemporaryRestrictionService
 
@@ -463,14 +463,14 @@ def _format_restriction_history_section(restrictions: list[UserTemporaryRestrict
 
 
 def _format_diary_section(entries: list[TrainingDiaryEntryListItem]) -> str:
-    """`entries` is already filtered to only-with-notes and capped at the
-    DB level (see CoachChatService._build_system_prompt's
-    only_with_notes=True call) -- nothing left to filter here."""
+    """`entries` is already filtered to ones with a note or a report and
+    capped at the DB level (see CoachChatService._build_system_prompt's
+    only_with_content=True call) -- nothing left to filter here."""
     if not entries:
-        return "Последние записи дневника: нет записей с заметками."
+        return "Последние записи дневника: нет записей."
     parts = [
         f"{entry.date.isoformat()} ({DAY_SESSION_TYPE_LABELS.get(entry.session_type, entry.session_type.value)}): "
-        f"«{entry.note}»"
+        f"{format_entry_for_coach(entry)}"
         for entry in entries
     ]
     return "Последние записи дневника игрока: " + "; ".join(parts) + "."
@@ -1216,7 +1216,7 @@ class CoachChatService:
         restriction_history_section = _format_restriction_history_section(resolved_restrictions)
 
         diary_entries = await self._diary.list_entries(
-            user, limit=DIARY_ENTRIES_IN_PROMPT, only_with_notes=True
+            user, limit=DIARY_ENTRIES_IN_PROMPT, only_with_content=True
         )
         diary_section = _format_diary_section(diary_entries)
 

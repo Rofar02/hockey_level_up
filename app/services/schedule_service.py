@@ -2969,6 +2969,7 @@ class ScheduleService:
             session_type=day.session_type,
             training_session=session_read,
             team_event_id=day.team_event_id,
+            replaced_session_type=day.replaced_session_type,
         )
 
     async def _to_read_schema(self, weekly_plan: WeeklyPlan) -> WeeklyPlanRead:

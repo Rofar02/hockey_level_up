@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.schedule import DayPlan, DaySessionType, TrainingSession
@@ -23,14 +23,20 @@ class TrainingDiaryRepository:
         return result.scalar_one_or_none()
 
     async def list_for_user(
-        self, user_id: uuid.UUID, *, limit: int | None = None, only_with_notes: bool = False
+        self,
+        user_id: uuid.UUID,
+        *,
+        limit: int | None = None,
+        only_with_content: bool = False,
+        since: date | None = None,
+        until: date | None = None,
     ) -> list[tuple[TrainingDiaryEntry, date, DaySessionType, uuid.UUID]]:
         """Diary entries this user has written, newest first -- the "open my
-        diary and read back" view (no `limit`/`only_with_notes`, the real
+        diary and read back" view (no filters, the real
         /diary page's own use, which wants every entry so the player can
-        see what they left blank too). Both params exist for
+        see what they left blank too). The filters exist for
         CoachChatService's system-prompt summary, which only wants the
-        last few entries that actually say something -- `only_with_notes`
+        last few entries that actually say something -- `only_with_content`
         filters at the DB level rather than in Python so a run of recent
         blank entries can't push real notes out of a small `limit`. Joined
         through TrainingSession->DayPlan for the date/session_type/id the
@@ -45,8 +51,16 @@ class TrainingDiaryRepository:
             .where(TrainingDiaryEntry.user_id == user_id)
             .order_by(DayPlan.date.desc())
         )
-        if only_with_notes:
-            query = query.where(TrainingDiaryEntry.note.isnot(None))
+        if only_with_content:
+            # A note or a report (2026-10-08) -- "Не буду писать" rows are
+            # the blank ones left out.
+            query = query.where(
+                or_(TrainingDiaryEntry.note.isnot(None), TrainingDiaryEntry.reported_at.isnot(None))
+            )
+        if since is not None:
+            query = query.where(DayPlan.date >= since)
+        if until is not None:
+            query = query.where(DayPlan.date <= until)
         if limit is not None:
             query = query.limit(limit)
         result = await self._session.execute(query)

@@ -167,6 +167,11 @@ class DayPlan(Base):
     reminder_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Same guard for the "how did the ice/game go?" push a couple of hours
+    # after an ON_ICE/GAME day (report_reminder_scheduler).
+    report_reminder_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Set while a TeamEvent the user marked "going" has taken this day over
     # (TRAINING -> ON_ICE, GAME -> GAME), see
     # ScheduleService.apply_team_event_to_day. replaced_session_type is what

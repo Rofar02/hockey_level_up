@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import {
   BalanceSection,
   InsightList,
@@ -34,7 +35,10 @@ export function AnalyticsPage() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 pb-32 pt-8">
         <div className="flex flex-col gap-2">
           <BackLink />
-          <h1 className="text-xl font-semibold">Аналитика</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold">Аналитика</h1>
+            <HelpButton topic="analytics" />
+          </div>
         </div>
 
         {hasPremium && accessToken !== null ? (

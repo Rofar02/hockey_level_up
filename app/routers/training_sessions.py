@@ -8,8 +8,9 @@ from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
 from app.schemas.set_completion import ExerciseSetsRead, SetCompletionSummary
-from app.schemas.training_diary import TrainingDiaryEntryIn, TrainingDiaryEntryRead
+from app.schemas.training_diary import IceFocusRead, TrainingDiaryEntryIn, TrainingDiaryEntryRead
 from app.services.set_completion_service import SetCompletionService
+from app.services.ice_focus_service import IceFocusService
 from app.services.training_diary_service import TrainingDiaryService
 
 router = APIRouter(prefix="/training-sessions", tags=["training-sessions"])
@@ -51,6 +52,15 @@ async def save_diary_entry(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     entry = await TrainingDiaryService(session).save_entry(
-        user=current_user, training_session_id=session_id, note=body.note
+        user=current_user, training_session_id=session_id, note=body.note, report=body.report
     )
     return TrainingDiaryEntryRead.model_validate(entry)
+
+
+@router.get("/{session_id}/focus", response_model=IceFocusRead | None)
+async def get_ice_focus(
+    session_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await IceFocusService(session).focus_for_session(current_user, session_id)

@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, Integer, String, false, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -101,6 +101,9 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String(100), nullable=False, server_default="")
     patronymic: Mapped[str | None] = mapped_column(String(100), nullable=True)
     jersey_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # "Путь новичка" checklist (app/services/onboarding_service.py): which
+    # tasks were paid, whether the first sync happened, dismissed, finished.
+    onboarding_state: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     avatar_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_ring_accent: Mapped[AvatarRingAccent | None] = mapped_column(
         enum_column(AvatarRingAccent, "avatar_ring_accent"), nullable=True

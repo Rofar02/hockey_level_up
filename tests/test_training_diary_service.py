@@ -4,8 +4,8 @@ for either, so this is the only way the player records what actually
 happened, in their own words. Covers the save/get round-trip, upsert-in-
 place on a second save, ownership (404 for someone else's session), the
 ON_ICE/GAME-only gate (400 for OFF_ICE), list_entries (the "open my
-diary" view across every session), and the stat reward a real note earns
-for an ice/game day (2026-10-08).
+diary" view across every session), and the report after an ice day or a
+game (2026-10-08): what it stores, what it earns and when it earns nothing.
 """
 import uuid
 from datetime import date, timedelta
@@ -17,9 +17,17 @@ from sqlalchemy import select
 from app.models.exercise import TargetStat
 from app.models.progress import UserStat
 from app.models.schedule import DayPlan, DaySessionType, TrainingSession, WeeklyPlan
+from app.models.training_diary import GameResult, GameWorkOn, IceEffort, IceHighlight
 from app.models.user import User
-from app.schemas.training_diary import TrainingDiaryEntryRead
-from app.services.training_diary_service import DIARY_STAT_REWARDS, TrainingDiaryService
+from app.schemas.training_diary import DiaryReportIn, TrainingDiaryEntryRead
+from app.services.training_diary_service import (
+    DIARY_STAT_REWARDS,
+    REPORT_REWARD_WINDOW_DAYS,
+    REPORT_XP,
+    TrainingDiaryService,
+    format_entry_for_coach,
+    report_base_gains,
+)
 from tests.dates import utc_today
 
 
@@ -263,64 +271,177 @@ async def _stats(db_session, user: User) -> dict[TargetStat, float]:
     return dict(rows.all())
 
 
-@pytest.mark.asyncio
-async def test_diary_note_credits_ice_day_stats_once(db_session) -> None:
+ICE_REPORT = DiaryReportIn(duration_minutes=60, effort=IceEffort.NORMAL)
+GAME_REPORT = DiaryReportIn(game_result=GameResult.WIN, goals=1, assists=2, shots=4, self_rating=4)
+
+
+async def _user(db_session) -> User:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
+    return user
+
+
+@pytest.mark.asyncio
+async def test_ice_report_credits_stats_and_xp_once(db_session) -> None:
+    user = await _user(db_session)
     training_session = await _make_session(db_session, user, DaySessionType.ON_ICE)
     service = TrainingDiaryService(db_session)
 
-    # Autosave mid-typing: too short to count yet.
-    first = await service.save_entry(user=user, training_session_id=training_session.id, note="Покатался")
-    assert first.stat_rewards == {}
-    assert first.rewarded is False
-    assert await _stats(db_session, user) == {}
+    # A note alone (autosave while typing) earns nothing any more.
+    first = await service.save_entry(user, training_session.id, "Хорошо покатался, обводка пошла")
+    assert first.stat_rewards == {} and first.xp_reward == 0 and first.rewarded is False
 
-    note = "Хорошо покатался, обводка пошла, устал к концу"
-    second = await service.save_entry(user=user, training_session_id=training_session.id, note=note)
-    assert second.stat_rewards == DIARY_STAT_REWARDS[DaySessionType.ON_ICE]  # from 0: no diminishing yet
+    second = await service.save_entry(user, training_session.id, "Хорошо покатался", ICE_REPORT)
+    assert second.stat_rewards == DIARY_STAT_REWARDS[DaySessionType.ON_ICE]  # 60 min, normal: base, no diminishing
+    assert second.xp_reward == REPORT_XP[DaySessionType.ON_ICE]
     assert TrainingDiaryEntryRead.model_validate(second).rewarded is True
-    assert await _stats(db_session, user) == DIARY_STAT_REWARDS[DaySessionType.ON_ICE]
+    assert second.reported_at is not None
+    assert (second.duration_minutes, second.effort) == (60, IceEffort.NORMAL)
+    await db_session.refresh(user)
+    assert user.xp == REPORT_XP[DaySessionType.ON_ICE]
 
-    third = await service.save_entry(user=user, training_session_id=training_session.id, note=note + "!")
-    assert third.stat_rewards == {}
-    assert third.rewarded is True
-    assert (await service.get_entry(user, training_session.id)).rewarded is True
+    # Re-submitting or editing the note never credits again.
+    third = await service.save_entry(user, training_session.id, "Хорошо покатался!", ICE_REPORT)
+    fourth = await service.save_entry(user, training_session.id, "Хорошо покатался!!")
+    assert third.stat_rewards == {} and third.xp_reward == 0 and third.rewarded is True
+    assert fourth.rewarded is True and fourth.duration_minutes == 60  # a note-only save keeps the report
     assert await _stats(db_session, user) == DIARY_STAT_REWARDS[DaySessionType.ON_ICE]
+    await db_session.refresh(user)
+    assert user.xp == REPORT_XP[DaySessionType.ON_ICE]
+
+
+def test_ice_gains_scale_with_duration_effort_and_highlights() -> None:
+    short_easy = report_base_gains(
+        DaySessionType.ON_ICE, DiaryReportIn(duration_minutes=45, effort=IceEffort.EASY)
+    )
+    long_hard = report_base_gains(
+        DaySessionType.ON_ICE, DiaryReportIn(duration_minutes=90, effort=IceEffort.HARD)
+    )
+    base = DIARY_STAT_REWARDS[DaySessionType.ON_ICE]
+    for stat in base:
+        assert short_easy[stat] < base[stat] < long_hard[stat]
+
+    picked = report_base_gains(
+        DaySessionType.ON_ICE,
+        DiaryReportIn(
+            duration_minutes=60,
+            effort=IceEffort.NORMAL,
+            highlights=[IceHighlight.PASSING, IceHighlight.SHOOTING, IceHighlight.GAME_READING],
+        ),
+    )
+    assert picked[TargetStat.PUCK_HANDLING] == pytest.approx(base[TargetStat.PUCK_HANDLING] + 0.6)
+    assert picked[TargetStat.INTELLECT] == pytest.approx(base[TargetStat.INTELLECT] + 0.3)
+    assert picked[TargetStat.ON_ICE_SKATING] == base[TargetStat.ON_ICE_SKATING]
+
+
+def test_game_gains_ignore_the_counters_and_the_self_rating() -> None:
+    modest = DiaryReportIn(game_result=GameResult.LOSS, goals=0, assists=0, shots=0, self_rating=1)
+    star = DiaryReportIn(game_result=GameResult.WIN, goals=4, assists=3, shots=12, self_rating=5)
+    assert report_base_gains(DaySessionType.GAME, modest) == report_base_gains(DaySessionType.GAME, star)
+    assert max(report_base_gains(DaySessionType.GAME, star), key=lambda s: report_base_gains(
+        DaySessionType.GAME, star)[s]) == TargetStat.INTELLECT
 
 
 @pytest.mark.asyncio
-async def test_game_diary_leans_on_intellect(db_session) -> None:
-    user = _make_user()
-    db_session.add(user)
-    await db_session.flush()
+async def test_game_report_stores_counters_and_private_fields(db_session) -> None:
+    user = await _user(db_session)
+    training_session = await _make_session(db_session, user, DaySessionType.GAME)
+
+    report = GAME_REPORT.model_copy(update={"work_on": [GameWorkOn.DEFENSE], "share_rating_with_coach": True})
+    saved = await TrainingDiaryService(db_session).save_entry(user, training_session.id, None, report)
+
+    assert (saved.game_result, saved.goals, saved.assists, saved.shots) == (GameResult.WIN, 1, 2, 4)
+    assert saved.self_rating == 4 and saved.work_on == ["defense"] and saved.share_rating_with_coach is True
+    assert saved.duration_minutes is None and saved.effort is None  # ice-only fields stay empty
+    assert saved.xp_reward == REPORT_XP[DaySessionType.GAME]
+    assert saved.stat_rewards[TargetStat.INTELLECT] == 2.0
+
+
+@pytest.mark.asyncio
+async def test_goalie_game_report_without_counters_is_accepted(db_session) -> None:
+    user = await _user(db_session)
     training_session = await _make_session(db_session, user, DaySessionType.GAME)
 
     saved = await TrainingDiaryService(db_session).save_entry(
-        user=user, training_session_id=training_session.id, note="Выиграли 3:2, я ошибся в защите во втором периоде"
+        user, training_session.id, None, DiaryReportIn(game_result=GameResult.DRAW, self_rating=3)
     )
 
-    assert saved.stat_rewards[TargetStat.INTELLECT] == 2.0
-    assert max(saved.stat_rewards, key=saved.stat_rewards.get) == TargetStat.INTELLECT
+    assert saved.goals is None and saved.assists is None and saved.shots is None
+    assert saved.rewarded is True
 
 
 @pytest.mark.asyncio
-async def test_no_diary_reward_for_skip_or_future_day(db_session) -> None:
-    user = _make_user()
-    db_session.add(user)
-    await db_session.flush()
-    today_session = await _make_session(db_session, user, DaySessionType.ON_ICE)
+async def test_incomplete_report_is_rejected(db_session) -> None:
+    user = await _user(db_session)
+    ice = await _make_session(db_session, user, DaySessionType.ON_ICE)
+    game = await _make_session(db_session, user, DaySessionType.GAME, day=utc_today() - timedelta(days=1))
+    service = TrainingDiaryService(db_session)
+
+    with pytest.raises(HTTPException) as ice_error:
+        await service.save_entry(user, ice.id, None, DiaryReportIn(duration_minutes=60))
+    with pytest.raises(HTTPException) as game_error:
+        await service.save_entry(user, game.id, None, DiaryReportIn(game_result=GameResult.WIN))
+    assert ice_error.value.status_code == game_error.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_skipped_day_is_closed_without_a_reward(db_session) -> None:
+    user = await _user(db_session)
+    training_session = await _make_session(db_session, user, DaySessionType.ON_ICE)
+
+    saved = await TrainingDiaryService(db_session).save_entry(
+        user, training_session.id, None, DiaryReportIn(skipped=True)
+    )
+
+    assert saved.skipped is True and saved.reported_at is not None
+    assert saved.stat_rewards == {} and saved.xp_reward == 0 and saved.rewarded is False
+    assert await _stats(db_session, user) == {}
+
+
+@pytest.mark.asyncio
+async def test_no_reward_for_a_future_day_or_after_the_window(db_session) -> None:
+    user = await _user(db_session)
     future_session = await _make_session(
         db_session, user, DaySessionType.GAME, day=utc_today() + timedelta(days=3)
     )
+    last_day = await _make_session(
+        db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=REPORT_REWARD_WINDOW_DAYS)
+    )
+    too_late = await _make_session(
+        db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=REPORT_REWARD_WINDOW_DAYS + 1)
+    )
     service = TrainingDiaryService(db_session)
 
-    skipped = await service.save_entry(user=user, training_session_id=today_session.id, note=None)
-    future = await service.save_entry(
-        user=user, training_session_id=future_session.id, note="Планирую играть первым номером в звене"
-    )
+    future = await service.save_entry(user, future_session.id, None, GAME_REPORT)
+    late = await service.save_entry(user, too_late.id, None, ICE_REPORT)
+    in_time = await service.save_entry(user, last_day.id, None, ICE_REPORT)
 
-    assert skipped.stat_rewards == {} and skipped.rewarded is False
     assert future.stat_rewards == {} and future.rewarded is False
-    assert await _stats(db_session, user) == {}
+    assert late.stat_rewards == {} and late.rewarded is False
+    assert late.reported_at is not None  # still recorded, just not paid
+    assert in_time.rewarded is True
+
+
+@pytest.mark.asyncio
+async def test_reports_reach_the_coach_as_plain_facts(db_session) -> None:
+    user = await _user(db_session)
+    ice = await _make_session(db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=1))
+    game = await _make_session(db_session, user, DaySessionType.GAME)
+    blank = await _make_session(db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=2))
+    service = TrainingDiaryService(db_session)
+    await service.save_entry(
+        user, ice.id, None, ICE_REPORT.model_copy(update={"highlights": [IceHighlight.SKATING]})
+    )
+    await service.save_entry(
+        user, game.id, "Ошибся во втором периоде", GAME_REPORT.model_copy(update={"work_on": [GameWorkOn.DEFENSE]})
+    )
+    await service.save_entry(user, blank.id, None)  # "Не буду писать" -- nothing to tell
+
+    entries = await service.list_entries(user, only_with_content=True)
+
+    assert [format_entry_for_coach(entry) for entry in entries] == [
+        "победа, голы 1, передачи 2, броски 4, оценка себе 4/5, хочет поработать: игра в защите, "
+        "«Ошибся во втором периоде»",
+        "60 мин, нормально, лучше всего: катание",
+    ]

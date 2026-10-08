@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
+from app.schemas.game_stats import TeamStatsRead, TeamStatsReminderRead
 from app.schemas.leaderboard import LeaderboardEntryRead
 from app.schemas.team import (
     TeamCreate,
@@ -17,6 +18,7 @@ from app.schemas.team import (
     TeamSummaryRead,
     TeamTransferCaptaincyPayload,
 )
+from app.services.game_stats_service import GameStatsService
 from app.services.team_service import TeamService
 
 router = APIRouter(prefix="/teams", tags=["teams"])
@@ -199,3 +201,24 @@ async def get_team_score(
     """The team's own team_score, visible on its own page regardless of
     whether it has >= 8 members (see get_team_rankings above)."""
     return await TeamService(session).get_team_score(current_user, team_id)
+
+
+@router.get("/{team_id}/stats", response_model=TeamStatsRead)
+async def get_team_stats(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    scope: Annotated[Literal["season", "last_game"], Query()] = "season",
+):
+    """The captain's table: each member's numbers from their own reports on
+    this team's games (see GameStatsService)."""
+    return await GameStatsService(session).team_stats(current_user, team_id, scope)
+
+
+@router.post("/{team_id}/stats/remind", response_model=TeamStatsReminderRead)
+async def remind_team_reports(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await GameStatsService(session).remind_missing(current_user, team_id)

@@ -237,3 +237,23 @@ async def test_week_declared_after_going_starts_with_the_takeover(db_session) ->
 
     day_plan = await _day(db_session, player, event_day)
     assert day_plan.replaced_session_type == DaySessionType.REST
+
+
+@pytest.mark.asyncio
+async def test_week_read_says_what_the_day_was_before_the_team_event(db_session) -> None:
+    """The week page warns when a team event took a gym day (2026-10-08) --
+    it needs replaced_session_type in the week it reads."""
+    captain, player, team = await _make_team_with_player(db_session)
+    event_day = _event_day()
+    await _declare_rest_week(db_session, player, event_day)
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _noon_utc(event_day), None)
+    await events.set_my_attendance(player, team.id, event.id, TeamEventAttendanceStatus.GOING, None, None)
+
+    week = await ScheduleService(db_session).get_weekly_plan(player, _monday_of(event_day))
+
+    by_date = {day.date: day for day in week.day_plans}
+    assert by_date[event_day].team_event_id == event.id
+    assert by_date[event_day].replaced_session_type == DaySessionType.REST
+    other_day = next(day for day in week.day_plans if day.date != event_day)
+    assert other_day.replaced_session_type is None

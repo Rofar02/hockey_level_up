@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -9,6 +10,7 @@ import * as trainingDiaryApi from '../api/trainingDiary'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
+import { GAME_RESULT_LABELS, ICE_EFFORT_LABELS } from '../types/trainingDiary'
 import type { TrainingDiaryEntryListItem } from '../types/trainingDiary'
 import { formatShortDate, parseIsoDate } from '../utils/date'
 
@@ -62,7 +64,10 @@ export function DiaryPage() {
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
         <div className="flex flex-col gap-2">
           <BackLink />
-          <h1 className="text-xl font-semibold">Дневник</h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold">Дневник</h1>
+            <HelpButton topic="diary" />
+          </div>
         </div>
 
         <FormError message={loadError} />
@@ -94,9 +99,35 @@ export function DiaryPage() {
   )
 }
 
+// The report's one-line summary (2026-10-08), null for a note-only entry.
+function reportSummary(entry: TrainingDiaryEntryListItem): string | null {
+  if (entry.reported_at === null) {
+    return null
+  }
+  if (entry.skipped) {
+    return entry.session_type === 'game' ? 'Не играл' : 'Не был на льду'
+  }
+  if (entry.session_type === 'game' && entry.game_result !== null) {
+    const parts = [GAME_RESULT_LABELS[entry.game_result]]
+    if (entry.goals !== null) {
+      parts.push(`голы ${entry.goals}, передачи ${entry.assists ?? 0}, броски ${entry.shots ?? 0}`)
+    }
+    return parts.join(' · ')
+  }
+  if (entry.duration_minutes !== null) {
+    const parts = [`${entry.duration_minutes} мин`]
+    if (entry.effort !== null) {
+      parts.push(ICE_EFFORT_LABELS[entry.effort])
+    }
+    return parts.join(' · ')
+  }
+  return null
+}
+
 function DiaryEntryRow({ entry, onOpen }: { entry: TrainingDiaryEntryListItem; onOpen: () => void }) {
   const date = parseIsoDate(entry.date)
   const hasNote = entry.note !== null && entry.note !== ''
+  const summary = reportSummary(entry)
   return (
     <button
       type="button"
@@ -108,7 +139,9 @@ function DiaryEntryRow({ entry, onOpen }: { entry: TrainingDiaryEntryListItem; o
           month a quiet caption under it, rather than a monospace "18.09"
           code string. */}
       <div className="w-9 shrink-0 pt-0.5 text-center">
-        <div className={`font-display text-2xl leading-none ${hasNote ? 'text-accent-persimmon' : 'text-[#5B6480]'}`}>
+        <div
+          className={`font-display text-2xl leading-none ${hasNote || summary !== null ? 'text-accent-persimmon' : 'text-[#5B6480]'}`}
+        >
           {date.getDate()}
         </div>
         <div className="mt-1 font-display text-[10px] tracking-wide text-[#8A94A6]">
@@ -121,10 +154,11 @@ function DiaryEntryRow({ entry, onOpen }: { entry: TrainingDiaryEntryListItem; o
           <i className={`ti ${SESSION_TYPE_ICONS[entry.session_type]}`} aria-hidden="true" />
           {DAY_SESSION_TYPE_LABELS[entry.session_type]}
         </span>
+        {summary !== null && <p className="text-sm font-medium text-text-primary">{summary}</p>}
         {hasNote ? (
           <p className="line-clamp-2 whitespace-pre-wrap text-sm leading-snug text-[#D7DCE6]">{entry.note}</p>
         ) : (
-          <p className="text-sm italic text-[#5B6480]">Без заметки</p>
+          summary === null && <p className="text-sm italic text-[#5B6480]">Без заметки</p>
         )}
       </div>
     </button>
@@ -146,19 +180,32 @@ function DiaryEntryModal({ entry, onClose }: { entry: TrainingDiaryEntryListItem
           <i className={`ti ${SESSION_TYPE_ICONS[entry.session_type]}`} aria-hidden="true" />
           {DAY_SESSION_TYPE_LABELS[entry.session_type]}
         </span>
+        {reportSummary(entry) !== null && (
+          <p className="text-sm font-medium text-text-primary">{reportSummary(entry)}</p>
+        )}
         {entry.note !== null && entry.note !== '' ? (
           <p className="whitespace-pre-wrap text-sm text-[#F5F7FA]">{entry.note}</p>
         ) : (
           <p className="text-sm italic text-[#8A94A6]">Без заметки</p>
         )}
-        <button
-          type="button"
-          onClick={() => navigate(`/training/${entry.day_plan_id}`)}
-          className="flex items-center gap-1.5 self-start text-sm text-accent-ice underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary"
-        >
-          Открыть тренировку
-          <i className="ti ti-arrow-right" aria-hidden="true" />
-        </button>
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          <button
+            type="button"
+            onClick={() => navigate(`/training/${entry.day_plan_id}/diary`)}
+            className="flex min-h-11 items-center gap-1.5 text-sm text-accent-ice transition-colors hover:text-text-primary"
+          >
+            <i className="ti ti-pencil" aria-hidden="true" />
+            {entry.reported_at === null ? 'Заполнить отчёт' : 'Изменить отчёт'}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/training/${entry.day_plan_id}`)}
+            className="flex min-h-11 items-center gap-1.5 text-sm text-text-secondary transition-colors hover:text-text-primary"
+          >
+            Открыть тренировку
+            <i className="ti ti-arrow-right" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </Modal>
   )

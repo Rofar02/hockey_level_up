@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { TeamCaptainSetupCard, TeamPlayerIntroCard } from '../components/teamEvents/TeamIntroCards'
 import { NextEventCard } from '../components/teamEvents/NextEventCard'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
@@ -372,7 +373,23 @@ export function TeamDetailPage() {
               )}
             </div>
 
+            {team.is_captain ? (
+              <TeamCaptainSetupCard teamId={teamId!} memberCount={team.members.length} />
+            ) : (
+              <TeamPlayerIntroCard teamId={teamId!} />
+            )}
+
             <NextEventCard teamId={teamId!} isCaptain={team.is_captain} />
+            {team.is_captain && (
+              <Link
+                to={`/teams/${teamId}/stats`}
+                className="flex min-h-12 items-center gap-3 rounded-xl border border-white/10 bg-dark-card px-4 text-sm font-medium transition-colors hover:bg-white/[0.04]"
+              >
+                <i className="ti ti-chart-bar text-lg text-accent-ice" aria-hidden="true" />
+                <span className="flex-1">Статистика игроков</span>
+                <i className="ti ti-chevron-right text-text-secondary" aria-hidden="true" />
+              </Link>
+            )}
 
             <div className="flex flex-col gap-4">
               <div className="flex border-b border-white/10">

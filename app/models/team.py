@@ -35,6 +35,9 @@ class Team(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # The captain's "напомнить про отчёты" push, at most once an hour (see
+    # GameStatsService.remind_missing).
+    stats_reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     @property
     def logo_url(self) -> str | None:

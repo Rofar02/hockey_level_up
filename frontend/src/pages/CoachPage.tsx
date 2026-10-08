@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { HelpButton } from '../components/HelpButton'
 import { Link, useLocation } from 'react-router-dom'
 import { CoachPersonalityIntroModal } from '../components/CoachPersonalityIntroModal'
 import { MarkdownContent } from '../components/MarkdownContent'
@@ -71,6 +72,9 @@ export function CoachPage() {
             Тренер
             <span className="rounded-full border border-accent-ice/30 bg-accent-ice/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent-ice">
               AI
+            </span>
+            <span className="ml-auto">
+              <HelpButton topic="coach" />
             </span>
           </h1>
         </div>

@@ -36,6 +36,7 @@ from app.services.analytics_overview_service import AnalyticsOverviewService
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 from app.services.coach_philosophy import COACH_PHILOSOPHY, COACH_VOICE
 from app.services.push_service import send_push
+from app.services.training_diary_service import TrainingDiaryService, format_entry_for_coach
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,11 @@ SESSION_TYPE_LABELS = {
 
 
 def _facts_text(
-    overview: AnalyticsOverviewRead, by_type: dict[DaySessionType, tuple[int, int]], tournament_line: str, notes: list[str]
+    overview: AnalyticsOverviewRead,
+    by_type: dict[DaySessionType, tuple[int, int]],
+    tournament_line: str,
+    notes: list[str],
+    reports: list[str] | None = None,
 ) -> str:
     regularity = overview.regularity
     lines = [
@@ -107,6 +112,8 @@ def _facts_text(
             f"{SESSION_TYPE_LABELS[kind]}: {done} из {planned}" for kind, (done, planned) in by_type.items()
         )
         lines.append(f"По типам дней (выполнено из плана): {kinds}.")
+    if reports:
+        lines.append("Отчёты игрока после льда и игр: " + "; ".join(reports) + ".")
     if overview.records:
         records = "; ".join(
             f"{r.exercise_name}: {r.before:g} -> {r.after:g} {UNIT_LABELS[r.unit]}" for r in overview.records[:5]
@@ -172,6 +179,14 @@ class WeeklyReviewService:
         today = week_end + timedelta(days=1)
         tournament_line = coach_chat_service._format_tournament_section(user.tournament_date, today)
         by_type = await self._sessions_by_type(user.id, week_start, week_end)
+        entries = await TrainingDiaryService(self._session).list_entries(
+            user, only_with_content=True, since=week_start, until=week_end
+        )
+        reports = [
+            f"{entry.date.strftime('%d.%m')} ({SESSION_TYPE_LABELS.get(entry.session_type, '')}): "
+            f"{format_entry_for_coach(entry)}"
+            for entry in reversed(entries)
+        ]
 
         reply = await coach_chat_service.call_zai_clean(
             settings.zai_api_key,
@@ -184,7 +199,7 @@ class WeeklyReviewService:
                     "role": "user",
                     "content": (
                         f"Неделя {week_start.strftime('%d.%m')}–{week_end.strftime('%d.%m')}.\n"
-                        f"{_facts_text(overview, by_type, tournament_line, notes)}"
+                        f"{_facts_text(overview, by_type, tournament_line, notes, reports)}"
                     ),
                 }
             ],

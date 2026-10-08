@@ -79,6 +79,9 @@ class DayPlanRead(BaseModel):
     # Set while a team event the user marked "going" has taken this day over
     # (see DayPlan.team_event_id).
     team_event_id: uuid.UUID | None = None
+    # What the day was before that (2026-10-08: the week page warns when a
+    # team event took a gym day, so the player can move the workout).
+    replaced_session_type: DaySessionType | None = None
 
 
 class WeeklyPlanRead(BaseModel):

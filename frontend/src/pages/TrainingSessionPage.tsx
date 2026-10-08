@@ -1021,6 +1021,7 @@ export function TrainingSessionPage() {
               ? day.id
               : null
           }
+          diaryKind={day?.session_type === 'game' ? 'game' : 'on_ice'}
         />
       )}
       </div>
@@ -1365,6 +1366,8 @@ function ExerciseRow({
 // actually been consumed.
 const SERVER_STATE_POLL_DELAYS_MS = [1600, 1200, 1200]
 
+const STATS_INTRO_KEY = 'stats-intro-seen'
+
 function SessionCompleteModal({
   statTotals,
   xpTotal,
@@ -1372,6 +1375,7 @@ function SessionCompleteModal({
   levelBeforeSession,
   accessToken,
   diaryDayPlanId,
+  diaryKind,
 }: {
   statTotals: Partial<Record<TargetStat, number>>
   xpTotal: number
@@ -1379,8 +1383,9 @@ function SessionCompleteModal({
   levelBeforeSession: number | null
   accessToken: string
   // Set (to the day plan's id) only for ON_ICE/GAME, null otherwise --
-  // drives the "Записать в дневник" button below.
+  // drives the report button below ("Отчёт после льда" / "Как сыграли?").
   diaryDayPlanId: string | null
+  diaryKind: 'on_ice' | 'game'
 }) {
   const navigate = useNavigate()
 
@@ -1434,6 +1439,20 @@ function SessionCompleteModal({
     }
   }, [accessToken])
 
+  // 2026-10-08: the first finished workout explains the stats once (per
+  // device -- a convenience, not something to sync).
+  const [showStatsIntro] = useState(() => {
+    try {
+      if (window.localStorage.getItem(STATS_INTRO_KEY) !== null) {
+        return false
+      }
+      window.localStorage.setItem(STATS_INTRO_KEY, '1')
+      return true
+    } catch {
+      return false
+    }
+  })
+
   const leveledUp =
     !isLoadingServerState &&
     freshLevel !== null &&
@@ -1463,6 +1482,30 @@ function SessionCompleteModal({
             <span className="font-mono text-text-primary">+{xpTotal}</span>
           </div>
         </div>
+
+        {showStatsIntro && (
+          <div className="flex w-full flex-col gap-2 rounded-md border border-accent-ice/25 bg-accent-ice/[0.06] p-5">
+            <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+              <i className="ti ti-star text-accent-ice" aria-hidden="true" />
+              Это ваши статы
+            </p>
+            <p className="text-sm leading-relaxed text-text-secondary">
+              Шесть характеристик хоккеиста. Сила, ловкость и выносливость растут в зале, скорость на льду, шайба
+              и интеллект — от отчётов после льда и игр.
+            </p>
+            <p className="text-sm leading-relaxed text-text-secondary">
+              Выше статы — открываются сложнее упражнения. Без тренировок статы медленно падают.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/guide/stats')}
+              className="flex min-h-11 items-center gap-1.5 self-start text-sm text-accent-ice"
+            >
+              Подробнее про статы и уровни
+              <i className="ti ti-arrow-right" aria-hidden="true" />
+            </button>
+          </div>
+        )}
 
         <div className="flex w-full flex-col gap-2 rounded-md border border-white/5 bg-dark-card p-5">
           <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
@@ -1528,7 +1571,7 @@ function SessionCompleteModal({
         {diaryDayPlanId !== null ? (
           <div className="flex w-full flex-col gap-2">
             <Button onClick={() => navigate(`/training/${diaryDayPlanId}/diary`, { replace: true })} className="w-full">
-              Записать в дневник
+              {diaryKind === 'game' ? 'Как сыграли?' : 'Отчёт после льда'}
             </Button>
             <Button variant="neutral" onClick={() => navigate('/', { replace: true })} className="w-full">
               На главную
