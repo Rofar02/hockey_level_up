@@ -93,6 +93,9 @@ export interface UserRead {
   // you a request (see api/friends.ts). Never shown for anyone else (see
   // UserPublicRead below).
   friend_code: string | null
+  // Whether the friend search finds this player by name now -- their own
+  // choice (name_search) or, unset, from 18 by default.
+  findable_by_name: boolean
   // Stage 2.2: bypasses the equipment filter entirely when true. Owned
   // items themselves aren't part of this Read shape -- see
   // api/users.ts's listMyEquipmentItems/replaceMyEquipmentItems.

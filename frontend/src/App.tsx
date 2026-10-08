@@ -74,6 +74,10 @@ const SettingsNotificationsPage = lazy(() =>
 const SettingsCoachMemoryPage = lazy(() =>
   import('./pages/SettingsCoachMemoryPage').then((m) => ({ default: m.SettingsCoachMemoryPage })),
 )
+const SettingsPrivacyPage = lazy(() =>
+  import('./pages/SettingsPrivacyPage').then((m) => ({ default: m.SettingsPrivacyPage })),
+)
+const InvitePage = lazy(() => import('./pages/InvitePage').then((m) => ({ default: m.InvitePage })))
 const SettingsAccountPage = lazy(() =>
   import('./pages/SettingsAccountPage').then((m) => ({ default: m.SettingsAccountPage })),
 )
@@ -172,6 +176,16 @@ function App() {
           </Suspense>
         }
       />
+      {/* A friend's invite link -- open without an account, same own
+          Suspense boundary as /privacy. */}
+      <Route
+        path="/f/:code"
+        element={
+          <Suspense fallback={<AppLoadingScreen />}>
+            <InvitePage />
+          </Suspense>
+        }
+      />
       <Route
         path="/onboarding"
         element={
@@ -212,6 +226,7 @@ function App() {
         <Route path="/settings/training" element={<SettingsTrainingPage />} />
         <Route path="/settings/assessments" element={<SettingsAssessmentsPage />} />
         <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
+        <Route path="/settings/privacy" element={<SettingsPrivacyPage />} />
         <Route path="/settings/account" element={<SettingsAccountPage />} />
         <Route path="/settings/coach-memory" element={<SettingsCoachMemoryPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />

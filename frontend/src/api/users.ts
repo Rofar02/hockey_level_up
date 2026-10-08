@@ -44,6 +44,8 @@ export interface UserProfileUpdate {
   has_gym_access?: boolean
   avatar_ring_accent?: AvatarRingAccent | null
   jersey_color?: JerseyColor | null
+  // "Меня можно найти по имени"; null goes back to the age default.
+  name_search?: boolean | null
 }
 
 export function updateProfile(
