@@ -3,16 +3,32 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { StatIcon } from '../components/ui/StatIcon'
 import * as scheduleApi from '../api/schedule'
 import * as trainingDiaryApi from '../api/trainingDiary'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { TARGET_STAT_LABELS } from '../types/exercise'
+import type { TargetStat } from '../types/exercise'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { DayPlanRead } from '../types/schedule'
-import { parseIsoDate } from '../utils/date'
+import { DIARY_REWARD_MIN_CHARS } from '../types/trainingDiary'
+import { parseIsoDate, toIsoDate } from '../utils/date'
 
 const AUTOSAVE_DELAY_MS = 700
 const SAVED_FADE_MS = 2200
+const REWARD_SHOW_MS = 1500
+
+// What a real note earns for the day (2026-10-08) -- same stats, biggest
+// first, as DIARY_STAT_REWARDS in app/services/training_diary_service.py.
+const REWARD_STATS: Record<'on_ice' | 'game', TargetStat[]> = {
+  on_ice: ['on_ice_skating', 'puck_handling', 'intellect'],
+  game: ['intellect', 'on_ice_skating', 'puck_handling'],
+}
+
+function formatGain(value: number): string {
+  return `+${value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}`
+}
 
 // Full-screen notebook for an ON_ICE/GAME session's diary entry (2026-09-21
 // redesign) -- reached from TodayCard's "Заполнить дневник" and from
@@ -45,6 +61,9 @@ export function TrainingDiaryPage() {
   const [phase, setPhase] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isFinishing, setIsFinishing] = useState(false)
+  const [rewarded, setRewarded] = useState(false)
+  // Gains credited during this visit -- shown instead of the hint.
+  const [creditedNow, setCreditedNow] = useState<Partial<Record<TargetStat, number>> | null>(null)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -82,6 +101,7 @@ export function TrainingDiaryPage() {
         setDay(foundDay)
         setTrainingSessionId(session.id)
         setNote(entry?.note ?? '')
+        setRewarded(entry?.rewarded ?? false)
         setIsLoaded(true)
       })
       .catch((err: unknown) => {
@@ -128,23 +148,30 @@ export function TrainingDiaryPage() {
     }
   }, [accessToken, trainingSessionId])
 
-  async function persistNote(noteValue: string | null): Promise<boolean> {
+  // Resolves to whether the save went through and whether it credited the
+  // day's reward.
+  async function persistNote(noteValue: string | null): Promise<{ ok: boolean; credited: boolean }> {
     if (accessToken === null || trainingSessionId === null) {
-      return false
+      return { ok: false, credited: false }
     }
     setSaveError(null)
     try {
-      await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue }, accessToken)
+      const saved = await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue }, accessToken)
+      setRewarded(saved.rewarded === true)
+      const credited = Object.keys(saved.stat_rewards ?? {}).length > 0
+      if (credited) {
+        setCreditedNow(saved.stat_rewards)
+      }
       setPhase('saved')
       if (fadeTimerRef.current !== null) {
         clearTimeout(fadeTimerRef.current)
       }
       fadeTimerRef.current = setTimeout(() => setPhase('idle'), SAVED_FADE_MS)
-      return true
+      return { ok: true, credited }
     } catch (err) {
       setPhase('idle')
       setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить запись.')
-      return false
+      return { ok: false, credited: false }
     }
   }
 
@@ -181,7 +208,11 @@ export function TrainingDiaryPage() {
     setIsFinishing(true)
     setPhase('saving')
     const saved = await persistNote(noteValue)
-    if (saved) {
+    if (saved.ok) {
+      // The reward landed on this very save -- let the player see it first.
+      if (saved.credited) {
+        await new Promise((resolve) => setTimeout(resolve, REWARD_SHOW_MS))
+      }
       navigate('/', { replace: true })
     } else {
       setIsFinishing(false)
@@ -215,6 +246,9 @@ export function TrainingDiaryPage() {
   }
 
   const dateLabel = parseIsoDate(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+  // A day that hasn't come yet earns nothing (the server checks it too).
+  const canEarn = day.date <= toIsoDate(new Date())
+  const rewardStats = REWARD_STATS[day.session_type === 'game' ? 'game' : 'on_ice']
 
   return (
     <div className="relative flex min-h-svh flex-col overflow-hidden">
@@ -257,6 +291,38 @@ export function TrainingDiaryPage() {
           </span>
           <h1 className="font-display text-2xl font-semibold text-text-primary">Как прошло?</h1>
         </div>
+
+        {creditedNow !== null ? (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-accent-ice/30 bg-accent-ice/10 px-3 py-2 text-xs text-accent-ice">
+            <span className="font-medium">Запись засчитана:</span>
+            {rewardStats
+              .filter((stat) => creditedNow[stat] !== undefined)
+              .map((stat) => (
+                <span key={stat} className="flex items-center gap-1">
+                  <StatIcon stat={stat} size={14} />
+                  {formatGain(creditedNow[stat] ?? 0)} {TARGET_STAT_LABELS[stat]}
+                </span>
+              ))}
+          </div>
+        ) : rewarded ? (
+          <p className="mt-3 text-xs text-text-secondary">
+            <i className="ti ti-check text-accent-ice" aria-hidden="true" /> Очки за этот день уже начислены
+          </p>
+        ) : canEarn ? (
+          <div className="mt-3 flex flex-col gap-1 text-xs text-text-secondary">
+            <span>
+              Запиши хотя бы пару предложений (от {DIARY_REWARD_MIN_CHARS} символов) — за запись начислим очки:
+            </span>
+            <span className="flex flex-wrap gap-x-3 gap-y-1">
+              {rewardStats.map((stat) => (
+                <span key={stat} className="flex items-center gap-1 text-text-primary">
+                  <StatIcon stat={stat} size={14} />
+                  {TARGET_STAT_LABELS[stat]}
+                </span>
+              ))}
+            </span>
+          </div>
+        ) : null}
 
         {/* Ruled notebook paper, tinted to the app's persimmon accent. The
             28px line pitch matches text-base + leading-7 exactly so text sits

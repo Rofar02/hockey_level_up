@@ -1,31 +1,21 @@
+import { getAppScroller } from './appScroller'
+
 // Reference-counted so stacked overlays (Modal, PhasePreviewSheet, a Modal
 // opened on top of another Modal -- see ProfilePage's skills-detail-over-
 // profile-details case) share one lock: only the first to mount actually
-// applies it (and records the scroll position to restore), every later one
-// just bumps the count, and only the last one to unmount lifts it.
+// applies it, every later one just bumps the count, and only the last one to unmount lifts it.
 let bodyLockCount = 0
-let scrollYBeforeLock = 0
 
-// `overflow: hidden` on body alone (the previous approach) only stops
-// wheel/keyboard scroll -- iOS Safari (and some Android WebViews) still
-// let a touchmove drag the *page* behind a `position: fixed` backdrop,
-// because overflow:hidden doesn't establish a new scroll container there
-// the way it does on desktop. Found 2026-08-27: users could swipe inside an
-// open overlay (DayPreviewModal, ExerciseDetailModal, ...) and watch the
-// background page scroll instead of the overlay's own content. Pinning body
-// itself to `position: fixed` during the lock removes it from the
-// scrollable layout entirely, which is the actually-reliable cross-browser
-// way to stop that -- `top` is offset by the saved scroll position so the
-// page doesn't visibly jump to its top the instant the lock engages, and
-// window.scrollTo restores it on unlock.
+// 2026-10-08: the page scrolls #root, not the document (see index.css and
+// appScroller.ts), so the lock is `overflow: hidden` on that container --
+// unlike the document body, an element scroller with overflow hidden really
+// stops touch scrolling on iOS too, and keeps its scrollTop, so there is no
+// position to save and restore. (It used to pin body with position: fixed
+// and a negative top, because body's own overflow: hidden doesn't stop a
+// touch drag of the page on iOS.)
 export function lockBodyScroll(): void {
   if (bodyLockCount === 0) {
-    scrollYBeforeLock = window.scrollY
-    document.body.style.position = 'fixed'
-    document.body.style.top = `-${scrollYBeforeLock}px`
-    document.body.style.left = '0'
-    document.body.style.right = '0'
-    document.body.style.overflow = 'hidden'
+    getAppScroller().style.overflowY = 'hidden'
   }
   bodyLockCount += 1
 }
@@ -33,12 +23,7 @@ export function lockBodyScroll(): void {
 export function unlockBodyScroll(): void {
   bodyLockCount = Math.max(0, bodyLockCount - 1)
   if (bodyLockCount === 0) {
-    document.body.style.position = ''
-    document.body.style.top = ''
-    document.body.style.left = ''
-    document.body.style.right = ''
-    document.body.style.overflow = ''
-    window.scrollTo(0, scrollYBeforeLock)
+    getAppScroller().style.overflowY = ''
   }
 }
 
@@ -60,6 +45,9 @@ export function unlockBodyScroll(): void {
 // legitimate non-zero value yet at that point.
 export function resetStaleBodyScrollLock(): void {
   bodyLockCount = 0
+  getAppScroller().style.overflowY = ''
+  // Leftovers of the old body-pinning lock, in case a pre-2026-10-08 page
+  // state is restored from bfcache.
   document.body.style.position = ''
   document.body.style.top = ''
   document.body.style.left = ''

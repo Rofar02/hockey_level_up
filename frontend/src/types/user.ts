@@ -126,6 +126,8 @@ export interface UserPublicRead {
   position: Position | null
   jersey_number: number | null
   jersey_color: JerseyColor | null
+  // Shown as the PREMIUM plate on the player card (2026-10-04).
+  has_premium: boolean
   years_of_experience: number | null
   level: number
   xp: number

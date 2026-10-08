@@ -65,6 +65,23 @@ async def test_friend_gets_200_with_reduced_fields(db_session) -> None:
     assert "height" not in dumped
     assert "email" not in dumped
     assert "is_admin" not in dumped
+    # Shown as the PREMIUM plate on the card (2026-10-04).
+    assert dumped["has_premium"] is False
+
+
+@pytest.mark.asyncio
+async def test_premium_friend_shows_premium(db_session) -> None:
+    me = _make_user()
+    friend = _make_user(has_premium=True)
+    db_session.add_all([me, friend])
+    await db_session.flush()
+    friends_service = FriendService(db_session)
+    sent = await friends_service.send_request_by_code(me, friend.friend_code)
+    await friends_service.respond_to_request(friend, sent.id, accept=True)
+
+    target = await UserService(db_session).get_public_profile(me, friend.id)
+
+    assert UserPublicRead.model_validate(target).has_premium is True
 
 
 @pytest.mark.asyncio

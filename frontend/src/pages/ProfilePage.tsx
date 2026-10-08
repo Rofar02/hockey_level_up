@@ -306,6 +306,7 @@ function OwnProfileView() {
           <div ref={cardRef}>
           <PlayerCard
             cardStyle={cardStyleFor(user?.level ?? 1, user?.avatar_ring_accent)}
+            premium={user?.has_premium === true}
             jerseyColor={user?.jersey_color ?? null}
             rating={overallRating}
             position={user?.position ?? null}
@@ -528,6 +529,7 @@ function OtherUserProfileView({ userId }: { userId: string }) {
           <div className="mx-auto w-full max-w-[360px]">
             <PlayerCard
               cardStyle={cardStyleFor(profile.level, profile.avatar_ring_accent)}
+              premium={profile.has_premium}
               jerseyColor={profile.jersey_color}
               rating={overallRating}
               position={profile.position}

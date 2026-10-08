@@ -6,6 +6,8 @@ import { AuthProvider } from './context/AuthContext.tsx'
 import { registerServiceWorker } from './push.ts'
 import { installForegroundReflowFix, resetStaleBodyScrollLock } from './utils/bodyScrollLock.ts'
 import { installAudioUnlockOnFirstGesture } from './utils/restNotification.ts'
+import { installAppUpdateCheck } from './utils/appUpdate.ts'
+import { installDocumentScrollGuard } from './utils/appScroller.ts'
 import { installStaleChunkReload } from './utils/staleChunkReload.ts'
 // Self-hosted fonts (were Google Fonts): static files per weight, served
 // with the app -- no third-party request, and the shared player card renders
@@ -27,6 +29,7 @@ import './index.css'
 
 registerServiceWorker()
 installStaleChunkReload()
+installAppUpdateCheck()
 
 // 2026-09-17 fix (audit item #8): must run before anything in the app tree
 // gets a chance to call lockBodyScroll for real -- see
@@ -35,6 +38,7 @@ installStaleChunkReload()
 // session.
 resetStaleBodyScrollLock()
 installForegroundReflowFix()
+installDocumentScrollGuard()
 // 2026-09-17 fix (audit item #9): unlocks the shared timer-beep
 // AudioContext from inside the session's first real tap -- see
 // installAudioUnlockOnFirstGesture's own docstring.

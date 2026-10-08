@@ -70,30 +70,60 @@ function isTextField(element: Element | null): boolean {
   return element instanceof HTMLInputElement && !NON_TEXT_INPUT_TYPES.has(element.type)
 }
 
-interface NavPlacement {
-  // The on-screen keyboard is up: the bar steps aside so it doesn't ride
-  // up over the field being typed into (Android) or float mid-screen (iOS).
-  hidden: boolean
-  // Shift that keeps the bar on the visible bottom edge when the visual
-  // viewport no longer ends where the layout viewport does.
-  offsetY: number
+const SETTLE_DELAYS_MS = [150, 400, 900, 2000]
+
+// Hidden longer than this counts as "was in the background" for the
+// capsule rebuild below.
+const REBUILD_AFTER_HIDDEN_MS = 30_000
+
+// 2026-10-08: WebKit can drop the compositor layer of a backdrop-filter
+// element while a home-screen app sits in the background -- the capsule
+// comes back invisible but still tappable. A fresh element gets a fresh
+// layer, so the capsule is remounted (new key) after a long background stay
+// and on a bfcache restore.
+function useRebuildKey(): number {
+  const [key, setKey] = useState(0)
+  useEffect(() => {
+    let hiddenAt: number | null = null
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+        return
+      }
+      if (hiddenAt !== null && Date.now() - hiddenAt > REBUILD_AFTER_HIDDEN_MS) {
+        setKey((current) => current + 1)
+      }
+      hiddenAt = null
+    }
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        setKey((current) => current + 1)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pageshow', onPageShow)
+    }
+  }, [])
+  return key
 }
 
-const RESTING: NavPlacement = { hidden: false, offsetY: 0 }
-
-// 2026-10-04 fix for "капсула то уезжает в середину, то пропадает, помогает
-// только перезапуск" (iOS home-screen app). The old hook hid the bar while
-// innerHeight - visualViewport.height > 150 and recomputed that ONLY on a
-// visualViewport resize: if the keyboard went away without one (app sent to
-// the background, tab switch) the bar stayed hidden until a reload, and a
-// pinch zoom also read as "keyboard". And a fixed bar is pinned to the
-// layout viewport, which iOS can leave offset after the keyboard closes, so
-// the bar showed up in the middle of the screen. Now the keyboard counts
-// only while a text field has focus, the state is recomputed on focus
-// changes, viewport scroll/resize, rotation and return to the foreground,
-// and the bar is shifted onto the visible bottom edge.
-function useNavPlacement(): NavPlacement {
-  const [placement, setPlacement] = useState<NavPlacement>(RESTING)
+// The on-screen keyboard is up: the bar steps aside so it doesn't ride up
+// over the field being typed into. Counts only while a text field has focus
+// (a pinch zoom or a keyboard that left without a resize event once kept the
+// bar hidden until a reload), recomputed on focus changes, viewport resize,
+// rotation and return to the foreground -- several times, since the keyboard
+// animates away after blur and iOS settles its sizes after a thaw.
+//
+// 2026-10-08: no more shifting the bar onto the visual viewport (the
+// 10-04/10-08 offsetY): the document no longer scrolls (see index.css), so
+// the layout viewport the bar is pinned to doesn't move and the bar sits on
+// the bottom edge by CSS alone. Those offsets were what made it shake and
+// jump around the app.
+function useKeyboardOpen(): boolean {
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     const viewport = window.visualViewport
     if (viewport == null) {
@@ -101,42 +131,36 @@ function useNavPlacement(): NavPlacement {
     }
     const update = () => {
       const zoomed = viewport.scale > 1.01
-      const hidden = !zoomed && window.innerHeight - viewport.height > 150 && isTextField(document.activeElement)
-      const gap = viewport.offsetTop + viewport.height - window.innerHeight
-      const offsetY = hidden || zoomed || Math.abs(gap) < 2 ? 0 : Math.round(gap)
-      setPlacement((current) =>
-        current.hidden === hidden && current.offsetY === offsetY ? current : { hidden, offsetY },
-      )
+      setOpen(!zoomed && window.innerHeight - viewport.height > 150 && isTextField(document.activeElement))
     }
-    // The keyboard animates away after blur -- check again once it's gone.
-    let settleTimer: number | undefined
+    let settleTimers: number[] = []
     const updateSoon = () => {
       update()
-      window.clearTimeout(settleTimer)
-      settleTimer = window.setTimeout(update, 350)
+      settleTimers.forEach((timer) => window.clearTimeout(timer))
+      settleTimers = SETTLE_DELAYS_MS.map((delay) => window.setTimeout(update, delay))
     }
     viewport.addEventListener('resize', update)
-    viewport.addEventListener('scroll', update)
     window.addEventListener('resize', update)
     window.addEventListener('orientationchange', updateSoon)
     window.addEventListener('focusin', updateSoon)
     window.addEventListener('focusout', updateSoon)
     window.addEventListener('pageshow', updateSoon)
+    window.addEventListener('focus', updateSoon)
     document.addEventListener('visibilitychange', updateSoon)
     update()
     return () => {
-      window.clearTimeout(settleTimer)
+      settleTimers.forEach((timer) => window.clearTimeout(timer))
       viewport.removeEventListener('resize', update)
-      viewport.removeEventListener('scroll', update)
       window.removeEventListener('resize', update)
       window.removeEventListener('orientationchange', updateSoon)
       window.removeEventListener('focusin', updateSoon)
       window.removeEventListener('focusout', updateSoon)
       window.removeEventListener('pageshow', updateSoon)
+      window.removeEventListener('focus', updateSoon)
       document.removeEventListener('visibilitychange', updateSoon)
     }
   }, [])
-  return placement
+  return open
 }
 
 // A floating frosted-glass capsule with the AI coach in the middle, raised
@@ -148,8 +172,9 @@ function useNavPlacement(): NavPlacement {
 // catches them. CoachmarkOverlay measures this element to keep tooltips
 // clear of it, so its box must be the full strip, raised button included.
 export function BottomNav() {
-  const { hidden: isKeyboardOpen, offsetY } = useNavPlacement()
+  const isKeyboardOpen = useKeyboardOpen()
   const teamAttention = useTeamAttention()
+  const rebuildKey = useRebuildKey()
 
   return (
     <nav
@@ -167,20 +192,26 @@ export function BottomNav() {
       // WebKit quirk.
       style={{
         paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-        transform: isKeyboardOpen ? undefined : `translate3d(0, ${offsetY}px, 0)`,
+        transform: isKeyboardOpen ? undefined : 'translate3d(0, 0, 0)',
         willChange: 'transform',
       }}
     >
-      <div className="pointer-events-auto mx-auto flex h-16 max-w-md items-center rounded-full border border-white/15 bg-[#121820]/55 px-1.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.65)] backdrop-blur-3xl backdrop-saturate-150">
-        {LEFT_TABS.map((tab) => (
-          <TabLink key={tab.to} tab={tab} />
-        ))}
-        <CoachButton />
-        {RIGHT_TABS.map((tab) => (
-          <TabLink key={tab.to} tab={tab} hasAttention={tab.attention === 'team' && teamAttention} />
-        ))}
-      </div>
+      <NavCapsule key={rebuildKey} teamAttention={teamAttention} />
     </nav>
+  )
+}
+
+function NavCapsule({ teamAttention }: { teamAttention: boolean }) {
+  return (
+    <div className="pointer-events-auto mx-auto flex h-16 max-w-md items-center rounded-full border border-white/15 bg-[#121820]/55 px-1.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.65)] backdrop-blur-3xl backdrop-saturate-150">
+      {LEFT_TABS.map((tab) => (
+        <TabLink key={tab.to} tab={tab} />
+      ))}
+      <CoachButton />
+      {RIGHT_TABS.map((tab) => (
+        <TabLink key={tab.to} tab={tab} hasAttention={tab.attention === 'team' && teamAttention} />
+      ))}
+    </div>
   )
 }
 

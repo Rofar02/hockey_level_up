@@ -328,6 +328,7 @@ export function SettingsProfilePage() {
             <div className="mx-auto w-full max-w-[360px]">
               <PlayerCard
                 cardStyle={cardStyleFor(userLevel, avatarRingAccent)}
+                premium={user?.has_premium === true}
                 jerseyColor={jerseyColor}
                 rating={overallRatingOf(stats)}
                 position={position === '' ? null : position}

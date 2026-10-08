@@ -11,17 +11,29 @@
     --bottom-nav-space: calc(104px + env(safe-area-inset-bottom));
   }
 
-  /* overflow-x hidden on both html and body: any child that's briefly wider
-     than the viewport (a badge row, an unwrapped label) must not turn into a
-     horizontally scrollable page. On mobile browsers a `position: fixed`
-     element (BottomNav) is pinned to the *layout* viewport, which is exactly
-     what grows when the document overflows horizontally -- so an overflow
-     the user swipes past also drags the bottom tab bar sideways with it.
-     This is the safety net; the actual overflowing content still needs its
-     own fix (truncation, wrapping, min-w-0) wherever it's found. */
+  /* 2026-10-08 app shell: the document itself never scrolls -- #root is the
+     one scroll container (see utils/appScroller.ts). With the page scrolling
+     the document, iOS (home-screen app above all) kept moving the layout
+     viewport a `position: fixed` element is pinned to: the tab bar floated
+     mid-screen after the keyboard, shook during the rubber-band bounce and
+     came back off the bottom edge after a while in the background, and every
+     JS correction of it (visualViewport offsets) added its own jumps. A
+     document that can't scroll has a layout viewport that never moves, so
+     the bar stays on the bottom edge by plain CSS. */
   html,
   body {
-    @apply overflow-x-hidden;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  #root {
+    position: fixed;
+    inset: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
 
   body {

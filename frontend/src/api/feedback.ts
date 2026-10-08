@@ -19,6 +19,7 @@ export function sendFeedback(input: FeedbackInput, accessToken: string): Promise
   form.append('user_agent', input.userAgent)
   form.append('screen', input.screen)
   form.append('standalone', String(input.standalone))
+  form.append('app_version', __APP_BUILD_ID__)
   if (input.screenshot !== null) {
     form.append('screenshot', input.screenshot)
   }

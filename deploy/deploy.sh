@@ -17,8 +17,8 @@ cd "$(dirname "$0")/.."
 echo "==> git pull"
 git pull --ff-only
 
-echo "==> docker compose up -d --build"
-docker compose -f docker-compose.prod.yml up -d --build
+echo "==> docker compose up -d --build --remove-orphans"
+docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
 
 # 2026-09-22: nginx resolves the "backend" upstream hostname once and keeps
 # that IP -- the line above always recreates the backend container (no
