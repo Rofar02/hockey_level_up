@@ -12,6 +12,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { RankBadge } from '../components/ui/RankBadge'
+import { PlayerSheet } from '../components/friends/PlayerSheet'
 import { TabButton } from '../components/ui/TabButton'
 import * as teamsApi from '../api/teams'
 import { API_BASE_URL, ApiError } from '../api/client'
@@ -40,7 +41,11 @@ function formatTeamScore(value: number): string {
 export function TeamDetailPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const navigate = useNavigate()
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
+  // A tap on a leaderboard row opens the player's card (2026-10-08).
+  const [openedPlayer, setOpenedPlayer] = useState<{ id: string; first_name: string; last_name: string } | null>(
+    null,
+  )
 
   const [team, setTeam] = useState<TeamRead | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntryRead[] | null>(null)
@@ -407,7 +412,13 @@ export function TeamDetailPage() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {leaderboard.map((entry, index) => (
-                      <div key={entry.id} className={`flex items-center gap-3 p-3 ${CARD_CLASS}`}>
+                      <button
+                        key={entry.id}
+                        type="button"
+                        onClick={() => (entry.id === user?.id ? navigate('/profile') : setOpenedPlayer(entry))}
+                        aria-label={`Открыть карточку: ${getDisplayName(entry)}`}
+                        className={`flex w-full items-center gap-3 p-3 text-left transition-colors hover:border-white/20 ${CARD_CLASS}`}
+                      >
                         <RankBadge rank={index + 1} />
                         <span className="min-w-0 flex-1 truncate text-sm text-[#F5F7FA]">
                           {getDisplayName(entry)}
@@ -419,8 +430,15 @@ export function TeamDetailPage() {
                         >
                           {formatRatingExcess(entry.rating_excess)}
                         </span>
-                      </div>
+                      </button>
                     ))}
+                  {openedPlayer !== null && (
+                    <PlayerSheet
+                      userId={openedPlayer.id}
+                      title={getDisplayName(openedPlayer)}
+                      onClose={() => setOpenedPlayer(null)}
+                    />
+                  )}
                   </div>
                 ))}
 

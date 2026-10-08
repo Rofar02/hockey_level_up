@@ -60,6 +60,11 @@ export function searchPlayers(query: string, accessToken: string): Promise<Playe
   return apiGet<PlayerSuggestionRead[]>(`/friends/search?q=${encodeURIComponent(query)}`, accessToken)
 }
 
+// Who this player is to me -- 403 when their card is hidden from me.
+export function getPlayer(userId: string, accessToken: string): Promise<PlayerSuggestionRead> {
+  return apiGet<PlayerSuggestionRead>(`/friends/players/${userId}`, accessToken)
+}
+
 export function listTeammatesToAdd(accessToken: string): Promise<PlayerSuggestionRead[]> {
   return apiGet<PlayerSuggestionRead[]>('/friends/teammates', accessToken)
 }

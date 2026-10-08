@@ -71,13 +71,14 @@ async def test_search_finds_adults_and_the_opted_in_but_not_hidden_kids(db_sessi
     unknown_age = await _user(db_session, "Иван", surname, age=None)
 
     found = await FriendDiscoveryService(db_session).search(me, f"ив {surname[:8]}")
-    ids = {player.id for player in found}
+    # Exact hits only -- "похожие" may add namesakes from other tests.
+    ids = {player.id for player in found if player.match == "exact"}
 
     assert adult.id in ids and kid_opted_in.id in ids
     assert not ids & {kid.id, adult_opted_out.id, unknown_age.id}
     # Either word order, ё as е.
     reversed_order = await FriendDiscoveryService(db_session).search(me, f"{surname[:8]} иван")
-    assert {player.id for player in reversed_order} == ids
+    assert {player.id for player in reversed_order if player.match == "exact"} == ids
 
 
 @pytest.mark.asyncio
@@ -168,3 +169,44 @@ async def test_the_card_opens_to_the_findable_and_both_sides_of_a_request(db_ses
     # The kid asks me: now each sees the other's card.
     await FriendService(db_session).send_request_by_code(hidden_kid, me.friend_code)
     assert (await users.get_public_profile(me, hidden_kid.id)).id == hidden_kid.id
+
+
+@pytest.mark.asyncio
+async def test_one_word_searches_only_the_people_around_me(db_session) -> None:
+    word = f"Шайбаныч{uuid.uuid4().hex[:5]}"
+    me = await _user(db_session, "Я", "Сам")
+    friend = await _user(db_session, word, "Друг")
+    stranger = await _user(db_session, word, "Чужой")
+    friend_of_friend = await _user(db_session, "Петя", word)
+    hidden_fof = await _user(db_session, "Скрытый", word, age=12)
+    await _friends(db_session, me, friend)
+    await _friends(db_session, friend, friend_of_friend)
+    await _friends(db_session, friend, hidden_fof)
+
+    found = {p.id for p in await FriendDiscoveryService(db_session).search(me, word[:6])}
+
+    assert friend.id in found and friend_of_friend.id in found
+    assert stranger.id not in found and hidden_fof.id not in found
+
+
+@pytest.mark.asyncio
+async def test_similar_spellings_and_the_wrong_layout(db_session) -> None:
+    surname = f"Петровский{uuid.uuid4().hex[:4]}"
+    me = await _user(db_session, "Я", "Сам")
+    target = await _user(db_session, "Иван", surname)
+    service = FriendDiscoveryService(db_session)
+
+    typo = await service.search(me, f"Иван {surname.replace('Петр', 'Питр')}")
+    assert [(p.id, p.match) for p in typo if p.id == target.id] == [(target.id, "similar")]
+
+    # "bdfy" is "иван" typed on the English layout.
+    layout = await service.search(me, f"bdfy {surname}")
+    assert target.id in {p.id for p in layout}
+
+
+@pytest.mark.asyncio
+async def test_a_single_letter_is_refused(db_session) -> None:
+    me = await _user(db_session, "Я", "Сам")
+    with pytest.raises(HTTPException) as error:
+        await FriendDiscoveryService(db_session).search(me, "И")
+    assert error.value.status_code == 400

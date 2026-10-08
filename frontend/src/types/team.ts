@@ -99,6 +99,7 @@ export interface TeamInviteCandidateRead {
   position: Position | null
   team_name: string | null
   status: TeamInviteStatus
+  match: 'exact' | 'similar'
 }
 
 // A captain's invitation, as the invited player sees it.

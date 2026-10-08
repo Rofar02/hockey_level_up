@@ -273,7 +273,7 @@ export function TeamHubPage() {
 
         {hasFriends === false ? (
           <Link to="/friends" className={`flex flex-col gap-1.5 p-4 ${CARD_CLASS}`}>
-            <span className="text-sm font-medium text-[#F5F7FA]">Добавьте друга по коду</span>
+            <span className="text-sm font-medium text-[#F5F7FA]">Найдите друзей по имени или по ссылке</span>
             <span className="text-xs leading-relaxed text-[#8A94A6]">
               Сравнивайте статы, смотрите ленту тренировок и зовите на совместные тренировки.
             </span>
