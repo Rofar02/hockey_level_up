@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { IceFocusCard } from '../IceFocusCard'
 import { Button } from '../ui/Button'
 import { CardGlow } from '../ui/CardGlow'
 import { CARD_CLASS } from '../ui/cardStyle'
@@ -133,6 +134,9 @@ export function TeamDayCard({
         {!hasStarted && (
           <div className="flex flex-col gap-3">
             {isTraining && <BoardSummary event={event} />}
+            {isTraining && day.training_session !== null && (
+              <IceFocusCard trainingSessionId={day.training_session.id} />
+            )}
             <LineupSummary lineup={lineup} userId={user?.id ?? null} isTraining={isTraining} />
           </div>
         )}

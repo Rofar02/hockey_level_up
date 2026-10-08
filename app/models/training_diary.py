@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, SmallInteger, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, SmallInteger, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,6 +23,14 @@ class IceHighlight(str, enum.Enum):
     PASSING = "passing"
     SHOOTING = "shooting"
     GAME_READING = "game_reading"
+
+
+class FocusResult(str, enum.Enum):
+    """"Фокус получился?" for the focus of the day (app.core.ice_focus)."""
+
+    DONE = "done"
+    PARTIAL = "partial"
+    MISSED = "missed"
 
 
 class GameResult(str, enum.Enum):
@@ -95,6 +103,12 @@ class TrainingDiaryEntry(Base):
     duration_minutes: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     effort: Mapped[IceEffort | None] = mapped_column(enum_column(IceEffort, "ice_effort", length=16), nullable=True)
     highlights: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    # The focus of the day the player saw (app.core.ice_focus id) and how
+    # it went; a done/partial focus adds a little to its stat.
+    focus_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    focus_result: Mapped[FocusResult | None] = mapped_column(
+        enum_column(FocusResult, "focus_result", length=16), nullable=True
+    )
     # Game. goals/assists/shots are left None for a goalie (their own form
     # comes later). The team coach always sees the counters for a team game;
     # self_rating and work_on only when share_rating_with_coach is on.

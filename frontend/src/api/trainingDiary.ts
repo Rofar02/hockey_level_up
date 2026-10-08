@@ -1,5 +1,6 @@
 import { apiGet, apiPutAuth } from './client'
 import type {
+  IceFocusRead,
   TrainingDiaryEntryIn,
   TrainingDiaryEntryListItem,
   TrainingDiaryEntryRead,
@@ -26,4 +27,8 @@ export function saveDiaryEntry(
 
 export function listDiaryEntries(accessToken: string): Promise<TrainingDiaryEntryListItem[]> {
   return apiGet<TrainingDiaryEntryListItem[]>('/users/me/training-diary', accessToken)
+}
+
+export function getIceFocus(trainingSessionId: string, accessToken: string): Promise<IceFocusRead | null> {
+  return apiGet<IceFocusRead | null>(`/training-sessions/${trainingSessionId}/focus`, accessToken)
 }

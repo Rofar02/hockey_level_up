@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.exercise import TargetStat
 from app.models.progress import StatHistory
 from app.models.schedule import DaySessionType, TrainingSession
-from app.models.training_diary import GameResult, IceEffort, IceHighlight, TrainingDiaryEntry
+from app.core.ice_focus import FOCUS_BY_ID
+from app.models.training_diary import FocusResult, GameResult, IceEffort, IceHighlight, TrainingDiaryEntry
 from app.models.user import User
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.training_diary_repository import TrainingDiaryRepository
@@ -49,6 +50,7 @@ ICE_DURATION_FACTORS: tuple[tuple[int, float], ...] = ((45, 0.85), (60, 1.0), (7
 ICE_LONG_DURATION_FACTOR = 1.2
 ICE_EFFORT_FACTORS: dict[IceEffort, float] = {IceEffort.EASY: 0.9, IceEffort.NORMAL: 1.0, IceEffort.HARD: 1.1}
 ICE_HIGHLIGHT_BONUS = 0.3
+FOCUS_BONUS: dict[FocusResult, float] = {FocusResult.DONE: 0.4, FocusResult.PARTIAL: 0.2, FocusResult.MISSED: 0.0}
 ICE_HIGHLIGHT_STATS: dict[IceHighlight, TargetStat] = {
     IceHighlight.SKATING: TargetStat.ON_ICE_SKATING,
     IceHighlight.PASSING: TargetStat.PUCK_HANDLING,
@@ -68,6 +70,9 @@ def report_base_gains(session_type: DaySessionType, report: DiaryReportIn) -> di
     for highlight in set(report.highlights):
         stat = ICE_HIGHLIGHT_STATS[highlight]
         gains[stat] = gains.get(stat, 0.0) + ICE_HIGHLIGHT_BONUS
+    focus = FOCUS_BY_ID.get(report.focus_id or "")
+    if focus is not None and report.focus_result is not None:
+        gains[focus.stat] = gains.get(focus.stat, 0.0) + FOCUS_BONUS[report.focus_result]
     return {stat: round(value, 2) for stat, value in gains.items()}
 
 
@@ -174,6 +179,9 @@ class TrainingDiaryService:
         entry.duration_minutes = report.duration_minutes if is_ice else None
         entry.effort = report.effort if is_ice else None
         entry.highlights = sorted({h.value for h in report.highlights}) if is_ice else None
+        known_focus = is_ice and report.focus_id in FOCUS_BY_ID
+        entry.focus_id = report.focus_id if known_focus else None
+        entry.focus_result = report.focus_result if known_focus else None
         entry.game_result = report.game_result if is_game else None
         entry.goals = report.goals if is_game else None
         entry.assists = report.assists if is_game else None

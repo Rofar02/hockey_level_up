@@ -5,6 +5,7 @@ import { SkillDetailModal } from '../components/SkillDetailModal'
 import { WeeklyReviewCard } from '../components/WeeklyReviewCard'
 import { CoachPlanReminderCard } from '../components/teamEvents/CoachPlanReminderCard'
 import { TeamDayCard } from '../components/teamEvents/TeamDayCard'
+import { IceFocusCard } from '../components/IceFocusCard'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
 import { CARD_BORDER, CARD_CLASS } from '../components/ui/cardStyle'
@@ -669,6 +670,9 @@ function TodayCard({
           <i className={`ti ${SESSION_TYPE_ICONS[day.session_type]} ${SESSION_TYPE_COLORS[day.session_type]}`} aria-hidden="true" />
           {DAY_SESSION_TYPE_LABELS[day.session_type]}
         </p>
+        {day.session_type === 'on_ice' && !blocksDone && day.training_session.has_diary_entry === false && (
+          <IceFocusCard trainingSessionId={day.training_session.id} />
+        )}
         {diaryPending && (
           <Button onClick={onFillDiary} className="w-full">
             {reportLabel}

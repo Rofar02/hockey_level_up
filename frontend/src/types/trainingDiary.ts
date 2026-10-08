@@ -4,6 +4,13 @@ import type { DaySessionType } from './schedule'
 export type IceEffort = 'easy' | 'normal' | 'hard'
 export type IceHighlight = 'skating' | 'passing' | 'shooting' | 'game_reading'
 export type GameResult = 'win' | 'draw' | 'loss'
+export type FocusResult = 'done' | 'partial' | 'missed'
+
+export const FOCUS_RESULT_LABELS: Record<FocusResult, string> = {
+  done: 'Получилось',
+  partial: 'Частично',
+  missed: 'Не вышло',
+}
 export type GameWorkOn = 'skating' | 'defense' | 'shooting' | 'positioning'
 
 export const ICE_DURATIONS = [45, 60, 75, 90] as const
@@ -41,6 +48,8 @@ export interface DiaryReportIn {
   duration_minutes?: number | null
   effort?: IceEffort | null
   highlights?: IceHighlight[]
+  focus_id?: string | null
+  focus_result?: FocusResult | null
   game_result?: GameResult | null
   // Left out for a goalie.
   goals?: number | null
@@ -68,6 +77,8 @@ export interface TrainingDiaryEntryRead {
   duration_minutes: number | null
   effort: IceEffort | null
   highlights: IceHighlight[] | null
+  focus_id: string | null
+  focus_result: FocusResult | null
   game_result: GameResult | null
   goals: number | null
   assists: number | null
@@ -106,4 +117,13 @@ export interface TrainingDiaryEntryListItem {
   highlights: IceHighlight[] | null
   self_rating: number | null
   work_on: GameWorkOn[] | null
+}
+
+// GET /training-sessions/{id}/focus -- the focus of the day on an ice day.
+export interface IceFocusRead {
+  id: string
+  stat: TargetStat
+  title: string
+  cues: string[]
+  reason: string
 }

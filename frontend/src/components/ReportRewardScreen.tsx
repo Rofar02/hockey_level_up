@@ -25,12 +25,14 @@ export function ReportRewardScreen({
   kind,
   statRewards,
   xpReward,
+  focusDone = false,
   levelBefore,
   accessToken,
 }: {
   kind: 'on_ice' | 'game'
   statRewards: Partial<Record<TargetStat, number>>
   xpReward: number
+  focusDone?: boolean
   levelBefore: number | null
   accessToken: string
 }) {
@@ -72,6 +74,16 @@ export function ReportRewardScreen({
           <h1 className="text-2xl font-semibold text-text-primary">Молодец, так держать</h1>
           <p className="mt-2 font-display text-4xl font-bold text-text-primary">+{xpReward} XP</p>
         </div>
+
+        {focusDone && (
+          <div className="flex w-full items-center gap-2.5 rounded-xl border border-accent-persimmon/35 bg-accent-persimmon/10 px-4 py-3 text-sm">
+            <i className="ti ti-target-arrow text-lg text-accent-persimmon" aria-hidden="true" />
+            <span>
+              <b className="font-semibold text-text-primary">Фокус дня засчитан</b>{' '}
+              <span className="text-[#B7C2D4]">— бонус к его стату</span>
+            </span>
+          </div>
+        )}
 
         <div className="flex w-full flex-col gap-2">
           {stats.map(([stat, gain]) => (

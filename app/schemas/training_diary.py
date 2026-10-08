@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.exercise import TargetStat
 from app.models.schedule import DaySessionType
-from app.models.training_diary import GameResult, GameWorkOn, IceEffort, IceHighlight
+from app.models.training_diary import FocusResult, GameResult, GameWorkOn, IceEffort, IceHighlight
 
 
 class DiaryReportIn(BaseModel):
@@ -18,6 +18,9 @@ class DiaryReportIn(BaseModel):
     duration_minutes: int | None = Field(default=None, ge=10, le=300)
     effort: IceEffort | None = None
     highlights: list[IceHighlight] = []
+    # The focus of the day shown on the form (app.core.ice_focus id).
+    focus_id: str | None = Field(default=None, max_length=40)
+    focus_result: FocusResult | None = None
     # Game. Counters stay None for a goalie.
     game_result: GameResult | None = None
     goals: int | None = Field(default=None, ge=0, le=30)
@@ -48,6 +51,8 @@ class TrainingDiaryEntryRead(BaseModel):
     duration_minutes: int | None = None
     effort: IceEffort | None = None
     highlights: list[IceHighlight] | None = None
+    focus_id: str | None = None
+    focus_result: FocusResult | None = None
     game_result: GameResult | None = None
     goals: int | None = None
     assists: int | None = None
@@ -93,3 +98,14 @@ class TrainingDiaryEntryListItem(BaseModel):
     highlights: list[IceHighlight] | None = None
     self_rating: int | None = None
     work_on: list[GameWorkOn] | None = None
+
+
+class IceFocusRead(BaseModel):
+    """GET /training-sessions/{id}/focus -- the focus of the day for an ice
+    day (app.core.ice_focus)."""
+
+    id: str
+    stat: TargetStat
+    title: str
+    cues: list[str]
+    reason: str

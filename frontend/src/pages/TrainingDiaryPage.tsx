@@ -13,6 +13,7 @@ import type { TargetStat } from '../types/exercise'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { DayPlanRead } from '../types/schedule'
 import {
+  FOCUS_RESULT_LABELS,
   GAME_RESULT_LABELS,
   GAME_WORK_ON_LABELS,
   ICE_DURATIONS,
@@ -22,6 +23,8 @@ import {
 } from '../types/trainingDiary'
 import type {
   DiaryReportIn,
+  FocusResult,
+  IceFocusRead,
   GameResult,
   GameWorkOn,
   IceEffort,
@@ -36,6 +39,7 @@ type Counter = keyof typeof COUNTER_MAX
 interface Earned {
   stats: Partial<Record<TargetStat, number>>
   xp: number
+  focusDone: boolean
 }
 
 function toggle<T>(list: T[], value: T): T[] {
@@ -68,6 +72,8 @@ export function TrainingDiaryPage() {
   const [duration, setDuration] = useState<number | null>(null)
   const [effort, setEffort] = useState<IceEffort | null>(null)
   const [highlights, setHighlights] = useState<IceHighlight[]>([])
+  const [focus, setFocus] = useState<IceFocusRead | null>(null)
+  const [focusResult, setFocusResult] = useState<FocusResult | null>(null)
   const [result, setResult] = useState<GameResult | null>(null)
   const [counters, setCounters] = useState<Record<Counter, number>>({ goals: 0, assists: 0, shots: 0 })
   const [selfRating, setSelfRating] = useState<number | null>(null)
@@ -97,13 +103,20 @@ export function TrainingDiaryPage() {
           }
           return
         }
-        // Best-effort -- worst case the form just starts empty.
-        const entry = await trainingDiaryApi.getDiaryEntry(session.id, accessToken).catch(() => null)
+        // Best-effort -- worst case the form just starts empty / without
+        // the focus question.
+        const [entry, dayFocus] = await Promise.all([
+          trainingDiaryApi.getDiaryEntry(session.id, accessToken).catch(() => null),
+          foundDay.session_type === 'on_ice'
+            ? trainingDiaryApi.getIceFocus(session.id, accessToken).catch(() => null)
+            : Promise.resolve(null),
+        ])
         if (cancelled) {
           return
         }
         setDay(foundDay)
         setTrainingSessionId(session.id)
+        setFocus(dayFocus)
         if (entry !== null) {
           setSaved(entry)
           setNote(entry.note ?? '')
@@ -111,6 +124,7 @@ export function TrainingDiaryPage() {
           setDuration(entry.duration_minutes)
           setEffort(entry.effort)
           setHighlights(entry.highlights ?? [])
+          setFocusResult(entry.focus_result)
           setResult(entry.game_result)
           setCounters({ goals: entry.goals ?? 0, assists: entry.assists ?? 0, shots: entry.shots ?? 0 })
           setSelfRating(entry.self_rating)
@@ -149,7 +163,11 @@ export function TrainingDiaryPage() {
       savedNoteRef.current = note
       setSaved(entry)
       if (Object.keys(entry.stat_rewards).length > 0) {
-        setEarned({ stats: entry.stat_rewards, xp: entry.xp_reward })
+        setEarned({
+          stats: entry.stat_rewards,
+          xp: entry.xp_reward,
+          focusDone: entry.focus_result === 'done' || entry.focus_result === 'partial',
+        })
       } else {
         navigate('/', { replace: true })
       }
@@ -171,7 +189,16 @@ export function TrainingDiaryPage() {
         share_rating_with_coach: inTeam && shareWithCoach,
       })
     } else {
-      void submit({ skipped: false, duration_minutes: duration, effort, highlights })
+      void submit({
+        skipped: false,
+        duration_minutes: duration,
+        effort,
+        highlights,
+        // The focus stored with the report is the one answered about: the
+        // saved one when editing, else today's.
+        focus_id: focusResult !== null ? (saved?.focus_id ?? focus?.id ?? null) : null,
+        focus_result: focusResult,
+      })
     }
   }
 
@@ -190,6 +217,7 @@ export function TrainingDiaryPage() {
         kind={isGame ? 'game' : 'on_ice'}
         statRewards={earned.stats}
         xpReward={earned.xp}
+        focusDone={earned.focusDone}
         levelBefore={levelBeforeRef.current}
         accessToken={accessToken}
       />
@@ -342,6 +370,18 @@ export function TrainingDiaryPage() {
               </ChipRow>
             </Question>
 
+            {focus !== null && (
+              <Question title={`Фокус: ${focus.title.charAt(0).toLowerCase()}${focus.title.slice(1)}`}>
+                <ChipRow columns={3}>
+                  {(Object.keys(FOCUS_RESULT_LABELS) as FocusResult[]).map((value) => (
+                    <Chip key={value} selected={focusResult === value} onClick={() => setFocusResult(value)}>
+                      {FOCUS_RESULT_LABELS[value]}
+                    </Chip>
+                  ))}
+                </ChipRow>
+              </Question>
+            )}
+
             <Question title="Что шло лучше всего" aside="можно несколько">
               <ChipRow columns={2}>
                 {(Object.keys(ICE_HIGHLIGHT_LABELS) as IceHighlight[]).map((value) => (
@@ -443,7 +483,7 @@ function Chip({ selected, onClick, children }: { selected: boolean; onClick: () 
       aria-pressed={selected}
       className={`min-h-11 rounded-xl border px-2 text-sm transition-colors ${
         selected
-          ? 'border-accent-ice bg-accent-ice/15 font-semibold text-accent-ice'
+          ? 'border-accent-ice bg-accent-ice font-semibold text-dark-bg'
           : 'border-white/10 bg-dark-card text-text-primary hover:border-white/25'
       }`}
     >
