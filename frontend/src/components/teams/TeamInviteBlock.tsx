@@ -227,7 +227,9 @@ function InvitePlayersSheet({ team, onClose }: { team: TeamRead; onClose: () => 
                     В команду
                   </Button>
                 ) : (
-                  <span className="shrink-0 px-1.5 text-xs text-text-secondary">{STATUS_LABELS[player.status]}</span>
+                  <span className="w-[84px] shrink-0 text-right text-xs leading-tight text-text-secondary">
+                    {STATUS_LABELS[player.status]}
+                  </span>
                 )}
               </div>
             </Fragment>
