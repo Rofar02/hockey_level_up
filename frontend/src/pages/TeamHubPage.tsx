@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { HelpButton } from '../components/HelpButton'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { CARD_CLASS } from '../components/ui/cardStyle'
 import { CardGlow } from '../components/ui/CardGlow'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { NextEventCard } from '../components/teamEvents/NextEventCard'
+import { TeamInvitationsCard } from '../components/teams/TeamInvitationsCard'
+import { TeamInviteBlock } from '../components/teams/TeamInviteBlock'
 import * as friendsApi from '../api/friends'
 import * as leaderboardApi from '../api/leaderboard'
 import * as teamsApi from '../api/teams'
@@ -18,7 +20,6 @@ import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
 import type { TeamRead, TeamScoreRead, TeamSummaryRead } from '../types/team'
 import type { TeamAttentionRead } from '../types/user'
 import { formatDateTime } from '../utils/date'
-import { copyText } from '../utils/clipboard'
 import { ListSkeleton } from '../components/ui/Skeleton'
 
 // The "Команда" tab: the player's team up top (next event, schedule,
@@ -43,6 +44,7 @@ function feedText(entry: ActivityFeedEntryRead): string {
 
 export function TeamHubPage() {
   const { accessToken } = useAuth()
+  const navigate = useNavigate()
   const [teams, setTeams] = useState<TeamSummaryRead[] | null>(null)
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [team, setTeam] = useState<TeamRead | null>(null)
@@ -50,7 +52,6 @@ export function TeamHubPage() {
   const [feed, setFeed] = useState<ActivityFeedEntryRead[] | null>(null)
   const [hasFriends, setHasFriends] = useState<boolean | null>(null)
   const [leaderboardMe, setLeaderboardMe] = useState<LeaderboardMeRead | null>(null)
-  const [copied, setCopied] = useState(false)
   const [attention, setAttention] = useState<TeamAttentionRead | null>(null)
 
   useEffect(() => {
@@ -114,16 +115,6 @@ export function TeamHubPage() {
     }
   }, [accessToken, selectedTeamId])
 
-  async function handleCopyInviteCode() {
-    if (team === null) {
-      return
-    }
-    if (await copyText(team.invite_code)) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
   const teamPath = selectedTeamId !== null ? `/teams/${selectedTeamId}` : '/teams'
   const captainTeamId = teams?.find((item) => item.is_captain)?.id ?? null
   const waiting = [
@@ -153,6 +144,8 @@ export function TeamHubPage() {
       <IceGlowBackground />
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-4 px-4 py-6">
         {teams === null && <ListSkeleton rows={3} />}
+
+        <TeamInvitationsCard onJoined={(teamId) => navigate(`/teams/${teamId}`)} />
 
         {/* Whatever put the dot on the tab -- answered from here in one tap. */}
         {waiting.length > 0 && (
@@ -239,21 +232,7 @@ export function TeamHubPage() {
               />
             </div>
 
-            {team !== null && (
-              <div className={`flex items-center gap-3 px-3.5 py-3 ${CARD_CLASS}`}>
-                <span className="flex flex-1 flex-col gap-0.5">
-                  <span className="text-xs uppercase tracking-wide text-[#8A94A6]">Код приглашения</span>
-                  <span className="font-mono text-base tracking-wider text-[#F5F7FA]">{team.invite_code}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopyInviteCode}
-                  className="min-h-10 rounded-md border border-white/15 px-3.5 text-sm font-semibold text-[#F5F7FA] transition-colors hover:bg-white/5"
-                >
-                  {copied ? 'Скопировано' : 'Копировать'}
-                </button>
-              </div>
-            )}
+            {team !== null && <TeamInviteBlock team={team} />}
           </>
         )}
 

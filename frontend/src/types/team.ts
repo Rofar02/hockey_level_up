@@ -74,3 +74,42 @@ export interface TeamJoinRequestRead {
   status: TeamJoinRequestStatus
   created_at: string
 }
+
+// GET /teams/invite/{code} (2026-10-08) -- the team behind an invite link,
+// shown to anyone; never its members.
+export interface TeamInvitePreviewRead {
+  id: string
+  name: string
+  logo_url: string | null
+  member_count: number
+  captain_first_name: string
+  captain_last_name: string
+}
+
+export type TeamInviteStatus = 'none' | 'invited' | 'member' | 'in_team'
+
+// A row in the captain's "Пригласить игрока" sheet.
+export interface TeamInviteCandidateRead {
+  id: string
+  first_name: string
+  last_name: string
+  avatar_url: string | null
+  level: number
+  jersey_number: number | null
+  position: Position | null
+  team_name: string | null
+  status: TeamInviteStatus
+}
+
+// A captain's invitation, as the invited player sees it.
+export interface TeamInvitationRead {
+  id: string
+  team_id: string
+  team_name: string
+  team_logo_url: string | null
+  member_count: number
+  invited_by_first_name: string
+  invited_by_last_name: string
+  status: 'pending' | 'accepted' | 'declined'
+  created_at: string
+}
