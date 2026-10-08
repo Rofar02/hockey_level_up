@@ -76,6 +76,41 @@ function roundRectPath(ctx: CanvasRenderingContext2D, box: Box, radius: number) 
   ctx.closePath()
 }
 
+// Frosted glass for the canvas, which has no backdrop-filter: what's already
+// painted under the box (plus a margin, so the edges blur into their
+// neighbours) is shrunk and stretched back -- a cheap blur -- and drawn
+// clipped to the pill. Without it the plate came out see-through in the
+// shared PNG while on screen it's frosted.
+function frostBehind(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, box: Box, radius: number) {
+  const margin = 12
+  const sx = Math.max(0, Math.floor((box.x - margin) * SCALE))
+  const sy = Math.max(0, Math.floor((box.y - margin) * SCALE))
+  const sw = Math.min(canvas.width - sx, Math.ceil((box.w + margin * 2) * SCALE))
+  const sh = Math.min(canvas.height - sy, Math.ceil((box.h + margin * 2) * SCALE))
+  if (sw <= 0 || sh <= 0) {
+    return
+  }
+  const small = document.createElement('canvas')
+  small.width = Math.max(1, Math.round(sw / 14))
+  small.height = Math.max(1, Math.round(sh / 14))
+  const smallCtx = small.getContext('2d')
+  if (smallCtx === null) {
+    return
+  }
+  smallCtx.imageSmoothingQuality = 'high'
+  // backdrop-saturate-150; browsers without canvas filters just skip it.
+  smallCtx.filter = 'saturate(1.5)'
+  smallCtx.drawImage(canvas, sx, sy, sw, sh, 0, 0, small.width, small.height)
+  ctx.save()
+  roundRectPath(ctx, box, radius)
+  ctx.clip()
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(small, sx, sy, sw, sh)
+  ctx.restore()
+}
+
 // object-fit: cover with an object-position, like the <img>s on the card.
 function drawCover(ctx: CanvasRenderingContext2D, image: HTMLImageElement, box: Box, posX: number, posY: number) {
   const scale = Math.max(box.w / image.naturalWidth, box.h / image.naturalHeight)
@@ -347,8 +382,9 @@ export async function renderCardImage(frame: HTMLElement, look: TierLook): Promi
   const premiumBadge = frame.querySelector('[data-card="premium-badge"]')
   if (premiumBadge !== null) {
     const badge = boxOf(premiumBadge, origin)
-    // Canvas can't blur what's behind, so the glass is a tinted fill with the
-    // same light rim; the gold text comes with drawTexts.
+    // The blurred backdrop, then the same tint and light rim as on screen;
+    // the gold text comes with drawTexts.
+    frostBehind(ctx, canvas, badge, badge.h / 2)
     roundRectPath(ctx, badge, badge.h / 2)
     ctx.fillStyle = angled(ctx, badge, 180, [
       [0, 'rgba(255,255,255,0.18)'],
