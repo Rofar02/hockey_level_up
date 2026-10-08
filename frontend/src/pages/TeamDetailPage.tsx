@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { TeamCaptainSetupCard, TeamPlayerIntroCard } from '../components/teamEvents/TeamIntroCards'
 import { NextEventCard } from '../components/teamEvents/NextEventCard'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
@@ -371,6 +372,12 @@ export function TeamDetailPage() {
                 </span>
               )}
             </div>
+
+            {team.is_captain ? (
+              <TeamCaptainSetupCard teamId={teamId!} memberCount={team.members.length} />
+            ) : (
+              <TeamPlayerIntroCard teamId={teamId!} />
+            )}
 
             <NextEventCard teamId={teamId!} isCaptain={team.is_captain} />
             {team.is_captain && (

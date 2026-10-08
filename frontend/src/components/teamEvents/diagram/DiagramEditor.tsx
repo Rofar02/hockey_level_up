@@ -4,6 +4,7 @@ import { Button } from '../../ui/Button'
 import { FormError } from '../../ui/FormError'
 import { RinkDiagram } from './RinkDiagram'
 import { useSuppressCoachmarks } from '../../../hooks/useSuppressCoachmarks'
+import { BoardTour } from './BoardTour'
 import { lockBodyScroll, unlockBodyScroll } from '../../../utils/bodyScrollLock'
 import { DIAGRAM_ARROW_LABELS, DIAGRAM_POSITION_LABELS, DIAGRAM_POSITION_LETTERS } from '../../../types/teamEvent'
 import type {
@@ -615,6 +616,8 @@ export function DiagramEditor({
           }}
         />
       )}
+
+      <BoardTour />
 
       <nav className="flex shrink-0 gap-1.5 border-t border-white/10 bg-[#121820] px-3 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-2.5">
         <ToolbarButton icon="ti-user" label="Свой" onClick={() => setIsAddingPlayer(true)} />
