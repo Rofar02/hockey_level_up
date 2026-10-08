@@ -1,77 +1,85 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { ReportRewardScreen } from '../components/ReportRewardScreen'
 import { Button } from '../components/ui/Button'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
-import { StatIcon } from '../components/ui/StatIcon'
 import * as scheduleApi from '../api/schedule'
 import * as trainingDiaryApi from '../api/trainingDiary'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { TargetStat } from '../types/exercise'
 import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { DayPlanRead } from '../types/schedule'
-import { DIARY_REWARD_MIN_CHARS } from '../types/trainingDiary'
+import {
+  GAME_RESULT_LABELS,
+  GAME_WORK_ON_LABELS,
+  ICE_DURATIONS,
+  ICE_EFFORT_LABELS,
+  ICE_HIGHLIGHT_LABELS,
+  REPORT_REWARD_WINDOW_DAYS,
+} from '../types/trainingDiary'
+import type {
+  DiaryReportIn,
+  GameResult,
+  GameWorkOn,
+  IceEffort,
+  IceHighlight,
+  TrainingDiaryEntryRead,
+} from '../types/trainingDiary'
 import { parseIsoDate, toIsoDate } from '../utils/date'
 
-const AUTOSAVE_DELAY_MS = 700
-const SAVED_FADE_MS = 2200
-const REWARD_SHOW_MS = 1500
+const COUNTER_MAX = { goals: 30, assists: 30, shots: 100 } as const
+type Counter = keyof typeof COUNTER_MAX
 
-// What a real note earns for the day (2026-10-08) -- same stats, biggest
-// first, as DIARY_STAT_REWARDS in app/services/training_diary_service.py.
-const REWARD_STATS: Record<'on_ice' | 'game', TargetStat[]> = {
-  on_ice: ['on_ice_skating', 'puck_handling', 'intellect'],
-  game: ['intellect', 'on_ice_skating', 'puck_handling'],
+interface Earned {
+  stats: Partial<Record<TargetStat, number>>
+  xp: number
 }
 
-function formatGain(value: number): string {
-  return `+${value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}`
+function toggle<T>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
 }
 
-// Full-screen notebook for an ON_ICE/GAME session's diary entry (2026-09-21
-// redesign) -- reached from TodayCard's "Заполнить дневник" and from
-// SessionCompleteModal's "Записать в дневник". Replaces the old
-// TrainingDiaryCard that sat at the bottom of TrainingSessionPage, under the
-// whole finished warmup list, which read as an afterthought stuck onto a
-// workout history rather than a place to write. Deliberately shows nothing
-// about the session's exercises: the diary is the player's own words about
-// what happened, not a recap of what the app already knows. BottomNav is
-// hidden for this route too (see ProtectedRoute) so the notebook really is
-// the whole screen.
-//
-// Saving: autosave AUTOSAVE_DELAY_MS after the player stops typing (same
-// idea as any note app), flushed immediately on "Готово"/back/unmount so the
-// last few keystrokes are never lost to a still-pending debounce. A diary
-// entry row existing at all -- even with note=null -- is what marks
-// TodayCard's diary step done (see has_diary_entry's docstring in
-// app/schemas/schedule.py), so "Готово"/"Не буду писать сегодня" always
-// write a row, while plain back-navigation without typing anything doesn't.
+function daysBetween(fromIso: string, toIso: string): number {
+  return Math.round((parseIsoDate(toIso).getTime() - parseIsoDate(fromIso).getTime()) / 86_400_000)
+}
+
+// The report after an ice day or a game (2026-10-08 redesign of the 09-21
+// notebook) -- a few taps instead of free text, because after a practice
+// nobody wants to write; the taps are what earns the day's stats, the note
+// stays optional. Reached from TodayCard, SessionCompleteModal and the
+// "Как прошёл лёд?" push. A goalie gets the game form without the
+// goals/assists/shots counters (their own form comes later); a player not
+// in a team never sees the team-coach lines. No numbers before saving: the
+// reward is shown after, on ReportRewardScreen, like the end of an off-ice
+// workout. BottomNav is hidden for this route (see ProtectedRoute).
 export function TrainingDiaryPage() {
   const { dayPlanId } = useParams<{ dayPlanId: string }>()
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   const navigate = useNavigate()
 
   const [day, setDay] = useState<DayPlanRead | null>(null)
   const [trainingSessionId, setTrainingSessionId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [saved, setSaved] = useState<TrainingDiaryEntryRead | null>(null)
   const [note, setNote] = useState('')
-  const [phase, setPhase] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [duration, setDuration] = useState<number | null>(null)
+  const [effort, setEffort] = useState<IceEffort | null>(null)
+  const [highlights, setHighlights] = useState<IceHighlight[]>([])
+  const [result, setResult] = useState<GameResult | null>(null)
+  const [counters, setCounters] = useState<Record<Counter, number>>({ goals: 0, assists: 0, shots: 0 })
+  const [selfRating, setSelfRating] = useState<number | null>(null)
+  const [workOn, setWorkOn] = useState<GameWorkOn[]>([])
+  const [shareWithCoach, setShareWithCoach] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [isFinishing, setIsFinishing] = useState(false)
-  const [rewarded, setRewarded] = useState(false)
-  // Gains credited during this visit -- shown instead of the hint.
-  const [creditedNow, setCreditedNow] = useState<Partial<Record<TargetStat, number>> | null>(null)
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Latest value the debounce timer (or the unmount flush) would save --
-  // a ref rather than reading `note` state, since the timer callback and the
-  // unmount cleanup both close over stale renders.
-  const pendingNoteRef = useRef<string | null>(null)
+  const [earned, setEarned] = useState<Earned | null>(null)
+  // The level before saving, so the reward screen can tell a level-up.
+  const levelBeforeRef = useRef<number | null>(null)
+  // The note as last saved -- leaving with an unsaved edit saves it.
+  const savedNoteRef = useRef('')
 
   useEffect(() => {
     if (accessToken === null || dayPlanId === undefined) {
@@ -83,33 +91,39 @@ export function TrainingDiaryPage() {
       .getDayPlanById(dayPlanId, accessToken)
       .then(async (foundDay) => {
         const session = foundDay.training_session
-        if (
-          session == null
-          || (foundDay.session_type !== 'on_ice' && foundDay.session_type !== 'game')
-        ) {
+        if (session == null || (foundDay.session_type !== 'on_ice' && foundDay.session_type !== 'game')) {
           if (!cancelled) {
-            setLoadError('Дневник для этой тренировки недоступен.')
+            setLoadError('Отчёт для этого дня недоступен.')
           }
           return
         }
-        // Best-effort -- worst case the notebook just starts empty instead of
-        // pre-filled with whatever was saved before.
+        // Best-effort -- worst case the form just starts empty.
         const entry = await trainingDiaryApi.getDiaryEntry(session.id, accessToken).catch(() => null)
         if (cancelled) {
           return
         }
         setDay(foundDay)
         setTrainingSessionId(session.id)
-        setNote(entry?.note ?? '')
-        setRewarded(entry?.rewarded ?? false)
-        setIsLoaded(true)
+        if (entry !== null) {
+          setSaved(entry)
+          setNote(entry.note ?? '')
+          savedNoteRef.current = entry.note ?? ''
+          setDuration(entry.duration_minutes)
+          setEffort(entry.effort)
+          setHighlights(entry.highlights ?? [])
+          setResult(entry.game_result)
+          setCounters({ goals: entry.goals ?? 0, assists: entry.assists ?? 0, shots: entry.shots ?? 0 })
+          setSelfRating(entry.self_rating)
+          setWorkOn(entry.work_on ?? [])
+          setShareWithCoach(entry.share_rating_with_coach)
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
           setLoadError(
             err instanceof ApiError && err.status === 404
-              ? 'Дневник для этой тренировки недоступен.'
-              : 'Не удалось загрузить дневник. Попробуйте ещё раз.',
+              ? 'Отчёт для этого дня недоступен.'
+              : 'Не удалось загрузить отчёт. Попробуйте ещё раз.',
           )
         }
       })
@@ -118,109 +132,69 @@ export function TrainingDiaryPage() {
     }
   }, [accessToken, dayPlanId])
 
-  // Only once the entry has loaded (not just the day): focusing earlier would
-  // let the player start typing into a box that the load then overwrites.
-  useEffect(() => {
-    if (isLoaded) {
-      textareaRef.current?.focus()
-    }
-  }, [isLoaded])
+  const isGame = day?.session_type === 'game'
+  const isGoalie = user?.position === 'goalie'
+  const inTeam = day?.team_event_id != null
+  const noteValue = note.trim() === '' ? null : note
 
-  // Leaving by any route (browser back, tab close aside) must not drop a
-  // debounce that hasn't fired yet -- fire the save right now instead of
-  // just clearing the timer.
-  useEffect(() => {
-    return () => {
-      if (fadeTimerRef.current !== null) {
-        clearTimeout(fadeTimerRef.current)
-      }
-      if (saveTimerRef.current !== null) {
-        clearTimeout(saveTimerRef.current)
-        saveTimerRef.current = null
-        if (accessToken !== null && trainingSessionId !== null) {
-          void trainingDiaryApi
-            .saveDiaryEntry(trainingSessionId, { note: pendingNoteRef.current }, accessToken)
-            .catch(() => {
-              // Nowhere left to show it -- the page is already gone.
-            })
-        }
-      }
-    }
-  }, [accessToken, trainingSessionId])
-
-  // Resolves to whether the save went through and whether it credited the
-  // day's reward.
-  async function persistNote(noteValue: string | null): Promise<{ ok: boolean; credited: boolean }> {
+  async function submit(report: DiaryReportIn) {
     if (accessToken === null || trainingSessionId === null) {
-      return { ok: false, credited: false }
-    }
-    setSaveError(null)
-    try {
-      const saved = await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue }, accessToken)
-      setRewarded(saved.rewarded === true)
-      const credited = Object.keys(saved.stat_rewards ?? {}).length > 0
-      if (credited) {
-        setCreditedNow(saved.stat_rewards)
-      }
-      setPhase('saved')
-      if (fadeTimerRef.current !== null) {
-        clearTimeout(fadeTimerRef.current)
-      }
-      fadeTimerRef.current = setTimeout(() => setPhase('idle'), SAVED_FADE_MS)
-      return { ok: true, credited }
-    } catch (err) {
-      setPhase('idle')
-      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить запись.')
-      return { ok: false, credited: false }
-    }
-  }
-
-  function handleNoteChange(value: string) {
-    setNote(value)
-    setPhase('saving')
-    const noteValue = value.trim() === '' ? null : value
-    pendingNoteRef.current = noteValue
-    if (saveTimerRef.current !== null) {
-      clearTimeout(saveTimerRef.current)
-    }
-    if (fadeTimerRef.current !== null) {
-      clearTimeout(fadeTimerRef.current)
-    }
-    saveTimerRef.current = setTimeout(() => {
-      saveTimerRef.current = null
-      void persistNote(noteValue)
-    }, AUTOSAVE_DELAY_MS)
-  }
-
-  // Saves whatever is in the box right now and, only if that succeeded,
-  // leaves -- a failed save keeps the player here with the error showing and
-  // their text intact, rather than silently losing it on the way out.
-  // `force` writes a row even with nothing typed (Готово / "Не буду писать").
-  async function saveAndLeave(force: boolean, noteValue: string | null) {
-    if (saveTimerRef.current === null && !force) {
-      navigate('/', { replace: true })
       return
     }
-    if (saveTimerRef.current !== null) {
-      clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = null
-    }
-    setIsFinishing(true)
-    setPhase('saving')
-    const saved = await persistNote(noteValue)
-    if (saved.ok) {
-      // The reward landed on this very save -- let the player see it first.
-      if (saved.credited) {
-        await new Promise((resolve) => setTimeout(resolve, REWARD_SHOW_MS))
+    setIsSaving(true)
+    setSaveError(null)
+    levelBeforeRef.current = user?.level ?? null
+    try {
+      const entry = await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue, report }, accessToken)
+      savedNoteRef.current = note
+      setSaved(entry)
+      if (Object.keys(entry.stat_rewards).length > 0) {
+        setEarned({ stats: entry.stat_rewards, xp: entry.xp_reward })
+      } else {
+        navigate('/', { replace: true })
       }
-      navigate('/', { replace: true })
-    } else {
-      setIsFinishing(false)
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить отчёт.')
+    } finally {
+      setIsSaving(false)
     }
   }
 
-  const currentNoteValue = note.trim() === '' ? null : note
-  const isEmpty = currentNoteValue === null
+  function submitReport() {
+    if (isGame) {
+      void submit({
+        skipped: false,
+        game_result: result,
+        ...(isGoalie ? {} : counters),
+        self_rating: selfRating,
+        work_on: workOn,
+        share_rating_with_coach: inTeam && shareWithCoach,
+      })
+    } else {
+      void submit({ skipped: false, duration_minutes: duration, effort, highlights })
+    }
+  }
+
+  // Back: an edited note is kept (note-only save, the report stays as it
+  // was); nothing else is saved without the button.
+  async function leave() {
+    if (accessToken !== null && trainingSessionId !== null && note !== savedNoteRef.current) {
+      await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue }, accessToken).catch(() => {})
+    }
+    navigate(-1)
+  }
+
+  if (earned !== null && accessToken !== null && day !== null) {
+    return (
+      <ReportRewardScreen
+        kind={isGame ? 'game' : 'on_ice'}
+        statRewards={earned.stats}
+        xpReward={earned.xp}
+        levelBefore={levelBeforeRef.current}
+        accessToken={accessToken}
+      />
+    )
+  }
 
   if (loadError !== null) {
     return (
@@ -236,7 +210,7 @@ export function TrainingDiaryPage() {
     )
   }
 
-  if (!isLoaded || day === null) {
+  if (day === null) {
     return (
       <div className="relative flex min-h-svh items-center justify-center overflow-hidden">
         <IceGlowBackground />
@@ -246,127 +220,273 @@ export function TrainingDiaryPage() {
   }
 
   const dateLabel = parseIsoDate(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
-  // A day that hasn't come yet earns nothing (the server checks it too).
-  const canEarn = day.date <= toIsoDate(new Date())
-  const rewardStats = REWARD_STATS[day.session_type === 'game' ? 'game' : 'on_ice']
+  const ageDays = daysBetween(day.date, toIsoDate(new Date()))
+  const isFuture = ageDays < 0
+  const tooLate = ageDays > REPORT_REWARD_WINDOW_DAYS
+  const complete = isGame ? result !== null && selfRating !== null : duration !== null && effort !== null
 
   return (
     <div className="relative flex min-h-svh flex-col overflow-hidden">
       <IceGlowBackground />
       <div className="relative z-[1] mx-auto flex w-full max-w-2xl flex-1 flex-col px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1.25rem+env(safe-area-inset-top))]">
-        <header className="flex items-center justify-between gap-3">
+        <header className="flex items-center">
           <button
             type="button"
-            onClick={() => void saveAndLeave(false, currentNoteValue)}
-            disabled={isFinishing}
+            onClick={() => void leave()}
             aria-label="Назад"
-            className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+            className="-ml-2 flex h-11 w-11 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-text-primary"
           >
             <i className="ti ti-chevron-left text-2xl" aria-hidden="true" />
           </button>
-          <span
-            className={`flex items-center gap-1.5 text-xs transition-opacity duration-500 ${
-              phase === 'idle' ? 'opacity-0' : 'opacity-100'
-            }`}
-          >
-            {phase === 'saving' && (
-              <>
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-text-secondary" />
-                <span className="text-text-secondary">Сохраняем...</span>
-              </>
-            )}
-            {phase === 'saved' && (
-              <>
-                <i className="ti ti-check text-accent-ice" aria-hidden="true" />
-                <span className="text-accent-ice">Сохранено</span>
-              </>
-            )}
-          </span>
         </header>
 
-        <div className="mt-2 flex flex-col gap-1">
+        <div className="mt-1 flex flex-col gap-1">
           <span className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[day.session_type]}`}>
             <i className={`ti ${SESSION_TYPE_ICONS[day.session_type]}`} aria-hidden="true" />
-            {DAY_SESSION_TYPE_LABELS[day.session_type]} · {dateLabel}
+            {DAY_SESSION_TYPE_LABELS[day.session_type]}
+            {inTeam ? ' с командой' : ''} · {dateLabel}
           </span>
-          <h1 className="font-display text-2xl font-semibold text-text-primary">Как прошло?</h1>
+          <h1 className="font-display text-2xl font-semibold text-text-primary">
+            {isGame ? 'Как сыграли?' : 'Как прошёл лёд?'}
+          </h1>
+          {saved?.rewarded ? (
+            <p className="text-xs text-text-secondary">
+              <i className="ti ti-check text-accent-ice" aria-hidden="true" /> Очки за этот день уже начислены — можно
+              поправить ответы
+            </p>
+          ) : isFuture ? (
+            <p className="text-xs text-text-secondary">Этот день ещё впереди — отчёт можно будет заполнить после.</p>
+          ) : tooLate ? (
+            <p className="text-xs text-text-secondary">
+              Очки начисляются за отчёт в течение {REPORT_REWARD_WINDOW_DAYS} дней — за этот день уже не начислятся,
+              но отчёт сохранится.
+            </p>
+          ) : null}
         </div>
 
-        {creditedNow !== null ? (
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-accent-ice/30 bg-accent-ice/10 px-3 py-2 text-xs text-accent-ice">
-            <span className="font-medium">Запись засчитана:</span>
-            {rewardStats
-              .filter((stat) => creditedNow[stat] !== undefined)
-              .map((stat) => (
-                <span key={stat} className="flex items-center gap-1">
-                  <StatIcon stat={stat} size={14} />
-                  {formatGain(creditedNow[stat] ?? 0)} {TARGET_STAT_LABELS[stat]}
-                </span>
-              ))}
-          </div>
-        ) : rewarded ? (
-          <p className="mt-3 text-xs text-text-secondary">
-            <i className="ti ti-check text-accent-ice" aria-hidden="true" /> Очки за этот день уже начислены
-          </p>
-        ) : canEarn ? (
-          <div className="mt-3 flex flex-col gap-1 text-xs text-text-secondary">
-            <span>
-              Запиши хотя бы пару предложений (от {DIARY_REWARD_MIN_CHARS} символов) — за запись начислим очки:
-            </span>
-            <span className="flex flex-wrap gap-x-3 gap-y-1">
-              {rewardStats.map((stat) => (
-                <span key={stat} className="flex items-center gap-1 text-text-primary">
-                  <StatIcon stat={stat} size={14} />
-                  {TARGET_STAT_LABELS[stat]}
-                </span>
-              ))}
-            </span>
-          </div>
-        ) : null}
+        {isGame ? (
+          <>
+            <Question title="Счёт">
+              <ChipRow columns={3}>
+                {(Object.keys(GAME_RESULT_LABELS) as GameResult[]).map((value) => (
+                  <Chip key={value} selected={result === value} onClick={() => setResult(value)}>
+                    {GAME_RESULT_LABELS[value]}
+                  </Chip>
+                ))}
+              </ChipRow>
+            </Question>
 
-        {/* Ruled notebook paper, tinted to the app's persimmon accent. The
-            28px line pitch matches text-base + leading-7 exactly so text sits
-            on the lines; bg-local keeps the rules scrolling with the text
-            instead of staying pinned to the box. text-base (16px), not
-            text-sm, on purpose: iOS Safari zooms the page on focusing any
-            input under 16px, which would break this "full screen" feel. */}
-        <textarea
-          ref={textareaRef}
-          value={note}
-          onChange={(event) => handleNoteChange(event.target.value)}
-          placeholder="Что получилось, а что нет? Как самочувствие, что запомнилось..."
-          maxLength={2000}
-          className="mt-4 min-h-64 w-full flex-1 resize-none border-none bg-transparent bg-[repeating-linear-gradient(to_bottom,transparent,transparent_27px,rgba(255,92,52,0.16)_28px)] bg-local text-base leading-7 text-text-primary outline-none placeholder:italic placeholder:text-text-secondary/70"
-        />
-
-        <div className="mt-4 flex flex-col gap-3">
-          <FormError message={saveError} />
-          <Button onClick={() => void saveAndLeave(true, currentNoteValue)} disabled={isFinishing} className="w-full">
-            Готово
-          </Button>
-          <div className="flex items-center justify-between text-xs">
-            {isEmpty ? (
-              <button
-                type="button"
-                onClick={() => void saveAndLeave(true, null)}
-                disabled={isFinishing}
-                className="text-text-secondary underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary disabled:opacity-50"
-              >
-                Не буду писать сегодня
-              </button>
-            ) : (
-              <span />
+            {!isGoalie && (
+              <Question title="Ваши моменты" aside={inTeam ? 'видно тренеру команды' : undefined}>
+                <div className="flex flex-col gap-1.5">
+                  {(['goals', 'assists', 'shots'] as Counter[]).map((key) => (
+                    <CounterRow
+                      key={key}
+                      label={{ goals: 'Голы', assists: 'Передачи', shots: 'Броски в створ' }[key]}
+                      value={counters[key]}
+                      max={COUNTER_MAX[key]}
+                      onChange={(value) => setCounters((current) => ({ ...current, [key]: value }))}
+                    />
+                  ))}
+                </div>
+              </Question>
             )}
+
+            <Question
+              title="Оцените свою игру"
+              aside={
+                <span className="flex items-center gap-1">
+                  <i className="ti ti-lock" aria-hidden="true" />
+                  только вам и ИИ-тренеру
+                </span>
+              }
+            >
+              <ChipRow columns={5}>
+                {[1, 2, 3, 4, 5].map((value) => (
+                  <Chip key={value} selected={selfRating === value} onClick={() => setSelfRating(value)}>
+                    {value}
+                  </Chip>
+                ))}
+              </ChipRow>
+            </Question>
+
+            <Question title="Над чем поработать" aside="можно несколько">
+              <ChipRow columns={2}>
+                {(Object.keys(GAME_WORK_ON_LABELS) as GameWorkOn[]).map((value) => (
+                  <Chip key={value} selected={workOn.includes(value)} onClick={() => setWorkOn(toggle(workOn, value))}>
+                    {GAME_WORK_ON_LABELS[value]}
+                  </Chip>
+                ))}
+              </ChipRow>
+            </Question>
+          </>
+        ) : (
+          <>
+            <Question title="Сколько были на льду">
+              <ChipRow columns={4}>
+                {ICE_DURATIONS.map((value, index) => (
+                  <Chip key={value} selected={duration === value} onClick={() => setDuration(value)}>
+                    {index === ICE_DURATIONS.length - 1 ? `${value}+` : `${value} мин`}
+                  </Chip>
+                ))}
+              </ChipRow>
+            </Question>
+
+            <Question title="Насколько было тяжело">
+              <ChipRow columns={3}>
+                {(Object.keys(ICE_EFFORT_LABELS) as IceEffort[]).map((value) => (
+                  <Chip key={value} selected={effort === value} onClick={() => setEffort(value)}>
+                    {ICE_EFFORT_LABELS[value]}
+                  </Chip>
+                ))}
+              </ChipRow>
+            </Question>
+
+            <Question title="Что шло лучше всего" aside="можно несколько">
+              <ChipRow columns={2}>
+                {(Object.keys(ICE_HIGHLIGHT_LABELS) as IceHighlight[]).map((value) => (
+                  <Chip
+                    key={value}
+                    selected={highlights.includes(value)}
+                    onClick={() => setHighlights(toggle(highlights, value))}
+                  >
+                    {ICE_HIGHLIGHT_LABELS[value]}
+                  </Chip>
+                ))}
+              </ChipRow>
+            </Question>
+          </>
+        )}
+
+        <label className="mt-5 flex flex-col gap-1.5">
+          <span className="text-sm text-text-secondary">Заметка в дневник — по желанию</span>
+          {/* text-base (16px), not text-sm: iOS zooms the page on focusing
+              any input under 16px. */}
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder={isGame ? 'Что запомнилось в игре' : 'Что запомнилось, что сказал тренер'}
+            className="w-full resize-none rounded-xl border border-white/10 bg-dark-card px-3 py-2.5 text-base text-text-primary outline-none placeholder:text-text-secondary/70 focus:border-accent-ice/50"
+          />
+        </label>
+
+        {isGame && inTeam && (
+          <label className="mt-2 flex min-h-11 items-center justify-between gap-3 text-sm text-text-secondary">
+            Показывать оценку тренеру команды
+            <input
+              type="checkbox"
+              checked={shareWithCoach}
+              onChange={(event) => setShareWithCoach(event.target.checked)}
+              className="h-5 w-5 accent-accent-ice"
+            />
+          </label>
+        )}
+
+        <div className="mt-auto flex flex-col gap-2 pt-6">
+          <FormError message={saveError} />
+          <Button onClick={submitReport} disabled={!complete || isSaving || isFuture} className="w-full">
+            {isSaving ? 'Сохраняем...' : 'Сохранить'}
+          </Button>
+          <div className="flex items-center justify-between text-sm">
+            <button
+              type="button"
+              onClick={() => void submit({ skipped: true })}
+              disabled={isSaving || isFuture}
+              className="min-h-11 text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+            >
+              {isGame ? 'Не играл' : 'Не был на льду'}
+            </button>
             <button
               type="button"
               onClick={() => navigate('/diary')}
-              className="text-accent-ice underline decoration-dotted underline-offset-2 transition-colors hover:text-text-primary"
+              className="min-h-11 text-accent-ice transition-colors hover:text-text-primary"
             >
               Все записи
             </button>
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function Question({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="mt-5 flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-text-primary">{title}</h2>
+        {aside !== undefined && <span className="text-xs text-text-secondary">{aside}</span>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+const GRID_COLUMNS: Record<2 | 3 | 4 | 5, string> = {
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  5: 'grid-cols-5',
+}
+
+function ChipRow({ columns, children }: { columns: 2 | 3 | 4 | 5; children: ReactNode }) {
+  return <div className={`grid gap-1.5 ${GRID_COLUMNS[columns]}`}>{children}</div>
+}
+
+function Chip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`min-h-11 rounded-xl border px-2 text-sm transition-colors ${
+        selected
+          ? 'border-accent-ice bg-accent-ice/15 font-semibold text-accent-ice'
+          : 'border-white/10 bg-dark-card text-text-primary hover:border-white/25'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function CounterRow({
+  label,
+  value,
+  max,
+  onChange,
+}: {
+  label: string
+  value: number
+  max: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-xl bg-dark-card py-1.5 pl-4 pr-1.5">
+      <span className="text-sm text-text-primary">{label}</span>
+      <span className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(0, value - 1))}
+          disabled={value === 0}
+          aria-label={`${label}: меньше`}
+          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 text-lg text-text-primary disabled:opacity-40"
+        >
+          <i className="ti ti-minus" aria-hidden="true" />
+        </button>
+        <span className="w-8 text-center font-display text-xl font-semibold text-text-primary">{value}</span>
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(max, value + 1))}
+          disabled={value === max}
+          aria-label={`${label}: больше`}
+          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 text-lg text-text-primary disabled:opacity-40"
+        >
+          <i className="ti ti-plus" aria-hidden="true" />
+        </button>
+      </span>
     </div>
   )
 }

@@ -139,7 +139,7 @@ export function TeamDayCard({
 
         {hasStarted ? (
           <Button onClick={() => navigate(`/training/${day.id}/diary`)} className="w-full">
-            {diaryDone ? 'Открыть дневник' : 'Вести дневник'}
+            {diaryDone ? 'Открыть отчёт' : isTraining ? 'Отчёт после тренировки' : 'Как сыграли?'}
           </Button>
         ) : (
           <div className="flex flex-col gap-2">

@@ -445,7 +445,7 @@ test('"not going" gives the day back, "going" takes it again', async () => {
   expect(day.session_type).toBe('on_ice')
 })
 
-test('after the start the home card leads to the personal diary, which grants the team reward', async ({ page }) => {
+test('after the start the home card leads to the report, which grants the team reward', async ({ page }) => {
   const now = localNow()
   test.skip(now.hour === 0 && now.minute < 20, 'needs a start time earlier today')
   // Start moved to a few minutes ago -- the takeover follows the event.
@@ -459,18 +459,25 @@ test('after the start the home card leads to the personal diary, which grants th
   await page.goto('/')
   await expect(page.getByText(/Началась в/)).toBeVisible()
   const xpBefore = (await api<{ xp: number }>('GET', '/auth/me', { token: setup.player.token })).xp
-  await page.getByRole('button', { name: 'Вести дневник' }).click()
-  // The ordinary personal diary -- there is no separate team diary.
+  await page.getByRole('button', { name: 'Отчёт после тренировки' }).click()
+  // The ordinary personal diary's report -- there is no separate team diary.
   await expect(page).toHaveURL(/\/training\/[^/]+\/diary$/)
+  await expect(page.getByText(/Лёд с командой/)).toBeVisible()
+  await page.getByRole('button', { name: '60 мин' }).click()
+  await page.getByRole('button', { name: 'Нормально' }).click()
+  await page.getByRole('button', { name: 'Броски' }).click()
   await page.getByRole('textbox').fill('Отработали 2 в 1, бросок шёл хорошо')
-  await page.getByRole('button', { name: 'Готово' }).click()
-  await expect(page).toHaveURL(/\/$/)
-  // The first entry on a team-training day grants the team reward.
+  await page.getByRole('button', { name: 'Сохранить' }).click()
+  // The first report on a team-training day earns the team XP, shown on the
+  // reward screen.
+  await expect(page.getByText('Лёд закрыт')).toBeVisible()
+  await expect(page.getByText('+50 XP')).toBeVisible()
   const xpAfter = (await api<{ xp: number }>('GET', '/auth/me', { token: setup.player.token })).xp
   expect(xpAfter - xpBefore).toBe(50)
-  await page.goto('/')
+  await page.getByRole('button', { name: 'Отлично' }).click()
+  await expect(page).toHaveURL(/\/$/)
   await expect(page.getByText('Выполнено')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Открыть дневник' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Открыть отчёт' })).toBeVisible()
   await shot(page, '11-home-diary-done')
 })
 

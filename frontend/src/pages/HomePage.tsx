@@ -650,6 +650,7 @@ function TodayCard({
   const diaryPending = blocksDone && day.training_session.has_diary_entry === false
   const fullyDone = blocksDone && !diaryPending
   const { start: startLabel, resume: resumeLabel } = todayCardStartLabels(day.session_type)
+  const reportLabel = day.session_type === 'game' ? 'Как сыграли?' : 'Отчёт после льда'
 
   return (
     <div className={`relative overflow-hidden p-5 ${CARD_CLASS}`}>
@@ -670,12 +671,19 @@ function TodayCard({
         </p>
         {diaryPending && (
           <Button onClick={onFillDiary} className="w-full">
-            Заполнить дневник
+            {reportLabel}
           </Button>
         )}
         {!blocksDone && (
           <Button onClick={onStart} className="w-full">
             {started ? resumeLabel : startLabel}
+          </Button>
+        )}
+        {/* 2026-10-08: the report is what earns an ice/game day, so it must
+            be reachable without doing the warm-up first. */}
+        {!blocksDone && day.training_session.has_diary_entry === false && (
+          <Button variant="neutral" onClick={onFillDiary} className="w-full">
+            {reportLabel}
           </Button>
         )}
       </div>

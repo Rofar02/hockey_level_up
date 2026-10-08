@@ -1021,6 +1021,7 @@ export function TrainingSessionPage() {
               ? day.id
               : null
           }
+          diaryKind={day?.session_type === 'game' ? 'game' : 'on_ice'}
         />
       )}
       </div>
@@ -1372,6 +1373,7 @@ function SessionCompleteModal({
   levelBeforeSession,
   accessToken,
   diaryDayPlanId,
+  diaryKind,
 }: {
   statTotals: Partial<Record<TargetStat, number>>
   xpTotal: number
@@ -1379,8 +1381,9 @@ function SessionCompleteModal({
   levelBeforeSession: number | null
   accessToken: string
   // Set (to the day plan's id) only for ON_ICE/GAME, null otherwise --
-  // drives the "Записать в дневник" button below.
+  // drives the report button below ("Отчёт после льда" / "Как сыграли?").
   diaryDayPlanId: string | null
+  diaryKind: 'on_ice' | 'game'
 }) {
   const navigate = useNavigate()
 
@@ -1528,7 +1531,7 @@ function SessionCompleteModal({
         {diaryDayPlanId !== null ? (
           <div className="flex w-full flex-col gap-2">
             <Button onClick={() => navigate(`/training/${diaryDayPlanId}/diary`, { replace: true })} className="w-full">
-              Записать в дневник
+              {diaryKind === 'game' ? 'Как сыграли?' : 'Отчёт после льда'}
             </Button>
             <Button variant="neutral" onClick={() => navigate('/', { replace: true })} className="w-full">
               На главную
