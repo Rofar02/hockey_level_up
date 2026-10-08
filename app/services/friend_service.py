@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.friend import FriendRequest, FriendRequestStatus
 from app.models.team import TeamMembership
 from app.models.user import User
+from app.events.handlers.friend_requests import ACCEPTED_EVENT, SENT_EVENT
 from app.repositories.friend_repository import FriendRepository
+from app.repositories.outbox_repository import OutboxRepository
 from app.schemas.friend import FriendRead, FriendRequestRead, FriendRequestSentRead
 
 
@@ -80,6 +82,7 @@ class FriendService:
             if reverse.status == FriendRequestStatus.PENDING:
                 reverse.status = FriendRequestStatus.ACCEPTED
                 reverse.responded_at = datetime.now(timezone.utc)
+                self._announce(ACCEPTED_EVENT, reverse)
                 await self._session.commit()
                 return self._to_sent_read(reverse, receiver)
             # DECLINED reverse row doesn't block a fresh forward request --
@@ -100,10 +103,12 @@ class FriendService:
             forward.status = FriendRequestStatus.PENDING
             forward.created_at = datetime.now(timezone.utc)
             forward.responded_at = None
+            self._announce(SENT_EVENT, forward)
             await self._session.commit()
             return self._to_sent_read(forward, receiver)
 
         request = await self._friends.create_request(sender.id, receiver.id)
+        self._announce(SENT_EVENT, request)
         await self._session.commit()
         return self._to_sent_read(request, receiver)
 
@@ -134,6 +139,8 @@ class FriendService:
 
         request.status = FriendRequestStatus.ACCEPTED if accept else FriendRequestStatus.DECLINED
         request.responded_at = datetime.now(timezone.utc)
+        if accept:
+            self._announce(ACCEPTED_EVENT, request)
         await self._session.commit()
         # FK CASCADE on sender_id guarantees the sender row still exists
         # whenever this request row does -- same trust-the-FK reasoning as
@@ -168,6 +175,11 @@ class FriendService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not friends")
         await self._friends.delete_request(request)
         await self._session.commit()
+
+    def _announce(self, event_type: str, request: FriendRequest) -> None:
+        """The push to the other side goes out through the outbox, in the
+        same transaction as the request (app/events/handlers/friend_requests)."""
+        OutboxRepository(self._session).add(event_type, {"request_id": str(request.id)})
 
     @staticmethod
     def _to_request_read(request: FriendRequest, sender: User) -> FriendRequestRead:

@@ -69,7 +69,7 @@ async def _dispatch(message: aio_pika.abc.AbstractIncomingMessage) -> None:
 
 async def run_consumer() -> None:
     # Import here so handler modules register themselves before we start consuming.
-    from app.events.handlers import block_completed  # noqa: F401
+    from app.events.handlers import block_completed, friend_requests  # noqa: F401
 
     settings = get_settings()
     try:
