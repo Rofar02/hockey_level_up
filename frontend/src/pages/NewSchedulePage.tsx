@@ -23,7 +23,9 @@ import {
   TRAINING_PHASES,
 } from '../types/schedule'
 import type {
+  DayPlanRead,
   DaySessionType,
+  ExtraGymTime,
   SessionBlockRead,
   TrainingPhase,
   TrainingSessionRead,
@@ -163,6 +165,15 @@ interface DayRow {
   teamEventId: string | null
   // What the day was before that team event (null otherwise).
   replacedSessionType: DaySessionType | null
+  // Double day (step 6): a separate gym training on this ice/game day.
+  extraGym: ExtraGymTime | null
+  extraDay: DayPlanRead | null
+}
+
+const EXTRA_CAPABLE: DaySessionType[] = ['on_ice', 'game']
+
+function extraGymFor(row: DayRow): ExtraGymTime | null {
+  return EXTRA_CAPABLE.includes(row.sessionType) ? row.extraGym : null
 }
 
 // "Started" (in-progress or done) is what actually gates editing controls
@@ -173,7 +184,8 @@ function isStarted(row: DayRow): boolean {
 }
 
 function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
-  return plan.day_plans.map((day) => ({
+  const extras = new Map(plan.day_plans.filter((day) => day.is_extra === true).map((day) => [day.date, day]))
+  return plan.day_plans.filter((day) => day.is_extra !== true).map((day) => ({
     isoDate: day.date,
     date: parseIsoDate(day.date),
     sessionType: day.session_type,
@@ -181,6 +193,8 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     trainingSession: day.training_session,
     teamEventId: day.team_event_id,
     replacedSessionType: day.replaced_session_type ?? null,
+    extraGym: extras.get(day.date)?.time_of_day ?? null,
+    extraDay: extras.get(day.date) ?? null,
   }))
 }
 
@@ -193,6 +207,8 @@ function rowsForWeek(dates: Date[]): DayRow[] {
     trainingSession: null,
     teamEventId: null,
     replacedSessionType: null,
+    extraGym: null,
+    extraDay: null,
   }))
 }
 
@@ -205,6 +221,8 @@ export function NewSchedulePage() {
   const [selectedWeek, setSelectedWeek] = useState<WeekSlot>(searchParams.get('week') === 'next' ? 'next' : 'current')
   const [weekStatus, setWeekStatus] = useState<WeekStatus>('loading')
   const [rows, setRows] = useState<DayRow[]>([])
+  // Double days (step 6) are behind a server switch; off -> no "+ зал".
+  const [doubleDays, setDoubleDays] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -225,7 +243,7 @@ export function NewSchedulePage() {
   // handleSaveChanges can diff against it (rather than per-row original*
   // fields that view/plan mode would carry around for no reason) and
   // handleCancelEditing can revert to it exactly.
-  const [editSnapshot, setEditSnapshot] = useState<Map<string, { sessionType: DaySessionType }> | null>(
+  const [editSnapshot, setEditSnapshot] = useState<Map<string, { sessionType: DaySessionType; extraGym: ExtraGymTime | null }> | null>(
     null,
   )
   // Set only when handleSaveChanges finds a changed, unlocked day -- which
@@ -257,6 +275,24 @@ export function NewSchedulePage() {
     'Нажмите на день, чтобы посмотреть его упражнения: ещё не начатый день откроет превью, а начатый или пройденный — список с результатами.',
     'ti-hand-click',
   )
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    scheduleApi
+      .getScheduleFeatures(accessToken)
+      .then((features) => {
+        if (!cancelled) {
+          setDoubleDays(features.double_days)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
 
   useEffect(() => {
     if (accessToken === null) {
@@ -297,6 +333,10 @@ export function NewSchedulePage() {
     setRows((previous) => previous.map((row, i) => (i === index ? { ...row, sessionType: type } : row)))
   }
 
+  function setDayExtra(index: number, extra: ExtraGymTime | null) {
+    setRows((previous) => previous.map((row, i) => (i === index ? { ...row, extraGym: extra } : row)))
+  }
+
   async function handleGeneratePlan() {
     if (accessToken === null) {
       return
@@ -309,6 +349,7 @@ export function NewSchedulePage() {
           days: rows.map((row) => ({
             date: row.isoDate,
             session_type: row.sessionType,
+            extra_gym: extraGymFor(row),
           })),
         },
         accessToken,
@@ -334,7 +375,7 @@ export function NewSchedulePage() {
   function handleStartEditing() {
     setSubmitError(null)
     setExpandedRowIsoDate(null)
-    setEditSnapshot(new Map(rows.map((row) => [row.isoDate, { sessionType: row.sessionType }])))
+    setEditSnapshot(new Map(rows.map((row) => [row.isoDate, { sessionType: row.sessionType, extraGym: row.extraGym }])))
   }
 
   function handleCancelEditing() {
@@ -344,7 +385,7 @@ export function NewSchedulePage() {
     setRows((previous) =>
       previous.map((row) => {
         const original = editSnapshot.get(row.isoDate)
-        return original === undefined ? row : { ...row, sessionType: original.sessionType }
+        return original === undefined ? row : { ...row, sessionType: original.sessionType, extraGym: original.extraGym }
       }),
     )
     setEditSnapshot(null)
@@ -363,7 +404,11 @@ export function NewSchedulePage() {
         return false
       }
       const original = editSnapshot.get(row.isoDate)
-      return original === undefined || original.sessionType !== row.sessionType
+      return (
+        original === undefined ||
+        original.sessionType !== row.sessionType ||
+        extraGymFor({ ...row, extraGym: original.extraGym }) !== extraGymFor(row)
+      )
     })
     if (changed.length === 0) {
       setEditSnapshot(null)
@@ -389,6 +434,7 @@ export function NewSchedulePage() {
         days: changed.map((row) => ({
           date: row.isoDate,
           session_type: row.sessionType,
+          extra_gym: extraGymFor(row),
         })),
       }
       // Explicit week_start_date only for next week -- current week keeps
@@ -406,7 +452,9 @@ export function NewSchedulePage() {
         // truth so the failed day (now reverted server-side) doesn't keep
         // showing as "changed".
         setRows(refreshedRows)
-        setEditSnapshot(new Map(refreshedRows.map((row) => [row.isoDate, { sessionType: row.sessionType }])))
+        setEditSnapshot(
+          new Map(refreshedRows.map((row) => [row.isoDate, { sessionType: row.sessionType, extraGym: row.extraGym }])),
+        )
         setSubmitError(
           result.conflicts
             .map((conflict) => `${formatShortDate(parseIsoDate(conflict.date))}: ${conflict.detail}`)
@@ -472,6 +520,8 @@ export function NewSchedulePage() {
                   isPast={row.isoDate < todayIso}
                   todayIso={todayIso}
                   onSelectType={(type) => setDayType(index, type)}
+                  doubleDays={doubleDays}
+                  onSelectExtra={(extra) => setDayExtra(index, extra)}
                 />
               ))}
             </div>
@@ -626,6 +676,13 @@ export function NewSchedulePage() {
                     ) : (
                       <DaySummary row={row} />
                     )}
+                    {row.extraDay !== null && (
+                      <ExtraGymLine
+                        extraDay={row.extraDay}
+                        mainLabel={row.sessionType === 'game' ? 'игра' : 'лёд'}
+                        onOpen={() => row.extraDay !== null && navigate(`/training/${row.extraDay.id}`)}
+                      />
+                    )}
                     {isExpanded && trainingSession !== null && (
                       <StartedDayExerciseList
                         trainingSession={trainingSession}
@@ -662,6 +719,8 @@ export function NewSchedulePage() {
                   isPast={row.isoDate < todayIso}
                   todayIso={todayIso}
                   onSelectType={(type) => setDayType(index, type)}
+                  doubleDays={doubleDays}
+                  onSelectExtra={(extra) => setDayExtra(index, extra)}
                 />
               ))}
             </div>
@@ -750,6 +809,8 @@ function EditableDayRow({
   isPast,
   todayIso,
   onSelectType,
+  doubleDays,
+  onSelectExtra,
 }: {
   row: DayRow
   weekdayLabel: string
@@ -761,7 +822,10 @@ function EditableDayRow({
   isPast: boolean
   todayIso: string
   onSelectType: (type: DaySessionType) => void
+  doubleDays: boolean
+  onSelectExtra: (extra: ExtraGymTime | null) => void
 }) {
+  const canAddGym = doubleDays && !isStarted(row) && !isPast && EXTRA_CAPABLE.includes(row.sessionType)
   return (
     <div
       className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
@@ -810,7 +874,56 @@ function EditableDayRow({
           </div>
         )}
       </div>
+      {canAddGym && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-2">
+          <span className="text-xs text-[#8A94A6]">Ещё и зал:</span>
+          {([null, 'morning', 'evening'] as const).map((option) => (
+            <button
+              key={option ?? 'none'}
+              type="button"
+              onClick={() => onSelectExtra(option)}
+              className={`rounded border px-2.5 py-1 text-xs font-medium transition-colors ${
+                row.extraGym === option
+                  ? 'border-accent-persimmon/60 bg-accent-persimmon/15 text-accent-persimmon'
+                  : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
+              }`}
+            >
+              {option === null ? 'Нет' : option === 'morning' ? 'Утром' : 'Вечером'}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
+  )
+}
+
+// Double day (step 6): the separate gym training of an ice/game day, with
+// its half of the day and its own progress.
+function ExtraGymLine({
+  extraDay,
+  mainLabel,
+  onOpen,
+}: {
+  extraDay: DayPlanRead
+  mainLabel: string
+  onOpen: () => void
+}) {
+  const status = completionStatusFromBlocks(extraDay.training_session?.blocks)
+  const gymFirst = extraDay.time_of_day === 'morning'
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex min-h-11 items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-left text-sm transition-colors hover:border-white/20"
+    >
+      <span className="flex items-center gap-1.5 text-[#F5F7FA]">
+        <i className={`ti ${SESSION_TYPE_ICONS.off_ice} ${SESSION_TYPE_COLORS.off_ice}`} aria-hidden="true" />
+        {gymFirst ? `Утро — зал, вечер — ${mainLabel}` : `Утро — ${mainLabel}, вечер — зал`}
+      </span>
+      <span className="text-xs text-[#8A94A6]">
+        {status === 'done' ? 'зал пройден' : status === 'in-progress' ? 'зал начат' : 'открыть зал ›'}
+      </span>
+    </button>
   )
 }
 

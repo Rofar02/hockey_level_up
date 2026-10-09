@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    String,
     UniqueConstraint,
     false,
     func,
@@ -141,7 +142,10 @@ class TrainingBlock(Base):
 class DayPlan(Base):
     __tablename__ = "day_plans"
     __table_args__ = (
-        UniqueConstraint("weekly_plan_id", "date", name="uq_day_plans_weekly_plan_date"),
+        # Release plan step 6 (2026-10-09): a double day is two DayPlans of
+        # one date -- the main one (ice/game, everything that looks a day up
+        # by date gets this one) and an extra gym day (is_extra).
+        UniqueConstraint("weekly_plan_id", "date", "is_extra", name="uq_day_plans_weekly_plan_date_extra"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -186,6 +190,11 @@ class DayPlan(Base):
     replaced_session_type: Mapped[DaySessionType | None] = mapped_column(
         enum_column(DaySessionType, "day_session_type"), nullable=True
     )
+    # Double day (step 6): the separate gym training of an ice/game day.
+    # time_of_day says which half of the day each of the two takes
+    # ("morning"/"evening"); None on an ordinary day.
+    is_extra: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    time_of_day: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     weekly_plan: Mapped["WeeklyPlan"] = relationship(back_populates="day_plans")
     training_session: Mapped["TrainingSession | None"] = relationship(

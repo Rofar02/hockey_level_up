@@ -367,12 +367,16 @@ export function HomePage() {
   useSuppressCoachmarks(showTour)
 
   const todayIso = toIsoDate(new Date())
-  const today = weeklyPlan?.day_plans.find((day) => day.date === todayIso) ?? null
+  const today = weeklyPlan?.day_plans.find((day) => day.date === todayIso && day.is_extra !== true) ?? null
+  // Double day (step 6): today's separate gym training next to the ice/game.
+  const todayExtra = weeklyPlan?.day_plans.find((day) => day.date === todayIso && day.is_extra === true) ?? null
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
   const avatarTierStyle = getAvatarTierStyle(user?.level ?? 1, user?.avatar_ring_accent)
   const selectedIsoDate = selectedDay !== null ? toIsoDate(selectedDay) : null
   const selectedDayWeeklyPlanDay =
-    selectedIsoDate !== null ? weeklyPlan?.day_plans.find((day) => day.date === selectedIsoDate) : undefined
+    selectedIsoDate !== null
+      ? weeklyPlan?.day_plans.find((day) => day.date === selectedIsoDate && day.is_extra !== true)
+      : undefined
   // fetchedDayPlan.plan is `null` for "fetched, no plan for that date" (a
   // real answer -- don't fall through to "still loading"), so only
   // `undefined` (nothing fetched yet, or for a different date) is coerced
@@ -502,6 +506,10 @@ export function HomePage() {
             {/* Premium: the coach's Monday review of last week, until closed. */}
             <WeeklyReviewCard />
 
+            {todayExtra !== null && todayExtra.time_of_day === 'morning' && (
+              <ExtraGymTodayCard day={todayExtra} onStart={() => navigate(`/training/${todayExtra.id}`)} />
+            )}
+
             {(() => {
               const personalCard = (
                 <TodayCard
@@ -526,6 +534,10 @@ export function HomePage() {
                 />
               )
             })()}
+
+            {todayExtra !== null && todayExtra.time_of_day !== 'morning' && (
+              <ExtraGymTodayCard day={todayExtra} onStart={() => navigate(`/training/${todayExtra.id}`)} />
+            )}
 
             <NextWeekPlanCard onPlan={() => navigate('/schedule/new?week=next')} />
 
@@ -1174,6 +1186,36 @@ function DayDetailSession({
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// Double day (step 6): the day's separate gym training, above the ice when
+// it's in the morning, below when in the evening.
+function ExtraGymTodayCard({ day, onStart }: { day: DayPlanRead; onStart: () => void }) {
+  const blocks = day.training_session?.blocks ?? []
+  const done = blocks.length > 0 && blocks.every((b) => b.completed_at !== null || b.skipped_at !== null)
+  const started = blocks.some((b) => b.completed_at !== null || b.skipped_at !== null)
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-dark-card p-4">
+      <i className="ti ti-barbell text-2xl text-accent-persimmon" aria-hidden="true" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="text-xs uppercase tracking-wide text-[#8A94A6]">
+          {day.time_of_day === 'morning' ? 'Утро' : 'Вечер'} · зал
+        </span>
+        <span className="text-sm font-semibold text-[#F5F7FA]">
+          {done ? 'Зал пройден' : `${blocks.length} упражнений · ноги лёгкие`}
+        </span>
+      </div>
+      {!done && (
+        <button
+          type="button"
+          onClick={onStart}
+          className="shrink-0 rounded-xl bg-accent-persimmon px-4 py-2 text-sm font-semibold text-dark-bg"
+        >
+          {started ? 'Продолжить' : 'Начать'}
+        </button>
+      )}
     </div>
   )
 }

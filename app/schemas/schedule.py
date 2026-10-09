@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,6 +12,10 @@ from app.schemas.exercise import ExerciseRead
 class DayPlanIn(BaseModel):
     date: date
     session_type: DaySessionType
+    # Release plan step 6: on an ice or game day, a separate full gym
+    # training in the morning or the evening. Ignored on other days and
+    # while settings.double_days_enabled is off.
+    extra_gym: Literal["morning", "evening"] | None = None
 
 
 class WeeklyPlanCreate(BaseModel):
@@ -82,6 +87,15 @@ class DayPlanRead(BaseModel):
     # What the day was before that (2026-10-08: the week page warns when a
     # team event took a gym day, so the player can move the workout).
     replaced_session_type: DaySessionType | None = None
+    # Double day (step 6), see DayPlan.is_extra/time_of_day.
+    is_extra: bool = False
+    time_of_day: str | None = None
+
+
+class ScheduleFeaturesRead(BaseModel):
+    """GET /schedule/features -- optional week features switched on."""
+
+    double_days: bool
 
 
 class WeeklyPlanRead(BaseModel):

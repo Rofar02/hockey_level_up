@@ -61,6 +61,9 @@ async def list_activity_calendar(
             WeeklyPlan.user_id == user_id,
             DayPlan.date >= from_date,
             DayPlan.date <= to_date,
+            # The streak goes by dates: a double day (step 6) counts through
+            # its main ice/game day, an unfinished extra gym day never breaks it.
+            DayPlan.is_extra.is_(False),
         )
         .group_by(DayPlan.date, DayPlan.session_type)
         .order_by(DayPlan.date)

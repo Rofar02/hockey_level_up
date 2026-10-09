@@ -1,6 +1,7 @@
 import { apiGet, apiPatchAuth, apiPostAuth } from './client'
 import type {
   DayPlanRead,
+  ScheduleFeaturesRead,
   WeeklyPlanCreate,
   WeeklyPlanPatch,
   WeeklyPlanPatchResult,
@@ -62,4 +63,9 @@ export function patchWeeklyPlan(
     payload,
     accessToken,
   )
+}
+
+// Which optional week features are switched on (release plan step 6).
+export function getScheduleFeatures(accessToken: string): Promise<ScheduleFeaturesRead> {
+  return apiGet<ScheduleFeaturesRead>('/schedule/features', accessToken)
 }

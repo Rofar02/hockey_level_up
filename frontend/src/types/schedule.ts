@@ -37,9 +37,15 @@ export const SESSION_TYPE_COLORS: Record<DaySessionType, string> = {
 export const TRAINING_PHASES = ['warmup', 'main', 'cooldown', 'puck'] as const
 export type TrainingPhase = (typeof TRAINING_PHASES)[number]
 
+// Release plan step 6 (2026-10-09): a full gym training on an ice or game
+// day, in the morning or the evening -- the ice/game takes the other half.
+export type ExtraGymTime = 'morning' | 'evening'
+
 export interface DayPlanIn {
   date: string
   session_type: DaySessionType
+  // On an ice or game day only: add a separate gym training.
+  extra_gym?: ExtraGymTime | null
 }
 
 export interface WeeklyPlanCreate {
@@ -85,6 +91,15 @@ export interface DayPlanRead {
   team_event_id: string | null
   // What the day was before a team event took it over (null otherwise).
   replaced_session_type?: DaySessionType | null
+  // Double day (step 6): the extra gym day sits next to the ice/game day
+  // of the same date; each carries its half of the day.
+  is_extra?: boolean
+  time_of_day?: ExtraGymTime | null
+}
+
+// GET /schedule/features
+export interface ScheduleFeaturesRead {
+  double_days: boolean
 }
 
 export interface WeeklyPlanRead {

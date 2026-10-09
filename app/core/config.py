@@ -127,6 +127,10 @@ class Settings(BaseSettings):
     # turned on after the log and the year simulation have been reviewed.
     week_light_legs_after_ice: bool = True
     week_load_reaction_enabled: bool = False
+    # Step 6: double days -- a separate gym training on an ice/game day
+    # ("Утро"/"Вечер"). Off until the year simulation with double days has
+    # been reviewed; the week page hides "+ зал" while it is off.
+    double_days_enabled: bool = False
 
 
 @lru_cache
