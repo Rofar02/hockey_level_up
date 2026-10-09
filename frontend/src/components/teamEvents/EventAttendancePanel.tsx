@@ -4,6 +4,7 @@ import { CARD_CLASS } from '../ui/cardStyle'
 import { ChoiceCard } from '../ui/ChoiceCard'
 import { FormError } from '../ui/FormError'
 import { SelectField } from '../ui/SelectField'
+import { TeamReadinessBlock } from './TeamReadinessBlock'
 import { TextField } from '../ui/TextField'
 import * as teamEventsApi from '../../api/teamEvents'
 import { ApiError } from '../../api/client'
@@ -252,6 +253,8 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
           <FormError message={nudgeError} />
         </div>
       )}
+
+      {isCaptain && <TeamReadinessBlock teamId={teamId} eventId={event.id} goingCount={roster.going.length} />}
 
       <div className={`flex flex-col gap-4 p-3 ${CARD_CLASS}`}>
         <RosterSection title="Буду" members={roster.going} />

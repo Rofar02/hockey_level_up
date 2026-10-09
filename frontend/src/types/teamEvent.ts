@@ -105,6 +105,8 @@ export interface TeamEventRead {
   // GAME only: the final score the captain entered.
   our_score?: number | null
   opponent_score?: number | null
+  // A joint training seen by a guest team (step 3.5): the host's name.
+  host_team_name?: string | null
 }
 
 export interface TeamEventCreatePayload {
@@ -259,4 +261,44 @@ export interface TeamIceScheduleTemplateRead {
 export interface TeamIceScheduleTemplateCreatePayload {
   weekday: number
   start_time: string
+}
+
+// GET /teams/{id}/events/{event_id}/readiness -- captain only (step 9).
+export interface TeamReadinessRead {
+  going: number
+  fresh: number
+  tired: number
+  overloaded: number
+  no_data: number
+  players: { user_id: string; first_name: string; last_name: string; jersey_number: number | null; status: string }[]
+}
+
+// -- joint trainings (release plan step 3.5, 2026-10-09) --
+
+export interface GuestTeamRead {
+  team_id: string
+  name: string
+  logo_url: string | null
+  // 'host', or the guest team's invited / accepted / declined.
+  status: string
+}
+
+export interface GuestInvitationRead {
+  id: string
+  kind: 'event' | 'slot'
+  host_team_id: string
+  host_team_name: string
+  host_logo_url: string | null
+  starts_at: string | null
+  slot_label: string | null
+  conflict: boolean
+}
+
+export interface TeamSearchHitRead {
+  id: string
+  name: string
+  logo_url: string | null
+  city: string | null
+  league_name: string | null
+  division_name: string | null
 }

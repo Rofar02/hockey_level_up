@@ -29,9 +29,14 @@ from app.schemas.team_event import (
     TeamEventNudgeResult,
     TeamEventRead,
     TeamEventReschedule,
+    GuestTeamInvite,
+    GuestTeamRead,
     TeamEventScoreUpdate,
+    TeamReadinessRead,
 )
+from app.services.joint_training_service import JointTrainingService
 from app.services.team_event_service import TeamEventService
+from app.services.team_readiness_service import TeamReadinessService
 
 router = APIRouter(prefix="/teams/{team_id}/events", tags=["team-events"])
 
@@ -79,6 +84,17 @@ async def reschedule_event(
     return await TeamEventService(session).reschedule_event(
         current_user, team_id, event_id, body.starts_at
     )
+
+
+@router.get("/{event_id}/readiness", response_model=TeamReadinessRead)
+async def get_event_readiness(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain only: who of the "going" players is fresh, tired or overloaded."""
+    return await TeamReadinessService(session).for_event(current_user, team_id, event_id)
 
 
 @router.put("/{event_id}/score", response_model=TeamEventRead)
@@ -403,3 +419,40 @@ async def unassign_lineup_player(
     await TeamEventService(session).unassign_player(
         current_user, team_id, event_id, target_user_id
     )
+
+
+# -- joint trainings (release plan step 3.5, 2026-10-09) --
+
+
+@router.get("/{event_id}/guests", response_model=list[GuestTeamRead])
+async def list_event_guests(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Who trains here together -- the host and the invited teams."""
+    return await JointTrainingService(session).list_event_guests(current_user, team_id, event_id)
+
+
+@router.post("/{event_id}/guests", response_model=GuestTeamRead)
+async def invite_team_to_event(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    body: GuestTeamInvite,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Host captain only: invite another team to this training."""
+    return await JointTrainingService(session).invite_to_event(current_user, team_id, event_id, body.team_id)
+
+
+@router.delete("/{event_id}/guests/me", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_joint_event(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Guest captain only: take the team out of a joint training."""
+    await JointTrainingService(session).leave(current_user, team_id, event_id)

@@ -129,6 +129,8 @@ class TeamEventRead(BaseModel):
     # GAME only: the final score, once the captain entered it.
     our_score: int | None = None
     opponent_score: int | None = None
+    # A joint training seen by a guest team (step 3.5): the host's name.
+    host_team_name: str | None = None
 
 
 class TeamEventCreate(BaseModel):
@@ -343,3 +345,68 @@ class DrillTemplateRead(BaseModel):
     diagram: DrillDiagram | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class TeamReadinessPlayerRead(BaseModel):
+    user_id: uuid.UUID
+    first_name: str
+    last_name: str
+    jersey_number: int | None = None
+    # "fresh" / "tired" / "overloaded" / "no_data" (release plan step 9).
+    status: str
+
+
+class TeamReadinessRead(BaseModel):
+    """GET /teams/{id}/events/{event_id}/readiness -- captain only: the
+    "going" players' readiness, by name, without anyone's muscle map."""
+
+    going: int
+    fresh: int
+    tired: int
+    overloaded: int
+    no_data: int
+    players: list[TeamReadinessPlayerRead]
+
+
+# -- joint trainings (release plan step 3.5, 2026-10-09) --
+
+
+class GuestTeamRead(BaseModel):
+    team_id: uuid.UUID
+    name: str
+    logo_url: str | None = None
+    # "host", or the guest team's invited / accepted / declined.
+    status: str
+
+
+class GuestInvitationRead(BaseModel):
+    """An invitation the guest captain sees: to one training ("event") or
+    to a recurring slot ("slot"). `conflict` -- the team already has its
+    own training that day; accepting then offers to replace it."""
+
+    id: uuid.UUID
+    kind: str
+    host_team_id: uuid.UUID
+    host_team_name: str
+    host_logo_url: str | None = None
+    starts_at: datetime | None = None
+    slot_label: str | None = None
+    conflict: bool = False
+
+
+class GuestInvitationAnswer(BaseModel):
+    accept: bool
+    replace_own: bool = False
+
+
+class GuestTeamInvite(BaseModel):
+    team_id: uuid.UUID
+
+
+class TeamSearchHitRead(BaseModel):
+    id: uuid.UUID
+    name: str
+    logo_url: str | None = None
+    city: str | None = None
+    league_name: str | None = None
+    division_name: str | None = None

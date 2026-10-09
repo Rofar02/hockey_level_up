@@ -43,6 +43,7 @@ from app.schemas.team_event import (
     TeamEventRead,
     TeamIceScheduleTemplateRead,
 )
+from app.services.joint_training_service import can_see_event, event_team_ids, joint_event_ids_for_team
 from app.services.push_service import send_push
 from app.services.schedule_service import ScheduleService
 from app.services.stat_service import get_effective_value
@@ -142,7 +143,8 @@ class TeamEventService:
         await self._session.commit()
         await self._session.refresh(event)
         what = "тренировки" if event.event_type == TeamEventType.TRAINING else "игры"
-        await self._push_team(team_id, "Время перенесено", f"Изменилось время {what}")
+        for event_team_id in await event_team_ids(self._session, event):
+            await self._push_team(event_team_id, "Время перенесено", f"Изменилось время {what}")
         is_captain = True
         sections = await self._visible_sections(event, is_captain)
         return self._to_event_read(event, sections, viewer_is_captain=is_captain)
@@ -156,7 +158,8 @@ class TeamEventService:
         await self._session.commit()
         await self._session.refresh(event)
         what = "Тренировка" if event.event_type == TeamEventType.TRAINING else "Игра"
-        await self._push_team(team_id, "Отмена", f"{what} отменена")
+        for event_team_id in await event_team_ids(self._session, event):
+            await self._push_team(event_team_id, "Отмена", f"{what} отменена")
         is_captain = True
         sections = await self._visible_sections(event, is_captain)
         return self._to_event_read(event, sections, viewer_is_captain=is_captain)
@@ -183,7 +186,7 @@ class TeamEventService:
     async def _going_members(self, event: TeamEvent) -> list[User]:
         rows = await self._events.list_attendance_for_event(event.id)
         going_ids = {row.user_id for row in rows if row.status == TeamEventAttendanceStatus.GOING}
-        members = await self._teams.list_members(event.team_id)
+        members = await self._event_members(event)
         return [member for member in members if member.id in going_ids]
 
     @staticmethod
@@ -209,20 +212,33 @@ class TeamEventService:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
         is_captain = team.owner_id == user.id
-        events = await self._events.list_events_for_team(team_id)
+        events = list(await self._events.list_events_for_team(team_id))
+        joint_ids = await joint_event_ids_for_team(self._session, team_id)
+        if joint_ids:
+            joint = [await self._events.get_event(event_id) for event_id in joint_ids]
+            events += [e for e in joint if e is not None and e.status == TeamEventStatus.SCHEDULED]
+            events.sort(key=lambda e: e.starts_at)
         reads = []
         for event in events:
-            sections = await self._visible_sections(event, is_captain)
-            reads.append(self._to_event_read(event, sections, viewer_is_captain=is_captain))
+            host_view = is_captain and event.team_id == team_id
+            sections = await self._visible_sections(event, host_view)
+            reads.append(await self._with_host(self._to_event_read(event, sections, viewer_is_captain=host_view), team_id))
         return reads
+
+    async def _with_host(self, read: TeamEventRead, team_id: uuid.UUID) -> TeamEventRead:
+        if read.team_id == team_id:
+            return read
+        host = await self._teams.get_by_id(read.team_id)
+        return read.model_copy(update={"host_team_name": host.name if host is not None else None})
 
     async def get_event(self, user: User, team_id: uuid.UUID, event_id: uuid.UUID) -> TeamEventRead:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
-        event = await self._get_event_or_404(event_id, team_id)
-        is_captain = team.owner_id == user.id
+        event = await self._get_event_or_404(event_id, team_id, allow_guest=True)
+        # A guest team's captain doesn't edit the host's board.
+        is_captain = team.owner_id == user.id and event.team_id == team_id
         sections = await self._visible_sections(event, is_captain)
-        return self._to_event_read(event, sections, viewer_is_captain=is_captain)
+        return await self._with_host(self._to_event_read(event, sections, viewer_is_captain=is_captain), team_id)
 
     async def _visible_sections(
         self, event: TeamEvent, viewer_is_captain: bool
@@ -426,7 +442,7 @@ class TeamEventService:
     ) -> TeamEventAttendanceRead:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
-        event = await self._get_event_or_404(event_id, team_id)
+        event = await self._get_event_or_404(event_id, team_id, allow_guest=True)
         self._require_attendance_open(event)
         if attendance_status == TeamEventAttendanceStatus.NOT_GOING and reason is None:
             raise HTTPException(
@@ -456,7 +472,7 @@ class TeamEventService:
     ) -> None:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
-        event = await self._get_event_or_404(event_id, team_id)
+        event = await self._get_event_or_404(event_id, team_id, allow_guest=True)
         self._require_attendance_open(event)
         attendance = await self._events.get_attendance(event.id, user.id)
         if attendance is not None:
@@ -469,8 +485,9 @@ class TeamEventService:
     ) -> TeamEventAttendanceRosterRead:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
-        event = await self._get_event_or_404(event_id, team_id)
-        members = await self._teams.list_members(team_id)
+        event = await self._get_event_or_404(event_id, team_id, allow_guest=True)
+        # A joint training: one shared list of marks for both teams.
+        members = await self._event_members(event)
         rows = await self._events.list_attendance_for_event(event.id)
         by_user_id = {row.user_id: row for row in rows}
 
@@ -624,7 +641,7 @@ class TeamEventService:
         team = await self._get_team_or_404(team_id)
         self._require_captain(user, team)
         event = await self._get_event_or_404(event_id, team_id)
-        if await self._teams.get_membership(team_id, target_user_id) is None:
+        if target_user_id not in {member.id for member in await self._event_members(event)}:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this team"
             )
@@ -667,8 +684,8 @@ class TeamEventService:
     ) -> TeamEventLineupRead:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
-        event = await self._get_event_or_404(event_id, team_id)
-        is_captain = team.owner_id == user.id
+        event = await self._get_event_or_404(event_id, team_id, allow_guest=True)
+        is_captain = team.owner_id == user.id and event.team_id == team_id
         if not is_captain and event.lineup_status != TeamEventPublishStatus.PUBLISHED:
             return TeamEventLineupRead(lineup_status=event.lineup_status)
         return await self._build_lineup_read(event)
@@ -720,7 +737,8 @@ class TeamEventService:
         return await self._build_lineup_read(event)
 
     async def _build_lineup_read(self, event: TeamEvent) -> TeamEventLineupRead:
-        members = await self._teams.list_members(event.team_id)
+        # A joint training's lines can mix players of both teams.
+        members = await self._event_members(event)
         groups = await self._events.list_lineup_groups_for_event(event.id)
         slots = await self._events.list_lineup_slots_for_event(event.id)
         members_by_id = {m.id: m for m in members}
@@ -934,11 +952,26 @@ class TeamEventService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
         return team
 
-    async def _get_event_or_404(self, event_id: uuid.UUID, team_id: uuid.UUID) -> TeamEvent:
+    async def _get_event_or_404(
+        self, event_id: uuid.UUID, team_id: uuid.UUID, allow_guest: bool = False
+    ) -> TeamEvent:
+        """The event as seen from the team in the URL. Writes stay with the
+        host team; `allow_guest` lets an accepted guest team of a joint
+        training read and mark attendance (release plan step 3.5) -- the
+        single place that decides who sees a joint event."""
         event = await self._events.get_event(event_id)
-        if event is None or event.team_id != team_id:
+        if event is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+        if event.team_id != team_id and not (allow_guest and await can_see_event(self._session, team_id, event)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
         return event
+
+    async def _event_members(self, event: TeamEvent) -> list[User]:
+        """Players of the host and of every accepted guest team."""
+        members: list[User] = []
+        for event_team_id in await event_team_ids(self._session, event):
+            members.extend(await self._teams.list_members(event_team_id))
+        return members
 
     async def _get_section_or_404(
         self, section_id: uuid.UUID, team_event_id: uuid.UUID

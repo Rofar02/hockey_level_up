@@ -8,10 +8,13 @@ from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
 from app.schemas.team_event import (
+    GuestTeamInvite,
+    GuestTeamRead,
     TeamIceScheduleTemplateCreate,
     TeamIceScheduleTemplateRead,
     TeamIceScheduleTemplateUpdate,
 )
+from app.services.joint_training_service import JointTrainingService
 from app.services.team_event_service import TeamEventService
 
 router = APIRouter(prefix="/teams/{team_id}/ice-schedule-templates", tags=["team-events"])
@@ -69,3 +72,16 @@ async def delete_template(
     """Captain-only. Already-stamped TeamEvent rows survive (their
     source_template_id just goes to NULL -- ON DELETE SET NULL)."""
     await TeamEventService(session).delete_template(current_user, team_id, template_id)
+
+
+@router.post("/{template_id}/guests", response_model=GuestTeamRead)
+async def invite_team_to_template(
+    team_id: uuid.UUID,
+    template_id: uuid.UUID,
+    body: GuestTeamInvite,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Joint trainings (release plan step 3.5): every training stamped from
+    this slot is joint with the team once it accepts."""
+    return await JointTrainingService(session).invite_to_template(current_user, team_id, template_id, body.team_id)

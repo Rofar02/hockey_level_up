@@ -5,6 +5,7 @@ import { TeamCaptainSetupCard, TeamPlayerIntroCard } from '../components/teamEve
 import { NextEventCard } from '../components/teamEvents/NextEventCard'
 import { TeamInviteBlock } from '../components/teams/TeamInviteBlock'
 import { TeamSettingsForm } from '../components/teams/TeamSettingsForm'
+import { GuestInvitationsCard } from '../components/teamEvents/GuestInvitationsCard'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
@@ -370,6 +371,8 @@ export function TeamDetailPage() {
             </div>
 
             <TeamInviteBlock team={team} />
+
+            {team.is_captain && <GuestInvitationsCard teamId={team.id} />}
 
             <div className={`relative flex flex-col gap-2 overflow-hidden p-4 ${CARD_CLASS}`}>
               <CardGlow />

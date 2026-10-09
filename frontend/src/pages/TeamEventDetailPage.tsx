@@ -12,6 +12,7 @@ import { TextField } from '../components/ui/TextField'
 import { EventBoardPanel } from '../components/teamEvents/EventBoardPanel'
 import { EventAttendancePanel } from '../components/teamEvents/EventAttendancePanel'
 import { GameScoreBlock } from '../components/teamEvents/GameScoreBlock'
+import { JointTrainingBlock } from '../components/teamEvents/JointTrainingBlock'
 import { EventLineupPanel } from '../components/teamEvents/EventLineupPanel'
 import * as teamsApi from '../api/teams'
 import * as teamEventsApi from '../api/teamEvents'
@@ -168,7 +169,11 @@ export function TeamEventDetailPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-col gap-1">
                   <h1 className="text-lg font-semibold text-[#F5F7FA]">
-                    {event.event_type === 'training' ? 'Тренировка' : `Игра с ${event.opponent_name}`}
+                    {event.event_type === 'training'
+                  ? event.host_team_name != null
+                    ? `Совместная тренировка с «${event.host_team_name}»`
+                    : 'Тренировка'
+                  : `Игра с ${event.opponent_name}`}
                   </h1>
                   <span className="text-sm text-[#8A94A6]">{formatDateTime(new Date(event.starts_at))}</span>
                 </div>
@@ -191,6 +196,8 @@ export function TeamEventDetailPage() {
               )}
               <FormError message={cancelError} />
             </div>
+
+            <JointTrainingBlock teamId={teamId!} event={event} isCaptain={team.is_captain} />
 
             <div className="flex border-b border-white/10">
               {event.event_type === 'training' && (

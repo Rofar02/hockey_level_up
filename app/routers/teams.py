@@ -27,7 +27,14 @@ from app.schemas.team import (
     TeamUpdate,
 )
 from app.services.game_stats_service import GameStatsService
-from app.schemas.team_event import TeamCurrentLineupRead
+from app.schemas.team_event import (
+    GuestInvitationAnswer,
+    GuestInvitationRead,
+    GuestTeamRead,
+    TeamCurrentLineupRead,
+    TeamSearchHitRead,
+)
+from app.services.joint_training_service import JointTrainingService
 from app.services.team_card_service import TeamCardService
 from app.services.team_event_service import TeamEventService
 from app.services.team_invitation_service import TeamInvitationService
@@ -191,6 +198,42 @@ async def get_current_lineup(
 ):
     """Members only: the next game's lineup (or the last one's)."""
     return await TeamEventService(session).get_current_lineup(current_user, team_id)
+
+
+@router.get("/{team_id}/joint/search", response_model=list[TeamSearchHitRead])
+async def search_teams_for_joint(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    q: str = Query(default="", max_length=100),
+):
+    """Captain only: teams to invite to a joint training, by name or city."""
+    return await JointTrainingService(session).search_teams(current_user, team_id, q)
+
+
+@router.get("/{team_id}/joint/invitations", response_model=list[GuestInvitationRead])
+async def list_joint_invitations(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain only: other teams' invitations to train together."""
+    return await JointTrainingService(session).list_incoming(current_user, team_id)
+
+
+@router.post("/{team_id}/joint/invitations/{invitation_id}", response_model=GuestTeamRead)
+async def answer_joint_invitation(
+    team_id: uuid.UUID,
+    invitation_id: uuid.UUID,
+    body: GuestInvitationAnswer,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Accept or decline; a same-day own training -> 409 "conflict" unless
+    replace_own, which cancels the own one."""
+    return await JointTrainingService(session).answer(
+        current_user, team_id, invitation_id, body.accept, body.replace_own
+    )
 
 
 @router.get("/{team_id}/card", response_model=TeamCardRead)

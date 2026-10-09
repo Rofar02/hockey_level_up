@@ -17,12 +17,15 @@ import { useAuth } from '../hooks/useAuth'
 import type { TeamRead } from '../types/team'
 import type { TeamIceScheduleTemplateRead } from '../types/teamEvent'
 import { WEEKDAY_LABELS } from '../utils/date'
+import { InviteTeamModal } from '../components/teamEvents/JointTrainingBlock'
 
 const WEEKDAY_OPTIONS = WEEKDAY_LABELS.map((label, index) => ({ value: String(index), label }))
 
 export function TeamIceScheduleTemplatesPage() {
   const { teamId } = useParams<{ teamId: string }>()
   const { accessToken } = useAuth()
+  // Joint trainings (step 3.5): invite another team to a recurring slot.
+  const [inviteTemplateId, setInviteTemplateId] = useState<string | null>(null)
 
   const [team, setTeam] = useState<TeamRead | null>(null)
   const [templates, setTemplates] = useState<TeamIceScheduleTemplateRead[] | null>(null)
@@ -148,6 +151,14 @@ export function TeamIceScheduleTemplatesPage() {
                     </span>
                     {team.is_captain && (
                       <>
+                        <button
+                          type="button"
+                          onClick={() => setInviteTemplateId(template.id)}
+                          aria-label="Позвать другую команду на этот слот"
+                          className="text-[#8A94A6] transition-colors hover:text-accent-ice"
+                        >
+                          <i className="ti ti-users-plus" aria-hidden="true" />
+                        </button>
                         <Switch
                           checked={template.active}
                           disabled={busyId === template.id}
@@ -193,6 +204,18 @@ export function TeamIceScheduleTemplatesPage() {
           </>
         )}
       </div>
+      {inviteTemplateId !== null && teamId !== undefined && (
+        <InviteTeamModal
+          title="Тренироваться вместе на этом слоте"
+          teamId={teamId}
+          onInvite={async (guestTeamId) => {
+            if (accessToken !== null) {
+              await teamEventsApi.inviteTeamToTemplate(teamId, inviteTemplateId, guestTeamId, accessToken)
+            }
+          }}
+          onClose={() => setInviteTemplateId(null)}
+        />
+      )}
     </div>
   )
 }

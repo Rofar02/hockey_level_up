@@ -75,7 +75,11 @@ function EventList({
             <EventTypeIcon eventType={event.event_type} />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <span className={`truncate text-sm font-medium text-[#F5F7FA] ${cancelled ? 'line-through' : ''}`}>
-                {event.event_type === 'training' ? 'Тренировка' : `Игра с ${event.opponent_name}`}
+                {event.event_type === 'training'
+                  ? event.host_team_name != null
+                    ? `Совместная тренировка с «${event.host_team_name}»`
+                    : 'Тренировка'
+                  : `Игра с ${event.opponent_name}`}
               </span>
               <span className="text-xs text-[#8A94A6]">
                 {formatDateTime(new Date(event.starts_at))}
