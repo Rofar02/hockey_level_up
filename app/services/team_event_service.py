@@ -156,6 +156,25 @@ class TeamEventService:
         sections = await self._visible_sections(event, is_captain)
         return self._to_event_read(event, sections, viewer_is_captain=is_captain)
 
+    async def set_score(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, our: int | None, opponent: int | None
+    ) -> TeamEventRead:
+        """The captain enters the final score of a played game (2026-10-09)."""
+        event = await self._require_captain_and_event(user, team_id, event_id)
+        if event.event_type != TeamEventType.GAME:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Счёт бывает только у игры")
+        self._require_scheduled(event)
+        if (our is None) != (opponent is None):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Нужны оба числа счёта")
+        if our is not None and event.starts_at > datetime.now(timezone.utc):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Игра ещё не началась")
+        event.our_score = our
+        event.opponent_score = opponent
+        await self._session.commit()
+        await self._session.refresh(event)
+        sections = await self._visible_sections(event, True)
+        return self._to_event_read(event, sections, viewer_is_captain=True)
+
     async def _going_members(self, event: TeamEvent) -> list[User]:
         rows = await self._events.list_attendance_for_event(event.id)
         going_ids = {row.user_id for row in rows if row.status == TeamEventAttendanceStatus.GOING}
@@ -906,4 +925,6 @@ class TeamEventService:
             if sections is None
             else [cls._to_section_read(section, drills) for section, drills in sections],
             created_at=event.created_at,
+            our_score=event.our_score,
+            opponent_score=event.opponent_score,
         )

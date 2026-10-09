@@ -21,6 +21,9 @@ export interface TeamSummaryRead {
   logo_url: string | null
   member_count: number
   is_captain: boolean
+  city?: string | null
+  league_name?: string | null
+  division_name?: string | null
 }
 
 // GET /teams/{team_id} -- full detail.
@@ -147,4 +150,37 @@ export interface TeamInvitationRead {
   invited_by_last_name: string
   status: 'pending' | 'accepted' | 'declined'
   created_at: string
+}
+
+// GET /teams/{id}/card -- the team card, open to any signed-in player.
+export interface TeamCardLeaderRead {
+  title: string
+  user_id: string
+  name: string
+  value: string
+}
+
+export interface TeamCardRead {
+  id: string
+  name: string
+  logo_url: string | null
+  city: string | null
+  league_name: string | null
+  division_name: string | null
+  member_count: number
+  rating: number | null
+  league_place: number | null
+  league_team_count: number | null
+  season_label: string
+  games: number
+  wins: number
+  draws: number
+  losses: number
+  goals_for: number
+  goals_against: number
+  attendance_percent: number | null
+  streak: string | null
+  leaders: TeamCardLeaderRead[]
+  is_member: boolean
+  is_captain: boolean
 }

@@ -10,7 +10,17 @@ import { Modal } from './ui/Modal'
 
 const FILE_NAME = 'icelevel-card.png'
 
-export function ShareCardModal({ image, onClose }: { image: Blob; onClose: () => void }) {
+export function ShareCardModal({
+  image,
+  onClose,
+  title = 'Карточка игрока',
+  shareTitle = 'Моя карточка IceLevel',
+}: {
+  image: Blob
+  onClose: () => void
+  title?: string
+  shareTitle?: string
+}) {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [file] = useState(() => new File([image], FILE_NAME, { type: 'image/png' }))
@@ -26,7 +36,7 @@ export function ShareCardModal({ image, onClose }: { image: Blob; onClose: () =>
 
   function handleShare() {
     setError(null)
-    navigator.share({ files: [file], title: 'Моя карточка IceLevel' }).catch((err: unknown) => {
+    navigator.share({ files: [file], title: shareTitle }).catch((err: unknown) => {
       // Closing the sheet without picking anything isn't an error.
       if (!(err instanceof DOMException && err.name === 'AbortError')) {
         setError(`Не удалось открыть меню «Поделиться» (${err instanceof Error ? err.name : 'ошибка'}).`)
@@ -45,10 +55,10 @@ export function ShareCardModal({ image, onClose }: { image: Blob; onClose: () =>
   }
 
   return (
-    <Modal title="Карточка игрока" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <div className="flex flex-col items-center gap-4">
         {imageUrl !== null && (
-          <img src={imageUrl} alt="Карточка игрока" className="max-h-[44dvh] w-auto max-w-full rounded-xl" />
+          <img src={imageUrl} alt={title} className="max-h-[44dvh] w-auto max-w-full rounded-xl" />
         )}
         <p className="text-center text-xs text-[#8A94A6]">
           На iPhone можно нажать на картинку и подержать — «Сохранить в Фото».

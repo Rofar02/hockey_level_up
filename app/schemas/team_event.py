@@ -126,12 +126,23 @@ class TeamEventRead(BaseModel):
     board_status: TeamEventPublishStatus | None = None
     sections: list[TeamEventDrillSectionRead] | None = None
     created_at: datetime
+    # GAME only: the final score, once the captain entered it.
+    our_score: int | None = None
+    opponent_score: int | None = None
 
 
 class TeamEventCreate(BaseModel):
     event_type: TeamEventType
     starts_at: datetime
     opponent_name: str | None = Field(default=None, max_length=100)
+
+
+class TeamEventScoreUpdate(BaseModel):
+    """PUT /teams/{id}/events/{event_id}/score -- both numbers, or both
+    null to clear a wrongly entered score."""
+
+    our_score: int | None = Field(default=None, ge=0, le=99)
+    opponent_score: int | None = Field(default=None, ge=0, le=99)
 
 
 class TeamEventReschedule(BaseModel):

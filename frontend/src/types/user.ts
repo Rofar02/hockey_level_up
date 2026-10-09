@@ -137,6 +137,17 @@ export interface UserPublicRead {
   created_at: string
   // The six stats' current values, for the read-only player card.
   stats: PublicStatRead[]
+  // The player's team, shown on the card (2026-10-09).
+  team?: PlayerTeamBadgeRead | null
+}
+
+export interface PlayerTeamBadgeRead {
+  id: string
+  name: string
+  logo_url: string | null
+  city: string | null
+  league_name: string | null
+  division_name: string | null
 }
 
 export interface PublicStatRead {

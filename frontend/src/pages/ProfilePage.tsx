@@ -15,15 +15,16 @@ import { PublicPlayerCard } from '../components/PublicPlayerCard'
 import { cardStatsFrom, overallRatingOf } from '../components/playerCardStats'
 import { cardStyleFor, getPlayerCardLook } from '../components/playerCardLook'
 import { ShareCardModal } from '../components/ShareCardModal'
+import { PlayerTeamRow } from '../components/teams/PlayerTeamRow'
 import * as authApi from '../api/auth'
 import * as exercisesApi from '../api/exercises'
 import * as progressApi from '../api/progress'
 import * as restrictionsApi from '../api/userTemporaryRestrictions'
 import * as skillsApi from '../api/skills'
-import * as teamsApi from '../api/teams'
 import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useMyTeam } from '../hooks/useMyTeam'
 import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
 import { TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { EquipmentItem, ExerciseEquipmentRequirement, TargetStat } from '../types/exercise'
@@ -142,29 +143,8 @@ function OwnProfileView() {
     }
   }, [accessToken])
 
-  // The player card's team emblem -- the first team's logo, best-effort.
-  const [teamLogoUrl, setTeamLogoUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (accessToken === null) {
-      return
-    }
-    let cancelled = false
-    teamsApi
-      .listMyTeams(accessToken)
-      .then((teams) => {
-        const logo = teams[0]?.logo_url ?? null
-        if (!cancelled && logo !== null) {
-          setTeamLogoUrl(`${API_BASE_URL}${logo}`)
-        }
-      })
-      .catch(() => {
-        // Best-effort -- the card falls back to a plain shield.
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [accessToken])
+  // The player card's team (emblem, plate, link to the team card).
+  const myTeam = useMyTeam()
 
   useEffect(() => {
     if (accessToken === null) {
@@ -319,7 +299,7 @@ function OwnProfileView() {
             level={user?.level ?? 1}
             xp={user?.xp ?? 0}
             avatarUrl={avatarUrl}
-            teamLogoUrl={teamLogoUrl}
+            team={myTeam}
             stats={cardStats}
             isUploadingAvatar={isUploadingAvatar}
             statGridRef={statGridCoachmarkRef}
@@ -335,6 +315,7 @@ function OwnProfileView() {
             onStatClick={setSelectedStatType}
           />
           </div>
+          {myTeam !== null && <PlayerTeamRow teamId={myTeam.id} />}
           <FormError message={shareError} />
           <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
           <FormError message={avatarError} />
@@ -520,8 +501,9 @@ function OtherUserProfileView({ userId }: { userId: string }) {
         {/* The same player card the owner sees, read-only -- friends and
             teammates compare cards, which is half the point of having one. */}
         {profile !== null && (
-          <div className="mx-auto w-full max-w-[360px]">
+          <div className="mx-auto flex w-full max-w-[360px] flex-col gap-3">
             <PublicPlayerCard profile={profile} />
+            {profile.team != null && <PlayerTeamRow teamId={profile.team.id} />}
           </div>
         )}
       </div>

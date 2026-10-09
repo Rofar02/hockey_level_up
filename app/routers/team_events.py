@@ -29,6 +29,7 @@ from app.schemas.team_event import (
     TeamEventNudgeResult,
     TeamEventRead,
     TeamEventReschedule,
+    TeamEventScoreUpdate,
 )
 from app.services.team_event_service import TeamEventService
 
@@ -77,6 +78,20 @@ async def reschedule_event(
     """Captain-only. Pushes the whole team -- see TeamEventService._push_team."""
     return await TeamEventService(session).reschedule_event(
         current_user, team_id, event_id, body.starts_at
+    )
+
+
+@router.put("/{event_id}/score", response_model=TeamEventRead)
+async def set_event_score(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    body: TeamEventScoreUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain-only, GAME only, after it started: the final score."""
+    return await TeamEventService(session).set_score(
+        current_user, team_id, event_id, body.our_score, body.opponent_score
     )
 
 

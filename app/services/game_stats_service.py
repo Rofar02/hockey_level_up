@@ -37,7 +37,7 @@ def season_bounds(today: date) -> tuple[date, date, str]:
     return start, end, f"{start_year}/{str(start_year + 1)[-2:]}"
 
 
-def _local_today(user: User) -> date:
+def local_today(user: User) -> date:
     return datetime.now(ZoneInfo(user.timezone or "UTC")).date()
 
 
@@ -46,7 +46,7 @@ class GameStatsService:
         self._session = session
 
     async def my_season(self, user: User) -> SeasonRead:
-        start, end, label = season_bounds(_local_today(user))
+        start, end, label = season_bounds(local_today(user))
         rows = (
             await self._session.execute(
                 select(DayPlan.date, DayPlan.id, TrainingDiaryEntry)
@@ -95,7 +95,24 @@ class GameStatsService:
 
     async def team_stats(self, user: User, team_id: uuid.UUID, scope: str) -> TeamStatsRead:
         team = await self._captains_team(user, team_id)
-        start, end, label = season_bounds(_local_today(user))
+        label, last_game, players = await self._team_players(team, user, scope)
+        return TeamStatsRead(
+            scope=scope,
+            season_label=label,
+            last_game_date=last_game.starts_at.date() if last_game is not None else None,
+            players=players,
+        )
+
+    async def season_player_stats(self, team: Team, viewer: User, scope: str) -> list[TeamPlayerStats]:
+        """Each member's numbers from their game reports -- no captain check:
+        the team card shows only the leaders' public totals from it."""
+        _, _, players = await self._team_players(team, viewer, scope)
+        return players
+
+    async def _team_players(
+        self, team: Team, user: User, scope: str
+    ) -> tuple[str, TeamEvent | None, list[TeamPlayerStats]]:
+        start, end, label = season_bounds(local_today(user))
         now = datetime.now(timezone.utc)
         games = (
             await self._session.scalars(
@@ -164,12 +181,7 @@ class GameStatsService:
                 )
             )
         players.sort(key=lambda p: (-p.points, -p.goals, p.jersey_number if p.jersey_number is not None else 999))
-        return TeamStatsRead(
-            scope=scope,
-            season_label=label,
-            last_game_date=last_game.starts_at.date() if last_game is not None else None,
-            players=players,
-        )
+        return label, last_game, players
 
     async def remind_missing(self, user: User, team_id: uuid.UUID) -> TeamStatsReminderRead:
         """A push to every member with a played team game still unreported,

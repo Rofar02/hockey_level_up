@@ -2,6 +2,7 @@ import { apiDeleteAuth, apiGet, apiGetPublic, apiPatchAuth, apiPostAuth, apiPost
 import type {
   LeagueRead,
   OtherLeagueNameRead,
+  TeamCardRead,
   TeamCreatePayload,
   TeamInvitationRead,
   TeamInviteCandidateRead,
@@ -31,6 +32,10 @@ export function createTeam(payload: TeamCreatePayload, accessToken: string): Pro
 // Captain only -- name, city, league, division.
 export function updateTeam(teamId: string, payload: TeamUpdatePayload, accessToken: string): Promise<TeamRead> {
   return apiPatchAuth<TeamRead>(`/teams/${teamId}`, payload, accessToken)
+}
+
+export function getTeamCard(teamId: string, accessToken: string): Promise<TeamCardRead> {
+  return apiGet<TeamCardRead>(`/teams/${teamId}/card`, accessToken)
 }
 
 export function listLeagues(accessToken: string): Promise<LeagueRead[]> {

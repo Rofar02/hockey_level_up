@@ -11,6 +11,7 @@ import { TabButton } from '../components/ui/TabButton'
 import { TextField } from '../components/ui/TextField'
 import { EventBoardPanel } from '../components/teamEvents/EventBoardPanel'
 import { EventAttendancePanel } from '../components/teamEvents/EventAttendancePanel'
+import { GameScoreBlock } from '../components/teamEvents/GameScoreBlock'
 import { EventLineupPanel } from '../components/teamEvents/EventLineupPanel'
 import * as teamsApi from '../api/teams'
 import * as teamEventsApi from '../api/teamEvents'
@@ -172,6 +173,7 @@ export function TeamEventDetailPage() {
                   <span className="text-sm text-[#8A94A6]">{formatDateTime(new Date(event.starts_at))}</span>
                 </div>
               </div>
+              <GameScoreBlock teamId={teamId!} event={event} isCaptain={team.is_captain} onEventChange={setEvent} />
               {team.is_captain && (
                 <div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">
                   <Button type="button" variant="neutral" className="!px-3 !py-1.5 !text-xs" onClick={openReschedule}>

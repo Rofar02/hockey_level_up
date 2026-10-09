@@ -34,6 +34,9 @@ class TeamSummaryRead(BaseModel):
     logo_url: str | None
     member_count: int
     is_captain: bool
+    city: str | None = None
+    league_name: str | None = None
+    division_name: str | None = None
 
 
 class TeamRead(BaseModel):
@@ -78,6 +81,56 @@ class TeamScoreRead(BaseModel):
     # MIN_TEAMS_FOR_LEAGUE_RANK such teams (app/core/leagues.py).
     league_place: int | None = None
     league_team_count: int | None = None
+
+
+class TeamCardLeaderRead(BaseModel):
+    title: str
+    user_id: uuid.UUID
+    name: str
+    value: str
+
+
+class TeamCardRead(BaseModel):
+    """GET /teams/{id}/card (2026-10-09) -- the team card, open to any
+    signed-in player. Games, wins and goals count only games the captain
+    entered a score for (TeamEvent.our_score/opponent_score)."""
+
+    id: uuid.UUID
+    name: str
+    logo_url: str | None
+    city: str | None
+    league_name: str | None
+    division_name: str | None
+    member_count: int
+    # Average of the members' card "ОБЩИЙ"; None without any stats yet.
+    rating: int | None
+    league_place: int | None
+    league_team_count: int | None
+    season_label: str
+    games: int
+    wins: int
+    draws: int
+    losses: int
+    goals_for: int
+    goals_against: int
+    # Share of "иду" marks over the season's past team trainings.
+    attendance_percent: int | None
+    # Current run of one result: "В3", "П1", "Н2".
+    streak: str | None
+    leaders: list[TeamCardLeaderRead]
+    is_member: bool
+    is_captain: bool
+
+
+class PlayerTeamBadgeRead(BaseModel):
+    """The player's team as their card shows it (2026-10-09)."""
+
+    id: uuid.UUID
+    name: str
+    logo_url: str | None
+    city: str | None
+    league_name: str | None
+    division_name: str | None
 
 
 class TeamLeagueFields(BaseModel):

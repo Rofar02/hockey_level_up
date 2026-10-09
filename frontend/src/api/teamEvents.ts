@@ -60,6 +60,16 @@ export function rescheduleTeamEvent(
   return apiPutAuth<TeamEventRead>(`/teams/${teamId}/events/${eventId}/schedule`, payload, accessToken)
 }
 
+// Captain-only, a played game only: the final score (both null clears it).
+export function setTeamEventScore(
+  teamId: string,
+  eventId: string,
+  payload: { our_score: number | null; opponent_score: number | null },
+  accessToken: string,
+): Promise<TeamEventRead> {
+  return apiPutAuth<TeamEventRead>(`/teams/${teamId}/events/${eventId}/score`, payload, accessToken)
+}
+
 // Captain-only. 409s if already cancelled.
 export function cancelTeamEvent(
   teamId: string,

@@ -1,4 +1,5 @@
-import type { CSSProperties, Ref } from 'react'
+import type { CSSProperties, ReactNode, Ref } from 'react'
+import { Link } from 'react-router-dom'
 import { COLLAR_PATH, JERSEY_PATH } from './ui/JerseyBadge'
 import { JERSEY_NUMBER_COLORS, getPlayerCardLook } from './playerCardLook'
 import type { CardStyle } from './playerCardLook'
@@ -32,6 +33,16 @@ const PHOTO_MASK_STYLE: CSSProperties = { maskImage: PHOTO_MASK, WebkitMaskImage
 // Keeps the rating and the nameplate legible over a bright photo or arena.
 const TEXT_SHADOW: CSSProperties = { textShadow: '0 2px 12px rgba(0,0,0,0.75)' }
 
+// The player's team on the card (2026-10-09): a bigger emblem under the
+// number and a "КОМАНДА · ГОРОД" plate under the surname, both leading to
+// the team card.
+export interface PlayerCardTeam {
+  id: string
+  name: string
+  logoUrl: string | null
+  city: string | null
+}
+
 export interface PlayerCardStat {
   type: TargetStat
   label: string
@@ -53,7 +64,7 @@ interface PlayerCardProps {
   level: number
   xp: number
   avatarUrl: string | null
-  teamLogoUrl: string | null
+  team: PlayerCardTeam | null
   stats: PlayerCardStat[]
   isUploadingAvatar?: boolean
   statGridRef?: Ref<HTMLDivElement>
@@ -80,7 +91,7 @@ export function PlayerCard({
   level,
   xp,
   avatarUrl,
-  teamLogoUrl,
+  team,
   stats,
   isUploadingAvatar = false,
   statGridRef,
@@ -96,6 +107,10 @@ export function PlayerCard({
   const numberColor = jerseyColor !== null ? JERSEY_NUMBER_COLORS[jerseyColor] : look.accent
   const xpNext = xpToNextLevel(level)
   const xpPercent = xpNext > 0 ? Math.max(0, Math.min(100, (xp / xpNext) * 100)) : 0
+  const teamLogoUrl = team?.logoUrl ?? null
+  const teamHref = team !== null ? `/teams/${team.id}/card` : null
+  // The team plate under the surname pushes the stats down a row.
+  const shift = team !== null ? 26 : 0
 
   const photo = (
     <>
@@ -134,7 +149,7 @@ export function PlayerCard({
       className="relative overflow-hidden rounded-2xl p-[3px]"
       style={{ background: look.frame, boxShadow: look.glow }}
     >
-      <div data-card="inner" className="relative h-[478px] overflow-hidden rounded-[13px] bg-[#0E1524]">
+      <div data-card="inner" className="relative overflow-hidden rounded-[13px] bg-[#0E1524]" style={{ height: 478 + shift }}>
         <img
           data-card="arena"
           src="/images/arena-bg.webp"
@@ -187,7 +202,8 @@ export function PlayerCard({
               </span>
             </>
           )}
-          <span data-card="emblem" className="mt-1 flex h-[34px] w-[34px] items-center justify-center overflow-hidden rounded-full border border-accent-ice/35 bg-[#22304A] text-accent-ice">
+          <EmblemLink href={teamHref} label={team !== null ? `Команда ${team.name}` : ''}>
+          <span data-card="emblem" className="mt-1 flex h-[46px] w-[46px] items-center justify-center overflow-hidden rounded-full border border-accent-ice/35 bg-[#22304A] text-accent-ice">
             {teamLogoUrl !== null ? (
               <img data-card="emblem-logo" src={teamLogoUrl} alt="" className="h-full w-full object-cover" />
             ) : (
@@ -198,6 +214,7 @@ export function PlayerCard({
               </svg>
             )}
           </span>
+          </EmblemLink>
         </div>
 
         {onAvatarClick !== undefined ? (
@@ -238,9 +255,20 @@ export function PlayerCard({
             </span>
             <span data-card="stripe-line" className="h-px flex-1" style={{ background: look.stripe }} />
           </div>
+          {team !== null && teamHref !== null && (
+            <Link
+              to={teamHref}
+              data-card-box
+              className="mt-0.5 inline-flex max-w-full items-center rounded-full border border-accent-ice/20 bg-accent-ice/10 px-3 py-0.5 text-accent-ice"
+            >
+              <span data-card-text className="truncate font-display text-[12px] font-semibold uppercase tracking-[1.4px]">
+                {[team.name, team.city].filter(Boolean).join(' · ')}
+              </span>
+            </Link>
+          )}
         </div>
 
-        <div ref={statGridRef} className="absolute inset-x-[22px] top-[320px] z-[2] grid grid-cols-2 gap-y-0.5">
+        <div ref={statGridRef} className="absolute inset-x-[22px] z-[2] grid grid-cols-2 gap-y-0.5" style={{ top: 320 + shift }}>
           {stats.map((stat, index) => (
             <button
               key={stat.type}
@@ -288,5 +316,17 @@ export function PlayerCard({
         <span className="card-shine pointer-events-none absolute inset-0 z-[5] rounded-2xl" aria-hidden="true" />
       )}
     </div>
+  )
+}
+
+// The emblem leads to the team card when the player has a team.
+function EmblemLink({ href, label, children }: { href: string | null; label: string; children: ReactNode }) {
+  if (href === null) {
+    return <>{children}</>
+  }
+  return (
+    <Link to={href} aria-label={label} className="block">
+      {children}
+    </Link>
   )
 }

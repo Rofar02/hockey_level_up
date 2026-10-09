@@ -102,6 +102,9 @@ export interface TeamEventRead {
   board_status: TeamEventPublishStatus | null
   sections: TeamEventDrillSectionRead[] | null
   created_at: string
+  // GAME only: the final score the captain entered.
+  our_score?: number | null
+  opponent_score?: number | null
 }
 
 export interface TeamEventCreatePayload {

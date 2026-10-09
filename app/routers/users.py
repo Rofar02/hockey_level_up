@@ -72,6 +72,7 @@ from app.services.coachmark_service import CoachmarkService
 from app.services.progress_service import ProgressService
 from app.services.push_subscription_service import PushSubscriptionService
 from app.services.skill_service import SkillService
+from app.services.team_service import TeamService
 from app.services.team_attention_service import TeamAttentionService
 from app.services.game_stats_service import GameStatsService
 from app.services.onboarding_service import OnboardingService
@@ -586,6 +587,7 @@ async def public_card(session: AsyncSession, profile: User) -> UserPublicRead:
             "stats": [
                 PublicStatRead(stat_type=stat.stat_type, effective_value=stat.effective_value)
                 for stat in stats
-            ]
+            ],
+            "team": await TeamService(session).get_player_team_badge(profile.id),
         }
     )

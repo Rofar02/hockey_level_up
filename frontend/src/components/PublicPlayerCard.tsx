@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '../api/client'
 import type { UserPublicRead } from '../types/user'
+import { cardTeamFrom } from '../hooks/useMyTeam'
 import { PlayerCard } from './PlayerCard'
 import { cardStyleFor } from './playerCardLook'
 import { cardStatsFrom, overallRatingOf } from './playerCardStats'
@@ -28,7 +29,7 @@ export function PublicPlayerCard({ profile }: { profile: UserPublicRead }) {
       level={profile.level}
       xp={profile.xp}
       avatarUrl={profile.avatar_url != null ? `${API_BASE_URL}${profile.avatar_url}` : null}
-      teamLogoUrl={null}
+      team={cardTeamFrom(profile.team)}
       stats={cardStatsFrom(profile.stats)}
     />
   )

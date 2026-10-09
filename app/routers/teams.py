@@ -12,6 +12,7 @@ from app.schemas.leaderboard import LeaderboardEntryRead
 from app.schemas.team import (
     LeagueRead,
     OtherLeagueNameRead,
+    TeamCardRead,
     TeamCreate,
     TeamInvitationCreate,
     TeamInvitationRead,
@@ -26,6 +27,7 @@ from app.schemas.team import (
     TeamUpdate,
 )
 from app.services.game_stats_service import GameStatsService
+from app.services.team_card_service import TeamCardService
 from app.services.team_invitation_service import TeamInvitationService
 from app.services.team_service import TeamService
 
@@ -177,6 +179,17 @@ async def get_team(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await TeamService(session).get_team(current_user, team_id)
+
+
+@router.get("/{team_id}/card", response_model=TeamCardRead)
+async def get_team_card(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """The team card -- open to any signed-in player (a player card links
+    here), like the cross-team leaderboard."""
+    return await TeamCardService(session).get_card(current_user, team_id)
 
 
 @router.patch("/{team_id}", response_model=TeamRead)

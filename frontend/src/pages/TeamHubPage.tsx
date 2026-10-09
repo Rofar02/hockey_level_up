@@ -167,6 +167,11 @@ export function TeamHubPage() {
         {teams !== null && teams.length > 0 && (
           <>
             <div className="flex items-center gap-3">
+              <Link
+                to={`/teams/${selectedTeamId}/card`}
+                aria-label="Карточка команды"
+                className="flex min-w-0 flex-1 items-center gap-3"
+              >
               <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-dark-card text-[#8A94A6]">
                 {team?.logo_url != null ? (
                   <img src={`${API_BASE_URL}${team.logo_url}`} alt="" className="h-full w-full object-cover" />
@@ -181,8 +186,10 @@ export function TeamHubPage() {
                 <span className="text-xs text-[#8A94A6]">
                   {teams.find((item) => item.id === selectedTeamId)?.member_count} участн.
                   {score !== null && ` · рейтинг ${Math.round(score.team_score).toLocaleString('ru-RU')}`}
+                  {' · карточка ›'}
                 </span>
               </div>
+              </Link>
               <HelpButton topic="team" />
               <Link
                 to="/teams"

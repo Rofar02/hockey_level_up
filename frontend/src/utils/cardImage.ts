@@ -234,6 +234,29 @@ async function drawEmblem(ctx: CanvasRenderingContext2D, emblem: Element, origin
   ctx.restore()
 }
 
+// Plain boxes -- the team pill, the leader tiles, a round emblem without a
+// logo (2026-10-09): each [data-card-box] element is drawn from its own
+// computed background, border and corner radius, so a new box needs no
+// code here. Solid or rgba colours only, not gradients.
+function drawBoxes(ctx: CanvasRenderingContext2D, root: HTMLElement, origin: DOMRect) {
+  for (const element of Array.from(root.querySelectorAll<HTMLElement>('[data-card-box]'))) {
+    const style = getComputedStyle(element)
+    const box = boxOf(element, origin)
+    const radius = Math.min(parseFloat(style.borderTopLeftRadius) || 0, box.h / 2, box.w / 2)
+    roundRectPath(ctx, box, radius)
+    if (style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent') {
+      ctx.fillStyle = style.backgroundColor
+      ctx.fill()
+    }
+    const borderWidth = parseFloat(style.borderTopWidth) || 0
+    if (borderWidth > 0) {
+      ctx.lineWidth = borderWidth
+      ctx.strokeStyle = style.borderTopColor
+      ctx.stroke()
+    }
+  }
+}
+
 // The photo, faded out towards the bottom like PlayerCard's mask.
 function drawFadedPhoto(ctx: CanvasRenderingContext2D, image: HTMLImageElement, box: Box) {
   const layer = document.createElement('canvas')
@@ -395,8 +418,8 @@ export async function renderCardImage(frame: HTMLElement, look: TierLook): Promi
     ctx.strokeStyle = 'rgba(255,255,255,0.35)'
     ctx.stroke()
   }
-  const emblem = frame.querySelector('[data-card="emblem"]')
-  if (emblem !== null) {
+  drawBoxes(ctx, frame, origin)
+  for (const emblem of Array.from(frame.querySelectorAll('[data-card="emblem"]'))) {
     await drawEmblem(ctx, emblem, origin)
   }
   drawTexts(ctx, frame, origin)

@@ -19,6 +19,7 @@ from app.schemas.team import (
     DivisionRead,
     LeagueRead,
     OtherLeagueNameRead,
+    PlayerTeamBadgeRead,
     TeamJoinRequestRead,
     TeamLeagueFields,
     TeamMemberRead,
@@ -86,6 +87,23 @@ class TeamService:
         team.division_code = division_code
         team.league_other_name = other_name
 
+    async def get_player_team_badge(self, user_id: uuid.UUID) -> PlayerTeamBadgeRead | None:
+        """The player's team for their card -- shown to whoever sees the card."""
+        membership = await self._teams.get_membership_for_user(user_id)
+        if membership is None:
+            return None
+        team = await self._teams.get_by_id(membership.team_id)
+        if team is None:
+            return None
+        return PlayerTeamBadgeRead(
+            id=team.id,
+            name=team.name,
+            logo_url=team.logo_url,
+            city=team.city,
+            league_name=leagues.league_display_name(team.league_code, team.league_other_name),
+            division_name=leagues.division_display_name(team.league_code, team.division_code),
+        )
+
     @staticmethod
     def list_leagues() -> list[LeagueRead]:
         return [
@@ -136,6 +154,9 @@ class TeamService:
                     logo_url=team.logo_url,
                     member_count=member_count,
                     is_captain=team.owner_id == user.id,
+                    city=team.city,
+                    league_name=leagues.league_display_name(team.league_code, team.league_other_name),
+                    division_name=leagues.division_display_name(team.league_code, team.division_code),
                 )
             )
         return summaries
