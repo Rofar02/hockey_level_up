@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { HelpButton } from '../components/HelpButton'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import * as gameStatsApi from '../api/gameStats'
 import { ApiError } from '../api/client'
 import { BackLink } from '../components/ui/BackLink'
@@ -8,7 +8,11 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { useAuth } from '../hooks/useAuth'
-import type { SeasonRead } from '../types/gameStats'
+import type { SeasonRead, SeasonSummaryRead } from '../types/gameStats'
+import { SeasonSummaryCard, seasonCardStyle } from '../components/SeasonSummaryCard'
+import { ShareCardModal } from '../components/ShareCardModal'
+import { getPlayerCardLook } from '../components/playerCardLook'
+import { renderCardImage } from '../utils/cardImage'
 import type { GameResult } from '../types/trainingDiary'
 import { parseIsoDate } from '../utils/date'
 
@@ -38,6 +42,37 @@ export function SeasonPage() {
   const navigate = useNavigate()
   const [season, setSeason] = useState<SeasonRead | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const { user } = useAuth()
+  // «Мой сезон» (release plan step 10): from spring; ?preview=1 shows it any time.
+  const [searchParams] = useSearchParams()
+  const preview = searchParams.get('preview') === '1'
+  const [summary, setSummary] = useState<SeasonSummaryRead | null>(null)
+  const [sharedImage, setSharedImage] = useState<Blob | null>(null)
+  const [shareError, setShareError] = useState<string | null>(null)
+  const summaryRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    gameStatsApi
+      .getSeasonSummary(accessToken, preview)
+      .then(setSummary)
+      .catch(() => {})
+  }, [accessToken, preview])
+
+  async function handleShareSummary() {
+    const frame = summaryRef.current?.querySelector<HTMLElement>('[data-card="frame"]')
+    if (frame == null || summary === null) {
+      return
+    }
+    setShareError(null)
+    try {
+      setSharedImage(await renderCardImage(frame, getPlayerCardLook(seasonCardStyle(summary.level, user?.avatar_ring_accent))))
+    } catch (err) {
+      setShareError(`Не удалось подготовить карточку (${err instanceof Error ? err.message : String(err)}).`)
+    }
+  }
 
   useEffect(() => {
     if (accessToken === null) {
@@ -71,6 +106,23 @@ export function SeasonPage() {
             )}
           </div>
         </div>
+
+        {summary !== null && (summary.available || preview) && (
+          <section className="flex flex-col gap-3">
+            <div ref={summaryRef} className="mx-auto w-full max-w-[360px]">
+              <SeasonSummaryCard summary={summary} name={user?.last_name || user?.first_name || ''} />
+            </div>
+            <button
+              type="button"
+              onClick={handleShareSummary}
+              className="mx-auto flex h-11 items-center gap-2 rounded-xl bg-accent-persimmon px-5 font-semibold text-dark-bg"
+            >
+              <i className="ti ti-share" aria-hidden="true" />
+              Поделиться сезоном
+            </button>
+            <FormError message={shareError} />
+          </section>
+        )}
 
         <FormError message={loadError} />
         {season === null && loadError === null && <p className="text-sm text-text-secondary">Загрузка...</p>}
@@ -161,6 +213,14 @@ export function SeasonPage() {
           </>
         )}
       </div>
+      {sharedImage !== null && (
+        <ShareCardModal
+          image={sharedImage}
+          onClose={() => setSharedImage(null)}
+          title="Мой сезон"
+          shareTitle="Мой сезон в IceLevel"
+        />
+      )}
     </div>
   )
 }

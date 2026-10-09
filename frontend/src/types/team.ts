@@ -181,6 +181,8 @@ export interface TeamCardRead {
   attendance_percent: number | null
   streak: string | null
   leaders: TeamCardLeaderRead[]
+  // The season's most repeated forward line (step 10), surnames.
+  most_stable_line?: string[] | null
   is_member: boolean
   is_captain: boolean
 }

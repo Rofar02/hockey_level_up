@@ -123,6 +123,15 @@ export function TeamCardPage() {
                 </Link>
               </div>
             )}
+            {card.most_stable_line != null && (
+              <div className="flex items-center gap-3 rounded-[14px] border border-white/5 bg-dark-card px-3.5 py-3">
+                <i className="ti ti-link text-lg text-accent-ice" aria-hidden="true" />
+                <span className="flex flex-col">
+                  <span className="text-xs text-[#8A94A6]">Самое стабильное звено сезона</span>
+                  <span className="text-sm font-semibold text-[#F5F7FA]">{card.most_stable_line.join(' — ')}</span>
+                </span>
+              </div>
+            )}
             <p className="text-xs text-text-secondary">
               Победы и голы считаются по играм, где капитан внёс счёт. Рейтинг — средний «Общий» игроков команды.
             </p>

@@ -1,3 +1,4 @@
+import type { PlayerTeamBadgeRead } from './user'
 import type { GameResult, GameWorkOn } from './trainingDiary'
 
 // Mirrors app/schemas/game_stats.py (2026-10-08).
@@ -50,4 +51,22 @@ export interface TeamStatsRead {
   season_label: string
   last_game_date: string | null
   players: TeamPlayerStats[]
+}
+
+// GET /users/me/season-summary -- «Мой сезон» (release plan step 10).
+export interface SeasonSummaryRead {
+  available: boolean
+  reason: string | null
+  season_label: string
+  ice_days: number
+  games: number
+  gym_sessions: number
+  team_attendance_percent: number | null
+  stats: { stat: string; before: number; after: number }[]
+  overall_before: number | null
+  overall_after: number | null
+  best_streak: number
+  level: number
+  frequent_linemate: string | null
+  team: PlayerTeamBadgeRead | null
 }

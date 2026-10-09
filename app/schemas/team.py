@@ -118,6 +118,9 @@ class TeamCardRead(BaseModel):
     # Current run of one result: "В3", "П1", "Н2".
     streak: str | None
     leaders: list[TeamCardLeaderRead]
+    # The season's most repeated forward line (surnames), release plan
+    # step 10 -- None until the same three played together twice.
+    most_stable_line: list[str] | None = None
     is_member: bool
     is_captain: bool
 

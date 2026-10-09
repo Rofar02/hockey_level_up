@@ -26,6 +26,7 @@ from app.models.user import User
 from app.repositories.progress_repository import ProgressRepository
 from app.schemas.team import TeamCardLeaderRead, TeamCardRead
 from app.services.game_stats_service import GameStatsService, local_today, season_bounds
+from app.services.season_summary_service import team_most_stable_line
 from app.services.stat_service import get_effective_value
 from app.services.team_rating_service import TeamRatingService
 
@@ -110,6 +111,7 @@ class TeamCardService:
             attendance_percent=await self._attendance_percent(team, len(members), season_start, now),
             streak=_streak(results),
             leaders=self._leaders(members, players),
+            most_stable_line=await team_most_stable_line(self._session, team, start),
             is_member=is_member,
             is_captain=team.owner_id == viewer.id,
         )
