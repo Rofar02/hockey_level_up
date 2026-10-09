@@ -386,7 +386,7 @@ async def assign_lineup_player(
     """Captain-only. Upsert -- moves the player if they were already placed
     in a different group for this event (at most one group per player)."""
     return await TeamEventService(session).assign_player(
-        current_user, team_id, event_id, target_user_id, body.group_id
+        current_user, team_id, event_id, target_user_id, body.group_id, body.slot
     )
 
 

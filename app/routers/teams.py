@@ -27,7 +27,9 @@ from app.schemas.team import (
     TeamUpdate,
 )
 from app.services.game_stats_service import GameStatsService
+from app.schemas.team_event import TeamCurrentLineupRead
 from app.services.team_card_service import TeamCardService
+from app.services.team_event_service import TeamEventService
 from app.services.team_invitation_service import TeamInvitationService
 from app.services.team_service import TeamService
 
@@ -179,6 +181,16 @@ async def get_team(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await TeamService(session).get_team(current_user, team_id)
+
+
+@router.get("/{team_id}/lineup/current", response_model=TeamCurrentLineupRead)
+async def get_current_lineup(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Members only: the next game's lineup (or the last one's)."""
+    return await TeamEventService(session).get_current_lineup(current_user, team_id)
 
 
 @router.get("/{team_id}/card", response_model=TeamCardRead)

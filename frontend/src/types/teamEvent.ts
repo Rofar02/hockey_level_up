@@ -188,19 +188,47 @@ export interface TeamEventNudgeResult {
   last_nudge_sent_at: string
 }
 
+// The spot inside a line (2026-10-09).
+export const LINEUP_SLOTS = ['LW', 'C', 'RW', 'LD', 'RD', 'G'] as const
+export type LineupSlot = (typeof LINEUP_SLOTS)[number]
+export const LINEUP_SLOT_LABELS: Record<LineupSlot, string> = {
+  LW: 'ЛН',
+  C: 'Ц',
+  RW: 'ПН',
+  LD: 'ЛЗ',
+  RD: 'ПЗ',
+  G: 'ВРТ',
+}
+
 export interface TeamEventLineupPlayerRead {
   user_id: string
   first_name: string
   last_name: string
   avatar_url: string | null
   position: Position | null
+  slot?: LineupSlot | null
+  jersey_number?: number | null
+  level?: number
+  // The card "ОБЩИЙ" and the six stats behind it.
+  rating?: number | null
+  stats?: Record<string, number>
 }
+
+export type LineupGroupKind = 'forwards' | 'defense' | 'goalies' | 'mixed'
 
 export interface TeamEventLineupGroupRead {
   id: string
   name: string | null
   color: string | null
   players: TeamEventLineupPlayerRead[]
+  kind?: LineupGroupKind
+  rating?: number | null
+}
+
+// GET /teams/{id}/lineup/current -- the next game's lineup, or the last one's.
+export interface TeamCurrentLineupRead {
+  event: { id: string; starts_at: string; opponent_name: string | null } | null
+  lineup: TeamEventLineupRead | null
 }
 
 // groups/unassigned are null while the lineup is a draft and the caller

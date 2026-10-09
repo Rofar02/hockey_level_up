@@ -108,7 +108,7 @@ export function TeamCardPage() {
             {card.is_member && (
               <div className="grid grid-cols-2 gap-2.5">
                 <Link
-                  to={`/teams/${card.id}`}
+                  to={`/teams/${card.id}/lineup`}
                   className="flex h-[52px] items-center justify-center gap-2 rounded-[14px] bg-accent-persimmon font-semibold text-dark-bg"
                 >
                   <i className="ti ti-users text-lg" aria-hidden="true" />

@@ -236,6 +236,14 @@ class TeamEventLineupPlayerRead(BaseModel):
     last_name: str
     avatar_url: str | None = None
     position: Position | None = None
+    # 2026-10-09, for the mini-cards: the spot in the group (LW/C/RW,
+    # LD/RD, G), the jersey, the level and the card "ОБЩИЙ" with its six
+    # stats (the line card averages them).
+    slot: str | None = None
+    jersey_number: int | None = None
+    level: int = 1
+    rating: int | None = None
+    stats: dict[str, float] = {}
 
 
 class TeamEventLineupGroupRead(BaseModel):
@@ -243,6 +251,11 @@ class TeamEventLineupGroupRead(BaseModel):
     name: str | None = None
     color: str | None = None
     players: list[TeamEventLineupPlayerRead]
+    # Derived from the players' slots: "forwards" (LW/C/RW), "defense"
+    # (LD/RD), "goalies" (G) or "mixed" (no slots, or slots of both kinds).
+    kind: str = "mixed"
+    # Average of the players' ratings.
+    rating: int | None = None
 
 
 class TeamEventLineupRead(BaseModel):
@@ -267,8 +280,29 @@ class TeamEventLineupGroupUpdate(BaseModel):
     color: str | None = Field(default=None, max_length=20)
 
 
+LINEUP_SLOTS = ("LW", "C", "RW", "LD", "RD", "G")
+
+
 class TeamEventLineupPlayerAssign(BaseModel):
     group_id: uuid.UUID
+    # LW/C/RW, LD/RD or G; None = in the group without a spot.
+    slot: str | None = None
+
+
+class TeamCurrentLineupEventRead(BaseModel):
+    id: uuid.UUID
+    starts_at: datetime
+    opponent_name: str | None = None
+
+
+class TeamCurrentLineupRead(BaseModel):
+    """GET /teams/{id}/lineup/current (2026-10-09): the lineup of the next
+    game, or of the last one when none is coming -- None when the team
+    has no games at all. lineup.groups is None for a player while the
+    captain hasn't published it."""
+
+    event: TeamCurrentLineupEventRead | None = None
+    lineup: TeamEventLineupRead | None = None
 
 
 class TeamIceScheduleTemplateRead(BaseModel):

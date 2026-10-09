@@ -23,9 +23,13 @@ from app.models.team_event import (
     TeamIceScheduleTemplate,
 )
 from app.models.user import User
+from app.repositories.progress_repository import ProgressRepository
 from app.repositories.team_event_repository import TeamEventRepository
 from app.repositories.team_repository import TeamRepository
 from app.schemas.team_event import (
+    LINEUP_SLOTS,
+    TeamCurrentLineupEventRead,
+    TeamCurrentLineupRead,
     TeamEventAttendanceMemberRead,
     TeamEventAttendanceRead,
     TeamEventAttendanceRosterRead,
@@ -41,6 +45,7 @@ from app.schemas.team_event import (
 )
 from app.services.push_service import send_push
 from app.services.schedule_service import ScheduleService
+from app.services.stat_service import get_effective_value
 
 # -2h from starts_at -- see TeamEventAttendance's own docstring.
 ATTENDANCE_DEADLINE = timedelta(hours=2)
@@ -574,7 +579,7 @@ class TeamEventService:
         order = await self._events.next_lineup_group_order(event.id)
         group = await self._events.create_lineup_group(event.id, order, name, color)
         await self._session.commit()
-        return self._to_lineup_group_read(group, players=[])
+        return self._group_read(group, [])
 
     async def update_lineup_group(
         self,
@@ -592,8 +597,7 @@ class TeamEventService:
         group.color = color
         await self._session.commit()
         await self._session.refresh(group)
-        players = await self._lineup_group_players(group.id)
-        return self._to_lineup_group_read(group, players)
+        return await self._lineup_group_read(group)
 
     async def delete_lineup_group(
         self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, group_id: uuid.UUID
@@ -615,6 +619,7 @@ class TeamEventService:
         event_id: uuid.UUID,
         target_user_id: uuid.UUID,
         group_id: uuid.UUID,
+        slot: str | None = None,
     ) -> TeamEventLineupGroupRead:
         team = await self._get_team_or_404(team_id)
         self._require_captain(user, team)
@@ -627,10 +632,24 @@ class TeamEventService:
         # Upsert -- a player already placed elsewhere in this event just
         # moves (the unique constraint on (team_event_id, user_id) is what
         # enforces "at most one group at a time", not this check).
-        await self._events.upsert_lineup_slot(event.id, group.id, target_user_id)
+        if slot is not None and slot not in LINEUP_SLOTS:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown slot")
+        placed = await self._events.upsert_lineup_slot(event.id, group.id, target_user_id)
+        if slot is not None and slot != "G":
+            # One player per spot in a line: whoever held it stays in the
+            # group without a spot (goalies can share G).
+            holders = await self._session.scalars(
+                select(TeamEventLineupSlot).where(
+                    TeamEventLineupSlot.group_id == group.id,
+                    TeamEventLineupSlot.slot_position == slot,
+                    TeamEventLineupSlot.user_id != target_user_id,
+                )
+            )
+            for holder in holders.all():
+                holder.slot_position = None
+        placed.slot_position = slot
         await self._session.commit()
-        players = await self._lineup_group_players(group.id)
-        return self._to_lineup_group_read(group, players)
+        return await self._lineup_group_read(group)
 
     async def unassign_player(
         self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, target_user_id: uuid.UUID
@@ -653,6 +672,39 @@ class TeamEventService:
         if not is_captain and event.lineup_status != TeamEventPublishStatus.PUBLISHED:
             return TeamEventLineupRead(lineup_status=event.lineup_status)
         return await self._build_lineup_read(event)
+
+    async def get_current_lineup(self, user: User, team_id: uuid.UUID) -> TeamCurrentLineupRead:
+        """"Состав по звеньям" (2026-10-09): the next game's lineup, or the
+        last game's when nothing is scheduled ahead."""
+        team = await self._get_team_or_404(team_id)
+        await self._require_member(user, team)
+        now = datetime.now(timezone.utc)
+        base = select(TeamEvent).where(
+            TeamEvent.team_id == team.id,
+            TeamEvent.event_type == TeamEventType.GAME,
+            TeamEvent.status == TeamEventStatus.SCHEDULED,
+        )
+        # A game stays "next" until 3 hours after its start.
+        event = (
+            await self._session.scalars(
+                base.where(TeamEvent.starts_at >= now - timedelta(hours=3)).order_by(TeamEvent.starts_at).limit(1)
+            )
+        ).first()
+        if event is None:
+            event = (
+                await self._session.scalars(base.order_by(TeamEvent.starts_at.desc()).limit(1))
+            ).first()
+        if event is None:
+            return TeamCurrentLineupRead()
+        is_captain = team.owner_id == user.id
+        if not is_captain and event.lineup_status != TeamEventPublishStatus.PUBLISHED:
+            lineup = TeamEventLineupRead(lineup_status=event.lineup_status)
+        else:
+            lineup = await self._build_lineup_read(event)
+        return TeamCurrentLineupRead(
+            event=TeamCurrentLineupEventRead(id=event.id, starts_at=event.starts_at, opponent_name=event.opponent_name),
+            lineup=lineup,
+        )
 
     async def publish_lineup(
         self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
@@ -681,25 +733,55 @@ class TeamEventService:
                 players_by_group[slot.group_id].append(member)
                 assigned_user_ids.add(slot.user_id)
 
+        slot_by_user = {slot.user_id: slot.slot_position for slot in slots}
+        reads = await self._player_reads(members, slot_by_user)
         group_reads = [
-            self._to_lineup_group_read(group, players_by_group[group.id]) for group in groups
+            self._group_read(group, [reads[p.id] for p in players_by_group[group.id]]) for group in groups
         ]
-        unassigned = [
-            self._to_lineup_player_read(m) for m in members if m.id not in assigned_user_ids
-        ]
+        unassigned = [reads[m.id] for m in members if m.id not in assigned_user_ids]
         return TeamEventLineupRead(
             lineup_status=event.lineup_status, groups=group_reads, unassigned=unassigned
         )
 
-    async def _lineup_group_players(self, group_id: uuid.UUID) -> list[User]:
-        slots = await self._session.execute(
-            select(TeamEventLineupSlot).where(TeamEventLineupSlot.group_id == group_id)
-        )
-        user_ids = [slot.user_id for slot in slots.scalars().all()]
-        if not user_ids:
-            return []
-        result = await self._session.execute(select(User).where(User.id.in_(user_ids)))
-        return list(result.scalars().all())
+    async def _lineup_group_read(self, group: TeamEventLineupGroup) -> TeamEventLineupGroupRead:
+        slots = (
+            await self._session.scalars(
+                select(TeamEventLineupSlot).where(TeamEventLineupSlot.group_id == group.id)
+            )
+        ).all()
+        slot_by_user = {slot.user_id: slot.slot_position for slot in slots}
+        if not slot_by_user:
+            return self._group_read(group, [])
+        users = list((await self._session.scalars(select(User).where(User.id.in_(slot_by_user)))).all())
+        reads = await self._player_reads(users, slot_by_user)
+        return self._group_read(group, [reads[u.id] for u in users])
+
+    async def _player_reads(
+        self, users: list[User], slot_by_user: dict[uuid.UUID, str | None]
+    ) -> dict[uuid.UUID, TeamEventLineupPlayerRead]:
+        """Mini-card data for each player: spot, jersey, level, the card
+        "ОБЩИЙ" and the six stats behind it -- one stats query for all."""
+        stats = await ProgressRepository(self._session).list_stats_for_users([u.id for u in users])
+        now = datetime.now(timezone.utc)
+        by_user: dict[uuid.UUID, dict[str, float]] = {}
+        for stat in stats:
+            by_user.setdefault(stat.user_id, {})[str(stat.stat_type)] = round(get_effective_value(stat, now), 1)
+        reads = {}
+        for member in users:
+            values = by_user.get(member.id, {})
+            reads[member.id] = TeamEventLineupPlayerRead(
+                user_id=member.id,
+                first_name=member.first_name,
+                last_name=member.last_name,
+                avatar_url=member.avatar_url,
+                position=member.position,
+                slot=slot_by_user.get(member.id),
+                jersey_number=member.jersey_number,
+                level=member.level,
+                rating=round(sum(values.values()) / len(values)) if values else None,
+                stats=values,
+            )
+        return reads
 
     @staticmethod
     def _require_color_only_for_training(event: TeamEvent, color: str | None) -> None:
@@ -718,24 +800,28 @@ class TeamEventService:
         return group
 
     @staticmethod
-    def _to_lineup_player_read(member: User) -> TeamEventLineupPlayerRead:
-        return TeamEventLineupPlayerRead(
-            user_id=member.id,
-            first_name=member.first_name,
-            last_name=member.last_name,
-            avatar_url=member.avatar_url,
-            position=member.position,
-        )
-
-    @classmethod
-    def _to_lineup_group_read(
-        cls, group: TeamEventLineupGroup, players: list[User]
+    def _group_read(
+        group: TeamEventLineupGroup, players: list[TeamEventLineupPlayerRead]
     ) -> TeamEventLineupGroupRead:
+        order = {slot: index for index, slot in enumerate(LINEUP_SLOTS)}
+        players = sorted(players, key=lambda p: (order.get(p.slot or "", 99), p.last_name))
+        slots = {p.slot for p in players if p.slot is not None}
+        if slots and slots <= {"LW", "C", "RW"}:
+            kind = "forwards"
+        elif slots and slots <= {"LD", "RD"}:
+            kind = "defense"
+        elif slots == {"G"}:
+            kind = "goalies"
+        else:
+            kind = "mixed"
+        ratings = [p.rating for p in players if p.rating is not None]
         return TeamEventLineupGroupRead(
             id=group.id,
             name=group.name,
             color=group.color,
-            players=[cls._to_lineup_player_read(p) for p in players],
+            players=players,
+            kind=kind,
+            rating=round(sum(ratings) / len(ratings)) if ratings else None,
         )
 
     # -- rewards --

@@ -330,6 +330,10 @@ class TeamEventLineupSlot(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # The player's spot inside the group (2026-10-09): LW/C/RW for a
+    # forward line, LD/RD for a defense pair, G for a goalie. None = just
+    # in the group (every lineup made before slots, and a scrimmage team).
+    slot_position: Mapped[str | None] = mapped_column(String(3), nullable=True)
 
 
 class TeamEventDiaryEntry(Base):

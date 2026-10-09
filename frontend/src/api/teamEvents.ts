@@ -9,6 +9,7 @@ import type {
   DrillDiagram,
   DrillTemplateCreatePayload,
   DrillTemplateRead,
+  TeamCurrentLineupRead,
   TeamEventAttendanceRead,
   TeamEventAttendanceRosterRead,
   TeamEventAttendanceSetPayload,
@@ -304,10 +305,11 @@ export function assignLineupPlayer(
   targetUserId: string,
   groupId: string,
   accessToken: string,
+  slot: string | null = null,
 ): Promise<TeamEventLineupGroupRead> {
   return apiPutAuth<TeamEventLineupGroupRead>(
     `/teams/${teamId}/events/${eventId}/lineup/players/${targetUserId}`,
-    { group_id: groupId },
+    { group_id: groupId, slot },
     accessToken,
   )
 }
@@ -391,4 +393,9 @@ export function renameDrillTemplate(templateId: string, title: string, accessTok
 // Drills already copied from it stay as they are.
 export function deleteDrillTemplate(templateId: string, accessToken: string): Promise<void> {
   return apiDeleteAuth<void>(`/users/me/drill-templates/${templateId}`, accessToken)
+}
+
+// Members only: the next game's lineup, or the last one's (2026-10-09).
+export function getCurrentLineup(teamId: string, accessToken: string): Promise<TeamCurrentLineupRead> {
+  return apiGet<TeamCurrentLineupRead>(`/teams/${teamId}/lineup/current`, accessToken)
 }
