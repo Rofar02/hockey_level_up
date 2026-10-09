@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { TeamCaptainSetupCard, TeamPlayerIntroCard } from '../components/teamEvents/TeamIntroCards'
 import { NextEventCard } from '../components/teamEvents/NextEventCard'
 import { TeamInviteBlock } from '../components/teams/TeamInviteBlock'
+import { TeamSettingsForm } from '../components/teams/TeamSettingsForm'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
@@ -34,6 +35,14 @@ function formatRatingExcess(value: number): string {
   return `${sign}${value.toFixed(1)}`
 }
 
+// "Москва · Ночная хоккейная лига · Лига Мечты" -- whatever is set.
+function teamLocationLine(team: TeamRead): string | null {
+  const parts = [team.city, team.league_name, team.division_name].filter(
+    (part): part is string => part !== null && part !== '',
+  )
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 function formatTeamScore(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
 }
@@ -58,6 +67,7 @@ export function TeamDetailPage() {
   const [activeTab, setActiveTab] = useState<DetailTab>(searchParams.get('tab') === 'requests' ? 'requests' : 'members')
 
   const [actionError, setActionError] = useState<string | null>(null)
+  const [isEditingSettings, setIsEditingSettings] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
   const [isDisbanding, setIsDisbanding] = useState(false)
   const [decidingIds, setDecidingIds] = useState<Set<string>>(new Set())
@@ -125,6 +135,20 @@ export function TeamDetailPage() {
       setLogoError(err instanceof ApiError ? err.message : 'Не удалось загрузить эмблему.')
     } finally {
       setIsUploadingLogo(false)
+    }
+  }
+
+  async function handleSettingsSaved(updated: TeamRead) {
+    setTeam(updated)
+    setIsEditingSettings(false)
+    if (accessToken === null) {
+      return
+    }
+    // A new league or city changes the place among rivals.
+    try {
+      setTeamScore(await teamsApi.getTeamScore(updated.id, accessToken))
+    } catch {
+      // The old score stays until the next visit -- not worth a banner.
     }
   }
 
@@ -318,9 +342,31 @@ export function TeamDetailPage() {
                     </>
                   )}
                 </div>
-                <h1 className="min-w-0 flex-1 truncate text-lg font-semibold text-[#F5F7FA]">{team.name}</h1>
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <h1 className="truncate text-lg font-semibold text-[#F5F7FA]">{team.name}</h1>
+                  {teamLocationLine(team) !== null && (
+                    <span className="text-xs leading-snug text-[#8A94A6]">{teamLocationLine(team)}</span>
+                  )}
+                </div>
+                {team.is_captain && !isEditingSettings && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingSettings(true)}
+                    aria-label="Настройки команды"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#8A94A6] transition-colors hover:text-[#F5F7FA]"
+                  >
+                    <i className="ti ti-settings text-lg" aria-hidden="true" />
+                  </button>
+                )}
               </div>
               <FormError message={logoError} />
+              {isEditingSettings && (
+                <TeamSettingsForm
+                  team={team}
+                  onSaved={handleSettingsSaved}
+                  onCancel={() => setIsEditingSettings(false)}
+                />
+              )}
             </div>
 
             <TeamInviteBlock team={team} />
@@ -340,6 +386,11 @@ export function TeamDetailPage() {
                 {(teamScore.activity_bonus * 100).toFixed(1)}% (
                 {teamScore.avg_trainings_per_member_per_week.toFixed(1)} трен./нед на чел.)
               </span>
+              {teamScore.league_place != null && teamScore.league_team_count != null && (
+                <span className="relative text-xs font-medium text-[#F5F7FA]">
+                  {teamScore.league_place} место из {teamScore.league_team_count} в лиге и городе
+                </span>
+              )}
               {teamScore.member_count < MIN_MEMBERS_FOR_TEAM_RANKING && (
                 <span className="relative text-xs text-[#8A94A6]">
                   Нужно ещё {MIN_MEMBERS_FOR_TEAM_RANKING - teamScore.member_count}{' '}

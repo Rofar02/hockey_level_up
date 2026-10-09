@@ -49,6 +49,14 @@ class TeamRead(BaseModel):
     is_captain: bool
     members: list[TeamMemberRead]
     created_at: datetime
+    # League and city (2026-10-09) -- raw codes for the settings form, plus
+    # display names already resolved from app/core/leagues.py.
+    city: str | None = None
+    league_code: str = "none"
+    division_code: str | None = None
+    league_other_name: str | None = None
+    league_name: str | None = None
+    division_name: str | None = None
 
 
 class TeamScoreRead(BaseModel):
@@ -65,10 +73,51 @@ class TeamScoreRead(BaseModel):
     sum_xp: int
     avg_trainings_per_member_per_week: float
     activity_bonus: float
+    # Place among teams of the same league in the same city -- only on
+    # GET /teams/{id}/score, and only when there are at least
+    # MIN_TEAMS_FOR_LEAGUE_RANK such teams (app/core/leagues.py).
+    league_place: int | None = None
+    league_team_count: int | None = None
 
 
-class TeamCreate(BaseModel):
+class TeamLeagueFields(BaseModel):
+    """League/division/city as the create form and the captain's settings
+    send them -- cross-field rules (division only for a league that has
+    divisions, a name for "other") are checked in TeamService."""
+
+    city: str | None = Field(default=None, max_length=100)
+    league_code: str = "none"
+    division_code: str | None = None
+    league_other_name: str | None = Field(default=None, max_length=100)
+
+
+class TeamCreate(TeamLeagueFields):
     name: str = Field(min_length=1, max_length=100)
+
+
+class TeamUpdate(TeamLeagueFields):
+    """PATCH /teams/{id} -- the captain's settings form sends every field,
+    so a missing optional one means "clear it"."""
+
+    name: str = Field(min_length=1, max_length=100)
+
+
+class DivisionRead(BaseModel):
+    code: str
+    name: str
+
+
+class LeagueRead(BaseModel):
+    code: str
+    name: str
+    divisions: list[DivisionRead]
+
+
+class OtherLeagueNameRead(BaseModel):
+    """Admin: what teams typed into "Другая лига", most frequent first."""
+
+    name: str
+    team_count: int
 
 
 class TeamJoinPayload(BaseModel):

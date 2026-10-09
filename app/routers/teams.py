@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.user import User
-from app.routers.deps import get_current_user
+from app.routers.deps import get_current_user, require_admin
 from app.schemas.game_stats import TeamStatsRead, TeamStatsReminderRead
 from app.schemas.leaderboard import LeaderboardEntryRead
 from app.schemas.team import (
+    LeagueRead,
+    OtherLeagueNameRead,
     TeamCreate,
     TeamInvitationCreate,
     TeamInvitationRead,
@@ -21,6 +23,7 @@ from app.schemas.team import (
     TeamScoreRead,
     TeamSummaryRead,
     TeamTransferCaptaincyPayload,
+    TeamUpdate,
 )
 from app.services.game_stats_service import GameStatsService
 from app.services.team_invitation_service import TeamInvitationService
@@ -35,7 +38,27 @@ async def create_team(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await TeamService(session).create_team(current_user, body.name)
+    return await TeamService(session).create_team(current_user, body.name, body)
+
+
+@router.get("/leagues", response_model=list[LeagueRead])
+async def list_leagues(
+    _current_user: Annotated[User, Depends(get_current_user)],
+):
+    """The fixed league/division list for the create and settings forms
+    (app/core/leagues.py). Registered before GET /{team_id}, same "/me"
+    landmine as below."""
+    return TeamService.list_leagues()
+
+
+@router.get("/admin/other-leagues", response_model=list[OtherLeagueNameRead])
+async def list_other_league_names(
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Admin: what captains type into "Другая лига", most frequent first --
+    candidates to add to the fixed list."""
+    return await TeamService(session).list_other_league_names()
 
 
 @router.get("/me", response_model=list[TeamSummaryRead])
@@ -154,6 +177,17 @@ async def get_team(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await TeamService(session).get_team(current_user, team_id)
+
+
+@router.patch("/{team_id}", response_model=TeamRead)
+async def update_team(
+    team_id: uuid.UUID,
+    body: TeamUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain only: name, city, league, division."""
+    return await TeamService(session).update_team(current_user, team_id, body.name, body)
 
 
 @router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)

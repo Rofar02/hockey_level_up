@@ -33,6 +33,14 @@ export interface TeamRead {
   is_captain: boolean
   members: TeamMemberRead[]
   created_at: string
+  // League and city -- raw codes for the settings form, display names
+  // resolved server-side (app/core/leagues.py).
+  city: string | null
+  league_code: string
+  division_code: string | null
+  league_other_name: string | null
+  league_name: string | null
+  division_name: string | null
 }
 
 // GET /teams/{team_id}/score and /teams/leaderboard -- team_score is
@@ -47,10 +55,36 @@ export interface TeamScoreRead {
   sum_xp: number
   avg_trainings_per_member_per_week: number
   activity_bonus: number
+  // Place among teams of the same league and city -- only from GET
+  // /teams/{id}/score, null below 3 such teams.
+  league_place?: number | null
+  league_team_count?: number | null
 }
 
-export interface TeamCreatePayload {
+export interface TeamLeagueFields {
+  city: string | null
+  league_code: string
+  division_code: string | null
+  league_other_name: string | null
+}
+
+export interface TeamCreatePayload extends TeamLeagueFields {
   name: string
+}
+
+// PATCH /teams/{id} -- captain only, every field sent.
+export type TeamUpdatePayload = TeamCreatePayload
+
+export interface LeagueRead {
+  code: string
+  name: string
+  divisions: { code: string; name: string }[]
+}
+
+// Admin: GET /teams/admin/other-leagues.
+export interface OtherLeagueNameRead {
+  name: string
+  team_count: number
 }
 
 export interface TeamJoinPayload {

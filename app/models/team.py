@@ -32,6 +32,14 @@ class Team(Base):
     # app/services/image_processing.py). Nullable: most teams start without
     # one, and only the captain is ever allowed to set it.
     logo_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # League and city (2026-10-09): codes from app/core/leagues.py, plain
+    # strings rather than a DB enum so a new league needs no migration.
+    # league_other_name only for league_code == "other", division_code only
+    # for a league that has divisions (TeamService validates both).
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    league_code: Mapped[str] = mapped_column(String(32), nullable=False, server_default="none", default="none")
+    division_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    league_other_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

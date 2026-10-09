@@ -6,6 +6,7 @@ from fastapi import HTTPException, UploadFile, status
 from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import leagues
 from app.core.config import get_settings
 from app.events.handlers.team_invites import JOIN_APPROVED_EVENT, JOIN_REQUESTED_EVENT
 from app.models.team import Team, TeamJoinRequest, TeamJoinRequestStatus
@@ -14,7 +15,17 @@ from app.repositories.outbox_repository import OutboxRepository
 from app.repositories.team_repository import TeamRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.leaderboard import LeaderboardEntryRead
-from app.schemas.team import TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamScoreRead, TeamSummaryRead
+from app.schemas.team import (
+    DivisionRead,
+    LeagueRead,
+    OtherLeagueNameRead,
+    TeamJoinRequestRead,
+    TeamLeagueFields,
+    TeamMemberRead,
+    TeamRead,
+    TeamScoreRead,
+    TeamSummaryRead,
+)
 from app.services import image_processing
 from app.services.leaderboard_service import LeaderboardService
 from app.services.team_rating_service import TeamRatingService
@@ -34,15 +45,71 @@ class TeamService:
 
     # -- Team --
 
-    async def create_team(self, user: User, name: str) -> TeamRead:
+    async def create_team(self, user: User, name: str, league: TeamLeagueFields | None = None) -> TeamRead:
         await self._require_no_team(user)
         invite_code = await self._generate_invite_code()
         team = await self._teams.create_team(name=name, owner_id=user.id, invite_code=invite_code)
+        self._apply_league(team, league or TeamLeagueFields())
         # Captain is always a member too -- keeps list_members simple, no
         # special-casing the owner into the roster separately.
         await self._teams.create_membership(team.id, user.id)
         await self._session.commit()
         return await self._to_team_read(team, user)
+
+    async def update_team(self, user: User, team_id: uuid.UUID, name: str, league: TeamLeagueFields) -> TeamRead:
+        """The captain's team settings: name, city, league, division."""
+        team = await self._get_team_or_404(team_id)
+        self._require_captain(user, team)
+        team.name = name.strip() or team.name
+        self._apply_league(team, league)
+        await self._session.commit()
+        return await self._to_team_read(team, user)
+
+    @staticmethod
+    def _apply_league(team: Team, fields: TeamLeagueFields) -> None:
+        league = leagues.LEAGUES_BY_CODE.get(fields.league_code)
+        if league is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown league")
+        division_code = fields.division_code or None
+        if division_code is not None and division_code not in {d.code for d in league.divisions}:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown division")
+        other_name = leagues.normalize_text(fields.league_other_name)
+        if league.code == leagues.LEAGUE_OTHER:
+            if other_name is None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="League name is required"
+                )
+        else:
+            other_name = None
+        team.city = leagues.normalize_text(fields.city)
+        team.league_code = league.code
+        team.division_code = division_code
+        team.league_other_name = other_name
+
+    @staticmethod
+    def list_leagues() -> list[LeagueRead]:
+        return [
+            LeagueRead(
+                code=league.code,
+                name=league.name,
+                divisions=[DivisionRead(code=d.code, name=d.name) for d in league.divisions],
+            )
+            for league in leagues.LEAGUES
+        ]
+
+    async def list_other_league_names(self) -> list[OtherLeagueNameRead]:
+        """Admin: the "Другая лига" texts grouped case-insensitively, so the
+        popular ones can be promoted into app/core/leagues.py."""
+        counts: dict[str, list] = {}
+        for other_name in await self._teams.list_other_league_names():
+            key = other_name.casefold()
+            if key in counts:
+                counts[key][1] += 1
+            else:
+                counts[key] = [other_name, 1]
+        rows = [OtherLeagueNameRead(name=name, team_count=count) for name, count in counts.values()]
+        rows.sort(key=lambda row: (-row.team_count, row.name.casefold()))
+        return rows
 
     async def _generate_invite_code(self) -> str:
         for _ in range(_INVITE_CODE_GENERATION_ATTEMPTS):
@@ -328,6 +395,12 @@ class TeamService:
             is_captain=team.owner_id == requesting_user.id,
             members=[self._to_member_read(member, team) for member in members],
             created_at=team.created_at,
+            city=team.city,
+            league_code=team.league_code,
+            division_code=team.division_code,
+            league_other_name=team.league_other_name,
+            league_name=leagues.league_display_name(team.league_code, team.league_other_name),
+            division_name=leagues.division_display_name(team.league_code, team.division_code),
         )
 
     @staticmethod

@@ -1,5 +1,7 @@
-import { apiDeleteAuth, apiGet, apiGetPublic, apiPostAuth, apiPostMultipartAuth } from './client'
+import { apiDeleteAuth, apiGet, apiGetPublic, apiPatchAuth, apiPostAuth, apiPostMultipartAuth } from './client'
 import type {
+  LeagueRead,
+  OtherLeagueNameRead,
   TeamCreatePayload,
   TeamInvitationRead,
   TeamInviteCandidateRead,
@@ -10,6 +12,7 @@ import type {
   TeamScoreRead,
   TeamSummaryRead,
   TeamTransferCaptaincyPayload,
+  TeamUpdatePayload,
 } from '../types/team'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 
@@ -23,6 +26,19 @@ export function getTeam(teamId: string, accessToken: string): Promise<TeamRead> 
 
 export function createTeam(payload: TeamCreatePayload, accessToken: string): Promise<TeamRead> {
   return apiPostAuth<TeamRead>('/teams', payload, accessToken)
+}
+
+// Captain only -- name, city, league, division.
+export function updateTeam(teamId: string, payload: TeamUpdatePayload, accessToken: string): Promise<TeamRead> {
+  return apiPatchAuth<TeamRead>(`/teams/${teamId}`, payload, accessToken)
+}
+
+export function listLeagues(accessToken: string): Promise<LeagueRead[]> {
+  return apiGet<LeagueRead[]>('/teams/leagues', accessToken)
+}
+
+export function listOtherLeagueNames(accessToken: string): Promise<OtherLeagueNameRead[]> {
+  return apiGet<OtherLeagueNameRead[]>('/teams/admin/other-leagues', accessToken)
 }
 
 export function disbandTeam(teamId: string, accessToken: string): Promise<void> {
