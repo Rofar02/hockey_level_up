@@ -10,11 +10,13 @@ from app.models.exercise import TargetStat
 from app.models.progress import StatHistory
 from app.models.schedule import DaySessionType, TrainingSession
 from app.core.ice_focus import FOCUS_BY_ID
+from app.core.muscle_load import ice_load_scale
 from app.models.training_diary import FocusResult, GameResult, IceEffort, IceHighlight, TrainingDiaryEntry
 from app.models.user import User
 from app.repositories.schedule_repository import ScheduleRepository
 from app.repositories.training_diary_repository import TrainingDiaryRepository
 from app.schemas.training_diary import DiaryReportIn, TrainingDiaryEntryListItem
+from app.services.ice_load_service import IceLoadService, ice_ended_at
 from app.services.stat_award import award_xp, credit_stats
 from app.services.team_event_service import TEAM_TRAINING_XP_BONUS, TeamEventService
 
@@ -137,6 +139,11 @@ class TrainingDiaryService:
             await self._diary.save(entry)
         if report is not None:
             self._apply_report(entry, session_type, report)
+            # The ice or game on the muscle map (2026-10-09): "Не был" takes
+            # back anything the 24-hour default already put on.
+            scale = 0.0 if report.skipped else ice_load_scale(session_type, report.duration_minutes, report.effort)
+            ended_at = await ice_ended_at(self._session, training_session.day_plan, user.timezone)
+            await IceLoadService(self._session).charge(user.id, session_id, scale, ended_at)
 
         # Transient, for the response only (see TrainingDiaryEntryRead):
         # what this save credited, and whether the day has its reward.

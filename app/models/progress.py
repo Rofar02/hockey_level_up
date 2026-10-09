@@ -92,6 +92,33 @@ class UserMuscleLoad(Base):
     )
 
 
+class IceLoadCharge(Base):
+    """What an ice day or a game has put on the muscle map (2026-10-09), one
+    row per TrainingSession: the scale charged so far (duration factor x
+    effort factor x game factor, see app.core.muscle_load.ice_load_scale).
+    A later report only adds the difference -- the 24-hour default and a
+    late report never count twice, and "Не был" takes it back."""
+
+    __tablename__ = "ice_load_charges"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    training_session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("training_sessions.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    scale: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class TrainingStreak(Base):
     __tablename__ = "training_streaks"
 

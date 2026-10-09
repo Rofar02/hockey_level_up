@@ -21,7 +21,10 @@ two workouts must reflect that even though nothing was written since.
 """
 from datetime import datetime
 
+from app.models.exercise import MuscleGroup
 from app.models.progress import UserMuscleLoad
+from app.models.schedule import DaySessionType
+from app.models.training_diary import IceEffort
 
 # Immediate post-training fatigue window: load stays at whatever
 # muscle_load_consumer just set it to, no recovery credited yet. Short on
@@ -79,3 +82,49 @@ def get_effective_muscle_load(load: UserMuscleLoad, now: datetime) -> float:
     decay_hours = idle_hours - GRACE_PERIOD_HOURS
     half_lives_elapsed = decay_hours / HALF_LIFE_HOURS
     return load.current_value * (0.5**half_lives_elapsed)
+
+
+# -- Ice and games on the muscle map (2026-10-09, release plan step 4) --
+
+# Load of 60 minutes of medium ice, in the same units as an exercise block
+# (difficulty x GAIN_PER_DIFFICULTY_LEVEL x weight). Skating loads the
+# hips and thighs most, then the back and core holding the stance.
+ICE_SESSION_DOSE: dict[MuscleGroup, float] = {
+    MuscleGroup.GLUTES: 4.5,
+    MuscleGroup.QUADS: 4.5,
+    MuscleGroup.ADDUCTORS: 4.0,
+    MuscleGroup.HIP_FLEXORS: 3.0,
+    MuscleGroup.BACK: 3.0,
+    MuscleGroup.CORE: 2.5,
+    MuscleGroup.HAMSTRINGS: 2.0,
+    MuscleGroup.CALVES: 1.5,
+    MuscleGroup.SHOULDERS: 1.0,
+    MuscleGroup.FOREARMS: 1.0,
+}
+ICE_REFERENCE_MINUTES = 60
+ICE_MAX_DURATION_FACTOR = 1.5
+ICE_EFFORT_FACTOR: dict[IceEffort, float] = {
+    IceEffort.EASY: 0.6,
+    IceEffort.NORMAL: 1.0,
+    IceEffort.HARD: 1.4,
+}
+# A game is harder than practice; its report has no length or effort, so
+# it is always counted as 60 medium minutes times this.
+GAME_FACTOR = 1.3
+
+
+def ice_load_scale(session_type: DaySessionType, minutes: int | None, effort: IceEffort | None) -> float:
+    """How many "60 medium minutes of ice" a day was; no answer = 60 medium."""
+    if session_type == DaySessionType.GAME:
+        return GAME_FACTOR
+    duration = min((minutes or ICE_REFERENCE_MINUTES) / ICE_REFERENCE_MINUTES, ICE_MAX_DURATION_FACTOR)
+    return duration * ICE_EFFORT_FACTOR[effort or IceEffort.NORMAL]
+
+
+def recovery_factor(hours_since: float) -> float:
+    """The part of a load still left after this many hours -- the same
+    grace-then-halving curve as get_effective_muscle_load, so a report sent
+    the next day doesn't put yesterday's skating on as if it were fresh."""
+    if hours_since <= GRACE_PERIOD_HOURS:
+        return 1.0
+    return 0.5 ** ((hours_since - GRACE_PERIOD_HOURS) / HALF_LIFE_HOURS)

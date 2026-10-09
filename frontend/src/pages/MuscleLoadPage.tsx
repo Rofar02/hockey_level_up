@@ -44,7 +44,7 @@ export function MuscleLoadPage() {
           <BackLink />
           <h1 className="text-xl font-semibold">Нагрузка</h1>
           <p className="text-sm text-[#8A94A6]">
-            Насколько нагружены мышцы по последним тренировкам. Если что-то болит — отметьте в{' '}
+            Насколько нагружены мышцы по последним тренировкам — в зале, на льду и в играх (по отчёту после льда). Если что-то болит — отметьте в{' '}
             <Link to="/restrictions" className="text-accent-ice">
               ограничениях
             </Link>

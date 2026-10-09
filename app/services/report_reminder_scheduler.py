@@ -116,10 +116,18 @@ async def _run_tick(session: AsyncSession, now_utc: datetime) -> None:
 
 
 async def _report_reminder_tick() -> None:
+    # Imported here: ice_load_service reads this module's report clock.
+    from app.services.ice_load_service import charge_default_ice_loads
+
     now_utc = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as session:
         async with session.begin():
             await _run_tick(session, now_utc)
+    # The ice on the muscle map when no report came (2026-10-09) -- every
+    # player, reminders on or off.
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            await charge_default_ice_loads(session, now_utc)
 
 
 async def run_report_reminder_scheduler() -> None:
