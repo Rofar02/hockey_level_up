@@ -23,8 +23,10 @@ from app.core.day_archetype import (
     forces_technical_archetype,
     initial_rotation_order,
 )
+from app.core.config import get_settings
 from app.core.session_duration import compute_phase_split, estimate_session_duration_seconds
 from app.core.stat_difficulty import UNCLASSIFIED_EXERCISE_CAP, max_difficulty_for_stat
+from app.core.week_load import light_legs_dates
 from app.core.training_block import (
     DIFFICULTY_PRIORITY_PREDICATES,
     MAX_DIFFICULTY_LEVEL,
@@ -263,6 +265,24 @@ class ScheduleService:
         )
 
     @staticmethod
+    def _light_legs_dates_for(user: User, days: list[tuple[date, DaySessionType]]) -> set[date]:
+        """Release plan step 5.1 (2026-10-09): gym days right after ice or a
+        game get light legs -- see app.core.week_load. Off with the
+        settings switch."""
+        if not get_settings().week_light_legs_after_ice:
+            return set()
+        return light_legs_dates(days)
+
+    @staticmethod
+    def _move_off_light_day(chosen: date | None, days: list[DayPlanIn], light_dates: set[date]) -> date | None:
+        """The guaranteed locomotion pick is leg work: keep it off a
+        light-legs day when another gym day can take it."""
+        if chosen is None or chosen not in light_dates:
+            return chosen
+        others = [d.date for d in days if d.session_type == DaySessionType.OFF_ICE and d.date not in light_dates]
+        return _GUARANTEED_SLOT_RNG.choice(others) if others else chosen
+
+    @staticmethod
     def _choose_guaranteed_slot_dates(days: list[DayPlanIn]) -> tuple[date | None, date | None]:
         """2026-09-18 audit round 2 item #4 ("выносливость и катание почти не
         попадают в основной блок"): which OFF_ICE day, if any, gets this
@@ -327,6 +347,8 @@ class ScheduleService:
             for day_in in payload.days
         ]
         endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(effective_days)
+        light_dates = self._light_legs_dates_for(user, [(d.date, d.session_type) for d in effective_days])
+        locomotion_date = self._move_off_light_day(locomotion_date, effective_days, light_dates)
 
         weekly_plan = WeeklyPlan(
             user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
@@ -349,6 +371,7 @@ class ScheduleService:
                     archetype_rotation=archetype_rotation,
                     guarantee_endurance=day_in.date == endurance_date,
                     guarantee_locomotion=day_in.date == locomotion_date,
+                    light_legs=day_in.date in light_dates,
                 )
             weekly_plan.day_plans.append(day_plan)
 
@@ -451,6 +474,11 @@ class ScheduleService:
         )
         archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
         endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(payload.days)
+        # The week as it will stand after this patch, for the light-legs rule.
+        week_after = {day_plan.date: day_plan.session_type for day_plan in weekly_plan.day_plans}
+        week_after.update({day_in.date: day_in.session_type for day_in in payload.days})
+        light_dates = self._light_legs_dates_for(user, list(week_after.items()))
+        locomotion_date = self._move_off_light_day(locomotion_date, payload.days, light_dates)
 
         conflicts: list[ScheduleConflictRead] = []
         for day_in in payload.days:
@@ -486,6 +514,7 @@ class ScheduleService:
                 archetype_rotation=archetype_rotation,
                 guarantee_endurance=day_in.date == endurance_date,
                 guarantee_locomotion=day_in.date == locomotion_date,
+                light_legs=day_in.date in light_dates,
             )
 
         await self._session.commit()
@@ -606,6 +635,7 @@ class ScheduleService:
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None,
         guarantee_endurance: bool,
         guarantee_locomotion: bool,
+        light_legs: bool = False,
     ) -> None:
         """Retype one day and rebuild its TrainingSession from scratch --
         shared by _patch_weekly_plan and the team-event day sync. Caller has
@@ -632,6 +662,7 @@ class ScheduleService:
                 archetype_rotation=archetype_rotation,
                 guarantee_endurance=guarantee_endurance,
                 guarantee_locomotion=guarantee_locomotion,
+                light_legs=light_legs,
             )
 
     async def _training_block_for_weekly_plan(self, weekly_plan: WeeklyPlan) -> TrainingBlock | None:
@@ -669,6 +700,7 @@ class ScheduleService:
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
         guarantee_endurance: bool = False,
         guarantee_locomotion: bool = False,
+        light_legs: bool = False,
     ) -> TrainingSession:
         """Dispatch to the GAME-day builder (light activation only), the
         ON_ICE-day builder (on-ice warmup+cooldown only, no MAIN -- see
@@ -693,6 +725,7 @@ class ScheduleService:
             archetype_rotation=archetype_rotation,
             guarantee_endurance=guarantee_endurance,
             guarantee_locomotion=guarantee_locomotion,
+            light_legs=light_legs,
         )
 
     async def _build_game_day_session(self, user: User, block_phase: BlockPhase) -> TrainingSession:
@@ -783,6 +816,7 @@ class ScheduleService:
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
         guarantee_endurance: bool = False,
         guarantee_locomotion: bool = False,
+        light_legs: bool = False,
     ) -> TrainingSession:
         """MAIN is picked first and warmup/cooldown are chosen retrospectively
         to match it (Phase 3) -- storage order of `blocks` is still
@@ -801,6 +835,7 @@ class ScheduleService:
             archetype_rotation=archetype_rotation,
             guarantee_endurance=guarantee_endurance,
             guarantee_locomotion=guarantee_locomotion,
+            light_legs=light_legs,
         )
         main_exercise_ids = [exercise.id for exercise in main_exercises]
         main_patterns = await self._movement_patterns_union(main_exercise_ids)
@@ -1205,6 +1240,7 @@ class ScheduleService:
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
         guarantee_endurance: bool = False,
         guarantee_locomotion: bool = False,
+        light_legs: bool = False,
     ) -> list[Exercise]:
         """Stage 2.4 (2026-08-20 planning session): role-based assembly,
         replacing the old flat "shuffle every movement_pattern, fill up to
@@ -1768,6 +1804,10 @@ class ScheduleService:
         # tightest DELOAD count (see _MIN_COUNT_TO_ATTEMPT_ROLE1's own
         # comment), so it can never crowd role 3 (push/pull) out entirely.
         explosive_patterns = list(_EXPLOSIVE_PATTERNS)
+        if light_legs:
+            # Step 5.1: the day after ice -- no sprints or jumps as the
+            # explosive pick, stick and coordination work instead.
+            explosive_patterns = [p for p in explosive_patterns if p != MovementPattern.LOCOMOTION]
         random.shuffle(explosive_patterns)
         used_role1_pattern: MovementPattern | None = None
         if block_phase != BlockPhase.DELOAD or count >= _MIN_COUNT_TO_ATTEMPT_ROLE1:
@@ -1803,6 +1843,10 @@ class ScheduleService:
                 # honest: only force SKILL where this pattern actually
                 # has it.
                 if forces_technical and StimulusType.SKILL in PATTERN_ARCHETYPES[pattern]:
+                    archetype = StimulusType.SKILL
+                elif light_legs and pattern in _LOWER_BODY_PATTERNS and StimulusType.SKILL in PATTERN_ARCHETYPES[pattern]:
+                    # Step 5.1: lower body goes technical the day after ice,
+                    # like a deload, without using up a rotation turn.
                     archetype = StimulusType.SKILL
                 elif (
                     archetype_rotation is not None

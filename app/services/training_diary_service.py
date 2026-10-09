@@ -18,6 +18,7 @@ from app.repositories.training_diary_repository import TrainingDiaryRepository
 from app.schemas.training_diary import DiaryReportIn, TrainingDiaryEntryListItem
 from app.services.ice_load_service import IceLoadService, ice_ended_at
 from app.services.stat_award import award_xp, credit_stats
+from app.services.week_load_service import shadow_check
 from app.services.team_event_service import TEAM_TRAINING_XP_BONUS, TeamEventService
 
 _DIARY_ELIGIBLE_SESSION_TYPES = (DaySessionType.ON_ICE, DaySessionType.GAME)
@@ -144,6 +145,8 @@ class TrainingDiaryService:
             scale = 0.0 if report.skipped else ice_load_scale(session_type, report.duration_minutes, report.effort)
             ended_at = await ice_ended_at(self._session, training_session.day_plan, user.timezone)
             await IceLoadService(self._session).charge(user.id, session_id, scale, ended_at)
+            if scale > 0:
+                await shadow_check(self._session, user.id)
 
         # Transient, for the response only (see TrainingDiaryEntryRead):
         # what this save credited, and whether the day has its reward.

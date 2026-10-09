@@ -121,6 +121,13 @@ class Settings(BaseSettings):
     # its own copy and every reminder/check-in would go out twice.
     run_background_tasks: bool = True
 
+    # Release plan step 5 (2026-10-09), see app/core/week_load.py. 5.1: a
+    # gym day right after ice or a game is built with light legs. 5.2: the
+    # week reacts to real overload -- shadow mode (log only) until this is
+    # turned on after the log and the year simulation have been reviewed.
+    week_light_legs_after_ice: bool = True
+    week_load_reaction_enabled: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

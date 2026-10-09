@@ -32,6 +32,7 @@ from app.models.team_event import TeamEvent
 from app.models.training_diary import TrainingDiaryEntry
 from app.models.user import User
 from app.services.report_reminder_scheduler import REPORT_DELAY, report_due_at
+from app.services.week_load_service import shadow_check
 
 DEFAULT_CHARGE_AFTER = timedelta(hours=24)
 
@@ -141,5 +142,6 @@ async def charge_default_ice_loads(session: AsyncSession, now: datetime) -> int:
         if ended_at + DEFAULT_CHARGE_AFTER <= now < ended_at + DEFAULT_CHARGE_STALE_AFTER:
             scale = ice_load_scale(day_plan.session_type, None, None)
             await service.charge(user.id, training_session_id, scale, ended_at, now)
+            await shadow_check(session, user.id)
             count += 1
     return count
