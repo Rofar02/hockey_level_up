@@ -21,6 +21,9 @@ class CoachActionType(enum.StrEnum):
     SKILL_PRIORITY_ADD = "skill_priority_add"
     SET_TOURNAMENT_DATE = "set_tournament_date"
     REPORT_RESTRICTION = "report_restriction"
+    # 2026-10-09 (release plan 7.1): 1-3 ice focuses for the coming ice
+    # days -> User.coach_ice_focus_ids/_until (see app.core.ice_focus).
+    SET_ICE_FOCUS = "set_ice_focus"
 
 
 class CoachActionStatus(enum.StrEnum):

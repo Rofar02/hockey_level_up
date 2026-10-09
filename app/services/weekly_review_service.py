@@ -35,6 +35,7 @@ from app.services import coach_chat_service
 from app.services.analytics_overview_service import AnalyticsOverviewService
 from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
 from app.services.coach_philosophy import COACH_PHILOSOPHY, COACH_VOICE
+from app.services.coach_task_service import AI_TASKS_INSTRUCTIONS, CoachTaskService
 from app.services.push_service import send_push
 from app.services.training_diary_service import TrainingDiaryService, format_entry_for_coach
 
@@ -231,6 +232,9 @@ class WeeklyReviewService:
         )
         self._session.add(review)
 
+        await self._session.flush()
+        await self._ai_tasks(user, week_end + timedelta(days=1), overview, by_type, tournament_line, notes, reports)
+
         subscriptions = await self._session.scalars(
             select(PushSubscription).where(PushSubscription.user_id == user.id)
         )
@@ -246,6 +250,24 @@ class WeeklyReviewService:
             reply.usage.completion_tokens,
         )
         return review
+
+    async def _ai_tasks(self, user, new_week_start, overview, by_type, tournament_line, notes, reports) -> None:
+        """Release plan step 7: the coach's 2-3 tasks for the new week, from
+        the same facts as the review. Any failure leaves the week to the
+        template tasks -- it never costs the review itself."""
+        settings = get_settings()
+        try:
+            reply = await coach_chat_service.call_zai_clean(
+                settings.zai_api_key,
+                settings.zai_base_url,
+                settings.coach_chat_model,
+                f"{COACH_PHILOSOPHY}\n\n{AI_TASKS_INSTRUCTIONS}\nФокусы льда: {CoachTaskService.ai_focus_list()}",
+                [{"role": "user", "content": _facts_text(overview, by_type, tournament_line, notes, reports)}],
+            )
+            saved = await CoachTaskService(self._session).save_ai_reply(user.id, new_week_start, reply.text)
+            logger.info("weekly tasks: user=%s week=%s saved=%s", user.id, new_week_start, saved)
+        except Exception:
+            logger.exception("weekly tasks: generation failed for user %s", user.id)
 
     async def _sessions_by_type(
         self, user_id: uuid.UUID, week_start: date, week_end: date

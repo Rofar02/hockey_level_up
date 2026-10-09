@@ -189,6 +189,12 @@ class User(Base):
     # as TrainingBlockService.resolve_active_block.
     difficulty_throttle_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # The coach's ice theme (2026-10-09, release plan 7.1): 1-3 ice focus
+    # ids (app.core.ice_focus) the player confirmed from the coach chat,
+    # shown before any other pick until the date passes.
+    coach_ice_focus_ids: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    coach_ice_focus_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     # One-time welcome tour shown on first Home visit after onboarding --
     # never reset, so a re-login or a second device just sees Home directly.
     has_seen_onboarding_tour: Mapped[bool] = mapped_column(

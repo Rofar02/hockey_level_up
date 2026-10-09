@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
@@ -6,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
-from app.schemas.quest import QuestStatusRead
+from app.schemas.quest import CoachTaskRead, QuestStatusRead
+from app.services.coach_task_service import CoachTaskService
 from app.services.quest_service import QuestService
 
 router = APIRouter(prefix="/quests", tags=["quests"])
@@ -29,6 +31,25 @@ async def mark_reference_visited(
     (see QuestService's own docstring) -- ReferencePage calls this once its
     articles load successfully. Idempotent, safe on every visit."""
     await QuestService(session).mark_reference_visited(current_user.id)
+
+
+@router.get("/coach-tasks", response_model=list[CoachTaskRead])
+async def list_coach_tasks(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """This week's tasks from the coach, with progress (release plan step 7).
+    Registered before /{quest_id}/claim, so "coach-tasks" is never a quest id."""
+    return await CoachTaskService(session).list_for_week(current_user)
+
+
+@router.post("/coach-tasks/{task_id}/claim", response_model=CoachTaskRead)
+async def claim_coach_task(
+    task_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await CoachTaskService(session).claim(current_user, task_id)
 
 
 @router.post("/{quest_id}/claim", response_model=QuestStatusRead)

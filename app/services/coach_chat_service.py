@@ -41,6 +41,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.ice_focus import COACH_FOCUS_DAYS, FOCUS_BY_ID, ICE_FOCUSES, MAX_COACH_FOCUSES
 from app.core.training_block import sessions_to_advance_phase, taper_start_dates
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.coach_memory import CoachMemoryFact
@@ -351,6 +352,33 @@ def _format_phase_section(
     )
 
 
+def _format_coach_ice_focus_section(user: User, today: date) -> str:
+    """7.1 (2026-10-09): the ice theme the coach set, if it still holds --
+    so the coach knows not to propose the same one again."""
+    ids = user.coach_ice_focus_ids or []
+    until = user.coach_ice_focus_until
+    if not ids or until is None or until < today:
+        return "Фокус льда от тренера: не задан (выбирается автоматически)."
+    titles = ", ".join(f"«{FOCUS_BY_ID[i].title}»" for i in ids if i in FOCUS_BY_ID)
+    return f"Фокус льда от тренера: {titles}, до {until.strftime('%d.%m')}."
+
+
+# 2026-10-09: the coach sometimes ends with "Записать?" / "Добавить?" in
+# words without calling the tool, so the player gets no button. Such a
+# reply gets one more call that may only add the tool call.
+_UNPROPOSED_OFFER_RE = re.compile(
+    r"(запис|добав|постав|отмеч|внес|сохран|зафиксир)\w*[^.?!]{0,80}\?\s*$", re.IGNORECASE
+)
+OFFER_FOLLOW_UP_INSTRUCTION = (
+    "Ты только что предложил игроку действие словами. Вызови соответствующий "
+    "инструмент с этими же параметрами, текст не пиши."
+)
+
+
+def looks_like_unproposed_offer(text: str) -> bool:
+    return bool(_UNPROPOSED_OFFER_RE.search(text.strip()))
+
+
 def _build_action_summary(action_type: CoachActionType, payload: dict) -> str:
     """Player-facing text for the confirm card -- see ProposedActionRead."""
     if action_type is CoachActionType.SKILL_PRIORITY_ADD:
@@ -366,6 +394,9 @@ def _build_action_summary(action_type: CoachActionType, payload: dict) -> str:
         else:
             target_label = MUSCLE_GROUP_LABELS.get(MuscleGroup(muscle_group), muscle_group)
         return f"Записать временное ограничение: {target_label}?"
+    if action_type is CoachActionType.SET_ICE_FOCUS:
+        titles = ", ".join(f"«{title}»" for title in payload.get("titles", []))
+        return f"Поставить фокус на ближайшие льды ({COACH_FOCUS_DAYS} дней): {titles}?"
     return "Предложенное действие"
 
 
@@ -765,6 +796,27 @@ def _coach_tools(skill_names: list[str]) -> list[dict]:
         {
             "type": "function",
             "function": {
+                "name": CoachActionType.SET_ICE_FOCUS.value,
+                "description": (
+                    f"Предложить фокус на ближайшие льды ({COACH_FOCUS_DAYS} дней): 1-{MAX_COACH_FOCUSES} "
+                    "фокуса из списка, по одной теме. Можно вместе с приоритетным навыком."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "focus_ids": {
+                            "type": "array",
+                            "items": {"type": "string", "enum": [focus.id for focus in ICE_FOCUSES]},
+                            "description": "; ".join(f"{focus.id} = {focus.title}" for focus in ICE_FOCUSES),
+                        }
+                    },
+                    "required": ["focus_ids"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": CoachActionType.REPORT_RESTRICTION.value,
                 "description": (
                     "Предложить записать временное ограничение: ровно одно из "
@@ -920,6 +972,21 @@ class CoachChatService:
             tools=_coach_tools(skill_names),
         )
         resolved_action = await self._resolve_tool_call(zai_reply.tool_call)
+        if resolved_action is None and looks_like_unproposed_offer(zai_reply.text):
+            follow_up = await call_zai_clean(
+                settings.zai_api_key,
+                settings.zai_base_url,
+                settings.coach_chat_model,
+                system_prompt,
+                [
+                    *api_messages,
+                    {"role": "assistant", "content": zai_reply.text},
+                    {"role": "user", "content": OFFER_FOLLOW_UP_INSTRUCTION},
+                ],
+                tools=_coach_tools(skill_names),
+            )
+            resolved_action = await self._resolve_tool_call(follow_up.tool_call)
+            logger.info("coach offer follow-up: tool=%s", follow_up.tool_call[0] if follow_up.tool_call else None)
         reply_text = zai_reply.text.strip()
         if not reply_text and resolved_action is not None:
             # The model is told to always write text, but a bare tool call
@@ -1009,6 +1076,11 @@ class CoachChatService:
         elif action.action_type is CoachActionType.SET_TOURNAMENT_DATE:
             parsed_date = date.fromisoformat(action.payload["tournament_date"])
             await self._users.update_profile(user, UserUpdate(tournament_date=parsed_date))
+        elif action.action_type is CoachActionType.SET_ICE_FOCUS:
+            owner = await self._session.get(User, user.id)
+            local_today = datetime.now(ZoneInfo(owner.timezone or "UTC")).date()
+            owner.coach_ice_focus_ids = list(action.payload["focus_ids"])
+            owner.coach_ice_focus_until = local_today + timedelta(days=COACH_FOCUS_DAYS)
         elif action.action_type is CoachActionType.REPORT_RESTRICTION:
             movement_pattern = action.payload.get("movement_pattern")
             muscle_group = action.payload.get("muscle_group")
@@ -1119,6 +1191,15 @@ class CoachChatService:
             if skill is None:
                 return None
             return {"skill_id": str(skill.id), "skill_name": skill.name}
+
+        if action_type is CoachActionType.SET_ICE_FOCUS:
+            ids = raw.get("focus_ids")
+            if not isinstance(ids, list):
+                return None
+            unique = [i for n, i in enumerate(ids) if isinstance(i, str) and i in FOCUS_BY_ID and i not in ids[:n]]
+            if not 1 <= len(unique) <= MAX_COACH_FOCUSES:
+                return None
+            return {"focus_ids": unique, "titles": [FOCUS_BY_ID[i].title for i in unique]}
 
         if action_type is CoachActionType.SET_TOURNAMENT_DATE:
             raw_date = raw.get("tournament_date")
@@ -1328,6 +1409,7 @@ class CoachChatService:
             f"{restrictions_section}\n"
             f"{restriction_history_section}\n"
             f"{diary_section}\n"
+            f"{_format_coach_ice_focus_section(user, now.date())}\n"
             f"{tournament_section}\n"
             f"{week_overview_section}\n"
             f"{last_week_section}\n"

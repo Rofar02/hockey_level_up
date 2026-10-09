@@ -10,7 +10,7 @@ import * as authApi from '../api/auth'
 import * as questsApi from '../api/quests'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import type { QuestStatusRead, QuestType } from '../types/quest'
+import type { CoachTaskRead, QuestStatusRead, QuestType } from '../types/quest'
 import { QUEST_TYPE_LABELS } from '../types/quest'
 
 const GROUP_ORDER: QuestType[] = ['weekly', 'long_term', 'one_time']
@@ -35,6 +35,42 @@ export function QuestsPage() {
   const [selectedQuest, setSelectedQuest] = useState<QuestStatusRead | null>(null)
   const [claimingId, setClaimingId] = useState<string | null>(null)
   const [claimError, setClaimError] = useState<string | null>(null)
+  const [coachTasks, setCoachTasks] = useState<CoachTaskRead[] | null>(null)
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    questsApi
+      .getCoachTasks(accessToken)
+      .then((result) => {
+        if (!cancelled) {
+          setCoachTasks(result)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
+  async function handleClaimTask(task: CoachTaskRead) {
+    if (accessToken === null) {
+      return
+    }
+    setClaimingId(task.id)
+    setClaimError(null)
+    try {
+      const updated = await questsApi.claimCoachTask(task.id, accessToken)
+      setCoachTasks((prev) => prev?.map((t) => (t.id === updated.id ? updated : t)) ?? prev)
+      updateUser(await authApi.getCurrentUser(accessToken))
+    } catch (err: unknown) {
+      setClaimError(err instanceof ApiError ? err.message : 'Не удалось получить награду.')
+    } finally {
+      setClaimingId(null)
+    }
+  }
 
   useEffect(() => {
     if (accessToken === null) {
@@ -93,6 +129,46 @@ export function QuestsPage() {
         </div>
 
         <FormError message={loadError} />
+        {coachTasks !== null && coachTasks.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 px-1">
+              <span className="h-px w-4 shrink-0 bg-accent-persimmon/70" aria-hidden="true" />
+              <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-[#8A94A6]">От тренера на неделю</span>
+              <span className="h-px flex-1 bg-white/10" aria-hidden="true" />
+            </div>
+            {coachTasks.map((task) => (
+              <div key={task.id} className={`flex flex-col gap-2 p-4 ${CARD_CLASS} ${task.claimed ? 'opacity-70' : ''}`}>
+                <div className="flex items-start gap-3">
+                  <i className="ti ti-whistle mt-0.5 text-lg text-accent-persimmon" aria-hidden="true" />
+                  <span className="flex-1 text-sm font-medium text-[#F5F7FA]">{task.title}</span>
+                  <span className="shrink-0 font-display text-sm text-[#8A94A6]">
+                    {task.progress}/{task.target}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-accent-persimmon"
+                    style={{ width: `${Math.round((100 * task.progress) / Math.max(task.target, 1))}%` }}
+                  />
+                </div>
+                {task.claimed ? (
+                  <span className="text-xs text-accent-ice">Награда получена</span>
+                ) : task.done ? (
+                  <Button
+                    onClick={() => handleClaimTask(task)}
+                    isLoading={claimingId === task.id}
+                    className="self-start !px-3 !py-1.5 !text-xs"
+                  >
+                    Получить +{task.xp_reward} XP
+                  </Button>
+                ) : (
+                  <span className="text-xs text-[#8A94A6]">+{task.xp_reward} XP за выполнение</span>
+                )}
+              </div>
+            ))}
+            <FormError message={claimError} />
+          </div>
+        )}
         {quests === null && loadError === null && <p className="text-sm text-[#8A94A6]">Загрузка...</p>}
 
         {quests !== null && quests.length === 0 && (

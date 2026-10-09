@@ -89,7 +89,9 @@ async def test_generate_stores_numbers_posts_to_chat_and_is_written_once(db_sess
     assert message.content == review.text
 
     assert await service.generate(user, LAST_MONDAY) is None
-    assert captured["calls"] == 1
+    # The review and, with it, the week's tasks (release plan step 7) --
+    # nothing again for the same week.
+    assert captured["calls"] == 2
 
 
 @pytest.mark.asyncio

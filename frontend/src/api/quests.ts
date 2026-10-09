@@ -1,5 +1,5 @@
 import { apiGet, apiPostAuth } from './client'
-import type { QuestStatusRead } from '../types/quest'
+import type { CoachTaskRead, QuestStatusRead } from '../types/quest'
 
 export function getQuestStatus(accessToken: string): Promise<QuestStatusRead[]> {
   return apiGet<QuestStatusRead[]>('/quests/status', accessToken)
@@ -17,4 +17,13 @@ export function markReferenceVisited(accessToken: string): Promise<void> {
 // because the criteria were met, see app/services/quest_service.py).
 export function claimQuest(questId: string, accessToken: string): Promise<QuestStatusRead> {
   return apiPostAuth<QuestStatusRead>(`/quests/${questId}/claim`, {}, accessToken)
+}
+
+// This week's tasks from the coach, with progress (release plan step 7).
+export function getCoachTasks(accessToken: string): Promise<CoachTaskRead[]> {
+  return apiGet<CoachTaskRead[]>('/quests/coach-tasks', accessToken)
+}
+
+export function claimCoachTask(taskId: string, accessToken: string): Promise<CoachTaskRead> {
+  return apiPostAuth<CoachTaskRead>(`/quests/coach-tasks/${taskId}/claim`, {}, accessToken)
 }

@@ -8,12 +8,13 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.ice_focus import ON_ICE_STATS, WORK_ON_LOOKBACK_DAYS, pick_focus
+from app.core.ice_focus import ON_ICE_STATS, WORK_ON_LOOKBACK_DAYS, pick_focus_with_priorities
 from app.models.progress import UserStat
 from app.models.schedule import DayPlan, DaySessionType, TrainingSession, WeeklyPlan
 from app.models.training_diary import TrainingDiaryEntry
 from app.models.user import User
 from app.repositories.schedule_repository import ScheduleRepository
+from app.repositories.user_skill_preference_repository import UserSkillPreferenceRepository
 from app.schemas.training_diary import IceFocusRead
 
 
@@ -56,5 +57,15 @@ class IceFocusService:
             .order_by(DayPlan.date.desc())
             .limit(1)
         )
-        focus, reason = pick_focus(day_plan.date.toordinal(), stats, work_on or None)
+        # 7.1 (2026-10-09): the coach's theme while it holds, then the
+        # last game's "над чем поработать", then the priority skills.
+        coach_ids = None
+        until_label = None
+        if user.coach_ice_focus_ids and user.coach_ice_focus_until is not None and day_plan.date <= user.coach_ice_focus_until:
+            coach_ids = list(user.coach_ice_focus_ids)
+            until_label = user.coach_ice_focus_until.strftime("%d.%m")
+        priority = [name for _, name in await UserSkillPreferenceRepository(self._session).list_with_skill_names(user.id)]
+        focus, reason = pick_focus_with_priorities(
+            day_plan.date.toordinal(), stats, work_on or None, coach_ids, until_label, priority
+        )
         return IceFocusRead(id=focus.id, stat=focus.stat, title=focus.title, cues=list(focus.cues), reason=reason)

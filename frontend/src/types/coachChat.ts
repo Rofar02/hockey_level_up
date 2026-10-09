@@ -1,6 +1,6 @@
 export type CoachChatRole = 'user' | 'assistant'
 
-export type CoachActionType = 'skill_priority_add' | 'set_tournament_date' | 'report_restriction'
+export type CoachActionType = 'skill_priority_add' | 'set_tournament_date' | 'report_restriction' | 'set_ice_focus'
 
 export type CoachActionStatus = 'pending' | 'confirmed' | 'dismissed' | 'expired'
 
