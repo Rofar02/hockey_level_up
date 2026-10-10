@@ -37,6 +37,7 @@ const TrainingDiaryPage = lazy(() =>
   import('./pages/TrainingDiaryPage').then((m) => ({ default: m.TrainingDiaryPage })),
 )
 const DiaryPage = lazy(() => import('./pages/DiaryPage').then((m) => ({ default: m.DiaryPage })))
+const DayReportPage = lazy(() => import('./pages/DayReportPage').then((m) => ({ default: m.DayReportPage })))
 const GuidePage = lazy(() => import('./pages/GuidePage').then((m) => ({ default: m.GuidePage })))
 const SeasonPage = lazy(() => import('./pages/SeasonPage').then((m) => ({ default: m.SeasonPage })))
 const TeamStatsPage = lazy(() => import('./pages/TeamStatsPage').then((m) => ({ default: m.TeamStatsPage })))
@@ -215,6 +216,7 @@ function App() {
         <Route path="/schedule/new" element={<NewSchedulePage />} />
         <Route path="/training/:dayPlanId" element={<TrainingSessionPage />} />
         <Route path="/training/:dayPlanId/diary" element={<TrainingDiaryPage />} />
+        <Route path="/day-report/:date" element={<DayReportPage />} />
         <Route path="/diary" element={<DiaryPage />} />
         <Route path="/season" element={<SeasonPage />} />
         <Route path="/guide" element={<GuidePage />} />

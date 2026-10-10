@@ -50,6 +50,7 @@ from app.schemas.skill import UserSkillPreferenceRead, UserSkillPreferencesRepla
 from app.schemas.game_stats import SeasonRead
 from app.schemas.onboarding import OnboardingRead
 from app.schemas.training_diary import TrainingDiaryEntryListItem
+from app.schemas.day_report import DayReportRead
 from app.schemas.season_summary import SeasonSummaryRead
 from app.schemas.user import (
     PublicStatRead,
@@ -428,6 +429,19 @@ async def dismiss_my_onboarding(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     await OnboardingService(session).dismiss(current_user)
+
+
+@router.get("/me/day-report", response_model=DayReportRead)
+async def get_my_day_report(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    day: date = Query(alias="date"),
+):
+    """«Как прошёл день» (2026-10-10): every training of the day, the sets
+    and weights, the ice report, the muscles loaded and the stats moved."""
+    from app.services.day_report_service import DayReportService
+
+    return await DayReportService(session).report(current_user, day)
 
 
 @router.get("/me/season-summary", response_model=SeasonSummaryRead)

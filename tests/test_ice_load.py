@@ -79,7 +79,11 @@ async def test_medium_ice_report_loads_glutes_and_quads(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_resubmitted_report_adds_only_the_difference_and_skip_takes_it_back(db_session) -> None:
+async def test_a_sent_report_is_final_and_charged_once(db_session) -> None:
+    """2026-10-10: a report can't be re-sent or changed to «Не был» -- the
+    load it put on stays exactly once."""
+    from fastapi import HTTPException
+
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -87,11 +91,11 @@ async def test_resubmitted_report_adds_only_the_difference_and_skip_takes_it_bac
     diary = TrainingDiaryService(db_session)
 
     await diary.save_entry(user, session.id, None, DiaryReportIn(duration_minutes=60, effort=IceEffort.NORMAL))
-    await diary.save_entry(user, session.id, None, DiaryReportIn(duration_minutes=60, effort=IceEffort.NORMAL))
+    for report in (DiaryReportIn(duration_minutes=60, effort=IceEffort.NORMAL), DiaryReportIn(skipped=True)):
+        with pytest.raises(HTTPException) as exc:
+            await diary.save_entry(user, session.id, None, report)
+        assert exc.value.status_code == 409
     assert (await _loads(db_session, user))[MuscleGroup.GLUTES] == pytest.approx(4.5, abs=0.05)
-
-    await diary.save_entry(user, session.id, None, DiaryReportIn(skipped=True))
-    assert (await _loads(db_session, user))[MuscleGroup.GLUTES] == pytest.approx(0.0, abs=0.05)
 
 
 @pytest.mark.asyncio

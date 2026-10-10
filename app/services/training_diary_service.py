@@ -132,6 +132,10 @@ class TrainingDiaryService:
             self._validate_report(session_type, report)
 
         existing = await self._diary.get_by_training_session(session_id)
+        if existing is not None and existing.reported_at is not None:
+            # A sent report is final (owner's call, 2026-10-10): what was on
+            # the ice isn't rewritten afterwards.
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Отчёт уже отправлен")
         if existing is not None:
             existing.note = note
             entry = existing

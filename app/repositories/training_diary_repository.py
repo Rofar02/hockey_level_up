@@ -85,7 +85,10 @@ class TrainingDiaryRepository:
             return set()
         result = await self._session.execute(
             select(TrainingDiaryEntry.training_session_id).where(
-                TrainingDiaryEntry.training_session_id.in_(training_session_ids)
+                TrainingDiaryEntry.training_session_id.in_(training_session_ids),
+                # 2026-10-10: the report sent, not a note autosaved while
+                # typing -- the ice/game day closes on the report.
+                TrainingDiaryEntry.reported_at.is_not(None),
             )
         )
         return set(result.scalars().all())

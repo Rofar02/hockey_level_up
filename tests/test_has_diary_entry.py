@@ -7,7 +7,7 @@ skipped" one whose note is None, since a row existing at all is what marks
 the step done, not whether it says anything.
 """
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -90,9 +90,9 @@ async def test_on_ice_without_a_diary_entry_is_false(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_on_ice_with_a_quietly_skipped_entry_is_true(db_session) -> None:
-    """A diary entry saved with note=None (the "Пропустить" flow) still
-    counts as done -- the row's mere existence is the signal."""
+async def test_a_note_without_a_sent_report_is_not_done(db_session) -> None:
+    """2026-10-10: only a sent report closes the ice day -- a note autosaved
+    while typing (no reported_at) doesn't."""
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -105,7 +105,7 @@ async def test_on_ice_with_a_quietly_skipped_entry_is_true(db_session) -> None:
     service = ScheduleService(db_session)
     result = await service.get_day_plan_for_date(user, training_session.day_plan.date)
 
-    assert result.training_session.has_diary_entry is True
+    assert result.training_session.has_diary_entry is False
 
 
 @pytest.mark.asyncio
@@ -115,7 +115,9 @@ async def test_game_day_diary_flag_behaves_like_on_ice(db_session) -> None:
     await db_session.flush()
     _, training_session = await _seed_week(db_session, user, DaySessionType.GAME)
     db_session.add(
-        TrainingDiaryEntry(user_id=user.id, training_session_id=training_session.id, note="Good game")
+        TrainingDiaryEntry(
+            user_id=user.id, training_session_id=training_session.id, note="Good game", reported_at=datetime.now(timezone.utc)
+        )
     )
     await db_session.flush()
 
@@ -150,7 +152,9 @@ async def test_weekly_plan_batches_the_diary_flag_across_days(db_session) -> Non
     await db_session.flush()
     weekly_plan, training_session = await _seed_week(db_session, user, DaySessionType.ON_ICE)
     db_session.add(
-        TrainingDiaryEntry(user_id=user.id, training_session_id=training_session.id, note="ok")
+        TrainingDiaryEntry(
+            user_id=user.id, training_session_id=training_session.id, note="ok", reported_at=datetime.now(timezone.utc)
+        )
     )
     await db_session.flush()
 

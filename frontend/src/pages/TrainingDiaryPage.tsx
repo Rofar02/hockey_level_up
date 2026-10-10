@@ -117,6 +117,12 @@ export function TrainingDiaryPage() {
         setDay(foundDay)
         setTrainingSessionId(session.id)
         setFocus(dayFocus)
+        if (entry !== null && entry.reported_at !== null) {
+          // A sent report is final (2026-10-10) -- show the day instead of
+          // a form that can't be saved any more.
+          navigate(`/day-report/${foundDay.date}`, { replace: true })
+          return
+        }
         if (entry !== null) {
           setSaved(entry)
           setNote(entry.note ?? '')
@@ -169,7 +175,7 @@ export function TrainingDiaryPage() {
           focusDone: entry.focus_result === 'done' || entry.focus_result === 'partial',
         })
       } else {
-        navigate('/', { replace: true })
+        navigate(`/day-report/${day?.date ?? 'today'}`, { replace: true })
       }
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.message : 'Не удалось сохранить отчёт.')

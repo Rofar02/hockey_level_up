@@ -1043,11 +1043,17 @@ export function TrainingSessionPage() {
               ) : (
                 <Button
                   variant={day.training_session?.has_diary_entry === true ? 'neutral' : undefined}
-                  onClick={() => navigate(`/training/${day.id}/diary`)}
+                  onClick={() =>
+                    navigate(
+                      day.training_session?.has_diary_entry === true
+                        ? `/day-report/${day.date}`
+                        : `/training/${day.id}/diary`,
+                    )
+                  }
                   className="w-full"
                 >
                   {day.training_session?.has_diary_entry === true
-                    ? 'Отчёт отправлен — открыть'
+                    ? 'Как прошёл день'
                     : day.session_type === 'game'
                       ? 'Как сыграли?'
                       : 'Отчёт после льда'}
