@@ -238,7 +238,7 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
         </div>
       )}
 
-      {isCaptain && (
+      {isCaptain && !roster.is_locked && (
         <div className={`flex flex-col gap-2 p-3 ${CARD_CLASS}`}>
           <Button
             type="button"

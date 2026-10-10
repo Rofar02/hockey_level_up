@@ -484,3 +484,20 @@ async def test_shadow_dates_ice_by_when_it_ended(db_session) -> None:
 
     events = await _dose_events(db_session, user.id, now - timedelta(days=28))
     assert events and all(at < now - timedelta(days=4) for at, _, _ in events)
+
+
+# -- the small fixes after the demo (2026-10-10) --
+
+
+@pytest.mark.asyncio
+async def test_no_nudge_once_attendance_is_closed(db_session) -> None:
+    captain, _, team = await _team(db_session, "Напоминания")
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.GAME, _future(), "Соперник")
+    row = await events._events.get_event(event.id)
+    row.starts_at = datetime.now(timezone.utc) - timedelta(days=1)
+    await db_session.flush()
+
+    with pytest.raises(HTTPException) as exc:
+        await events.send_nudge(captain, team.id, event.id)
+    assert exc.value.status_code == 409

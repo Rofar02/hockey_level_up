@@ -79,7 +79,7 @@ function EventList({
                   ? event.host_team_name != null
                     ? `Совместная тренировка с «${event.host_team_name}»`
                     : 'Тренировка'
-                  : `Игра с ${event.opponent_name}`}
+                  : `Игра: ${event.opponent_name}`}
               </span>
               <span className="text-xs text-[#8A94A6]">
                 {formatDateTime(new Date(event.starts_at))}

@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { CARD_CLASS } from '../components/ui/cardStyle'
 import { CardGlow } from '../components/ui/CardGlow'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
+import { GuestInvitationsCard } from '../components/teamEvents/GuestInvitationsCard'
 import { NextEventCard } from '../components/teamEvents/NextEventCard'
 import { TeamInvitationsCard } from '../components/teams/TeamInvitationsCard'
 import { TeamInviteBlock } from '../components/teams/TeamInviteBlock'
@@ -222,6 +223,9 @@ export function TeamHubPage() {
             {selectedTeamId !== null && team !== null && (
               <NextEventCard teamId={selectedTeamId} isCaptain={team.is_captain} />
             )}
+
+            {/* Other teams calling the captain to train together (step 3.5). */}
+            {selectedTeamId !== null && team !== null && team.is_captain && <GuestInvitationsCard teamId={selectedTeamId} />}
 
             <div className="grid grid-cols-3 gap-2">
               <HubTile icon="ti-calendar-event" label="Тренировки и игры" to={`${teamPath}/events`} />

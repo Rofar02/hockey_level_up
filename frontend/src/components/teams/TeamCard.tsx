@@ -76,7 +76,7 @@ export function TeamCard({ card }: { card: TeamCardRead }) {
           <span data-card-text className="font-display text-[62px] font-bold leading-[0.9]" style={accent}>
             {card.rating ?? '—'}
           </span>
-          <span data-card-text className="font-display text-[11px] tracking-[1.2px] text-text-secondary">РЕЙТИНГ</span>
+          <span data-card-text className="font-display text-[11px] tracking-[1.2px] text-text-secondary">ОБЩИЙ</span>
           {card.league_place !== null && (
             <>
               <span data-card-text className="mt-1 font-display text-[17px] font-semibold tracking-wider text-text-primary">

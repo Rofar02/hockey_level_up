@@ -93,7 +93,7 @@ export function TeamLineupPage() {
         {group.color !== null && <span className="h-3 w-3 rounded-full" style={{ backgroundColor: group.color }} aria-hidden="true" />}
         <span className="text-sm font-semibold text-[#F5F7FA]">{group.name ?? 'Без названия'}</span>
         {group.rating != null && (
-          <span className="ml-auto font-display text-sm font-semibold text-accent-ice">рейтинг {group.rating}</span>
+          <span className="ml-auto font-display text-sm font-semibold text-accent-ice">общий {group.rating}</span>
         )}
       </div>
     )

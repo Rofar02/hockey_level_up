@@ -100,7 +100,7 @@ export function LineCard({
           <span data-card-text className="font-display text-[56px] font-bold leading-[0.9]" style={accent}>
             {line.rating ?? '—'}
           </span>
-          <span data-card-text className="font-display text-[11px] tracking-[1.2px] text-text-secondary">РЕЙТИНГ ЗВЕНА</span>
+          <span data-card-text className="font-display text-[11px] tracking-[1.2px] text-text-secondary">ОБЩИЙ ЗВЕНА</span>
         </div>
         <div className="absolute right-5 top-6 z-[2] flex max-w-[55%] flex-col items-end gap-0.5 text-right">
           <span data-card-text className="truncate font-display text-[13px] font-semibold tracking-wider text-text-primary">

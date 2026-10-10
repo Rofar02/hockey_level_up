@@ -124,7 +124,7 @@ class TeamEventService:
             await self._push_team(
                 team_id,
                 "Назначена игра",
-                f"Игра с {opponent_name} -- отметь явку",
+                f"Игра: {opponent_name} -- отметь явку",
             )
         sections = [] if event_type == TeamEventType.TRAINING else None
         return self._to_event_read(event, sections=sections, viewer_is_captain=True)
@@ -521,6 +521,8 @@ class TeamEventService:
         self._require_captain(user, team)
         event = await self._get_event_or_404(event_id, team_id)
         now = datetime.now(timezone.utc)
+        # Marks are closed -- nobody can answer the reminder any more.
+        self._require_attendance_open(event)
         if event.last_nudge_sent_at is not None and now - event.last_nudge_sent_at < NUDGE_MIN_INTERVAL:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
