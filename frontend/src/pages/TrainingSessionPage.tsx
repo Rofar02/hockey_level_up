@@ -17,7 +17,9 @@ import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
 import { IceFocusCard } from '../components/IceFocusCard'
 import { ExerciseMediaPrefetch } from '../components/ExerciseMediaPrefetch'
 import * as authApi from '../api/auth'
+import * as pendingReportsApi from '../api/pendingReports'
 import * as progressApi from '../api/progress'
+import * as trainingDiaryApi from '../api/trainingDiary'
 import * as scheduleApi from '../api/schedule'
 import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as skillsApi from '../api/skills'
@@ -255,6 +257,11 @@ export function TrainingSessionPage() {
   // Ice / game days (2026-10-10): a preparation list, no player -- an
   // exercise opens its technique in a modal.
   const [peekExercise, setPeekExercise] = useState<ExerciseRead | null>(null)
+  // An ice day / game over without a report, asked about before the gym
+  // starts (2026-10-10) -- what was skated decides the legs today.
+  const [pendingIce, setPendingIce] = useState<pendingReportsApi.PendingReportRead | null>(null)
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
+  const [isMarkingSkipped, setIsMarkingSkipped] = useState(false)
   // A training still ahead (owner's call, 2026-10-10): open to look at,
   // started only on its own day -- the backend refuses anything else.
   const isAhead = day !== null && day.date > toIsoDate(new Date())
@@ -437,6 +444,52 @@ export function TrainingSessionPage() {
       cancelled = true
     }
   }, [accessToken, day])
+
+  // Before the gym starts: an unreported ice day / game first (2026-10-10).
+  async function beginWithIceCheck(action: () => void) {
+    if (accessToken === null || isAhead) {
+      action()
+      return
+    }
+    try {
+      const pending = (await pendingReportsApi.getPendingReports(accessToken)).filter(
+        (report) => report.day_plan_id !== day?.id,
+      )
+      if (pending.length > 0) {
+        setPendingIce(pending[0])
+        setPendingAction(() => action)
+        return
+      }
+    } catch {
+      // Best effort -- the workout itself never waits on this check.
+    }
+    action()
+  }
+
+  async function markPendingSkipped() {
+    if (accessToken === null || pendingIce === null) {
+      return
+    }
+    setIsMarkingSkipped(true)
+    try {
+      const pendingDay = await scheduleApi.getDayPlanById(pendingIce.day_plan_id, accessToken)
+      if (pendingDay.training_session != null) {
+        await trainingDiaryApi.saveDiaryEntry(
+          pendingDay.training_session.id,
+          { note: null, report: { skipped: true } },
+          accessToken,
+        )
+      }
+    } catch {
+      // Already reported elsewhere, or offline -- carry on either way.
+    } finally {
+      setIsMarkingSkipped(false)
+    }
+    const action = pendingAction
+    setPendingIce(null)
+    setPendingAction(null)
+    void beginWithIceCheck(action ?? (() => {}))
+  }
 
   async function refreshSetCount(exerciseId: string) {
     if (accessToken === null || trainingSessionId === null) {
@@ -1098,16 +1151,18 @@ export function TrainingSessionPage() {
                         <button
                           key={block.id}
                           type="button"
-                          onClick={() => {
-                            // Opening an exercise today starts the workout too.
-                            if (!isAhead) {
-                              setStartedHere(true)
-                            }
-                            // The player finds its exercise in the current
-                            // phase -- move there first.
-                            setCurrentPhaseIndex(activePhases.indexOf(phase))
-                            setSelectedExercise(block.exercise)
-                          }}
+                          onClick={() =>
+                            void beginWithIceCheck(() => {
+                              // Opening an exercise today starts the workout too.
+                              if (!isAhead) {
+                                setStartedHere(true)
+                              }
+                              // The player finds its exercise in the current
+                              // phase -- move there first.
+                              setCurrentPhaseIndex(activePhases.indexOf(phase))
+                              setSelectedExercise(block.exercise)
+                            })
+                          }
                           className="flex items-center justify-between gap-3 border-t border-white/5 py-2 text-left text-[13px]"
                         >
                           <span className="min-w-0 truncate">{block.exercise.name}</span>
@@ -1134,13 +1189,15 @@ export function TrainingSessionPage() {
                 </Button>
               ) : (
                 <Button
-                  onClick={() => {
-                    setStartedHere(true)
-                    const first = orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))
-                    if (first !== undefined) {
-                      setSelectedExercise(first.exercise)
-                    }
-                  }}
+                  onClick={() =>
+                    void beginWithIceCheck(() => {
+                      setStartedHere(true)
+                      const first = orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))
+                      if (first !== undefined) {
+                        setSelectedExercise(first.exercise)
+                      }
+                    })
+                  }
                   className="w-full"
                 >
                   <span className="flex items-center justify-center gap-2">
@@ -1399,6 +1456,26 @@ export function TrainingSessionPage() {
                   }
                 />
             </div>
+          </div>
+        </FullScreenOverlay>
+      )}
+
+      {pendingIce !== null && (
+        <FullScreenOverlay className="flex items-end justify-center bg-black/60 p-4 sm:items-center">
+          <div className={`flex w-full max-w-md flex-col gap-4 p-5 ${CARD_CLASS}`} role="dialog" aria-modal="true">
+            <span className="text-xs font-semibold uppercase tracking-wide text-accent-persimmon">Сначала отчёт</span>
+            <p className="text-lg font-semibold leading-snug">
+              {pendingReportsApi.pendingReportLabel(pendingIce, toIsoDate(new Date()))}
+            </p>
+            <p className="text-sm leading-relaxed text-text-secondary">
+              Без отчёта приложение не знает, катались ли вы, — и нагрузку на ноги сегодня посчитает вслепую.
+            </p>
+            <Button onClick={() => navigate(`/training/${pendingIce.day_plan_id}/diary`)} className="w-full">
+              Заполнить отчёт
+            </Button>
+            <Button variant="neutral" onClick={() => void markPendingSkipped()} isLoading={isMarkingSkipped} className="w-full">
+              {pendingIce.session_type === 'game' ? 'Не играл' : 'Не был на льду'}
+            </Button>
           </div>
         </FullScreenOverlay>
       )}
