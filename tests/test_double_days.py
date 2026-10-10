@@ -168,3 +168,42 @@ async def test_adding_the_extra_gym_leaves_the_day_itself_alone(db_session, buil
     assert monday.team_event_id == team_event_id
     extras = [d for d in result.weekly_plan.day_plans if d.is_extra]
     assert [(d.date, d.time_of_day) for d in extras] == [(MONDAY, "evening")]
+
+
+@pytest.mark.asyncio
+async def test_gym_day_plus_ice_keeps_its_gym_training(db_session, builds, monkeypatch) -> None:
+    """«Сухая + ещё и лёд» (2026-10-10): the gym day becomes ice, and the gym
+    training it already had moves to the extra day as it is."""
+    monkeypatch.setattr(config.get_settings(), "double_days_enabled", True)
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    service = ScheduleService(db_session)
+    plan = await service.create_weekly_plan(user, WeeklyPlanCreate(days=_days({})))
+    tuesday = MONDAY + timedelta(days=1)  # GYM in _days
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.models.schedule import DayPlan
+
+    def day(is_extra: bool):
+        return (
+            select(DayPlan)
+            .where(DayPlan.weekly_plan_id == plan.id, DayPlan.date == tuesday, DayPlan.is_extra.is_(is_extra))
+            .options(selectinload(DayPlan.training_session))
+            .execution_options(populate_existing=True)
+        )
+
+    gym_session_id = (await db_session.scalar(day(False))).training_session.id
+
+    result = await service.patch_weekly_plan(
+        user, WeeklyPlanPatch(days=[DayPlanIn(date=tuesday, session_type=ICE, extra_gym="morning")]), MONDAY
+    )
+
+    assert result.conflicts == []
+    main = await db_session.scalar(day(False))
+    extra = await db_session.scalar(day(True))
+    assert main.session_type == ICE and main.time_of_day == "evening"
+    assert extra.session_type == GYM and extra.time_of_day == "morning"
+    assert extra.training_session.id == gym_session_id
+    assert main.training_session.id != gym_session_id

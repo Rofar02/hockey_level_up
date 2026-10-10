@@ -296,6 +296,26 @@ class ScheduleService:
         )
         return extra
 
+    async def _keep_gym_as_extra(self, weekly_plan: WeeklyPlan, day_plan: DayPlan, day_in: DayPlanIn) -> None:
+        """«Сухая + ещё и лёд» (2026-10-10): a gym day that becomes an ice
+        or game day with "+ зал" keeps the gym training it already has --
+        it moves to the extra day instead of being built again. Doesn't
+        commit; the main day is then built as ice on its own."""
+        extra_time = self._extra_gym_time(day_in, day_in.session_type)
+        if (
+            extra_time is None
+            or day_plan.session_type != DaySessionType.OFF_ICE
+            or day_plan.training_session is None
+            or any(d.date == day_plan.date and d.is_extra for d in weekly_plan.day_plans)
+        ):
+            return
+        extra = DayPlan(date=day_plan.date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day=extra_time)
+        weekly_plan.day_plans.append(extra)
+        day_plan.training_session.day_plan = extra
+        # Flushed now: the gym session's day_plan_id must move before the
+        # main day gets its new (ice) session -- day_plan_id is unique.
+        await self._session.flush()
+
     async def _sync_extra_gym_day(
         self,
         weekly_plan: WeeklyPlan,
@@ -583,6 +603,7 @@ class ScheduleService:
             # user's own choice (see revert_team_event_days).
             day_plan.team_event_id = None
             day_plan.replaced_session_type = None
+            await self._keep_gym_as_extra(weekly_plan, day_plan, day_in)
             await self._rebuild_day_session(
                 day_plan,
                 day_in.session_type,

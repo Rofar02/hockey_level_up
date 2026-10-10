@@ -337,6 +337,15 @@ export function NewSchedulePage() {
     setRows((previous) => previous.map((row, i) => (i === index ? { ...row, extraGym: extra } : row)))
   }
 
+  // «Сухая + ещё и лёд»: the same double day the other way round -- the day
+  // becomes ice at that time and the gym moves to the other half of it.
+  function addIceToGymDay(index: number, iceTime: ExtraGymTime) {
+    const gymTime: ExtraGymTime = iceTime === 'morning' ? 'evening' : 'morning'
+    setRows((previous) =>
+      previous.map((row, i) => (i === index ? { ...row, sessionType: 'on_ice', extraGym: gymTime } : row)),
+    )
+  }
+
   async function handleGeneratePlan() {
     if (accessToken === null) {
       return
@@ -530,6 +539,7 @@ export function NewSchedulePage() {
                   onSelectType={(type) => setDayType(index, type)}
                   doubleDays={doubleDays}
                   onSelectExtra={(extra) => setDayExtra(index, extra)}
+                  onAddIce={(time) => addIceToGymDay(index, time)}
                 />
               ))}
             </div>
@@ -729,6 +739,7 @@ export function NewSchedulePage() {
                   onSelectType={(type) => setDayType(index, type)}
                   doubleDays={doubleDays}
                   onSelectExtra={(extra) => setDayExtra(index, extra)}
+                  onAddIce={(time) => addIceToGymDay(index, time)}
                 />
               ))}
             </div>
@@ -757,6 +768,9 @@ export function NewSchedulePage() {
                   .map((row) => (
                   <li key={row.isoDate}>
                     {formatShortDate(row.date)} — {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+                    {editSnapshot?.get(row.isoDate)?.sessionType === 'off_ice' && extraGymFor(row) !== null && (
+                      <span className="text-[#8A94A6]"> (зал останется прежним)</span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -821,6 +835,7 @@ function EditableDayRow({
   onSelectType,
   doubleDays,
   onSelectExtra,
+  onAddIce,
 }: {
   row: DayRow
   weekdayLabel: string
@@ -834,8 +849,10 @@ function EditableDayRow({
   onSelectType: (type: DaySessionType) => void
   doubleDays: boolean
   onSelectExtra: (extra: ExtraGymTime | null) => void
+  onAddIce: (iceTime: ExtraGymTime) => void
 }) {
   const canAddGym = doubleDays && !isStarted(row) && !isPast && EXTRA_CAPABLE.includes(row.sessionType)
+  const canAddIce = doubleDays && !isStarted(row) && !isPast && row.sessionType === 'off_ice'
   return (
     <div
       className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
@@ -899,6 +916,24 @@ function EditableDayRow({
               }`}
             >
               {option === null ? 'Нет' : option === 'morning' ? 'Утром' : 'Вечером'}
+            </button>
+          ))}
+        </div>
+      )}
+      {canAddIce && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-2">
+          <span className="text-xs text-[#8A94A6]">Ещё и лёд:</span>
+          <span className="rounded border border-accent-persimmon/60 bg-accent-persimmon/15 px-2.5 py-1 text-xs font-medium text-accent-persimmon">
+            Нет
+          </span>
+          {(['morning', 'evening'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onAddIce(option)}
+              className="rounded border border-white/15 px-2.5 py-1 text-xs font-medium text-[#8A94A6] transition-colors hover:border-white/30 hover:text-[#F5F7FA]"
+            >
+              {option === 'morning' ? 'Утром' : 'Вечером'}
             </button>
           ))}
         </div>
