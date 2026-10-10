@@ -56,6 +56,10 @@ THREE_A_WEEK = {0: OFF, 2: OFF, 4: ON}
 FIVE_A_WEEK = {0: OFF, 1: OFF, 2: ON, 3: OFF, 5: OFF}
 TWO_A_WEEK = {1: OFF, 4: OFF}
 HOME_WEEK = {0: OFF, 2: OFF, 4: OFF}
+GAME = DaySessionType.GAME
+# Two ice days and a game; the double-day scenario adds a morning gym on
+# both ice days (release plan step 6).
+ICE_WEEK = {0: OFF, 1: ON, 3: ON, 4: OFF, 5: GAME}
 
 
 def season_for(week: int) -> SeasonPeriod:
@@ -86,6 +90,8 @@ class Scenario:
     feedback_for: callable = None
     tournaments: tuple = ()  # week indexes; the tournament is that week's Saturday
     seasons: bool = True
+    # Weekday offsets of ice/game days that also get a gym training (step 6).
+    extra_gym: frozenset = frozenset()
 
 
 BURST_CYCLE = ["burst", "burst", "benign", "burst", "benign", "benign", "benign", "benign"]
@@ -109,6 +115,21 @@ SCENARIOS = [
     Scenario("home_no_gym", "3 раза в неделю дома, без зала", 2005, days=HOME_WEEK, has_gym=False),
     Scenario("tournaments", "3 раза в неделю, два турнира (неделя 16 и 44) — подводка", 2006, tournaments=(16, 44)),
     Scenario("beginner_2x", "Новичок 14 лет, 2 раза в неделю, всё легко", 2007, days=TWO_A_WEEK, feedback="very_benign", age=14),
+    Scenario(
+        "ice_week",
+        "2 зала + 2 льда + игра в субботу, без двойных дней (база для сравнения)",
+        2008,
+        days=ICE_WEEK,
+        feedback_for=lambda week: "burst" if week % 6 == 5 else "benign",
+    ),
+    Scenario(
+        "double_days",
+        "То же, что ice_week, плюс утренний зал в оба дня льда — двойные дни",
+        2008,
+        days=ICE_WEEK,
+        feedback_for=lambda week: "burst" if week % 6 == 5 else "benign",
+        extra_gym=frozenset({1, 3}),
+    ),
 ]
 
 
@@ -131,6 +152,7 @@ class YearResult:
     phase_weeks: Counter = field(default_factory=Counter)
     main_counts: list = field(default_factory=list)
     main_counts_taper: list = field(default_factory=list)
+    main_counts_extra: list = field(default_factory=list)
     empty_off_ice: int = 0
     unique_by_quarter: list = field(default_factory=list)
     repeat_rate: float = 0.0
@@ -173,7 +195,8 @@ async def run_year(scenario: Scenario, start_monday: date, warnings: WarningCoun
             print(f"[{scenario.tag}] week {week + 1}/{WEEKS} (sessions: {ordinal})", flush=True)
             try:
                 ordinal, block_state = await run_week(
-                    session, user, week, start_monday, days, feedback, rng, report, ordinal, block_state
+                    session, user, week, start_monday, days, feedback, rng, report, ordinal, block_state,
+                    extra_gym=scenario.extra_gym if days else frozenset(),
                 )
             except Exception as exc:  # noqa: BLE001 -- keep going, report it
                 await session.rollback()
@@ -251,6 +274,8 @@ async def collect(session, user: User, result: YearResult, start_monday: date) -
             continue
         main = [block.exercise for block in plan.training_session.blocks if block.phase == TrainingPhase.MAIN]
         count = len(main)
+        if plan.is_extra:
+            result.main_counts_extra.append(count)
         tapering = is_tapering(plan.date, next((t for t in _tournament_dates(result.scenario, start_monday) if t >= plan.date), None))
         (result.main_counts_taper if tapering else result.main_counts).append(count)
         if count == 0:
@@ -364,6 +389,12 @@ def render(results: list[YearResult], start_monday: date) -> str:
             )
         if r.main_counts:
             out.append(f"- Упражнений основной части: мин {min(r.main_counts)}, макс {max(r.main_counts)}")
+        if r.main_counts_extra:
+            out.append(
+                f"- Двойные дни: {len(r.main_counts_extra)} доп. залов, упражнений основной части в среднем "
+                f"{mean(r.main_counts_extra):.1f} (мин {min(r.main_counts_extra)}, макс {max(r.main_counts_extra)}), "
+                f"пустых {sum(1 for c in r.main_counts_extra if c == 0)}"
+            )
         out.append(f"- Самые частые упражнения: " + ", ".join(f"{name} ×{count}" for name, count in r.top_exercises))
         if r.weight_track:
             (name, sessions), *points = r.weight_track
