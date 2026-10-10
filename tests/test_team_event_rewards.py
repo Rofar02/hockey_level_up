@@ -128,8 +128,13 @@ async def test_team_training_report_earns_team_xp_and_one_set_of_stats(db_sessio
     history = (await db_session.execute(select(StatHistory).where(StatHistory.user_id == player.id))).scalars().all()
     assert len(history) == 3  # the report's three stats, no separate team credit
 
-    # Re-submitting must not re-grant.
-    await diary.save_entry(player, session.id, "Отредактированная заметка", ICE_REPORT)
+    # A sent report is final (2026-10-10) -- re-submitting is refused and
+    # nothing is granted twice.
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        await diary.save_entry(player, session.id, "Отредактированная заметка", ICE_REPORT)
+    assert exc.value.status_code == 409
     await db_session.refresh(player)
     assert player.xp == TEAM_TRAINING_XP_BONUS
 

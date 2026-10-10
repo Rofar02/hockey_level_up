@@ -520,13 +520,7 @@ export function HomePage() {
               <DayClosedCard
                 day={today}
                 extra={todayExtra}
-                onReport={() =>
-                  navigate(
-                    today.session_type === 'on_ice' || today.session_type === 'game'
-                      ? `/training/${today.id}/diary`
-                      : `/training/${today.id}`,
-                  )
-                }
+                onReport={() => navigate(`/day-report/${today.date}`)}
               />
             ) : (
             <>
@@ -1241,7 +1235,6 @@ function DayClosedCard({ day, extra, onReport }: { day: DayPlanRead; extra: DayP
   const items = [day, ...(extra !== null ? [extra] : [])].sort((a, b) =>
     a.time_of_day === 'morning' ? -1 : b.time_of_day === 'morning' ? 1 : 0,
   )
-  const isIceLike = day.session_type === 'on_ice' || day.session_type === 'game'
   return (
     <div className={`relative overflow-hidden p-5 ${CARD_CLASS}`}>
       <CardGlow />
@@ -1273,7 +1266,8 @@ function DayClosedCard({ day, extra, onReport }: { day: DayPlanRead; extra: DayP
           ))}
         </div>
         <Button variant="neutral" onClick={onReport} className="w-full">
-          {isIceLike ? 'Как прошёл день — отчёт' : 'Как прошёл день'}
+          Как прошёл день
+
         </Button>
       </div>
     </div>

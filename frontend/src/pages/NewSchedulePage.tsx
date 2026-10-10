@@ -829,7 +829,7 @@ export function NewSchedulePage() {
 // segmented control per day.
 const EDIT_TYPE_ORDER: DaySessionType[] = ['on_ice', 'off_ice', 'game', 'rest']
 const EDIT_TYPE_ACTIVE_CLASSES: Record<DaySessionType, string> = {
-  on_ice: 'bg-accent-ice/15 font-semibold text-accent-ice',
+  on_ice: 'bg-accent-ice/25 font-semibold text-accent-ice ring-1 ring-inset ring-accent-ice/40',
   off_ice: 'bg-white/10 font-semibold text-text-primary',
   game: 'bg-accent-persimmon/15 font-semibold text-accent-persimmon',
   rest: 'bg-white/[0.06] font-semibold text-text-primary',
@@ -841,11 +841,13 @@ function SecondTrainingPicker({
   value,
   activeClass,
   onSelect,
+  noneLabel = 'Нет',
 }: {
   label: string
   value: ExtraGymTime | null
   activeClass: string
   onSelect: (time: ExtraGymTime | null) => void
+  noneLabel?: string
 }) {
   return (
     <div className="flex items-center gap-1.5 pl-[50px]">
@@ -862,7 +864,7 @@ function SecondTrainingPicker({
               : 'border-white/10 font-medium text-text-secondary hover:border-white/30 hover:text-text-primary'
           }`}
         >
-          {option === null ? 'Нет' : option === 'morning' ? 'Утром' : 'Вечером'}
+          {option === null ? noneLabel : option === 'morning' ? 'Утром' : 'Вечером'}
         </button>
       ))}
     </div>
@@ -894,7 +896,8 @@ function EditableDayRow({
   onSelectExtra: (extra: ExtraGymTime | null) => void
   onAddIce: (iceTime: ExtraGymTime) => void
 }) {
-  const canAddGym = doubleDays && !isStarted(row) && !isPast && EXTRA_CAPABLE.includes(row.sessionType)
+  const isDouble = extraGymFor(row) !== null
+  const canAddGym = doubleDays && !isStarted(row) && !isPast && EXTRA_CAPABLE.includes(row.sessionType) && !isDouble
   const canAddIce = doubleDays && !isStarted(row) && !isPast && row.sessionType === 'off_ice'
   const isLocked = isStarted(row) || isPast
 
@@ -934,9 +937,12 @@ function EditableDayRow({
               key={option}
               type="button"
               onClick={() => onSelectType(option)}
-              aria-pressed={row.sessionType === option}
+              aria-pressed={row.sessionType === option || (isDouble && option === 'off_ice')}
               className={`flex min-h-9 items-center justify-center gap-1 rounded-md text-xs transition-colors ${
-                row.sessionType === option
+                // A double day lights both its types -- whichever side it
+                // was built from (2026-10-10: "+ лёд" on a gym day used to
+                // look like the gym had turned into ice).
+                row.sessionType === option || (isDouble && option === 'off_ice')
                   ? EDIT_TYPE_ACTIVE_CLASSES[option]
                   : 'font-medium text-text-secondary hover:text-text-primary'
               }`}
@@ -947,9 +953,25 @@ function EditableDayRow({
           ))}
         </div>
       </div>
+      {isDouble && (
+        <>
+          <SecondTrainingPicker
+            label="Сухая:"
+            value={row.extraGym}
+            activeClass="border-white/50 bg-white/10 text-text-primary"
+            onSelect={onSelectExtra}
+            noneLabel="Убрать"
+          />
+          <p className="pl-[50px] text-[11px] text-text-secondary">
+            {row.extraGym === 'morning'
+              ? `Утро — сухая, вечер — ${row.sessionType === 'game' ? 'игра' : 'лёд'}`
+              : `Утро — ${row.sessionType === 'game' ? 'игра' : 'лёд'}, вечер — сухая`}
+          </p>
+        </>
+      )}
       {canAddGym && (
         <SecondTrainingPicker
-          label="+ зал"
+          label="+ сухая"
           value={row.extraGym}
           activeClass="border-white/50 bg-white/10 text-text-primary"
           onSelect={onSelectExtra}

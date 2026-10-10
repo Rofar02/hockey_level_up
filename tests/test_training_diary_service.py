@@ -301,11 +301,14 @@ async def test_ice_report_credits_stats_and_xp_once(db_session) -> None:
     await db_session.refresh(user)
     assert user.xp == REPORT_XP[DaySessionType.ON_ICE]
 
-    # Re-submitting or editing the note never credits again.
-    third = await service.save_entry(user, training_session.id, "Хорошо покатался!", ICE_REPORT)
-    fourth = await service.save_entry(user, training_session.id, "Хорошо покатался!!")
-    assert third.stat_rewards == {} and third.xp_reward == 0 and third.rewarded is True
-    assert fourth.rewarded is True and fourth.duration_minutes == 60  # a note-only save keeps the report
+    # A sent report is final (2026-10-10): neither the report nor the note
+    # can be changed afterwards, and nothing is credited twice.
+    from fastapi import HTTPException
+
+    for note, report in (("Хорошо покатался!", ICE_REPORT), ("Хорошо покатался!!", None)):
+        with pytest.raises(HTTPException) as exc:
+            await service.save_entry(user, training_session.id, note, report)
+        assert exc.value.status_code == 409
     assert await _stats(db_session, user) == DIARY_STAT_REWARDS[DaySessionType.ON_ICE]
     await db_session.refresh(user)
     assert user.xp == REPORT_XP[DaySessionType.ON_ICE]
