@@ -17,7 +17,7 @@ export function FullScreenOverlay({ className = '', children }: { className?: st
   useSuppressCoachmarks(true)
 
   return createPortal(
-    <div className={`fixed inset-0 z-50 overscroll-contain ${className}`}>{children}</div>,
+    <div className={`fixed inset-0 z-50 overscroll-none ${className}`}>{children}</div>,
     document.body,
   )
 }

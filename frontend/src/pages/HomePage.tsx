@@ -392,6 +392,16 @@ export function HomePage() {
   const selectedStat =
     selectedStatType !== null ? (stats?.find((stat) => stat.stat_type === selectedStatType) ?? null) : null
 
+  // Every training of the day done (2026-10-10): the day closes into one
+  // card with "как прошёл день" -- never "начать" again after the report.
+  // A team day keeps its own TeamDayCard.
+  const dayClosed =
+    today !== null &&
+    today.team_event_id === null &&
+    today.training_session !== null &&
+    isMainDayDone(today) &&
+    (todayExtra === null || isSessionDayCompleted(todayExtra))
+
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
@@ -506,6 +516,20 @@ export function HomePage() {
             {/* Premium: the coach's Monday review of last week, until closed. */}
             <WeeklyReviewCard />
 
+            {dayClosed && today !== null ? (
+              <DayClosedCard
+                day={today}
+                extra={todayExtra}
+                onReport={() =>
+                  navigate(
+                    today.session_type === 'on_ice' || today.session_type === 'game'
+                      ? `/training/${today.id}/diary`
+                      : `/training/${today.id}`,
+                  )
+                }
+              />
+            ) : (
+            <>
             {todayExtra !== null && todayExtra.time_of_day === 'morning' && (
               <ExtraGymTodayCard day={todayExtra} onStart={() => navigate(`/training/${todayExtra.id}`)} />
             )}
@@ -537,6 +561,8 @@ export function HomePage() {
 
             {todayExtra !== null && todayExtra.time_of_day !== 'morning' && (
               <ExtraGymTodayCard day={todayExtra} onStart={() => navigate(`/training/${todayExtra.id}`)} />
+            )}
+            </>
             )}
 
             <NextWeekPlanCard onPlan={() => navigate('/schedule/new?week=next')} />
@@ -596,9 +622,25 @@ export function HomePage() {
 // here.
 function todayCardStartLabels(sessionType: DaySessionType): { start: string; resume: string } {
   if (sessionType === 'game') {
-    return { start: 'Начать подготовку', resume: 'Продолжить подготовку' }
+    return { start: 'Подготовка к игре', resume: 'Продолжить подготовку' }
+  }
+  if (sessionType === 'on_ice') {
+    return { start: 'Подготовка ко льду', resume: 'Продолжить подготовку' }
   }
   return { start: 'Начать тренировку', resume: 'Продолжить тренировку' }
+}
+
+// The day's main part is done: an ice day or a game once its report is in
+// (the report is what the day is -- the preparation is optional, owner's
+// call 2026-10-10), a gym day once every exercise is.
+function isMainDayDone(day: DayPlanRead): boolean {
+  if (day.training_session === null) {
+    return false
+  }
+  if (day.session_type === 'on_ice' || day.session_type === 'game') {
+    return day.training_session.has_diary_entry === true
+  }
+  return isSessionDayCompleted(day)
 }
 
 function TodayCard({
@@ -660,7 +702,10 @@ function TodayCard({
     )
   }
 
-  const blocksDone = isSessionDayCompleted(day)
+  const isIceLike = day.session_type === 'on_ice' || day.session_type === 'game'
+  const reported = day.training_session.has_diary_entry === true
+  // An ice/game day is done once its report is in, preparation or not.
+  const blocksDone = isSessionDayCompleted(day) || (isIceLike && reported)
   const started = !blocksDone && isSessionDayStarted(day)
   // has_diary_entry is null for off_ice/rest (no diary step at all) --
   // only game/on_ice ever reach "blocksDone but still awaiting the
@@ -1190,6 +1235,51 @@ function DayDetailSession({
   )
 }
 
+// All of today's trainings are done (2026-10-10): what was done and a way
+// to the day's report.
+function DayClosedCard({ day, extra, onReport }: { day: DayPlanRead; extra: DayPlanRead | null; onReport: () => void }) {
+  const items = [day, ...(extra !== null ? [extra] : [])].sort((a, b) =>
+    a.time_of_day === 'morning' ? -1 : b.time_of_day === 'morning' ? 1 : 0,
+  )
+  const isIceLike = day.session_type === 'on_ice' || day.session_type === 'game'
+  return (
+    <div className={`relative overflow-hidden p-5 ${CARD_CLASS}`}>
+      <CardGlow />
+      <div className="relative flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs uppercase tracking-wide text-[#8A94A6]">
+            {WEEKDAY_LABELS[(parseIsoDate(day.date).getDay() + 6) % 7]} · день закрыт
+          </p>
+          <span className="flex items-center gap-1 rounded-full bg-accent-ice/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-ice">
+            <i className="ti ti-check" aria-hidden="true" />
+            Выполнено
+          </span>
+        </div>
+        <p className="text-xl font-bold text-[#F5F7FA]">Все тренировки дня сделаны</p>
+        <div className="flex flex-col divide-y divide-white/5">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <span className="flex items-center gap-2 text-[#F5F7FA]">
+                <i className={`ti ${SESSION_TYPE_ICONS[item.session_type]} ${SESSION_TYPE_COLORS[item.session_type]}`} aria-hidden="true" />
+                {DAY_SESSION_TYPE_LABELS[item.session_type]}
+                {item.time_of_day !== null && item.time_of_day !== undefined && (
+                  <span className="text-xs text-[#8A94A6]">· {item.time_of_day === 'morning' ? 'утро' : 'вечер'}</span>
+                )}
+              </span>
+              <span className="text-xs text-[#8A94A6]">
+                {item.session_type === 'on_ice' || item.session_type === 'game' ? 'отчёт отправлен' : 'пройдено'}
+              </span>
+            </div>
+          ))}
+        </div>
+        <Button variant="neutral" onClick={onReport} className="w-full">
+          {isIceLike ? 'Как прошёл день — отчёт' : 'Как прошёл день'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // Double day (step 6): the day's separate gym training, above the ice when
 // it's in the morning, below when in the evening.
 function ExtraGymTodayCard({ day, onStart }: { day: DayPlanRead; onStart: () => void }) {
@@ -1204,7 +1294,7 @@ function ExtraGymTodayCard({ day, onStart }: { day: DayPlanRead; onStart: () => 
           {day.time_of_day === 'morning' ? 'Утро' : 'Вечер'} · зал
         </span>
         <span className="text-sm font-semibold text-[#F5F7FA]">
-          {done ? 'Зал пройден' : `${blocks.length} упражнений · ноги лёгкие`}
+          {done ? 'Зал пройден' : `${blocks.length} упражнений`}
         </span>
       </div>
       {!done && (

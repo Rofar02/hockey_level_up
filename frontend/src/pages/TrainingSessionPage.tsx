@@ -13,6 +13,8 @@ import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { StatIcon } from '../components/ui/StatIcon'
 import { ExerciseFocusScreen } from '../components/ExerciseFocusScreen'
+import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
+import { IceFocusCard } from '../components/IceFocusCard'
 import { ExerciseMediaPrefetch } from '../components/ExerciseMediaPrefetch'
 import * as authApi from '../api/auth'
 import * as progressApi from '../api/progress'
@@ -250,6 +252,9 @@ export function TrainingSessionPage() {
   // «Начать тренировку» tapped on the day's overview (2026-10-10 redesign):
   // before that, a day with nothing done yet shows the overview.
   const [startedHere, setStartedHere] = useState(false)
+  // Ice / game days (2026-10-10): a preparation list, no player -- an
+  // exercise opens its technique in a modal.
+  const [peekExercise, setPeekExercise] = useState<ExerciseRead | null>(null)
   // A training still ahead (owner's call, 2026-10-10): open to look at,
   // started only on its own day -- the backend refuses anything else.
   const isAhead = day !== null && day.date > toIsoDate(new Date())
@@ -688,6 +693,10 @@ export function TrainingSessionPage() {
   // The day's overview until the workout starts: nothing done yet and
   // «Начать тренировку» not tapped -- a day ahead always shows it.
   const showOverview = (!startedHere && doneCount === 0) || isAhead
+  // Ice and games: the day is the ice itself -- the app only has the
+  // preparation around it and the report after it (owner's call,
+  // 2026-10-10), so no overview / player flow.
+  const isIceLike = day !== null && (day.session_type === 'on_ice' || day.session_type === 'game')
   // Clamped defensively -- activePhases is recomputed fresh every render
   // while currentPhaseIndex persists across renders, so this only matters
   // if the two were ever momentarily out of step.
@@ -980,7 +989,83 @@ export function TrainingSessionPage() {
         </div>
       )}
 
-      {showOverview ? (
+      {isIceLike && day !== null ? (
+        <>
+          {day.session_type === 'on_ice' && trainingSessionId !== null && (
+            <IceFocusCard trainingSessionId={trainingSessionId} />
+          )}
+          {activePhases.map((phase) => (
+            <div key={phase} className={`flex flex-col gap-2 p-3 ${CARD_CLASS}`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <i className={`ti ${PHASE_ICONS[phase]} text-accent-ice`} aria-hidden="true" />
+                  {phase === 'warmup'
+                    ? day.session_type === 'game'
+                      ? 'Активация перед игрой'
+                      : 'Подготовка перед льдом'
+                    : phase === 'cooldown'
+                      ? 'Заминка после льда'
+                      : PHASE_LABELS[phase]}
+                </span>
+                <span className="font-mono text-[11px] text-text-secondary">
+                  {blocksByPhase[phase].filter((block) => isExerciseDone(block, setCompletionCounts)).length} из{' '}
+                  {blocksByPhase[phase].length}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                {blocksByPhase[phase].map((block) => (
+                  <ExerciseRow
+                    key={block.id}
+                    block={block}
+                    isCurrent={false}
+                    isDone={isExerciseDone(block, setCompletionCounts)}
+                    pending={pendingIds.has(block.id)}
+                    onComplete={() => handleComplete(block)}
+                    feedback={feedbackByBlockId[block.id]}
+                    onFeedbackDone={() => removeFeedback(block.id)}
+                    onOpenDetail={() => setPeekExercise(block.exercise)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div aria-hidden="true" style={{ height: footerHeight }} />
+          <div
+            ref={setFooterNode}
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+          >
+            <div className="mx-auto max-w-2xl">
+              {isAhead ? (
+                <Button disabled className="w-full">
+                  Начнётся {formatShortDate(parseIsoDate(day.date))}
+                </Button>
+              ) : (
+                <Button
+                  variant={day.training_session?.has_diary_entry === true ? 'neutral' : undefined}
+                  onClick={() => navigate(`/training/${day.id}/diary`)}
+                  className="w-full"
+                >
+                  {day.training_session?.has_diary_entry === true
+                    ? 'Отчёт отправлен — открыть'
+                    : day.session_type === 'game'
+                      ? 'Как сыграли?'
+                      : 'Отчёт после льда'}
+                </Button>
+              )}
+            </div>
+          </div>
+          {peekExercise !== null && trainingSessionId !== null && accessToken !== null && (
+            <ExerciseDetailModal
+              exercise={peekExercise}
+              trainingSessionId={trainingSessionId}
+              accessToken={accessToken}
+              onClose={() => setPeekExercise(null)}
+              readOnly
+            />
+          )}
+        </>
+      ) : showOverview ? (
         <>
           <div className="flex flex-col gap-2.5">
             {activePhases.map((phase, index) => {
@@ -1002,8 +1087,7 @@ export function TrainingSessionPage() {
                       {phaseBlocks.length} {pluralizeExercises(phaseBlocks.length)}
                     </span>
                   </div>
-                  {phase === 'main' ? (
-                    <div className="flex flex-col">
+                  <div className="flex flex-col">
                       {phaseBlocks.map((block) => (
                         <button
                           key={block.id}
@@ -1026,12 +1110,7 @@ export function TrainingSessionPage() {
                           </span>
                         </button>
                       ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs leading-relaxed text-text-secondary">
-                      {phaseBlocks.map((block) => block.exercise.name).join(' · ')}
-                    </p>
-                  )}
+                  </div>
                 </div>
               )
             })}
@@ -1255,7 +1334,7 @@ export function TrainingSessionPage() {
               ))}
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
             <div className="mx-auto w-full max-w-2xl px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
                 <ExerciseFocusScreen
                   inPlayer
