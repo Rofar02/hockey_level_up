@@ -116,3 +116,55 @@ async def test_day_lookup_by_date_returns_the_main_day(db_session, builds, monke
     day = await service.get_day_plan_for_date(user, MONDAY)
 
     assert day.session_type == ICE and day.is_extra is False
+
+
+@pytest.mark.asyncio
+async def test_adding_the_extra_gym_leaves_the_day_itself_alone(db_session, builds, monkeypatch) -> None:
+    """Only "+ зал" changed: the ice day keeps its session and its team
+    event link (2026-10-10, found on the demo -- it used to be rebuilt and
+    unlinked from the team training)."""
+    monkeypatch.setattr(config.get_settings(), "double_days_enabled", True)
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    service = ScheduleService(db_session)
+    plan = await service.create_weekly_plan(user, WeeklyPlanCreate(days=_days({})))
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.models.schedule import DayPlan
+
+    def main_day():
+        return (
+            select(DayPlan)
+            .where(DayPlan.weekly_plan_id == plan.id, DayPlan.date == MONDAY, DayPlan.is_extra.is_(False))
+            .options(selectinload(DayPlan.training_session))
+            .execution_options(populate_existing=True)
+        )
+
+    monday = await db_session.scalar(main_day())
+    session_before = monday.training_session.id
+    from datetime import datetime, time, timezone
+
+    from app.models.team_event import TeamEventType
+    from app.services.team_event_service import TeamEventService
+    from app.services.team_service import TeamService
+
+    team = await TeamService(db_session).create_team(user, "Двойные")
+    event = await TeamEventService(db_session).create_event(
+        user, team.id, TeamEventType.TRAINING, datetime.combine(MONDAY, time(19), tzinfo=timezone.utc), None
+    )
+    team_event_id = event.id
+    monday.team_event_id = team_event_id
+    await db_session.flush()
+
+    result = await service.patch_weekly_plan(
+        user, WeeklyPlanPatch(days=[DayPlanIn(date=MONDAY, session_type=ICE, extra_gym="evening")]), MONDAY
+    )
+
+    assert result.conflicts == []
+    monday = await db_session.scalar(main_day())
+    assert monday.training_session.id == session_before
+    assert monday.team_event_id == team_event_id
+    extras = [d for d in result.weekly_plan.day_plans if d.is_extra]
+    assert [(d.date, d.time_of_day) for d in extras] == [(MONDAY, "evening")]

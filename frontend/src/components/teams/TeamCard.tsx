@@ -80,7 +80,7 @@ export function TeamCard({ card }: { card: TeamCardRead }) {
           {card.league_place !== null && (
             <>
               <span data-card-text className="mt-1 font-display text-[17px] font-semibold tracking-wider text-text-primary">
-                #{card.league_place} В ЛИГЕ
+                #{card.league_place} {card.division_name ? 'В ДИВИЗИОНЕ' : 'В ЛИГЕ'}
               </span>
               <span data-card-text className="text-[10px] tracking-wider text-text-secondary">
                 из {card.league_team_count} в городе

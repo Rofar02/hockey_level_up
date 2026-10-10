@@ -134,13 +134,15 @@ async def test_other_league_names_grouped_case_insensitively(db_session) -> None
 
 
 @pytest.mark.asyncio
-async def test_league_place_needs_three_teams_in_same_league_and_city(db_session) -> None:
+async def test_league_place_needs_three_teams_in_same_league_division_and_city(db_session) -> None:
     city = f"Город-{uuid.uuid4().hex[:6]}"
     service = TeamService(db_session)
-    first_id = await _create(db_session, "First", xp=300, city=city, league_code="nhl")
-    await _create(db_session, "Second", xp=200, city=city.lower(), league_code="nhl")
+    first_id = await _create(db_session, "First", xp=300, city=city, league_code="nhl", division_code="hope")
+    await _create(db_session, "Second", xp=200, city=city.lower(), league_code="nhl", division_code="hope")
     # Same city, different league -- doesn't count.
     await _create(db_session, "Students", xp=999, city=city, league_code="shl")
+    # Same league and city, another division -- its own level, doesn't count.
+    await _create(db_session, "Dreamers", xp=999, city=city, league_code="nhl", division_code="dream")
 
     first = await service._get_team_or_404(first_id)
     score = await TeamRatingService(db_session).compute_team_score(first)

@@ -391,7 +391,8 @@ export function TeamDetailPage() {
               </span>
               {teamScore.league_place != null && teamScore.league_team_count != null && (
                 <span className="relative text-xs font-medium text-[#F5F7FA]">
-                  {teamScore.league_place} место из {teamScore.league_team_count} в лиге и городе
+                  {teamScore.league_place} место из {teamScore.league_team_count} в{' '}
+                  {team.division_name ? 'дивизионе' : 'лиге'} и городе
                 </span>
               )}
               {teamScore.member_count < MIN_MEMBERS_FOR_TEAM_RANKING && (

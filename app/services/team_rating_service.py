@@ -48,11 +48,11 @@ class TeamRatingService:
         return score
 
     async def _league_place(self, team: Team, own_score: float) -> tuple[int, int] | None:
-        """(place, team count) among teams of the same league in the same
-        city, by the same team_score -- None below MIN_TEAMS_FOR_LEAGUE_RANK.
+        """(place, team count) among teams of the same league and division
+        in the same city, by the same team_score -- None below MIN_TEAMS_FOR_LEAGUE_RANK.
         No member-count floor here, unlike the cross-team leaderboard: an
         amateur team rarely has 8 players in the app."""
-        key = ranking_group_key(team.league_code, team.league_other_name, team.city)
+        key = ranking_group_key(team.league_code, team.league_other_name, team.city, team.division_code)
         if key is None:
             return None
         candidates = await TeamRepository(self._session).list_teams_in_league_with_city(team.league_code)
@@ -60,7 +60,7 @@ class TeamRatingService:
             other.id
             for other in candidates
             if other.id != team.id
-            and ranking_group_key(other.league_code, other.league_other_name, other.city) == key
+            and ranking_group_key(other.league_code, other.league_other_name, other.city, other.division_code) == key
         ]
         if len(rival_ids) + 1 < MIN_TEAMS_FOR_LEAGUE_RANK:
             return None

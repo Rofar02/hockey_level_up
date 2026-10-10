@@ -414,6 +414,14 @@ export function NewSchedulePage() {
       setEditSnapshot(null)
       return
     }
+    // Only "Ещё и зал" changed: the days themselves are kept as they are
+    // (the backend leaves a day of the same type alone), nothing to warn
+    // about.
+    const retyped = changed.filter((row) => editSnapshot.get(row.isoDate)?.sessionType !== row.sessionType)
+    if (retyped.length === 0) {
+      void performSaveChanges(changed)
+      return
+    }
     // Edit mode only exists for an already-generated week (weekStatus ===
     // 'view'), so every changed row necessarily already has a
     // trainingSession -- unlike the pre-tabs version of this page, there's
@@ -744,7 +752,9 @@ export function NewSchedulePage() {
                 текущий набор упражнений — заменён:
               </p>
               <ul className="flex flex-col gap-1 text-sm text-[#F5F7FA]">
-                {pendingRegeneration.map((row) => (
+                {pendingRegeneration
+                  .filter((row) => editSnapshot?.get(row.isoDate)?.sessionType !== row.sessionType)
+                  .map((row) => (
                   <li key={row.isoDate}>
                     {formatShortDate(row.date)} — {DAY_SESSION_TYPE_LABELS[row.sessionType]}
                   </li>

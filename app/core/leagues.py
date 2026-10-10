@@ -75,12 +75,15 @@ def normalize_text(value: str | None) -> str | None:
     return collapsed or None
 
 
-def ranking_group_key(league_code: str, other_name: str | None, city: str | None) -> tuple[str, str, str] | None:
-    """Teams compete for a place only with teams of the same league in the
-    same city, compared case-insensitively ("москва" == "Москва") -- done
-    in Python, not SQL lower(), which depends on the database collation for
-    Cyrillic. No city -> no place at all."""
+def ranking_group_key(
+    league_code: str, other_name: str | None, city: str | None, division_code: str | None = None
+) -> tuple[str, str, str, str] | None:
+    """Teams compete for a place only with teams of the same league and the
+    same division (a division is its own level -- owner's call 2026-10-10)
+    in the same city, compared case-insensitively ("москва" == "Москва") --
+    done in Python, not SQL lower(), which depends on the database
+    collation for Cyrillic. No city -> no place at all."""
     if city is None:
         return None
     other = (other_name or "").casefold() if league_code == LEAGUE_OTHER else ""
-    return (league_code, other, city.casefold())
+    return (league_code, other, division_code or "", city.casefold())

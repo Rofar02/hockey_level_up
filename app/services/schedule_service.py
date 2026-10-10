@@ -562,6 +562,14 @@ class ScheduleService:
                 continue
 
             day_plan = day_plans_by_date.get(day_in.date)
+            if day_plan is not None and day_plan.session_type == day_in.session_type:
+                # Only "+ зал" changed (step 6): the day itself -- its
+                # session, its team event, its ice charge -- stays as it is.
+                await self._sync_extra_gym_day(
+                    weekly_plan, day_plan, self._extra_gym_time(day_in, day_in.session_type),
+                    user, block_phase, training_block, archetype_rotation,
+                )
+                continue
             if day_plan is None or self._has_completed_block(day_plan):
                 conflicts.append(
                     ScheduleConflictRead(
