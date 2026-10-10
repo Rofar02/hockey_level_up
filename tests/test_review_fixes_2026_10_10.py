@@ -618,3 +618,39 @@ async def test_a_cancelled_event_takes_no_marks_and_no_lineup_edits(db_session) 
         with pytest.raises(HTTPException) as exc:
             await attempt
         assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_a_training_ahead_can_be_looked_at_not_started(db_session) -> None:
+    """Owner's call (2026-10-10): the next day's training can be opened,
+    not ticked off."""
+    from app.models.exercise import Exercise, ExerciseCategory, TrainingPhase
+    from app.models.schedule import SessionBlock
+    from app.services.session_block_service import SessionBlockService
+    from app.services.set_completion_service import SetCompletionService
+
+    user = _make_user()
+    db_session.add(user)
+    exercise = Exercise(
+        id=uuid.uuid4(), name=f"rv ahead {uuid.uuid4().hex[:6]}", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.WARMUP, difficulty_level=1,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+    tomorrow = utc_today() + timedelta(days=1)
+    block = SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.WARMUP, exercise_id=exercise.id, order=0)
+    session = TrainingSession(id=uuid.uuid4(), blocks=[block])
+    day = DayPlan(id=uuid.uuid4(), date=tomorrow, session_type=GYM, training_session=session)
+    db_session.add(WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=tomorrow - timedelta(days=tomorrow.weekday()), day_plans=[day]))
+    await db_session.flush()
+
+    for attempt in (
+        SessionBlockService(db_session).complete_block(block.id, user),
+        SessionBlockService(db_session).skip_block(block.id, user),
+        SetCompletionService(db_session).save_set(user, exercise.id, session.id, 1, None, 10, None),
+    ):
+        with pytest.raises(HTTPException) as exc:
+            await attempt
+        assert exc.value.status_code == 409
+    # Looking is fine.
+    assert await SetCompletionService(db_session).list_sets(user, exercise.id, session.id) == []

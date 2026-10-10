@@ -33,6 +33,16 @@ from tests.dates import utc_today
 TOMORROW = utc_today() + timedelta(days=1)
 
 
+@pytest.fixture(autouse=True)
+def the_party_day_has_come(monkeypatch):
+    """A party is planned for tomorrow and trained on that day -- since
+    2026-10-10 a session can't be ticked off before its day
+    (app.core.training_day), so these tests live on the party's day."""
+    from app.core import training_day
+
+    monkeypatch.setattr(training_day, "user_today", lambda user: TOMORROW)
+
+
 def _make_user(**overrides) -> User:
     unique = uuid.uuid4().hex[:8]
     defaults = dict(

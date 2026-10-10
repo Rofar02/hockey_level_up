@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.training_day import require_day_started
 from app.models.exercise import TrainingPhase
 from app.models.schedule import SessionBlock
 from app.models.user import User
@@ -37,6 +38,7 @@ class SessionBlockService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session block not found"
             )
+        require_day_started(block.session.day_plan.date, user)
 
         if block.completed_at is not None:
             raise HTTPException(
@@ -99,6 +101,7 @@ class SessionBlockService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session block not found"
             )
+        require_day_started(block.session.day_plan.date, user)
 
         # Server-side enforcement of the warmup/cooldown-only rule (media-
         # player redesign, 2026-08-28) -- MAIN work must always be logged for

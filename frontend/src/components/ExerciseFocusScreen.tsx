@@ -28,6 +28,7 @@ export function ExerciseFocusScreen({
   accessToken,
   onBack,
   onComplete,
+  readOnly = false,
   onSettled,
   nextExercise,
   blockId,
@@ -66,6 +67,9 @@ export function ExerciseFocusScreen({
   // every set is logged) and would cut off SetLogger's own reconciling
   // effect that depends on this callback still being defined at that point.
   onComplete?: () => void
+  // A training still ahead (2026-10-10): the exercise can be looked at --
+  // video, technique -- not done.
+  readOnly?: boolean
   // Fires once feedback is answered -- TrainingSessionPage uses this to
   // auto-advance to the next not-yet-done exercise in the phase without
   // returning to the list (icelevel_player_master_prompt.md, 2026-08-28).
@@ -165,8 +169,9 @@ export function ExerciseFocusScreen({
         nextExercise={nextExercise}
         blockId={blockId}
         onReplaced={onReplaced}
-        onSkip={canSkip ? onSkip : undefined}
+        onSkip={canSkip && !readOnly ? onSkip : undefined}
         variant="focus"
+        readOnly={readOnly}
       />
     </div>
   )

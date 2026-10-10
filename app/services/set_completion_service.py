@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.training_day import require_day_started
 from app.models.exercise import Exercise
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import User
@@ -29,13 +30,15 @@ class SetCompletionService:
         self._weight_suggestion = WeightSuggestionService(session)
 
     async def _get_owned_exercise_in_session(
-        self, user: User, training_session_id: uuid.UUID, exercise_id: uuid.UUID
+        self, user: User, training_session_id: uuid.UUID, exercise_id: uuid.UUID, *, for_write: bool = True
     ) -> Exercise:
         training_session = await self._schedule.get_training_session_with_owner(training_session_id)
         if training_session is None or training_session.day_plan.weekly_plan.user_id != user.id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Training session not found"
             )
+        if for_write:
+            require_day_started(training_session.day_plan.date, user)
         if not any(block.exercise_id == exercise_id for block in training_session.blocks):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -125,7 +128,7 @@ class SetCompletionService:
     async def list_sets(
         self, user: User, exercise_id: uuid.UUID, training_session_id: uuid.UUID
     ) -> list[SetCompletion]:
-        await self._get_owned_exercise_in_session(user, training_session_id, exercise_id)
+        await self._get_owned_exercise_in_session(user, training_session_id, exercise_id, for_write=False)
         return await self._sets.list_for_session_exercise(training_session_id, exercise_id)
 
     async def save_feedback(

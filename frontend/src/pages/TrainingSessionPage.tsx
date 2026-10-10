@@ -34,7 +34,7 @@ import type { SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
 import { lockBodyScroll, unlockBodyScroll } from '../utils/bodyScrollLock'
-import { WEEKDAY_LABELS, parseIsoDate, toIsoDate } from '../utils/date'
+import { WEEKDAY_LABELS, formatShortDate, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -224,6 +224,9 @@ export function TrainingSessionPage() {
   const navigate = useNavigate()
 
   const [day, setDay] = useState<DayPlanRead | null>(null)
+  // A training still ahead (owner's call, 2026-10-10): open to look at,
+  // started only on its own day -- the backend refuses anything else.
+  const isAhead = day !== null && day.date > toIsoDate(new Date())
   const [blocks, setBlocks] = useState<SessionBlockRead[] | null>(null)
   const [trainingSessionId, setTrainingSessionId] = useState<string | null>(null)
   const [trainingBlock, setTrainingBlock] = useState<TrainingBlockRead | null>(null)
@@ -458,6 +461,9 @@ export function TrainingSessionPage() {
   }
 
   async function handleComplete(block: SessionBlockRead) {
+    if (isAhead) {
+      return
+    }
     if (
       accessToken === null ||
       block.completed_at !== null ||
@@ -516,6 +522,9 @@ export function TrainingSessionPage() {
   // (no feedback prompt for a skip) -- advance to the next not-done block
   // immediately via handleExerciseSettled's own lookup instead.
   async function handleSkip(block: SessionBlockRead) {
+    if (isAhead) {
+      return
+    }
     if (
       accessToken === null ||
       block.completed_at !== null ||
@@ -812,6 +821,16 @@ export function TrainingSessionPage() {
         </div>
       </div>
 
+      {isAhead && day !== null && (
+        <div className={`flex items-center gap-3 p-4 ${CARD_CLASS}`}>
+          <i className="ti ti-calendar-time text-xl text-accent-ice" aria-hidden="true" />
+          <p className="text-sm text-text-secondary">
+            Тренировка на {formatShortDate(parseIsoDate(day.date))} — начнётся в этот день. Пока можно посмотреть
+            упражнения и технику.
+          </p>
+        </div>
+      )}
+
       <div className={`flex flex-col gap-4 p-4 ${CARD_CLASS}`}>
         <div className="flex items-end justify-between">
           <div>
@@ -901,15 +920,16 @@ export function TrainingSessionPage() {
                   block={selectedBlock}
                   position={orderedBlocks.findIndex((block) => block.id === selectedBlock.id) + 1}
                   totalCount={orderedBlocks.length}
-                  elapsedSeconds={sessionElapsedSeconds}
+                  elapsedSeconds={isAhead ? null : sessionElapsedSeconds}
                   phaseLabel={PHASE_LABELS[currentPhase]}
                   phaseIcon={PHASE_ICONS[currentPhase]}
                   skills={skills}
                   trainingSessionId={trainingSessionId}
                   accessToken={accessToken}
                   onBack={handleCloseExerciseDetail}
+                  readOnly={isAhead}
                   onComplete={
-                    selectedBlock.completed_at === null && selectedBlock.skipped_at === null
+                    !isAhead && selectedBlock.completed_at === null && selectedBlock.skipped_at === null
                       ? () => handleComplete(selectedBlock)
                       : undefined
                   }
@@ -975,14 +995,16 @@ export function TrainingSessionPage() {
             style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
           >
             <div className="mx-auto max-w-2xl">
-              <Button onClick={handleFinishPhase} disabled={!canFinishPhase} className="w-full">
-                {isRevisitingCompletedSession
-                  ? 'На главную'
-                  : isLastPhase
-                    ? 'Завершить тренировку'
-                    : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
+              <Button onClick={handleFinishPhase} disabled={!canFinishPhase || isAhead} className="w-full">
+                {isAhead && day !== null
+                  ? `Начнётся ${formatShortDate(parseIsoDate(day.date))}`
+                  : isRevisitingCompletedSession
+                    ? 'На главную'
+                    : isLastPhase
+                      ? 'Завершить тренировку'
+                      : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
               </Button>
-              {!canFinishPhase && (
+              {!canFinishPhase && !isAhead && (
                 <p className="mt-2 text-center text-xs text-text-secondary">
                   Осталось {currentPhaseTotal - currentPhaseDoneCount}{' '}
                   {pluralizeExercises(currentPhaseTotal - currentPhaseDoneCount)}
