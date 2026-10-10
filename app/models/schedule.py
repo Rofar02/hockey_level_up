@@ -176,6 +176,10 @@ class DayPlan(Base):
     report_reminder_sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # The next morning's second ask, still without a report (2026-10-10).
+    report_followup_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Set while a TeamEvent the user marked "going" has taken this day over
     # (TRAINING -> ON_ICE, GAME -> GAME), see
     # ScheduleService.apply_team_event_to_day. replaced_session_type is what

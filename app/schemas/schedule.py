@@ -18,6 +18,15 @@ class DayPlanIn(BaseModel):
     extra_gym: Literal["morning", "evening"] | None = None
 
 
+class PendingReportRead(BaseModel):
+    """An ice day or a game that's over without a report (2026-10-10)."""
+
+    day_plan_id: uuid.UUID
+    date: date
+    session_type: DaySessionType
+    team_event_id: uuid.UUID | None = None
+
+
 class WeeklyPlanCreate(BaseModel):
     days: list[DayPlanIn] = Field(min_length=7, max_length=7)
 

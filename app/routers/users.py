@@ -51,6 +51,7 @@ from app.schemas.game_stats import SeasonRead
 from app.schemas.onboarding import OnboardingRead
 from app.schemas.training_diary import TrainingDiaryEntryListItem
 from app.schemas.day_report import DayReportRead
+from app.schemas.schedule import PendingReportRead
 from app.schemas.season_summary import SeasonSummaryRead
 from app.schemas.user import (
     PublicStatRead,
@@ -429,6 +430,18 @@ async def dismiss_my_onboarding(
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     await OnboardingService(session).dismiss(current_user)
+
+
+@router.get("/me/pending-reports", response_model=list[PendingReportRead])
+async def get_my_pending_reports(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Ice and game days that are over without a report (2026-10-10) -- the
+    ice reaches the muscle map only through it."""
+    from app.services.pending_report_service import pending_reports
+
+    return await pending_reports(session, current_user)
 
 
 @router.get("/me/day-report", response_model=DayReportRead)

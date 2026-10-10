@@ -16,7 +16,6 @@ from app.models.schedule import DayPlan, DaySessionType, TrainingSession, Weekly
 from app.models.training_diary import IceEffort
 from app.models.user import User
 from app.schemas.training_diary import DiaryReportIn
-from app.services.ice_load_service import charge_default_ice_loads, ice_ended_at
 from app.services.training_diary_service import TrainingDiaryService
 from tests.dates import utc_today
 
@@ -113,37 +112,17 @@ async def test_game_is_heavier_and_hits_the_cap_when_stacked(db_session) -> None
 
 
 @pytest.mark.asyncio
-async def test_default_charge_after_24h_once_then_late_report_adds_difference(db_session) -> None:
+async def test_no_report_no_charge(db_session) -> None:
+    """2026-10-10 (owner's call): no default any more -- an ice day without a
+    report puts nothing on the map, however long ago it was."""
+    from app.services.report_reminder_scheduler import _run_tick
+
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
-    session = await _ice_day(db_session, user, days_ago=2)
-    day_plan = await db_session.get(DayPlan, session.day_plan_id)
-    ended = await ice_ended_at(db_session, day_plan, "UTC")
-    now = ended + timedelta(hours=25)
+    await _ice_day(db_session, user, days_ago=2)
 
-    await charge_default_ice_loads(db_session, now)
-    await charge_default_ice_loads(db_session, now)  # never twice
-    charge = (
-        await db_session.scalars(select(IceLoadCharge).where(IceLoadCharge.training_session_id == session.id))
-    ).one()
-    assert charge.scale == pytest.approx(1.0)
-    glutes = (await _loads(db_session, user))[MuscleGroup.GLUTES]
-    assert glutes == pytest.approx(ICE_SESSION_DOSE[MuscleGroup.GLUTES] * recovery_factor(25), abs=0.05)
+    await _run_tick(db_session, datetime.now(timezone.utc))
 
-
-@pytest.mark.asyncio
-async def test_no_default_for_a_reported_or_too_old_day(db_session) -> None:
-    user = _make_user()
-    db_session.add(user)
-    await db_session.flush()
-    reported = await _ice_day(db_session, user, days_ago=1)
-    await TrainingDiaryService(db_session).save_entry(user, reported.id, None, DiaryReportIn(skipped=True))
-    old = await _ice_day(db_session, user, days_ago=4)
-
-    day_plan = await db_session.get(DayPlan, old.day_plan_id)
-    ended = await ice_ended_at(db_session, day_plan, "UTC")
-    await charge_default_ice_loads(db_session, ended + timedelta(hours=80))
-
-    rows = (await db_session.scalars(select(IceLoadCharge).where(IceLoadCharge.user_id == user.id))).all()
-    assert [(row.training_session_id, row.scale) for row in rows] == [(reported.id, 0.0)]
+    assert (await db_session.scalars(select(IceLoadCharge).where(IceLoadCharge.user_id == user.id))).all() == []
+    assert await _loads(db_session, user) == {}

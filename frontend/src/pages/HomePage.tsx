@@ -18,6 +18,7 @@ import { Modal } from '../components/ui/Modal'
 import { ProgressBar } from '../components/ui/ProgressBar'
 import { XpBar } from '../components/ui/XpBar'
 import { API_BASE_URL, ApiError } from '../api/client'
+import * as pendingReportsApi from '../api/pendingReports'
 import * as questsApi from '../api/quests'
 import * as progressApi from '../api/progress'
 import * as scheduleApi from '../api/schedule'
@@ -508,6 +509,13 @@ export function HomePage() {
             {/* New players: the main loop as a paid checklist, until done or
                 hidden. */}
             <OnboardingCard />
+
+            {/* Ice / games over without a report (2026-10-10): today's own
+                ice has its report button on the day card below. */}
+            <PendingReportsCard
+              excludeDayPlanId={today?.id ?? null}
+              onOpen={(dayPlanId) => navigate(`/training/${dayPlanId}/diary`)}
+            />
 
             {/* Captains only, and only while a training this week has no
                 published plan -- renders nothing otherwise. */}
@@ -1270,6 +1278,54 @@ function DayClosedCard({ day, extra, onReport }: { day: DayPlanRead; extra: DayP
 
         </Button>
       </div>
+    </div>
+  )
+}
+
+// Ice / games over without a report (2026-10-10). Since the ice reaches the
+// muscle map only through its report, this stays until it's sent.
+function PendingReportsCard({
+  excludeDayPlanId,
+  onOpen,
+}: {
+  excludeDayPlanId: string | null
+  onOpen: (dayPlanId: string) => void
+}) {
+  const { accessToken } = useAuth()
+  const [pending, setPending] = useState<pendingReportsApi.PendingReportRead[]>([])
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    pendingReportsApi
+      .getPendingReports(accessToken)
+      .then((result) => {
+        if (!cancelled) setPending(result)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+  const shown = pending.filter((report) => report.day_plan_id !== excludeDayPlanId)
+  if (shown.length === 0) {
+    return null
+  }
+  const todayIso = toIsoDate(new Date())
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-accent-persimmon/45 bg-gradient-to-br from-[#2A2230] to-dark-card p-4">
+      <div className="flex items-start gap-3">
+        <i className="ti ti-alert-circle text-xl text-accent-persimmon" aria-hidden="true" />
+        <p className="text-sm leading-snug text-[#C9D2DE]">
+          Без отчёта приложение не знает, что вы катались, — нагрузка на ноги в зале будет посчитана неверно.
+        </p>
+      </div>
+      {shown.map((report) => (
+        <Button key={report.day_plan_id} onClick={() => onOpen(report.day_plan_id)} className="w-full">
+          {pendingReportsApi.pendingReportLabel(report, todayIso)}
+        </Button>
+      ))}
     </div>
   )
 }

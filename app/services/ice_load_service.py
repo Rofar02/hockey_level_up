@@ -2,18 +2,16 @@
 
 The map only knew gym exercises, so after skating it showed fresh legs.
 Now an ice day or a game charges ICE_SESSION_DOSE scaled by its report
-(length, effort; a game is a fixed GAME_FACTOR):
-
-- when the report is saved -- "Не был" charges nothing;
-- 24 hours after the ice with no report, a default (60 medium minutes),
-  from the report reminder scheduler;
-- a report after the default only adds the difference (IceLoadCharge).
+(length, effort; a game is a fixed GAME_FACTOR) when the report is saved --
+"Не был" charges nothing. No report, no charge (owner's call, 2026-10-10:
+the app doesn't guess for the player -- it reminds instead, see
+report_reminder_scheduler and pending_report_service).
 
 Each charge is aged by the time since the ice ended (recovery_factor), so
 a report sent the next morning doesn't load the legs as if fresh.
 """
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -23,18 +21,12 @@ from app.core.muscle_load import (
     ICE_SESSION_DOSE,
     MAX_INTENSITY,
     get_effective_muscle_load,
-    ice_load_scale,
     recovery_factor,
 )
 from app.models.progress import IceLoadCharge, UserMuscleLoad
-from app.models.schedule import DayPlan, DaySessionType, TrainingSession, WeeklyPlan
+from app.models.schedule import DayPlan
 from app.models.team_event import TeamEvent
-from app.models.training_diary import TrainingDiaryEntry
-from app.models.user import User
 from app.services.report_reminder_scheduler import REPORT_DELAY, report_due_at
-from app.services.week_load_service import shadow_check
-
-DEFAULT_CHARGE_AFTER = timedelta(hours=24)
 
 
 async def ice_ended_at(session: AsyncSession, day_plan: DayPlan, tz_name: str | None) -> datetime:
@@ -130,46 +122,3 @@ class IceLoadService:
             amounts = {muscle.value: dose * charge.scale for muscle, dose in ICE_SESSION_DOSE.items()}
         left = recovery_factor(max(0.0, (now - applied_at).total_seconds() / 3600))
         return {muscle: amount * left for muscle, amount in amounts.items()}
-
-
-# A default older than this is dropped rather than charged late: the load
-# would have recovered by now anyway.
-DEFAULT_CHARGE_STALE_AFTER = timedelta(hours=72)
-
-
-async def charge_default_ice_loads(session: AsyncSession, now: datetime) -> int:
-    """Ice and game days whose report never came: 24 hours after the ice,
-    charge 60 medium minutes (a game: GAME_FACTOR). Returns how many."""
-    charged = select(IceLoadCharge.id).where(IceLoadCharge.training_session_id == TrainingSession.id).exists()
-    reported = (
-        select(TrainingDiaryEntry.id)
-        .where(
-            TrainingDiaryEntry.training_session_id == TrainingSession.id,
-            TrainingDiaryEntry.reported_at.is_not(None),
-        )
-        .exists()
-    )
-    rows = (
-        await session.execute(
-            select(DayPlan, TrainingSession.id, User)
-            .join(WeeklyPlan, WeeklyPlan.id == DayPlan.weekly_plan_id)
-            .join(User, User.id == WeeklyPlan.user_id)
-            .join(TrainingSession, TrainingSession.day_plan_id == DayPlan.id)
-            .where(
-                DayPlan.session_type.in_((DaySessionType.ON_ICE, DaySessionType.GAME)),
-                DayPlan.date.between(now.date() - timedelta(days=4), now.date()),
-                ~charged,
-                ~reported,
-            )
-        )
-    ).all()
-    count = 0
-    service = IceLoadService(session)
-    for day_plan, training_session_id, user in rows:
-        ended_at = await ice_ended_at(session, day_plan, user.timezone)
-        if ended_at + DEFAULT_CHARGE_AFTER <= now < ended_at + DEFAULT_CHARGE_STALE_AFTER:
-            scale = ice_load_scale(day_plan.session_type, None, None)
-            await service.charge(user.id, training_session_id, scale, ended_at, now)
-            await shadow_check(session, user.id)
-            count += 1
-    return count

@@ -309,10 +309,11 @@ export function NewSchedulePage() {
 
   // «Сухая + ещё и лёд»: the same double day the other way round -- the day
   // becomes ice at that time and the gym moves to the other half of it.
-  function addIceToGymDay(index: number, iceTime: ExtraGymTime) {
+  // ...and a game the same way (2026-10-10: «+ игра» on a gym day).
+  function addIceToGymDay(index: number, iceTime: ExtraGymTime, kind: 'on_ice' | 'game' = 'on_ice') {
     const gymTime: ExtraGymTime = iceTime === 'morning' ? 'evening' : 'morning'
     setRows((previous) =>
-      previous.map((row, i) => (i === index ? { ...row, sessionType: 'on_ice', extraGym: gymTime } : row)),
+      previous.map((row, i) => (i === index ? { ...row, sessionType: kind, extraGym: gymTime } : row)),
     )
   }
 
@@ -522,7 +523,7 @@ export function NewSchedulePage() {
                   onSelectType={(type) => setDayType(index, type)}
                   doubleDays={doubleDays}
                   onSelectExtra={(extra) => setDayExtra(index, extra)}
-                  onAddIce={(time) => addIceToGymDay(index, time)}
+                  onAddIce={(time, kind) => addIceToGymDay(index, time, kind)}
                 />
               ))}
             </div>
@@ -738,7 +739,7 @@ export function NewSchedulePage() {
                   onSelectType={(type) => setDayType(index, type)}
                   doubleDays={doubleDays}
                   onSelectExtra={(extra) => setDayExtra(index, extra)}
-                  onAddIce={(time) => addIceToGymDay(index, time)}
+                  onAddIce={(time, kind) => addIceToGymDay(index, time, kind)}
                 />
               ))}
             </div>
@@ -842,17 +843,19 @@ function SecondTrainingPicker({
   activeClass,
   onSelect,
   noneLabel = 'Нет',
+  showNone = true,
 }: {
   label: string
   value: ExtraGymTime | null
   activeClass: string
   onSelect: (time: ExtraGymTime | null) => void
   noneLabel?: string
+  showNone?: boolean
 }) {
   return (
     <div className="flex items-center gap-1.5 pl-[50px]">
       <span className="flex-1 text-xs text-text-secondary">{label}</span>
-      {([null, 'morning', 'evening'] as const).map((option) => (
+      {(showNone ? ([null, 'morning', 'evening'] as const) : (['morning', 'evening'] as const)).map((option) => (
         <button
           key={option ?? 'none'}
           type="button"
@@ -894,7 +897,7 @@ function EditableDayRow({
   onSelectType: (type: DaySessionType) => void
   doubleDays: boolean
   onSelectExtra: (extra: ExtraGymTime | null) => void
-  onAddIce: (iceTime: ExtraGymTime) => void
+  onAddIce: (iceTime: ExtraGymTime, kind: 'on_ice' | 'game') => void
 }) {
   const isDouble = extraGymFor(row) !== null
   const canAddGym = doubleDays && !isStarted(row) && !isPast && EXTRA_CAPABLE.includes(row.sessionType) && !isDouble
@@ -978,12 +981,22 @@ function EditableDayRow({
         />
       )}
       {canAddIce && (
-        <SecondTrainingPicker
-          label="+ лёд"
-          value={null}
-          activeClass="border-accent-ice/60 bg-accent-ice/10 text-accent-ice"
-          onSelect={(time) => (time !== null ? onAddIce(time) : undefined)}
-        />
+        <>
+          <SecondTrainingPicker
+            label="+ лёд"
+            value={null}
+            activeClass="border-accent-ice/60 bg-accent-ice/10 text-accent-ice"
+            onSelect={(time) => (time !== null ? onAddIce(time, 'on_ice') : undefined)}
+            showNone={false}
+          />
+          <SecondTrainingPicker
+            label="+ игра"
+            value={null}
+            activeClass="border-accent-persimmon/60 bg-accent-persimmon/10 text-accent-persimmon"
+            onSelect={(time) => (time !== null ? onAddIce(time, 'game') : undefined)}
+            showNone={false}
+          />
+        </>
       )}
     </div>
   )

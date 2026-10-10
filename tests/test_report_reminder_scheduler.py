@@ -127,16 +127,69 @@ async def test_team_game_is_asked_two_hours_after_it_ends(db_session, monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_no_reminder_once_the_diary_has_an_entry(db_session, monkeypatch) -> None:
+async def test_no_reminder_once_the_report_is_sent(db_session, monkeypatch) -> None:
     sent = _capture(monkeypatch)
     user = await _user(db_session)
     day_plan = await _day(db_session, user)
     db_session.add(
-        TrainingDiaryEntry(user_id=user.id, training_session_id=day_plan.training_session.id, note=None)
+        TrainingDiaryEntry(
+            user_id=user.id, training_session_id=day_plan.training_session.id, note=None,
+            reported_at=_at(20, 0),
+        )
     )
     await db_session.flush()
 
     await _tick(db_session, _at(21, 2))
+
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_a_note_without_a_report_still_gets_the_reminder(db_session, monkeypatch) -> None:
+    """2026-10-10: a note autosaved while typing isn't a report."""
+    sent = _capture(monkeypatch)
+    user = await _user(db_session)
+    day_plan = await _day(db_session, user)
+    db_session.add(TrainingDiaryEntry(user_id=user.id, training_session_id=day_plan.training_session.id, note="..."))
+    await db_session.flush()
+
+    await _tick(db_session, _at(21, 2))
+
+    assert [push["title"] for push in sent] == ["Как прошёл лёд?"]
+
+
+@pytest.mark.asyncio
+async def test_still_no_report_the_next_morning_asks_once_more(db_session, monkeypatch) -> None:
+    """2026-10-10: the ice reaches the muscle map only through its report,
+    so a forgotten one is asked about once more at 9:00 the next day."""
+    sent = _capture(monkeypatch)
+    user = await _user(db_session)
+    day_plan = await _day(db_session, user, day=YESTERDAY)
+
+    await _tick(db_session, _at(8, 50))
+    assert [push["title"] for push in sent if push["title"].startswith("Отметьте")] == []
+    await _tick(db_session, _at(9, 2))
+    await _tick(db_session, _at(9, 7))
+    follow_ups = [push for push in sent if push["title"].startswith("Отметьте")]
+    assert [push["title"] for push in follow_ups] == ["Отметьте вчерашний лёд"]
+    assert follow_ups[0]["url"] == f"/training/{day_plan.id}/diary"
+    await db_session.refresh(day_plan)
+    assert day_plan.report_followup_sent_at is not None
+
+
+@pytest.mark.asyncio
+async def test_no_follow_up_when_reported(db_session, monkeypatch) -> None:
+    sent = _capture(monkeypatch)
+    user = await _user(db_session)
+    day_plan = await _day(db_session, user, day=YESTERDAY)
+    db_session.add(
+        TrainingDiaryEntry(
+            user_id=user.id, training_session_id=day_plan.training_session.id, reported_at=_at(22, 0, YESTERDAY)
+        )
+    )
+    await db_session.flush()
+
+    await _tick(db_session, _at(9, 2))
 
     assert sent == []
 
@@ -160,7 +213,8 @@ async def test_a_long_late_reminder_is_dropped(db_session, monkeypatch) -> None:
     user = await _user(db_session)
     await _day(db_session, user, day=YESTERDAY)
 
-    # Due yesterday 21:00; the worker comes back 13 hours later.
+    # Due yesterday 21:00; the worker comes back 13 hours later -- that
+    # evening ask is dropped (the next morning's follow-up is its own push).
     await _tick(db_session, _at(21, 0, YESTERDAY) + timedelta(hours=13))
 
-    assert sent == []
+    assert [push["title"] for push in sent if push["title"] == "Как прошёл лёд?"] == []
