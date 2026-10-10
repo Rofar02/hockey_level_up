@@ -247,6 +247,9 @@ export function TrainingSessionPage() {
   const [day, setDay] = useState<DayPlanRead | null>(null)
   // A double day's other training (step 6), for the morning / evening tabs.
   const [sibling, setSibling] = useState<DayPlanRead | null>(null)
+  // «Начать тренировку» tapped on the day's overview (2026-10-10 redesign):
+  // before that, a day with nothing done yet shows the overview.
+  const [startedHere, setStartedHere] = useState(false)
   // A training still ahead (owner's call, 2026-10-10): open to look at,
   // started only on its own day -- the backend refuses anything else.
   const isAhead = day !== null && day.date > toIsoDate(new Date())
@@ -408,6 +411,8 @@ export function TrainingSessionPage() {
       return
     }
     let cancelled = false
+    // A new day: its own sibling, never the previous day's for a frame.
+    setSibling(null)
     const date = parseIsoDate(day.date)
     const monday = new Date(date)
     monday.setDate(date.getDate() - ((date.getDay() + 6) % 7))
@@ -631,7 +636,9 @@ export function TrainingSessionPage() {
   const sessionElapsedSeconds = useSessionClock(
     trainingSessionId,
     blocks ?? [],
-    selectedExercise !== null &&
+    // A day ahead is only looked at -- opening it mustn't start its clock.
+    !isAhead &&
+      selectedExercise !== null &&
       blocks !== null &&
       blocks.some((block) => !isExerciseDone(block, setCompletionCounts)),
   )
@@ -678,6 +685,9 @@ export function TrainingSessionPage() {
 
   const blocksByPhase: Record<TrainingPhase, SessionBlockRead[]> = { warmup, main, cooldown, puck }
   const activePhases = PHASE_SEQUENCE.filter((phase) => blocksByPhase[phase].length > 0)
+  // The day's overview until the workout starts: nothing done yet and
+  // «Начать тренировку» not tapped -- a day ahead always shows it.
+  const showOverview = (!startedHere && doneCount === 0) || isAhead
   // Clamped defensively -- activePhases is recomputed fresh every render
   // while currentPhaseIndex persists across renders, so this only matters
   // if the two were ever momentarily out of step.
@@ -783,6 +793,18 @@ export function TrainingSessionPage() {
     if (selectedExercise.target_sets !== null) {
       refreshSetCount(selectedExercise.id)
     }
+    // That was the session's last exercise (whatever phase it's in): close
+    // the player -- the finish screen waits for it (see sessionComplete's
+    // render below) and shows once it's closed.
+    if (
+      blocks !== null &&
+      blocks
+        .filter((block) => block.exercise.id !== selectedExercise.id)
+        .every((block) => isExerciseDone(block, setCompletionCounts))
+    ) {
+      setSelectedExercise(null)
+      return
+    }
     const currentIndex = currentPhaseBlocks.findIndex(
       (block) => block.exercise.id === selectedExercise.id,
     )
@@ -873,7 +895,7 @@ export function TrainingSessionPage() {
             {day !== null ? formatLongDate(day.date) : 'Тренировка дня'}
           </h1>
         </div>
-        {day !== null && sibling !== null ? (
+        {day !== null && sibling !== null && sibling.id !== day.id && sibling.date === day.date ? (
           <div className="grid grid-cols-2 gap-1.5">
             {[day, sibling]
               .sort((a, b) => (a.time_of_day === 'morning' ? -1 : b.time_of_day === 'morning' ? 1 : 0))
@@ -928,15 +950,18 @@ export function TrainingSessionPage() {
           )}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid gap-2 ${main.length > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
         <div className={`flex flex-col gap-0.5 px-3 py-2.5 ${CARD_CLASS}`}>
           <span className="font-display text-[22px] font-semibold leading-none">{totalCount}</span>
           <span className="text-[11px] text-text-secondary">{pluralizeExercises(totalCount)}</span>
         </div>
-        <div className={`flex flex-col gap-0.5 px-3 py-2.5 ${CARD_CLASS}`}>
-          <span className="font-display text-[22px] font-semibold leading-none">{main.length}</span>
-          <span className="text-[11px] text-text-secondary">в основной части</span>
-        </div>
+        {/* Ice and game days have no main part -- no "0" to show. */}
+        {main.length > 0 && (
+          <div className={`flex flex-col gap-0.5 px-3 py-2.5 ${CARD_CLASS}`}>
+            <span className="font-display text-[22px] font-semibold leading-none">{main.length}</span>
+            <span className="text-[11px] text-text-secondary">в основной части</span>
+          </div>
+        )}
         <div className={`flex flex-col justify-center gap-0.5 px-3 py-2.5 ${CARD_CLASS}`}>
           <span className="text-[13px] font-semibold leading-tight">
             {developedStats.length > 0 ? developedStats.join(', ') : '—'}
@@ -955,6 +980,95 @@ export function TrainingSessionPage() {
         </div>
       )}
 
+      {showOverview ? (
+        <>
+          <div className="flex flex-col gap-2.5">
+            {activePhases.map((phase, index) => {
+              const phaseBlocks = blocksByPhase[phase]
+              return (
+                <div key={phase} className={`flex flex-col gap-2 p-3 ${phase === 'puck' ? BONUS_CARD_CLASS : CARD_CLASS}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      <span
+                        className={`flex h-[22px] w-[22px] items-center justify-center rounded-full font-mono text-[11px] font-semibold ${
+                          phase === 'main' ? 'bg-accent-persimmon/15 text-accent-persimmon' : 'bg-accent-ice/10 text-accent-ice'
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                      {PHASE_LABELS[phase]}
+                    </span>
+                    <span className="font-mono text-[11px] text-text-secondary">
+                      {phaseBlocks.length} {pluralizeExercises(phaseBlocks.length)}
+                    </span>
+                  </div>
+                  {phase === 'main' ? (
+                    <div className="flex flex-col">
+                      {phaseBlocks.map((block) => (
+                        <button
+                          key={block.id}
+                          type="button"
+                          onClick={() => {
+                            // Opening an exercise today starts the workout too.
+                            if (!isAhead) {
+                              setStartedHere(true)
+                            }
+                            // The player finds its exercise in the current
+                            // phase -- move there first.
+                            setCurrentPhaseIndex(activePhases.indexOf(phase))
+                            setSelectedExercise(block.exercise)
+                          }}
+                          className="flex items-center justify-between gap-3 border-t border-white/5 py-2 text-left text-[13px]"
+                        >
+                          <span className="min-w-0 truncate">{block.exercise.name}</span>
+                          <span className="shrink-0 font-mono text-xs text-text-secondary">
+                            {formatTargetVolume(block.exercise) ?? ''}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs leading-relaxed text-text-secondary">
+                      {phaseBlocks.map((block) => block.exercise.name).join(' · ')}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div aria-hidden="true" style={{ height: footerHeight }} />
+          <div
+            ref={setFooterNode}
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+          >
+            <div className="mx-auto max-w-2xl">
+              {isAhead && day !== null ? (
+                <Button disabled className="w-full">
+                  Начнётся {formatShortDate(parseIsoDate(day.date))}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setStartedHere(true)
+                    const first = orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))
+                    if (first !== undefined) {
+                      setSelectedExercise(first.exercise)
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <i className="ti ti-player-play-filled" aria-hidden="true" />
+                    Начать тренировку
+                  </span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
       <div className={`flex flex-col gap-4 p-4 ${CARD_CLASS}`}>
         <div className="flex items-end justify-between">
           <div>
@@ -1047,6 +1161,56 @@ export function TrainingSessionPage() {
             </div>
           </div>
 
+
+
+          {/* Reserves scroll space so the sticky footer below never covers
+              the last exercise row -- sized to the
+              footer's own measured height, not a guess (see footerHeight). */}
+          <div aria-hidden="true" style={{ height: footerHeight }} />
+
+          <div
+            ref={setFooterNode}
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+            // Solid all the way down: the floating BottomNav capsule sits on
+            // top of this bar's lower part instead of over a strip of
+            // scrolling exercises; the button stays clear above the capsule.
+            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+          >
+            <div className="mx-auto max-w-2xl">
+              <Button onClick={handleFinishPhase} disabled={!canFinishPhase || isAhead} className="w-full">
+                {isAhead && day !== null
+                  ? `Начнётся ${formatShortDate(parseIsoDate(day.date))}`
+                  : isRevisitingCompletedSession
+                    ? 'На главную'
+                    : isLastPhase
+                      ? 'Завершить тренировку'
+                      : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
+              </Button>
+              {!canFinishPhase && !isAhead && (
+                <p className="mt-2 text-center text-xs text-text-secondary">
+                  Осталось {currentPhaseTotal - currentPhaseDoneCount}{' '}
+                  {pluralizeExercises(currentPhaseTotal - currentPhaseDoneCount)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {previewPhaseIndex !== null && activePhases[previewPhaseIndex] !== undefined && (
+            <PhasePreviewSheet
+              phase={activePhases[previewPhaseIndex]}
+              stepNumber={previewPhaseIndex + 1}
+              totalSteps={activePhases.length}
+              blocks={blocksByPhase[activePhases[previewPhaseIndex]]}
+              isHistorical={previewPhaseIndex < safePhaseIndex}
+              lockedBehindLabel={PHASE_LABELS_GENITIVE[currentPhase]}
+              onClose={() => setPreviewPhaseIndex(null)}
+            />
+          )}
+        </>
+      )}
+
+        </>
+      )}
 
       {/* The player (2026-10-10): over the whole app -- nothing of the page
           or the tab bar behind it moves or shows; collapsing it goes back
@@ -1154,53 +1318,9 @@ export function TrainingSessionPage() {
         </FullScreenOverlay>
       )}
 
-          {/* Reserves scroll space so the sticky footer below never covers
-              the last exercise row -- sized to the
-              footer's own measured height, not a guess (see footerHeight). */}
-          <div aria-hidden="true" style={{ height: footerHeight }} />
-
-          <div
-            ref={setFooterNode}
-            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
-            // Solid all the way down: the floating BottomNav capsule sits on
-            // top of this bar's lower part instead of over a strip of
-            // scrolling exercises; the button stays clear above the capsule.
-            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
-          >
-            <div className="mx-auto max-w-2xl">
-              <Button onClick={handleFinishPhase} disabled={!canFinishPhase || isAhead} className="w-full">
-                {isAhead && day !== null
-                  ? `Начнётся ${formatShortDate(parseIsoDate(day.date))}`
-                  : isRevisitingCompletedSession
-                    ? 'На главную'
-                    : isLastPhase
-                      ? 'Завершить тренировку'
-                      : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
-              </Button>
-              {!canFinishPhase && !isAhead && (
-                <p className="mt-2 text-center text-xs text-text-secondary">
-                  Осталось {currentPhaseTotal - currentPhaseDoneCount}{' '}
-                  {pluralizeExercises(currentPhaseTotal - currentPhaseDoneCount)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {previewPhaseIndex !== null && activePhases[previewPhaseIndex] !== undefined && (
-            <PhasePreviewSheet
-              phase={activePhases[previewPhaseIndex]}
-              stepNumber={previewPhaseIndex + 1}
-              totalSteps={activePhases.length}
-              blocks={blocksByPhase[activePhases[previewPhaseIndex]]}
-              isHistorical={previewPhaseIndex < safePhaseIndex}
-              lockedBehindLabel={PHASE_LABELS_GENITIVE[currentPhase]}
-              onClose={() => setPreviewPhaseIndex(null)}
-            />
-          )}
-        </>
-      )}
-
-      {sessionComplete !== null && accessToken !== null && (
+      {/* Not over the open player: the last exercise's "как прошло" comes
+          first (found 2026-10-10 walking the full-screen player through). */}
+      {sessionComplete !== null && accessToken !== null && selectedExercise === null && (
         <SessionCompleteModal
           statTotals={sessionComplete.statTotals}
           xpTotal={sessionComplete.xpTotal}
