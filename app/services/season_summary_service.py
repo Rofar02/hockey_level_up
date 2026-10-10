@@ -5,10 +5,15 @@ linemate and the team.
 
 The season is the same one as on the Season screen (September 1 -- August
 31), summed up over its playing part: the card shows once the player has
-switched to the off-season (from SUMMARY_OFFSEASON_FROM_MONTH), or from
-SUMMARY_FROM_MONTH anyway. SeasonPeriod.OFFSEASON is also the default for
-a new account, so it alone doesn't open the card in the autumn. Fewer than
-MIN_DAYS_IN_APP in the app -> no card: an almost empty card is a sad one.
+switched to the off-season this season (from SUMMARY_OFFSEASON_FROM_MONTH),
+or from SUMMARY_FROM_MONTH anyway. SeasonPeriod.OFFSEASON is also the
+default for a new account, so only a switch the player made counts
+(User.season_period_changed_at). Fewer than MIN_DAYS_IN_APP in the app or
+fewer than MIN_COMPLETED_DAYS done this season -> no card: an almost empty
+card is a sad one.
+
+Lines (the most frequent linemate, the team's most stable line) come only
+from games already played, not cancelled, with a published lineup.
 """
 import uuid
 from collections import Counter
@@ -26,7 +31,9 @@ from app.models.team_event import (
     TeamEventAttendance,
     TeamEventAttendanceStatus,
     TeamEventLineupSlot,
+    TeamEventPublishStatus,
     TeamEventStatus,
+    TeamEventType,
 )
 from app.models.user import SeasonPeriod, User
 from app.schemas.season_summary import SeasonStatChangeRead, SeasonSummaryRead
@@ -38,15 +45,26 @@ from app.services.team_service import TeamService
 SUMMARY_FROM_MONTH = 5  # May
 SUMMARY_OFFSEASON_FROM_MONTH = 3  # March, once the player switched to the off-season
 MIN_DAYS_IN_APP = 42
+MIN_COMPLETED_DAYS = 10
 
 
-def summary_available(user: User, today: date, season_start: date) -> tuple[bool, str | None]:
+def summary_available(
+    user: User, today: date, season_start: date, completed_days: int | None = None
+) -> tuple[bool, str | None]:
     if (today - user.created_at.date()).days < MIN_DAYS_IN_APP:
         return False, "Итог сезона появится, когда наберётся хотя бы шесть недель в приложении."
+    if completed_days is not None and completed_days < MIN_COMPLETED_DAYS:
+        return False, "Итог сезона появится, когда в сезоне наберётся хотя бы десять тренировок."
     in_spring = today.year > season_start.year
     if in_spring and today.month >= SUMMARY_FROM_MONTH:
         return True, None
-    if in_spring and user.season_period == SeasonPeriod.OFFSEASON and today.month >= SUMMARY_OFFSEASON_FROM_MONTH:
+    switched = user.season_period_changed_at is not None and user.season_period_changed_at.date() >= season_start
+    if (
+        in_spring
+        and user.season_period == SeasonPeriod.OFFSEASON
+        and switched
+        and today.month >= SUMMARY_OFFSEASON_FROM_MONTH
+    ):
         return True, None
     return False, "Итог сезона появится весной — когда переключите период на «межсезонье» или с мая."
 
@@ -58,12 +76,12 @@ class SeasonSummaryService:
     async def summary(self, user: User, preview: bool = False) -> SeasonSummaryRead:
         today = local_today(user)
         start, end, label = season_bounds(today)
-        available, reason = summary_available(user, today, start)
+        days = await list_activity_calendar(self._session, user.id, start, min(today, end))
+        done = [d for d in days if d.fully_completed]
+        available, reason = summary_available(user, today, start, len(done))
         if not available and not preview:
             return SeasonSummaryRead(available=False, reason=reason, season_label=label)
 
-        days = await list_activity_calendar(self._session, user.id, start, min(today, end))
-        done = [d for d in days if d.fully_completed]
         ice_days = sum(1 for d in done if d.session_type == DaySessionType.ON_ICE)
         games = sum(1 for d in days if d.session_type == DaySessionType.GAME and d.date <= today)
         gym = sum(1 for d in done if d.session_type == DaySessionType.OFF_ICE)
@@ -157,7 +175,7 @@ class SeasonSummaryService:
             await self._session.scalars(
                 select(TeamEventLineupSlot.group_id)
                 .join(TeamEvent, TeamEvent.id == TeamEventLineupSlot.team_event_id)
-                .where(TeamEventLineupSlot.user_id == user_id, TeamEvent.starts_at >= start_at)
+                .where(TeamEventLineupSlot.user_id == user_id, *_played_games(start_at))
             )
         ).all()
         if not my_groups:
@@ -178,6 +196,18 @@ class SeasonSummaryService:
         return f"{partner.first_name} {partner.last_name}".strip()
 
 
+def _played_games(start_at: datetime) -> tuple:
+    """Games of the season already played, not cancelled, whose lineup the
+    captain published -- the lines that really went on the ice."""
+    return (
+        TeamEvent.event_type == TeamEventType.GAME,
+        TeamEvent.status == TeamEventStatus.SCHEDULED,
+        TeamEvent.lineup_status == TeamEventPublishStatus.PUBLISHED,
+        TeamEvent.starts_at >= start_at,
+        TeamEvent.starts_at < datetime.now(timezone.utc),
+    )
+
+
 def _overall(values: list[float]) -> int | None:
     return round(sum(values) / len(values)) if values else None
 
@@ -193,7 +223,7 @@ async def team_most_stable_line(session: AsyncSession, team: Team, start: date) 
             .join(TeamEvent, TeamEvent.id == TeamEventLineupSlot.team_event_id)
             .where(
                 TeamEvent.team_id == team.id,
-                TeamEvent.starts_at >= start_at,
+                *_played_games(start_at),
                 TeamEventLineupSlot.slot_position.in_(("LW", "C", "RW")),
             )
         )

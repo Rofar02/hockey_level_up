@@ -425,7 +425,8 @@ class TeamEventService:
         await self._session.commit()
         await self._session.refresh(event)
         if not already_published:
-            await self._push_team(team_id, "План тренировки готов", "Доска тренировки опубликована")
+            for event_team_id in await event_team_ids(self._session, event):
+                await self._push_team(event_team_id, "План тренировки готов", "Доска тренировки опубликована")
         sections = await self._visible_sections(event, viewer_is_captain=True)
         return self._to_event_read(event, sections, viewer_is_captain=True)
 
@@ -486,8 +487,10 @@ class TeamEventService:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
         event = await self._get_event_or_404(event_id, team_id, allow_guest=True)
-        # A joint training: one shared list of marks for both teams.
+        # A joint training: one shared list of marks for both teams -- but
+        # why a player of the other team isn't coming stays in their team.
         members = await self._event_members(event)
+        own_ids = {member.id for member in await self._teams.list_members(team_id)}
         rows = await self._events.list_attendance_for_event(event.id)
         by_user_id = {row.user_id: row for row in rows}
 
@@ -495,6 +498,8 @@ class TeamEventService:
         for member in members:
             row = by_user_id.get(member.id)
             entry = self._to_attendance_member_read(member, row)
+            if member.id not in own_ids:
+                entry = entry.model_copy(update={"reason": None, "reason_note": None})
             if row is None:
                 unmarked.append(entry)
             elif row.status == TeamEventAttendanceStatus.GOING:
@@ -522,7 +527,8 @@ class TeamEventService:
                 detail="Nudge already sent within the last hour",
             )
 
-        members = await self._teams.list_members(team_id)
+        # A joint training: the guest teams' players are reminded too.
+        members = await self._event_members(event)
         rows = await self._events.list_attendance_for_event(event.id)
         responded_user_ids = {row.user_id for row in rows}
         unmarked_members = [m for m in members if m.id not in responded_user_ids]
@@ -733,7 +739,8 @@ class TeamEventService:
         await self._session.commit()
         await self._session.refresh(event)
         if not already_published:
-            await self._push_team(team_id, "Состав опубликован", "Тренер опубликовал состав")
+            for event_team_id in await event_team_ids(self._session, event):
+                await self._push_team(event_team_id, "Состав опубликован", "Тренер опубликовал состав")
         return await self._build_lineup_read(event)
 
     async def _build_lineup_read(self, event: TeamEvent) -> TeamEventLineupRead:
@@ -767,7 +774,11 @@ class TeamEventService:
                 select(TeamEventLineupSlot).where(TeamEventLineupSlot.group_id == group.id)
             )
         ).all()
-        slot_by_user = {slot.user_id: slot.slot_position for slot in slots}
+        # Only players still in the event -- someone who left the team (or
+        # whose team left a joint training) isn't shown in a line.
+        event = await self._events.get_event(group.team_event_id)
+        participant_ids = {member.id for member in await self._event_members(event)}
+        slot_by_user = {slot.user_id: slot.slot_position for slot in slots if slot.user_id in participant_ids}
         if not slot_by_user:
             return self._group_read(group, [])
         users = list((await self._session.scalars(select(User).where(User.id.in_(slot_by_user)))).all())
@@ -858,7 +869,10 @@ class TeamEventService:
         event = await self._events.get_event(team_event_id)
         if event is None or event.event_type != TeamEventType.TRAINING:
             return False
-        if await self._teams.get_membership(event.team_id, user.id) is None:
+        # A joint training rewards the accepted guest teams' players too.
+        if not any(
+            [await self._teams.get_membership(event_team_id, user.id) is not None for event_team_id in await event_team_ids(self._session, event)]
+        ):
             return False
         if await self._events.get_diary_entry(event.id, user.id) is not None:
             return False

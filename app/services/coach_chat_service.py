@@ -973,20 +973,33 @@ class CoachChatService:
         )
         resolved_action = await self._resolve_tool_call(zai_reply.tool_call)
         if resolved_action is None and looks_like_unproposed_offer(zai_reply.text):
-            follow_up = await call_zai_clean(
-                settings.zai_api_key,
-                settings.zai_base_url,
-                settings.coach_chat_model,
-                system_prompt,
-                [
-                    *api_messages,
-                    {"role": "assistant", "content": zai_reply.text},
-                    {"role": "user", "content": OFFER_FOLLOW_UP_INSTRUCTION},
-                ],
-                tools=_coach_tools(skill_names),
-            )
-            resolved_action = await self._resolve_tool_call(follow_up.tool_call)
-            logger.info("coach offer follow-up: tool=%s", follow_up.tool_call[0] if follow_up.tool_call else None)
+            # Best effort: the reply is already good -- a failed follow-up
+            # just leaves it without the button.
+            try:
+                follow_up = await call_zai_clean(
+                    settings.zai_api_key,
+                    settings.zai_base_url,
+                    settings.coach_chat_model,
+                    system_prompt,
+                    [
+                        *api_messages,
+                        {"role": "assistant", "content": zai_reply.text},
+                        {"role": "user", "content": OFFER_FOLLOW_UP_INSTRUCTION},
+                    ],
+                    tools=_coach_tools(skill_names),
+                )
+                resolved_action = await self._resolve_tool_call(follow_up.tool_call)
+                logger.info(
+                    "coach offer follow-up: model=%s prompt=%s cached=%s completion=%s reasoning=%s tool=%s",
+                    settings.coach_chat_model,
+                    follow_up.usage.prompt_tokens,
+                    follow_up.usage.cached_tokens,
+                    follow_up.usage.completion_tokens,
+                    follow_up.usage.reasoning_tokens,
+                    follow_up.tool_call[0] if follow_up.tool_call else None,
+                )
+            except Exception:  # noqa: BLE001 -- never lose the reply over it
+                logger.exception("coach offer follow-up failed")
         reply_text = zai_reply.text.strip()
         if not reply_text and resolved_action is not None:
             # The model is told to always write text, but a bare tool call

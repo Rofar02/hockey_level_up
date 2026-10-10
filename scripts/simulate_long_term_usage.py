@@ -397,12 +397,12 @@ async def run_week(
         weekly_plan.day_plans.append(day_plan)
         day_entries.append((day_date, day_plan, session_type))
         if offset in extra_gym and session_type in (DaySessionType.ON_ICE, DaySessionType.GAME):
-            # A double day (release plan step 6): a separate full gym
-            # training, morning, with light legs -- as _build_extra_gym_day.
+            # A double day (release plan step 6): a separate ordinary gym
+            # training in the morning -- as _build_extra_gym_day.
             day_plan.time_of_day = "evening"
             extra = DayPlan(date=day_date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day="morning")
             extra.training_session = await schedule_service._build_session_for_day(
-                DaySessionType.OFF_ICE, user, block_phase, block, today=monday, light_legs=True
+                DaySessionType.OFF_ICE, user, block_phase, block, today=monday
             )
             weekly_plan.day_plans.append(extra)
             day_entries.insert(len(day_entries) - 1, (day_date, extra, DaySessionType.OFF_ICE))

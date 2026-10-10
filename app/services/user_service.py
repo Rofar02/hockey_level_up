@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
@@ -59,6 +60,8 @@ class UserService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Выбор цвета номера станет доступен с 15 уровня",
             )
+        if "season_period" in updates and updates["season_period"] != user.season_period:
+            user.season_period_changed_at = datetime.now(timezone.utc)
         for field, value in updates.items():
             setattr(user, field, value)
         await self._session.commit()
@@ -234,6 +237,8 @@ class UserService:
                     detail="Cannot remove admin rights from the last remaining administrator",
                 )
 
+        if "season_period" in updates and updates["season_period"] != user.season_period:
+            user.season_period_changed_at = datetime.now(timezone.utc)
         for field, value in updates.items():
             setattr(user, field, value)
         # The gold ring/card is a premium look: losing premium drops it back

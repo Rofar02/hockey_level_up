@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
-from app.models.team_event import TeamEventType
+from app.models.team_event import TeamEventPublishStatus, TeamEventType
 from app.models.user import SeasonPeriod, User
 from app.services.season_summary_service import SeasonSummaryService, summary_available, team_most_stable_line
 from app.services.team_event_service import TeamEventService
@@ -34,6 +34,7 @@ def test_card_opens_in_may_or_with_offseason_in_spring_after_six_weeks() -> None
     assert summary_available(_user_since(10, SeasonPeriod.SEASON), may, SEASON_START)[0] is False
     off = _user_since(100, SeasonPeriod.OFFSEASON)
     off.created_at = datetime(2025, 9, 1, tzinfo=timezone.utc)
+    off.season_period_changed_at = datetime(2026, 3, 1, tzinfo=timezone.utc)
     assert summary_available(off, march, SEASON_START)[0] is True
     # Off-season is the default for a new account -- not enough in the autumn.
     assert summary_available(off, october, SEASON_START)[0] is False
@@ -54,6 +55,11 @@ async def test_preview_builds_the_card_with_linemate_and_team(db_session) -> Non
     line = await events.create_lineup_group(me, team.id, game.id, "1 звено", None)
     await events.assign_player(me, team.id, game.id, me.id, line.id, "LW")
     await events.assign_player(me, team.id, game.id, mate.id, line.id, "C")
+    # Lines count from games already played with a published lineup.
+    played = await events._events.get_event(game.id)
+    played.starts_at = datetime.now(timezone.utc) - timedelta(days=1)
+    played.lineup_status = TeamEventPublishStatus.PUBLISHED
+    await db_session.flush()
 
     summary = await SeasonSummaryService(db_session).summary(me, preview=True)
 
@@ -94,6 +100,10 @@ async def test_team_most_stable_line_needs_the_same_trio_twice(db_session) -> No
         line = await events.create_lineup_group(captain, team.id, game.id, "1 звено", None)
         for user, slot in ((captain, "LW"), (p1, "C"), (p2, "RW")):
             await events.assign_player(captain, team.id, game.id, user.id, line.id, slot)
+        played = await events._events.get_event(game.id)
+        played.starts_at = datetime.now(timezone.utc) - timedelta(days=2 + game_no)
+        played.lineup_status = TeamEventPublishStatus.PUBLISHED
+        await db_session.flush()
         if game_no == 0:
             assert await team_most_stable_line(db_session, team, start) is None
 

@@ -12,11 +12,11 @@ can_see_event here -- TeamEventService._get_event_or_404(allow_guest=True)
 is the one place reads use it -- so access isn't re-derived per query.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.push_subscription import PushSubscription
@@ -25,6 +25,7 @@ from app.models.team_event import (
     TeamEvent,
     TeamEventAttendance,
     TeamEventAttendanceStatus,
+    TeamEventLineupSlot,
     TeamEventStatus,
     TeamEventType,
     TeamIceScheduleTemplate,
@@ -267,13 +268,20 @@ class JointTrainingService:
         self, user: User, team_id: uuid.UUID, invitation_id: uuid.UUID, accept: bool, replace_own: bool = False
     ) -> GuestTeamRead:
         """Accept or decline an invitation (to one training or to a slot).
-        Accepting a training on a day the team already has its own one:
-        409 "conflict" unless replace_own -- then the own one is cancelled,
-        so nobody gets two ice sessions in one day."""
+        Only a pending invitation to a training that is still ahead can be
+        answered (409 otherwise). Accepting a training on a day the team
+        already has its own one: 409 "conflict" unless replace_own -- then
+        the own one is cancelled, so nobody gets two ice sessions in one
+        day. A slot can also be declined after accepting it: the team
+        leaves the slot and its trainings ahead."""
         team = await self._captain_team(user, team_id)
         row = await self._session.get(TeamEventGuestTeam, invitation_id)
         if row is not None and row.team_id == team.id:
             event = await self._session.get(TeamEvent, row.team_event_id)
+            if row.status != GuestTeamStatus.INVITED:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Приглашение уже не действует")
+            if event.status != TeamEventStatus.SCHEDULED or event.starts_at <= datetime.now(timezone.utc):
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Тренировка уже прошла или отменена")
             if accept:
                 own = await self._own_training_same_day(team, event)
                 if own is not None and not replace_own:
@@ -295,21 +303,26 @@ class JointTrainingService:
         slot_row = await self._session.get(TeamIceTemplateGuestTeam, invitation_id)
         if slot_row is None or slot_row.team_id != team.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
+        if slot_row.status == GuestTeamStatus.DECLINED or (accept and slot_row.status != GuestTeamStatus.INVITED):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Приглашение уже не действует")
         slot_row.status = GuestTeamStatus.ACCEPTED if accept else GuestTeamStatus.DECLINED
         slot_row.decided_at = datetime.now(timezone.utc)
-        if accept:
-            # Already stamped trainings of the slot become joint too.
-            future = (
-                await self._session.scalars(
-                    select(TeamEvent).where(
-                        TeamEvent.source_template_id == slot_row.template_id,
-                        TeamEvent.status == TeamEventStatus.SCHEDULED,
-                        TeamEvent.starts_at > datetime.now(timezone.utc),
-                    )
+        future = (
+            await self._session.scalars(
+                select(TeamEvent).where(
+                    TeamEvent.source_template_id == slot_row.template_id,
+                    TeamEvent.status == TeamEventStatus.SCHEDULED,
+                    TeamEvent.starts_at > datetime.now(timezone.utc),
                 )
-            ).all()
-            for event in future:
+            )
+        ).all()
+        for event in future:
+            if accept:
+                # Already stamped trainings of the slot become joint too.
                 await self.add_accepted_guest(event, team.id)
+            else:
+                # Leaving the slot takes the team out of its trainings ahead.
+                await self._drop_guest_team(event, team.id)
         await self._session.commit()
         return GuestTeamRead(team_id=team.id, name=team.name, logo_url=team.logo_url, status=slot_row.status)
 
@@ -329,6 +342,39 @@ class JointTrainingService:
         row.status = GuestTeamStatus.DECLINED
         row.decided_at = datetime.now(timezone.utc)
         await self._session.commit()
+
+    async def remove_guest(
+        self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, guest_team_id: uuid.UUID
+    ) -> None:
+        """The host captain takes a guest team (invited or accepted) out of
+        their training."""
+        host = await self._captain_team(user, team_id)
+        event = await self._session.get(TeamEvent, event_id)
+        if event is None or event.team_id != host.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+        if not await self._drop_guest_team(event, guest_team_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+        guest = await self._session.get(Team, guest_team_id)
+        if guest is not None:
+            await _push_users(
+                self._session, [guest.owner_id], "Совместная тренировка", f"«{host.name}» убрали вашу команду из тренировки"
+            )
+        await self._session.commit()
+
+    async def _drop_guest_team(self, event: TeamEvent, guest_team_id: uuid.UUID) -> bool:
+        """Mark the team's row for this event DECLINED and take its players
+        out. False when the team was never on it. Doesn't commit."""
+        row = await self._session.scalar(
+            select(TeamEventGuestTeam).where(
+                TeamEventGuestTeam.team_event_id == event.id, TeamEventGuestTeam.team_id == guest_team_id
+            )
+        )
+        if row is None or row.status == GuestTeamStatus.DECLINED:
+            return row is not None
+        await self._drop_guest_players(event, guest_team_id)
+        row.status = GuestTeamStatus.DECLINED
+        row.decided_at = datetime.now(timezone.utc)
+        return True
 
     async def add_accepted_guest(self, event: TeamEvent, guest_team_id: uuid.UUID) -> None:
         """For stamping: a training from a slot with an accepted guest team
@@ -374,20 +420,23 @@ class JointTrainingService:
         captain = await self._session.get(User, team.owner_id)
         tz = ZoneInfo((captain.timezone if captain else None) or "UTC")
         day = event.starts_at.astimezone(tz).date()
-        own = (
-            await self._session.scalars(
-                select(TeamEvent).where(
-                    TeamEvent.team_id == team.id,
-                    TeamEvent.event_type == TeamEventType.TRAINING,
-                    TeamEvent.status == TeamEventStatus.SCHEDULED,
-                )
+        day_start = datetime.combine(day, time.min, tzinfo=tz)
+        return await self._session.scalar(
+            select(TeamEvent)
+            .where(
+                TeamEvent.team_id == team.id,
+                TeamEvent.event_type == TeamEventType.TRAINING,
+                TeamEvent.status == TeamEventStatus.SCHEDULED,
+                TeamEvent.starts_at >= day_start,
+                TeamEvent.starts_at < day_start + timedelta(days=1),
             )
-        ).all()
-        return next((e for e in own if e.starts_at.astimezone(tz).date() == day), None)
+            .order_by(TeamEvent.starts_at)
+            .limit(1)
+        )
 
     async def _drop_guest_players(self, event: TeamEvent, guest_team_id: uuid.UUID) -> None:
-        """The joint training leaves the guest team's players' weeks and
-        their marks are removed."""
+        """The joint training leaves the guest team's players' weeks, and
+        their marks and their places in its lines are removed."""
         from app.services.schedule_service import ScheduleService
 
         member_ids = await self._member_ids(guest_team_id)
@@ -405,4 +454,10 @@ class JointTrainingService:
                 if player is not None:
                     await schedule.revert_team_event_days(player, event.id)
             await self._session.delete(row)
+        if member_ids:
+            await self._session.execute(
+                delete(TeamEventLineupSlot).where(
+                    TeamEventLineupSlot.team_event_id == event.id, TeamEventLineupSlot.user_id.in_(member_ids)
+                )
+            )
         await self._session.flush()

@@ -49,6 +49,9 @@ def _make_user() -> User:
 
 @pytest.mark.asyncio
 async def test_create_weekly_plan_builds_light_legs_day_after_ice(db_session, monkeypatch) -> None:
+    from app.core import config
+
+    monkeypatch.setattr(config.get_settings(), "week_light_legs_after_ice", True)
     user = _make_user()
     db_session.add(user)
     await db_session.flush()

@@ -253,6 +253,10 @@ class User(Base):
         nullable=False,
         server_default=SeasonPeriod.OFFSEASON.value,
     )
+    # When the player last changed season_period themselves (2026-10-10):
+    # the default OFFSEASON of a new account is not a switch to the
+    # off-season, so «Мой сезон» does not open on it.
+    season_period_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # P3 #9: chosen in Settings (not onboarding -- a preference people may
     # want to change later, not a one-time setup step). CALM default keeps

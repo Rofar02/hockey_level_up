@@ -160,6 +160,9 @@ async def has_missed_training_day(
             DayPlan.date > from_date,
             DayPlan.date < to_date,
             DayPlan.session_type.in_(TRAINING_SESSION_TYPES),
+            # A double day's extra gym (step 6) never breaks the streak --
+            # the date counts through its main ice/game day.
+            DayPlan.is_extra.is_(False),
             ~session_fully_completed,
         )
         .limit(1)

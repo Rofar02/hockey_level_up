@@ -456,3 +456,15 @@ async def leave_joint_event(
 ):
     """Guest captain only: take the team out of a joint training."""
     await JointTrainingService(session).leave(current_user, team_id, event_id)
+
+
+@router.delete("/{event_id}/guests/{guest_team_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_guest_team(
+    team_id: uuid.UUID,
+    event_id: uuid.UUID,
+    guest_team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Host captain only: take a guest team out of this training."""
+    await JointTrainingService(session).remove_guest(current_user, team_id, event_id, guest_team_id)

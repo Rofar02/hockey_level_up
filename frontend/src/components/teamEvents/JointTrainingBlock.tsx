@@ -66,6 +66,19 @@ export function JointTrainingBlock({
     return null
   }
 
+  async function handleRemove(guestTeamId: string) {
+    if (accessToken === null) {
+      return
+    }
+    setError(null)
+    try {
+      await teamEventsApi.removeGuestTeam(teamId, event.id, guestTeamId, accessToken)
+      await reload()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось убрать команду.')
+    }
+  }
+
   async function handleLeave() {
     if (accessToken === null) {
       return
@@ -91,6 +104,16 @@ export function JointTrainingBlock({
             <Emblem url={guest.logo_url} />
             <span className="min-w-0 flex-1 truncate text-[#F5F7FA]">{guest.name}</span>
             <span className="shrink-0 text-xs text-[#8A94A6]">{STATUS_LABELS[guest.status] ?? guest.status}</span>
+            {isHost && isCaptain && (guest.status === 'invited' || guest.status === 'accepted') && (
+              <button
+                type="button"
+                aria-label={`Убрать «${guest.name}»`}
+                className="shrink-0 rounded p-1 text-[#8A94A6] hover:text-[#F5F7FA] focus-visible:outline focus-visible:outline-1"
+                onClick={() => void handleRemove(guest.team_id)}
+              >
+                <i className="ti ti-x text-sm" aria-hidden="true" />
+              </button>
+            )}
           </div>
         ))}
       {isHost && isCaptain && (

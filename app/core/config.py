@@ -125,7 +125,9 @@ class Settings(BaseSettings):
     # gym day right after ice or a game is built with light legs. 5.2: the
     # week reacts to real overload -- shadow mode (log only) until this is
     # turned on after the log and the year simulation have been reviewed.
-    week_light_legs_after_ice: bool = True
+    # 5.1 is off by the owner's call (2026-10-10): a gym day is always an
+    # ordinary gym day, ice or not.
+    week_light_legs_after_ice: bool = False
     week_load_reaction_enabled: bool = False
     # Step 6: double days -- a separate gym training on an ice/game day
     # ("Утро"/"Вечер"). Off until the year simulation with double days has

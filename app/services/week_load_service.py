@@ -12,9 +12,10 @@ a student, not an overload.
 import logging
 import uuid
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, ICE_SESSION_DOSE
@@ -29,6 +30,7 @@ from app.core.week_load import (
 from app.models.exercise import Exercise, ExerciseMuscleGroup, MuscleGroup
 from app.models.progress import IceLoadCharge
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +57,12 @@ async def _dose_events(
     ).all()
     for completed_at, difficulty, muscle, weight in gym:
         events.append((completed_at, muscle, difficulty * GAIN_PER_DIFFICULTY_LEVEL * weight))
+    # Dated by when the ice was over, not when the report (or the 24-hour
+    # default) came in; a charge from before ice_ended_at existed: its update.
+    ice_at = func.coalesce(IceLoadCharge.ice_ended_at, IceLoadCharge.updated_at)
     ice = (
         await session.execute(
-            select(IceLoadCharge.updated_at, IceLoadCharge.scale).where(
-                IceLoadCharge.user_id == user_id, IceLoadCharge.updated_at >= since
-            )
+            select(ice_at, IceLoadCharge.scale).where(IceLoadCharge.user_id == user_id, ice_at >= since)
         )
     ).all()
     for at, scale in ice:
@@ -68,10 +71,12 @@ async def _dose_events(
     return events
 
 
-async def _next_heavy_leg_day(session: AsyncSession, user_id: uuid.UUID, now: datetime) -> tuple[DayPlan, dict] | None:
-    """A gym day within LOOKAHEAD_HOURS, not started, whose planned leg load
-    reaches HEAVY_PLANNED_LOAD on some leg muscle."""
-    today = now.date()
+async def _next_heavy_leg_day(
+    session: AsyncSession, user_id: uuid.UUID, now: datetime, today: date
+) -> tuple[DayPlan, dict] | None:
+    """A gym day from the player's own today within LOOKAHEAD_HOURS, not
+    started, whose planned leg load reaches HEAVY_PLANNED_LOAD on some leg
+    muscle."""
     days = (
         await session.scalars(
             select(DayPlan)
@@ -79,8 +84,8 @@ async def _next_heavy_leg_day(session: AsyncSession, user_id: uuid.UUID, now: da
             .where(
                 WeeklyPlan.user_id == user_id,
                 DayPlan.session_type == DaySessionType.OFF_ICE,
-                DayPlan.date > today,
-                DayPlan.date <= (now + timedelta(hours=LOOKAHEAD_HOURS)).date(),
+                DayPlan.date >= today,
+                DayPlan.date <= today + timedelta(hours=LOOKAHEAD_HOURS),
             )
             .order_by(DayPlan.date)
         )
@@ -119,7 +124,12 @@ async def evaluate_week_after_ice(session: AsyncSession, user_id: uuid.UUID, now
             overloaded[str(muscle)] = {"acute": round(acute, 1), "habitual": round(habitual, 1)}
     if not overloaded:
         return None
-    heavy = await _next_heavy_leg_day(session, user_id, now)
+    user = await session.get(User, user_id)
+    try:
+        today = now.astimezone(ZoneInfo((user.timezone if user else None) or "UTC")).date()
+    except Exception:
+        today = now.date()
+    heavy = await _next_heavy_leg_day(session, user_id, now, today)
     if heavy is None:
         return None
     day, planned = heavy
@@ -128,9 +138,11 @@ async def evaluate_week_after_ice(session: AsyncSession, user_id: uuid.UUID, now
 
 async def shadow_check(session: AsyncSession, user_id: uuid.UUID) -> None:
     """Log-only hook after an ice charge; never lets an error reach the
-    report the player is saving."""
+    report the player is saving: it runs in a savepoint, so a failed
+    query can't poison the report's own transaction."""
     try:
-        decision = await evaluate_week_after_ice(session, user_id)
+        async with session.begin_nested():
+            decision = await evaluate_week_after_ice(session, user_id)
     except Exception:
         logger.exception("week_load_shadow failed for user_id=%s", user_id)
         return

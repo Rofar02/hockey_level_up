@@ -3,7 +3,7 @@ from datetime import date as date_
 from datetime import datetime
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -97,7 +97,11 @@ class IceLoadCharge(Base):
     row per TrainingSession: the scale charged so far (duration factor x
     effort factor x game factor, see app.core.muscle_load.ice_load_scale).
     A later report only adds the difference -- the 24-hour default and a
-    late report never count twice, and "Не был" takes it back."""
+    late report never count twice, and "Не был" takes it back.
+
+    `applied` is what really landed on each muscle at `applied_at` (after
+    the 0..10 clamp), so taking a charge back removes exactly that, aged
+    since. `ice_ended_at` is when the ice itself was over (2026-10-10)."""
 
     __tablename__ = "ice_load_charges"
 
@@ -111,6 +115,9 @@ class IceLoadCharge(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     scale: Mapped[float] = mapped_column(Float, nullable=False)
+    applied: Mapped[dict[str, float] | None] = mapped_column(JSONB, nullable=True)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ice_ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

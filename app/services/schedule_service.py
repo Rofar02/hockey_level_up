@@ -283,16 +283,16 @@ class ScheduleService:
         training_block: TrainingBlock | None,
         archetype_rotation,
     ) -> DayPlan:
-        """The double day's separate, full gym training -- light legs, since
-        there is ice (or a game) the same day. The main day takes the other
-        half of the day."""
+        """The double day's separate gym training -- an ordinary gym day,
+        built exactly like any other (owner's call, 2026-10-10). The main
+        day takes the other half of the day."""
         main_day.time_of_day = "evening" if extra_time == "morning" else "morning"
         extra = DayPlan(
             date=main_day.date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day=extra_time
         )
         extra.training_session = await self._build_session_for_day(
             DaySessionType.OFF_ICE, user, block_phase, training_block,
-            today=main_day.date, archetype_rotation=archetype_rotation, light_legs=True,
+            today=main_day.date, archetype_rotation=archetype_rotation,
         )
         return extra
 
@@ -727,6 +727,13 @@ class ScheduleService:
             # ordering this row's DELETE before the new row's INSERT
             # within the same flush, which SQLAlchemy does not
             # guarantee (inserts/updates are flushed before deletes).
+            if day_plan.training_session.id is not None:
+                # An ice day or game already on the muscle map: take it off
+                # first -- its charge goes with the session, and a rebuilt
+                # ice day would otherwise be charged a second time.
+                from app.services.ice_load_service import IceLoadService
+
+                await IceLoadService(self._session).take_back(day_plan.training_session.id)
             await self._session.delete(day_plan.training_session)
             await self._session.flush()
             day_plan.training_session = None

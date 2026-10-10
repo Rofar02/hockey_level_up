@@ -447,3 +447,7 @@ export function answerGuestInvitation(
 export function leaveJointEvent(teamId: string, eventId: string, accessToken: string): Promise<void> {
   return apiDeleteAuth<void>(`/teams/${teamId}/events/${eventId}/guests/me`, accessToken)
 }
+
+export function removeGuestTeam(teamId: string, eventId: string, guestTeamId: string, accessToken: string): Promise<void> {
+  return apiDeleteAuth<void>(`/teams/${teamId}/events/${eventId}/guests/${guestTeamId}`, accessToken)
+}

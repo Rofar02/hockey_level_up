@@ -60,8 +60,10 @@ class IceLoadService:
         ended_at: datetime,
         now: datetime | None = None,
     ) -> None:
-        """Bring this session's charge to `scale`: adds (or takes back) only
-        the difference from what was charged before. Doesn't commit."""
+        """Bring this session's charge to `scale`: what the previous charge
+        really put on each muscle (aged since) is taken back, and the new
+        scale is put on, clamped to 0..10 -- the amounts that really landed
+        are remembered for the next time. Doesn't commit."""
         now = now or datetime.now(timezone.utc)
         charge = (
             await self._session.execute(
@@ -70,18 +72,19 @@ class IceLoadService:
                 .with_for_update()
             )
         ).scalar_one_or_none()
-        previous = charge.scale if charge is not None else 0.0
-        delta = scale - previous
-        if charge is None:
-            self._session.add(IceLoadCharge(training_session_id=training_session_id, user_id=user_id, scale=scale))
-        else:
-            charge.scale = scale
-        if abs(delta) < 1e-9:
-            await self._session.flush()
+        if charge is not None and abs(charge.scale - scale) < 1e-9:
             return
+        previous = self._remaining(charge, now)
+        if charge is None:
+            charge = IceLoadCharge(training_session_id=training_session_id, user_id=user_id, scale=scale)
+            self._session.add(charge)
+        charge.scale = scale
+        charge.ice_ended_at = ended_at
+        charge.applied_at = now
 
         hours_since = max(0.0, (now - ended_at).total_seconds() / 3600)
-        factor = delta * recovery_factor(hours_since)
+        factor = scale * recovery_factor(hours_since)
+        applied: dict[str, float] = {}
         # Same lock order as muscle_load_consumer: sorted by muscle name.
         for muscle_group, dose in sorted(ICE_SESSION_DOSE.items(), key=lambda item: item[0].value):
             load = (
@@ -92,7 +95,9 @@ class IceLoadService:
                 )
             ).scalar_one_or_none()
             effective = get_effective_muscle_load(load, now) if load is not None else 0.0
-            new_value = max(0.0, min(MAX_INTENSITY, effective + dose * factor))
+            base = max(0.0, effective - previous.get(muscle_group.value, 0.0))
+            new_value = max(0.0, min(MAX_INTENSITY, base + dose * factor))
+            applied[muscle_group.value] = new_value - base
             if load is None:
                 if new_value > 0:
                     self._session.add(
@@ -101,7 +106,30 @@ class IceLoadService:
             else:
                 load.current_value = new_value
                 load.last_updated_at = now
+        charge.applied = applied
         await self._session.flush()
+
+    async def take_back(self, training_session_id: uuid.UUID, now: datetime | None = None) -> None:
+        """Before an ice/game session is deleted (the day is rebuilt): take
+        its charge off the map, or the next default would count it twice."""
+        charge = await self._session.scalar(
+            select(IceLoadCharge).where(IceLoadCharge.training_session_id == training_session_id)
+        )
+        if charge is not None:
+            await self.charge(charge.user_id, training_session_id, 0.0, charge.ice_ended_at or charge.updated_at, now)
+
+    @staticmethod
+    def _remaining(charge: IceLoadCharge | None, now: datetime) -> dict[str, float]:
+        """What the charge put on each muscle, aged to `now`. A charge from
+        before `applied` was stored: its full dose, aged since the update."""
+        if charge is None:
+            return {}
+        applied_at = charge.applied_at or charge.updated_at or now
+        amounts = charge.applied
+        if amounts is None:
+            amounts = {muscle.value: dose * charge.scale for muscle, dose in ICE_SESSION_DOSE.items()}
+        left = recovery_factor(max(0.0, (now - applied_at).total_seconds() / 3600))
+        return {muscle: amount * left for muscle, amount in amounts.items()}
 
 
 # A default older than this is dropped rather than charged late: the load

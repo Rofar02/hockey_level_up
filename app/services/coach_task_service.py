@@ -6,11 +6,12 @@ diary), the same "check on read" approach as QuestService.
 import json
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,6 +46,32 @@ AI_TASKS_INSTRUCTIONS = (
 )
 
 
+@dataclass(frozen=True)
+class WeekPlanCaps:
+    """What this week's plan makes possible -- a task's target is cut to it
+    on read, so a task stays doable after the plan changes (and an AI task
+    saved before the plan existed fits it once it does)."""
+
+    has_plan: bool
+    trainings: int  # ice + gym days, a double day's extra gym not counted
+    ice_like: int  # ice days and games -- the days with a report
+    longest_run: int  # most training days in a row
+
+    def target(self, spec: CoachTaskSpec) -> int | None:
+        """The target to show, or None when the plan leaves no room for it."""
+        if not self.has_plan:
+            return spec.count if spec.type != CoachTaskType.NO_MISSED_DAY else 1
+        if spec.type == CoachTaskType.COMPLETE_TRAININGS:
+            cap = self.trainings
+        elif spec.type in (CoachTaskType.ICE_REPORTS, CoachTaskType.ICE_FOCUS):
+            cap = self.ice_like
+        elif spec.type == CoachTaskType.DAYS_IN_A_ROW:
+            cap = self.longest_run if self.longest_run >= 2 else 0
+        else:
+            return 1 if self.trainings > 0 else None
+        return min(spec.count, cap) if cap > 0 else None
+
+
 def _monday(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
@@ -65,12 +92,13 @@ class CoachTaskService:
         the first time they look, built off this week's plan."""
         today = today or _local_today(user)
         week_start = _monday(today)
+        caps = await self._plan_caps(user.id, week_start)
         tasks = await self._tasks(user.id, week_start)
         if not tasks:
-            gym_days, ice_days = await self._planned_days(user.id, week_start)
-            await self.save_specs(user.id, week_start, template_specs(gym_days, ice_days), "template")
+            await self.save_specs(user.id, week_start, template_specs(caps.trainings, caps.ice_like), "template")
             tasks = await self._tasks(user.id, week_start)
-        return [await self._read(user.id, task, week_start, today) for task in tasks]
+        reads = [await self._read(user.id, task, week_start, today, caps) for task in tasks]
+        return [read for read in reads if read is not None]
 
     async def claim(self, user: User, task_id: uuid.UUID) -> CoachTaskRead:
         today = _local_today(user)
@@ -78,16 +106,30 @@ class CoachTaskService:
         task = await self._session.get(WeeklyCoachTask, task_id)
         if task is None or task.user_id != user.id or task.week_start != week_start:
             raise HTTPException(status_code=404, detail="Задание не найдено")
-        read = await self._read(user.id, task, week_start, today)
-        if task.claimed_at is not None or not read.done:
+        caps = await self._plan_caps(user.id, week_start)
+        read = await self._read(user.id, task, week_start, today, caps)
+        if read is None or task.claimed_at is not None or not read.done:
             raise HTTPException(status_code=400, detail="Задание ещё не выполнено или уже получено")
-        task.claimed_at = datetime.now(timezone.utc)
+        # Atomic: of two taps at once only the one that really sets
+        # claimed_at grants the XP.
+        claimed = await self._session.execute(
+            update(WeeklyCoachTask)
+            .where(WeeklyCoachTask.id == task.id, WeeklyCoachTask.claimed_at.is_(None))
+            .values(claimed_at=func.now())
+            .returning(WeeklyCoachTask.id)
+        )
+        if claimed.scalar_one_or_none() is None:
+            raise HTTPException(status_code=400, detail="Задание ещё не выполнено или уже получено")
         await QuestService(self._session)._grant_xp(user.id, COACH_TASK_XP)
         await self._session.commit()
-        return await self._read(user.id, task, week_start, today)
+        await self._session.refresh(task)
+        return await self._read(user.id, task, week_start, today, caps)
 
     async def save_specs(self, user_id: uuid.UUID, week_start: date, specs: list[CoachTaskSpec], source: str) -> None:
-        for spec in specs[:MAX_TASKS_PER_WEEK]:
+        """At most MAX_TASKS_PER_WEEK tasks in the week, counting the ones
+        already there."""
+        room = MAX_TASKS_PER_WEEK - len(await self._tasks(user_id, week_start))
+        for spec in specs[: max(room, 0)]:
             await self._session.execute(
                 pg_insert(WeeklyCoachTask)
                 .values(
@@ -123,8 +165,18 @@ class CoachTaskService:
                 specs.append(spec)
         if not specs:
             return 0
+        # The coach's tasks replace the template ones not yet claimed.
+        await self._session.execute(
+            delete(WeeklyCoachTask).where(
+                WeeklyCoachTask.user_id == user_id,
+                WeeklyCoachTask.week_start == week_start,
+                WeeklyCoachTask.source == "template",
+                WeeklyCoachTask.claimed_at.is_(None),
+            )
+        )
+        before = len(await self._tasks(user_id, week_start))
         await self.save_specs(user_id, week_start, specs, "coach")
-        return len(specs[:MAX_TASKS_PER_WEEK])
+        return len(await self._tasks(user_id, week_start)) - before
 
     @staticmethod
     def ai_focus_list() -> str:
@@ -141,24 +193,43 @@ class CoachTaskService:
             ).all()
         )
 
-    async def _planned_days(self, user_id: uuid.UUID, week_start: date) -> tuple[int, int]:
+    async def _plan_caps(self, user_id: uuid.UUID, week_start: date) -> WeekPlanCaps:
+        """The week's main days only -- a double day's extra gym (step 6)
+        is not a day of its own in the calendar the tasks are counted on."""
         rows = (
             await self._session.execute(
-                select(DayPlan.session_type)
+                select(DayPlan.date, DayPlan.session_type)
                 .join(WeeklyPlan, WeeklyPlan.id == DayPlan.weekly_plan_id)
                 .where(
                     WeeklyPlan.user_id == user_id,
                     DayPlan.date >= week_start,
                     DayPlan.date <= week_start + timedelta(days=6),
+                    DayPlan.is_extra.is_(False),
                 )
             )
-        ).scalars().all()
-        gym = sum(1 for kind in rows if kind == DaySessionType.OFF_ICE)
-        ice = sum(1 for kind in rows if kind in (DaySessionType.ON_ICE, DaySessionType.GAME))
-        return gym, ice
+        ).all()
+        training_dates = sorted(day for day, kind in rows if kind in TRAINING_SESSION_TYPES)
+        longest = run = 0
+        for index, day in enumerate(training_dates):
+            run = run + 1 if index and (day - training_dates[index - 1]).days == 1 else 1
+            longest = max(longest, run)
+        return WeekPlanCaps(
+            has_plan=bool(rows),
+            trainings=len(training_dates),
+            ice_like=sum(1 for _, kind in rows if kind in (DaySessionType.ON_ICE, DaySessionType.GAME)),
+            longest_run=longest,
+        )
 
-    async def _read(self, user_id: uuid.UUID, task: WeeklyCoachTask, week_start: date, today: date) -> CoachTaskRead:
+    async def _read(
+        self, user_id: uuid.UUID, task: WeeklyCoachTask, week_start: date, today: date, caps: WeekPlanCaps
+    ) -> CoachTaskRead | None:
+        """None: the week's plan leaves no room for this task -- hidden,
+        unless its XP was already claimed."""
         spec = CoachTaskSpec(CoachTaskType(task.task_type), task.count, task.focus_id)
+        capped = caps.target(spec)
+        if capped is None and task.claimed_at is None:
+            return None
+        spec = CoachTaskSpec(spec.type, capped or spec.count, spec.focus_id)
         progress, target = await self._progress(user_id, spec, week_start, today)
         return CoachTaskRead(
             id=task.id,

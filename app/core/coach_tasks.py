@@ -94,15 +94,15 @@ def parse_spec(raw: object) -> CoachTaskSpec | None:
     return CoachTaskSpec(task_type, count if limits is not None else 1, focus_id)
 
 
-def template_specs(gym_days: int, ice_days: int) -> list[CoachTaskSpec]:
-    """Free players' tasks, from the week's plan: close what's planned,
-    report after the ice, and no missed day."""
+def template_specs(trainings: int, ice_like: int) -> list[CoachTaskSpec]:
+    """Free players' tasks, from the week's plan: close what's planned (ice
+    and gym days), report after the ice and the games, and no missed day."""
     specs: list[CoachTaskSpec] = []
-    planned = gym_days + ice_days
+    planned = trainings
     if planned > 0:
         specs.append(CoachTaskSpec(CoachTaskType.COMPLETE_TRAININGS, min(planned, 7)))
-    if ice_days > 0:
-        specs.append(CoachTaskSpec(CoachTaskType.ICE_REPORTS, min(ice_days, 7)))
+    if ice_like > 0:
+        specs.append(CoachTaskSpec(CoachTaskType.ICE_REPORTS, min(ice_like, 7)))
     if planned >= 2:
         specs.append(CoachTaskSpec(CoachTaskType.NO_MISSED_DAY))
     return specs[:MAX_TASKS_PER_WEEK]

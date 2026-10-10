@@ -27,7 +27,7 @@ def _make_user(**overrides) -> User:
 
 
 def test_templates_follow_the_weeks_plan() -> None:
-    specs = template_specs(gym_days=2, ice_days=1)
+    specs = template_specs(trainings=3, ice_like=1)
     assert [s.type for s in specs] == [
         CoachTaskType.COMPLETE_TRAININGS,
         CoachTaskType.ICE_REPORTS,

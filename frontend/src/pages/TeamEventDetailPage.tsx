@@ -154,6 +154,10 @@ export function TeamEventDetailPage() {
     )
   }
 
+  // A joint training: only the host team's captain runs it -- a guest
+  // captain sees it like a player (and can take the team out in its block).
+  const isHostCaptain = team !== null && event !== null && team.is_captain && event.team_id === teamId
+
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
@@ -178,8 +182,8 @@ export function TeamEventDetailPage() {
                   <span className="text-sm text-[#8A94A6]">{formatDateTime(new Date(event.starts_at))}</span>
                 </div>
               </div>
-              <GameScoreBlock teamId={teamId!} event={event} isCaptain={team.is_captain} onEventChange={setEvent} />
-              {team.is_captain && (
+              <GameScoreBlock teamId={teamId!} event={event} isCaptain={isHostCaptain} onEventChange={setEvent} />
+              {isHostCaptain && (
                 <div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">
                   <Button type="button" variant="neutral" className="!px-3 !py-1.5 !text-xs" onClick={openReschedule}>
                     Перенести
@@ -217,15 +221,15 @@ export function TeamEventDetailPage() {
               <EventBoardPanel
                 teamId={teamId!}
                 event={event}
-                isCaptain={team.is_captain}
+                isCaptain={isHostCaptain}
                 onEventChange={setEvent}
               />
             )}
             {activeTab === 'attendance' && (
-              <EventAttendancePanel teamId={teamId!} event={event} isCaptain={team.is_captain} />
+              <EventAttendancePanel teamId={teamId!} event={event} isCaptain={isHostCaptain} />
             )}
             {activeTab === 'lineup' && (
-              <EventLineupPanel teamId={teamId!} event={event} isCaptain={team.is_captain} />
+              <EventLineupPanel teamId={teamId!} event={event} isCaptain={isHostCaptain} />
             )}
           </>
         )}
