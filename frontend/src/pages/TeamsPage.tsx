@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { EMPTY_TEAM_LEAGUE, TeamLeagueFields, isTeamLeagueComplete } from '../components/TeamLeagueFields'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_CLASS } from '../components/ui/cardStyle'
@@ -12,7 +13,7 @@ import { TextField } from '../components/ui/TextField'
 import * as teamsApi from '../api/teams'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import type { TeamJoinRequestRead, TeamSummaryRead } from '../types/team'
+import type { TeamJoinRequestRead, TeamLeagueFields as TeamLeagueValues, TeamSummaryRead } from '../types/team'
 
 type TeamsTab = 'mine' | 'create' | 'join'
 
@@ -27,6 +28,7 @@ export function TeamsPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const [createName, setCreateName] = useState('')
+  const [createLeague, setCreateLeague] = useState<TeamLeagueValues>(EMPTY_TEAM_LEAGUE)
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
@@ -73,13 +75,13 @@ export function TeamsPage() {
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
-    if (accessToken === null || createName.trim() === '') {
+    if (accessToken === null || createName.trim() === '' || !isTeamLeagueComplete(createLeague)) {
       return
     }
     setCreateError(null)
     setIsCreating(true)
     try {
-      const created = await teamsApi.createTeam({ name: createName.trim() }, accessToken)
+      const created = await teamsApi.createTeam({ ...createLeague, name: createName.trim() }, accessToken)
       navigate(`/teams/${created.id}`)
     } catch (err) {
       setCreateError(err instanceof ApiError ? err.message : 'Не удалось создать команду.')
@@ -240,15 +242,20 @@ export function TeamsPage() {
 
             {activeTab === 'create' && (
               <div className="flex flex-col gap-3">
-                <form onSubmit={handleCreate} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <form onSubmit={handleCreate} className="flex flex-col gap-3">
                   <TextField
                     label="Название"
                     value={createName}
                     onChange={(event) => setCreateName(event.target.value)}
                     maxLength={100}
-                    className="flex-1"
                   />
-                  <Button type="submit" isLoading={isCreating} disabled={createName.trim() === ''}>
+                  <TeamLeagueFields value={createLeague} onChange={setCreateLeague} />
+                  <p className="text-xs text-text-secondary">Эмблему можно добавить на странице команды.</p>
+                  <Button
+                    type="submit"
+                    isLoading={isCreating}
+                    disabled={createName.trim() === '' || !isTeamLeagueComplete(createLeague)}
+                  >
                     Создать
                   </Button>
                 </form>

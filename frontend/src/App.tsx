@@ -40,6 +40,8 @@ const DiaryPage = lazy(() => import('./pages/DiaryPage').then((m) => ({ default:
 const GuidePage = lazy(() => import('./pages/GuidePage').then((m) => ({ default: m.GuidePage })))
 const SeasonPage = lazy(() => import('./pages/SeasonPage').then((m) => ({ default: m.SeasonPage })))
 const TeamStatsPage = lazy(() => import('./pages/TeamStatsPage').then((m) => ({ default: m.TeamStatsPage })))
+const TeamCardPage = lazy(() => import('./pages/TeamCardPage').then((m) => ({ default: m.TeamCardPage })))
+const TeamLineupPage = lazy(() => import('./pages/TeamLineupPage').then((m) => ({ default: m.TeamLineupPage })))
 const RestrictionsPage = lazy(() =>
   import('./pages/RestrictionsPage').then((m) => ({ default: m.RestrictionsPage })),
 )
@@ -245,6 +247,8 @@ function App() {
         <Route path="/teams/:teamId" element={<TeamDetailPage />} />
         <Route path="/teams/:teamId/events" element={<TeamEventsPage />} />
         <Route path="/teams/:teamId/stats" element={<TeamStatsPage />} />
+        <Route path="/teams/:teamId/card" element={<TeamCardPage />} />
+        <Route path="/teams/:teamId/lineup" element={<TeamLineupPage />} />
         <Route path="/teams/:teamId/events/:eventId" element={<TeamEventDetailPage />} />
         <Route
           path="/teams/:teamId/ice-schedule-templates"

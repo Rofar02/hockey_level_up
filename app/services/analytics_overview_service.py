@@ -342,7 +342,8 @@ class AnalyticsOverviewService:
         ]
         completed = sum(1 for day in own if day.done)
 
-        by_date = {day.plan.date: day for day in loaded_days}
+        # One cell per date: the main day of a double day (step 6).
+        by_date = {day.plan.date: day for day in loaded_days if not day.plan.is_extra}
         calendar = []
         for offset in range(CALENDAR_WEEKS * 7):
             current = calendar_start + timedelta(days=offset)

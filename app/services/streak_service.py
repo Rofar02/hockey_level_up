@@ -61,6 +61,9 @@ async def list_activity_calendar(
             WeeklyPlan.user_id == user_id,
             DayPlan.date >= from_date,
             DayPlan.date <= to_date,
+            # The streak goes by dates: a double day (step 6) counts through
+            # its main ice/game day, an unfinished extra gym day never breaks it.
+            DayPlan.is_extra.is_(False),
         )
         .group_by(DayPlan.date, DayPlan.session_type)
         .order_by(DayPlan.date)
@@ -157,6 +160,9 @@ async def has_missed_training_day(
             DayPlan.date > from_date,
             DayPlan.date < to_date,
             DayPlan.session_type.in_(TRAINING_SESSION_TYPES),
+            # A double day's extra gym (step 6) never breaks the streak --
+            # the date counts through its main ice/game day.
+            DayPlan.is_extra.is_(False),
             ~session_fully_completed,
         )
         .limit(1)

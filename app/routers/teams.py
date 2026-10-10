@@ -6,10 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.user import User
-from app.routers.deps import get_current_user
+from app.routers.deps import get_current_user, require_admin
 from app.schemas.game_stats import TeamStatsRead, TeamStatsReminderRead
 from app.schemas.leaderboard import LeaderboardEntryRead
 from app.schemas.team import (
+    LeagueRead,
+    OtherLeagueNameRead,
+    TeamCardRead,
     TeamCreate,
     TeamInvitationCreate,
     TeamInvitationRead,
@@ -21,8 +24,19 @@ from app.schemas.team import (
     TeamScoreRead,
     TeamSummaryRead,
     TeamTransferCaptaincyPayload,
+    TeamUpdate,
 )
 from app.services.game_stats_service import GameStatsService
+from app.schemas.team_event import (
+    GuestInvitationAnswer,
+    GuestInvitationRead,
+    GuestTeamRead,
+    TeamCurrentLineupRead,
+    TeamSearchHitRead,
+)
+from app.services.joint_training_service import JointTrainingService
+from app.services.team_card_service import TeamCardService
+from app.services.team_event_service import TeamEventService
 from app.services.team_invitation_service import TeamInvitationService
 from app.services.team_service import TeamService
 
@@ -35,7 +49,27 @@ async def create_team(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    return await TeamService(session).create_team(current_user, body.name)
+    return await TeamService(session).create_team(current_user, body.name, body)
+
+
+@router.get("/leagues", response_model=list[LeagueRead])
+async def list_leagues(
+    _current_user: Annotated[User, Depends(get_current_user)],
+):
+    """The fixed league/division list for the create and settings forms
+    (app/core/leagues.py). Registered before GET /{team_id}, same "/me"
+    landmine as below."""
+    return TeamService.list_leagues()
+
+
+@router.get("/admin/other-leagues", response_model=list[OtherLeagueNameRead])
+async def list_other_league_names(
+    _admin: Annotated[User, Depends(require_admin)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Admin: what captains type into "Другая лига", most frequent first --
+    candidates to add to the fixed list."""
+    return await TeamService(session).list_other_league_names()
 
 
 @router.get("/me", response_model=list[TeamSummaryRead])
@@ -154,6 +188,74 @@ async def get_team(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await TeamService(session).get_team(current_user, team_id)
+
+
+@router.get("/{team_id}/lineup/current", response_model=TeamCurrentLineupRead)
+async def get_current_lineup(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Members only: the next game's lineup (or the last one's)."""
+    return await TeamEventService(session).get_current_lineup(current_user, team_id)
+
+
+@router.get("/{team_id}/joint/search", response_model=list[TeamSearchHitRead])
+async def search_teams_for_joint(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    q: str = Query(default="", max_length=100),
+):
+    """Captain only: teams to invite to a joint training, by name or city."""
+    return await JointTrainingService(session).search_teams(current_user, team_id, q)
+
+
+@router.get("/{team_id}/joint/invitations", response_model=list[GuestInvitationRead])
+async def list_joint_invitations(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain only: other teams' invitations to train together."""
+    return await JointTrainingService(session).list_incoming(current_user, team_id)
+
+
+@router.post("/{team_id}/joint/invitations/{invitation_id}", response_model=GuestTeamRead)
+async def answer_joint_invitation(
+    team_id: uuid.UUID,
+    invitation_id: uuid.UUID,
+    body: GuestInvitationAnswer,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Accept or decline; a same-day own training -> 409 "conflict" unless
+    replace_own, which cancels the own one."""
+    return await JointTrainingService(session).answer(
+        current_user, team_id, invitation_id, body.accept, body.replace_own
+    )
+
+
+@router.get("/{team_id}/card", response_model=TeamCardRead)
+async def get_team_card(
+    team_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """The team card -- open to any signed-in player (a player card links
+    here), like the cross-team leaderboard."""
+    return await TeamCardService(session).get_card(current_user, team_id)
+
+
+@router.patch("/{team_id}", response_model=TeamRead)
+async def update_team(
+    team_id: uuid.UUID,
+    body: TeamUpdate,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Captain only: name, city, league, division."""
+    return await TeamService(session).update_team(current_user, team_id, body.name, body)
 
 
 @router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)

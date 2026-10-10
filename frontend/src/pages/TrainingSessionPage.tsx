@@ -13,6 +13,8 @@ import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { StatIcon } from '../components/ui/StatIcon'
 import { ExerciseFocusScreen } from '../components/ExerciseFocusScreen'
+import { ExerciseDetailModal } from '../components/ExerciseDetailModal'
+import { IceFocusCard } from '../components/IceFocusCard'
 import { ExerciseMediaPrefetch } from '../components/ExerciseMediaPrefetch'
 import * as authApi from '../api/auth'
 import * as progressApi from '../api/progress'
@@ -23,18 +25,18 @@ import * as trainingBlockApi from '../api/trainingBlock'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import { useSessionClock } from '../hooks/useSessionClock'
+import { formatElapsed, useSessionClock } from '../hooks/useSessionClock'
 import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
 import type { TrainingStreakRead } from '../types/progress'
-import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
+import { DAY_SESSION_TYPE_LABELS, SESSION_TYPE_COLORS, SESSION_TYPE_ICONS } from '../types/schedule'
 import type { CeilingEscalationRead, DayPlanRead, SessionBlockRead, TrainingPhase } from '../types/schedule'
 import type { SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
 import { lockBodyScroll, unlockBodyScroll } from '../utils/bodyScrollLock'
-import { WEEKDAY_LABELS, parseIsoDate, toIsoDate } from '../utils/date'
+import { formatShortDate, parseIsoDate, toIsoDate } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -218,12 +220,44 @@ function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
   return { statTotals, xpTotal, escalations }
 }
 
+// "Сегодня" / "Завтра" / "Вчера" -- other days are named by the big date
+// under it (2026-10-10 redesign).
+function dayTagFor(isoDate: string): string | null {
+  const today = new Date()
+  const shift = (days: number) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() + days)
+    return toIsoDate(d)
+  }
+  if (isoDate === shift(0)) return 'Сегодня'
+  if (isoDate === shift(1)) return 'Завтра'
+  if (isoDate === shift(-1)) return 'Вчера'
+  return null
+}
+
+// "Вторник, 13 октября".
+function formatLongDate(isoDate: string): string {
+  const text = parseIsoDate(isoDate).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 export function TrainingSessionPage() {
   const { dayPlanId } = useParams<{ dayPlanId: string }>()
   const { accessToken } = useAuth()
   const navigate = useNavigate()
 
   const [day, setDay] = useState<DayPlanRead | null>(null)
+  // A double day's other training (step 6), for the morning / evening tabs.
+  const [sibling, setSibling] = useState<DayPlanRead | null>(null)
+  // «Начать тренировку» tapped on the day's overview (2026-10-10 redesign):
+  // before that, a day with nothing done yet shows the overview.
+  const [startedHere, setStartedHere] = useState(false)
+  // Ice / game days (2026-10-10): a preparation list, no player -- an
+  // exercise opens its technique in a modal.
+  const [peekExercise, setPeekExercise] = useState<ExerciseRead | null>(null)
+  // A training still ahead (owner's call, 2026-10-10): open to look at,
+  // started only on its own day -- the backend refuses anything else.
+  const isAhead = day !== null && day.date > toIsoDate(new Date())
   const [blocks, setBlocks] = useState<SessionBlockRead[] | null>(null)
   const [trainingSessionId, setTrainingSessionId] = useState<string | null>(null)
   const [trainingBlock, setTrainingBlock] = useState<TrainingBlockRead | null>(null)
@@ -376,6 +410,34 @@ export function TrainingSessionPage() {
     }
   }, [accessToken, dayPlanId])
 
+  useEffect(() => {
+    if (accessToken === null || day === null) {
+      setSibling(null)
+      return
+    }
+    let cancelled = false
+    // A new day: its own sibling, never the previous day's for a frame.
+    setSibling(null)
+    const date = parseIsoDate(day.date)
+    const monday = new Date(date)
+    monday.setDate(date.getDate() - ((date.getDay() + 6) % 7))
+    scheduleApi
+      .getWeeklyPlan(toIsoDate(monday), accessToken)
+      .then((plan) => {
+        if (!cancelled) {
+          setSibling(plan.day_plans.find((other) => other.date === day.date && other.id !== day.id) ?? null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSibling(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, day])
+
   async function refreshSetCount(exerciseId: string) {
     if (accessToken === null || trainingSessionId === null) {
       return
@@ -458,6 +520,9 @@ export function TrainingSessionPage() {
   }
 
   async function handleComplete(block: SessionBlockRead) {
+    if (isAhead) {
+      return
+    }
     if (
       accessToken === null ||
       block.completed_at !== null ||
@@ -516,6 +581,9 @@ export function TrainingSessionPage() {
   // (no feedback prompt for a skip) -- advance to the next not-done block
   // immediately via handleExerciseSettled's own lookup instead.
   async function handleSkip(block: SessionBlockRead) {
+    if (isAhead) {
+      return
+    }
     if (
       accessToken === null ||
       block.completed_at !== null ||
@@ -573,7 +641,9 @@ export function TrainingSessionPage() {
   const sessionElapsedSeconds = useSessionClock(
     trainingSessionId,
     blocks ?? [],
-    selectedExercise !== null &&
+    // A day ahead is only looked at -- opening it mustn't start its clock.
+    !isAhead &&
+      selectedExercise !== null &&
       blocks !== null &&
       blocks.some((block) => !isExerciseDone(block, setCompletionCounts)),
   )
@@ -620,6 +690,13 @@ export function TrainingSessionPage() {
 
   const blocksByPhase: Record<TrainingPhase, SessionBlockRead[]> = { warmup, main, cooldown, puck }
   const activePhases = PHASE_SEQUENCE.filter((phase) => blocksByPhase[phase].length > 0)
+  // The day's overview until the workout starts: nothing done yet and
+  // «Начать тренировку» not tapped -- a day ahead always shows it.
+  const showOverview = (!startedHere && doneCount === 0) || isAhead
+  // Ice and games: the day is the ice itself -- the app only has the
+  // preparation around it and the report after it (owner's call,
+  // 2026-10-10), so no overview / player flow.
+  const isIceLike = day !== null && (day.session_type === 'on_ice' || day.session_type === 'game')
   // Clamped defensively -- activePhases is recomputed fresh every render
   // while currentPhaseIndex persists across renders, so this only matters
   // if the two were ever momentarily out of step.
@@ -686,10 +763,16 @@ export function TrainingSessionPage() {
       ? (currentPhaseBlocks.find((block) => block.exercise.id === selectedExercise.id) ?? null)
       : null
 
-  const weekdayLabel = day !== null ? WEEKDAY_LABELS[(parseIsoDate(day.date).getDay() + 6) % 7] : null
-  const eyebrow = [weekdayLabel, trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null]
+  const dayTag = day !== null ? dayTagFor(day.date) : null
+  const eyebrow = [dayTag, trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null]
     .filter(Boolean)
     .join(' · ')
+  // What the session's main work develops -- the first three stats, by name.
+  const developedStats = [
+    ...new Set((main.length > 0 ? main : blocks).flatMap((block) => block.exercise.target_stats)),
+  ]
+    .slice(0, 2)
+    .map((stat) => TARGET_STAT_LABELS[stat])
 
   function handleCloseExerciseDetail() {
     // SetLogger tracks its own set counts internally -- this just tells the
@@ -718,6 +801,18 @@ export function TrainingSessionPage() {
     }
     if (selectedExercise.target_sets !== null) {
       refreshSetCount(selectedExercise.id)
+    }
+    // That was the session's last exercise (whatever phase it's in): close
+    // the player -- the finish screen waits for it (see sessionComplete's
+    // render below) and shows once it's closed.
+    if (
+      blocks !== null &&
+      blocks
+        .filter((block) => block.exercise.id !== selectedExercise.id)
+        .every((block) => isExerciseDone(block, setCompletionCounts))
+    ) {
+      setSelectedExercise(null)
+      return
     }
     const currentIndex = currentPhaseBlocks.findIndex(
       (block) => block.exercise.id === selectedExercise.id,
@@ -793,13 +888,66 @@ export function TrainingSessionPage() {
       <IceGlowBackground />
       <ExerciseMediaPrefetch exercise={nextPrefetchExercise} />
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <BackLink />
-        <div className="flex flex-col gap-1">
-          {eyebrow !== '' && <p className="text-xs uppercase tracking-wide text-text-secondary">{eyebrow}</p>}
-          <h1 className="text-xl font-semibold">
-            {day !== null ? DAY_SESSION_TYPE_LABELS[day.session_type] : 'Тренировка дня'}
+        <div className="flex flex-col gap-0.5">
+          {eyebrow !== '' && (
+            <p
+              className={`text-xs font-semibold uppercase tracking-wide ${
+                dayTag === 'Сегодня' ? 'text-accent-persimmon' : 'text-text-secondary'
+              }`}
+            >
+              {eyebrow}
+            </p>
+          )}
+          <h1 className="font-display text-[28px] font-semibold uppercase leading-tight">
+            {day !== null ? formatLongDate(day.date) : 'Тренировка дня'}
           </h1>
+        </div>
+        {day !== null && sibling !== null && sibling.id !== day.id && sibling.date === day.date ? (
+          <div className="grid grid-cols-2 gap-1.5">
+            {[day, sibling]
+              .sort((a, b) => (a.time_of_day === 'morning' ? -1 : b.time_of_day === 'morning' ? 1 : 0))
+              .map((half) => {
+                const isCurrent = half.id === day.id
+                const halfBlocks = half.training_session?.blocks ?? []
+                const halfDone =
+                  halfBlocks.length > 0 &&
+                  halfBlocks.every((block) => block.completed_at !== null || block.skipped_at !== null)
+                return (
+                  <button
+                    key={half.id}
+                    type="button"
+                    disabled={isCurrent}
+                    onClick={() => navigate(`/training/${half.id}`)}
+                    className={`flex flex-col items-start gap-0.5 rounded-[10px] border px-3 py-2.5 text-left transition-colors ${
+                      isCurrent
+                        ? 'border-accent-persimmon/55 bg-[#1D2740] text-text-primary'
+                        : 'border-white/[0.07] bg-[#131B2B] text-text-secondary hover:border-white/20'
+                    }`}
+                  >
+                    <span
+                      className={`font-mono text-[10px] uppercase ${isCurrent ? 'text-accent-persimmon' : ''}`}
+                    >
+                      {half.time_of_day === 'morning' ? 'утро' : 'вечер'}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-sm font-semibold">
+                      <i className={`ti ${SESSION_TYPE_ICONS[half.session_type]}`} aria-hidden="true" />
+                      {DAY_SESSION_TYPE_LABELS[half.session_type]}
+                      {halfDone && <span className="text-[11px] font-medium text-accent-ice">✓ готово</span>}
+                    </span>
+                  </button>
+                )
+              })}
+          </div>
+        ) : (
+          day !== null && (
+            <span className="flex w-fit items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1 text-sm font-medium">
+              <i className={`ti ${SESSION_TYPE_ICONS[day.session_type]} ${SESSION_TYPE_COLORS[day.session_type]}`} aria-hidden="true" />
+              {DAY_SESSION_TYPE_LABELS[day.session_type]}
+            </span>
+          )
+        )}
           {day?.session_type === 'game' && (
             // 2026-09-17 (audit item #4): purely textual -- the backend
             // already builds a game day as light activation only, no MAIN/
@@ -809,9 +957,197 @@ export function TrainingSessionPage() {
             // doesn't read as a full mandatory workout before a game.
             <p className="text-sm text-text-secondary">Необязательная активация — выбери, что подходит</p>
           )}
+      </div>
+
+      <div className={`grid gap-2 ${main.length > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <div className={`flex flex-col gap-0.5 px-3 py-2.5 ${CARD_CLASS}`}>
+          <span className="font-display text-[22px] font-semibold leading-none">{totalCount}</span>
+          <span className="text-[11px] text-text-secondary">{pluralizeExercises(totalCount)}</span>
+        </div>
+        {/* Ice and game days have no main part -- no "0" to show. */}
+        {main.length > 0 && (
+          <div className={`flex flex-col gap-0.5 px-3 py-2.5 ${CARD_CLASS}`}>
+            <span className="font-display text-[22px] font-semibold leading-none">{main.length}</span>
+            <span className="text-[11px] text-text-secondary">в основной части</span>
+          </div>
+        )}
+        <div className={`flex flex-col justify-center gap-0.5 px-3 py-2.5 ${CARD_CLASS}`}>
+          <span className="text-[13px] font-semibold leading-tight">
+            {developedStats.length > 0 ? developedStats.join(', ') : '—'}
+          </span>
+          <span className="text-[11px] text-text-secondary">развивает</span>
         </div>
       </div>
 
+      {isAhead && day !== null && (
+        <div className={`flex items-center gap-3 p-4 ${CARD_CLASS}`}>
+          <i className="ti ti-calendar-time text-xl text-accent-ice" aria-hidden="true" />
+          <p className="text-sm text-text-secondary">
+            Тренировка на {formatShortDate(parseIsoDate(day.date))} — начнётся в этот день. Пока можно посмотреть
+            упражнения и технику.
+          </p>
+        </div>
+      )}
+
+      {isIceLike && day !== null ? (
+        <>
+          {day.session_type === 'on_ice' && trainingSessionId !== null && (
+            <IceFocusCard trainingSessionId={trainingSessionId} />
+          )}
+          {activePhases.map((phase) => (
+            <div key={phase} className={`flex flex-col gap-2 p-3 ${CARD_CLASS}`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <i className={`ti ${PHASE_ICONS[phase]} text-accent-ice`} aria-hidden="true" />
+                  {phase === 'warmup'
+                    ? day.session_type === 'game'
+                      ? 'Активация перед игрой'
+                      : 'Подготовка перед льдом'
+                    : phase === 'cooldown'
+                      ? 'Заминка после льда'
+                      : PHASE_LABELS[phase]}
+                </span>
+                <span className="font-mono text-[11px] text-text-secondary">
+                  {blocksByPhase[phase].filter((block) => isExerciseDone(block, setCompletionCounts)).length} из{' '}
+                  {blocksByPhase[phase].length}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                {blocksByPhase[phase].map((block) => (
+                  <ExerciseRow
+                    key={block.id}
+                    block={block}
+                    isCurrent={false}
+                    isDone={isExerciseDone(block, setCompletionCounts)}
+                    pending={pendingIds.has(block.id)}
+                    onComplete={() => handleComplete(block)}
+                    feedback={feedbackByBlockId[block.id]}
+                    onFeedbackDone={() => removeFeedback(block.id)}
+                    onOpenDetail={() => setPeekExercise(block.exercise)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div aria-hidden="true" style={{ height: footerHeight }} />
+          <div
+            ref={setFooterNode}
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+          >
+            <div className="mx-auto max-w-2xl">
+              {isAhead ? (
+                <Button disabled className="w-full">
+                  Начнётся {formatShortDate(parseIsoDate(day.date))}
+                </Button>
+              ) : (
+                <Button
+                  variant={day.training_session?.has_diary_entry === true ? 'neutral' : undefined}
+                  onClick={() => navigate(`/training/${day.id}/diary`)}
+                  className="w-full"
+                >
+                  {day.training_session?.has_diary_entry === true
+                    ? 'Отчёт отправлен — открыть'
+                    : day.session_type === 'game'
+                      ? 'Как сыграли?'
+                      : 'Отчёт после льда'}
+                </Button>
+              )}
+            </div>
+          </div>
+          {peekExercise !== null && trainingSessionId !== null && accessToken !== null && (
+            <ExerciseDetailModal
+              exercise={peekExercise}
+              trainingSessionId={trainingSessionId}
+              accessToken={accessToken}
+              onClose={() => setPeekExercise(null)}
+              readOnly
+            />
+          )}
+        </>
+      ) : showOverview ? (
+        <>
+          <div className="flex flex-col gap-2.5">
+            {activePhases.map((phase, index) => {
+              const phaseBlocks = blocksByPhase[phase]
+              return (
+                <div key={phase} className={`flex flex-col gap-2 p-3 ${phase === 'puck' ? BONUS_CARD_CLASS : CARD_CLASS}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      <span
+                        className={`flex h-[22px] w-[22px] items-center justify-center rounded-full font-mono text-[11px] font-semibold ${
+                          phase === 'main' ? 'bg-accent-persimmon/15 text-accent-persimmon' : 'bg-accent-ice/10 text-accent-ice'
+                        }`}
+                      >
+                        {index + 1}
+                      </span>
+                      {PHASE_LABELS[phase]}
+                    </span>
+                    <span className="font-mono text-[11px] text-text-secondary">
+                      {phaseBlocks.length} {pluralizeExercises(phaseBlocks.length)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                      {phaseBlocks.map((block) => (
+                        <button
+                          key={block.id}
+                          type="button"
+                          onClick={() => {
+                            // Opening an exercise today starts the workout too.
+                            if (!isAhead) {
+                              setStartedHere(true)
+                            }
+                            // The player finds its exercise in the current
+                            // phase -- move there first.
+                            setCurrentPhaseIndex(activePhases.indexOf(phase))
+                            setSelectedExercise(block.exercise)
+                          }}
+                          className="flex items-center justify-between gap-3 border-t border-white/5 py-2 text-left text-[13px]"
+                        >
+                          <span className="min-w-0 truncate">{block.exercise.name}</span>
+                          <span className="shrink-0 font-mono text-xs text-text-secondary">
+                            {formatTargetVolume(block.exercise) ?? ''}
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div aria-hidden="true" style={{ height: footerHeight }} />
+          <div
+            ref={setFooterNode}
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+          >
+            <div className="mx-auto max-w-2xl">
+              {isAhead && day !== null ? (
+                <Button disabled className="w-full">
+                  Начнётся {formatShortDate(parseIsoDate(day.date))}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setStartedHere(true)
+                    const first = orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))
+                    if (first !== undefined) {
+                      setSelectedExercise(first.exercise)
+                    }
+                  }}
+                  className="w-full"
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <i className="ti ti-player-play-filled" aria-hidden="true" />
+                    Начать тренировку
+                  </span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
       <div className={`flex flex-col gap-4 p-4 ${CARD_CLASS}`}>
         <div className="flex items-end justify-between">
           <div>
@@ -887,8 +1223,121 @@ export function TrainingSessionPage() {
                   here, instead of opening a boxed modal -- the progress
                   bar/PhaseTracker/"Этап N из M" heading above this card are
                   unaffected either way. */}
-              {selectedBlock !== null && trainingSessionId !== null && accessToken !== null ? (
+              {currentPhaseBlocks.map((block) => (
+                  <ExerciseRow
+                    key={block.id}
+                    block={block}
+                    isCurrent={block.id === currentExerciseId}
+                    isDone={isExerciseDone(block, setCompletionCounts)}
+                    pending={pendingIds.has(block.id)}
+                    onComplete={() => handleComplete(block)}
+                    feedback={feedbackByBlockId[block.id]}
+                    onFeedbackDone={() => removeFeedback(block.id)}
+                    onOpenDetail={() => setSelectedExercise(block.exercise)}
+                    showTargetStat={currentPhase === 'main'}
+                  />
+                ))}
+            </div>
+          </div>
+
+
+
+          {/* Reserves scroll space so the sticky footer below never covers
+              the last exercise row -- sized to the
+              footer's own measured height, not a guess (see footerHeight). */}
+          <div aria-hidden="true" style={{ height: footerHeight }} />
+
+          <div
+            ref={setFooterNode}
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+            // Solid all the way down: the floating BottomNav capsule sits on
+            // top of this bar's lower part instead of over a strip of
+            // scrolling exercises; the button stays clear above the capsule.
+            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+          >
+            <div className="mx-auto max-w-2xl">
+              <Button onClick={handleFinishPhase} disabled={!canFinishPhase || isAhead} className="w-full">
+                {isAhead && day !== null
+                  ? `Начнётся ${formatShortDate(parseIsoDate(day.date))}`
+                  : isRevisitingCompletedSession
+                    ? 'На главную'
+                    : isLastPhase
+                      ? 'Завершить тренировку'
+                      : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
+              </Button>
+              {!canFinishPhase && !isAhead && (
+                <p className="mt-2 text-center text-xs text-text-secondary">
+                  Осталось {currentPhaseTotal - currentPhaseDoneCount}{' '}
+                  {pluralizeExercises(currentPhaseTotal - currentPhaseDoneCount)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {previewPhaseIndex !== null && activePhases[previewPhaseIndex] !== undefined && (
+            <PhasePreviewSheet
+              phase={activePhases[previewPhaseIndex]}
+              stepNumber={previewPhaseIndex + 1}
+              totalSteps={activePhases.length}
+              blocks={blocksByPhase[activePhases[previewPhaseIndex]]}
+              isHistorical={previewPhaseIndex < safePhaseIndex}
+              lockedBehindLabel={PHASE_LABELS_GENITIVE[currentPhase]}
+              onClose={() => setPreviewPhaseIndex(null)}
+            />
+          )}
+        </>
+      )}
+
+        </>
+      )}
+
+      {/* The player (2026-10-10): over the whole app -- nothing of the page
+          or the tab bar behind it moves or shows; collapsing it goes back
+          to the list. */}
+      {selectedBlock !== null && trainingSessionId !== null && accessToken !== null && currentPhase !== undefined && (
+        <FullScreenOverlay className="flex flex-col bg-[#0A0F1A]">
+          <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-3 px-4 pb-3 pt-[calc(env(safe-area-inset-top,0px)+14px)]">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleCloseExerciseDetail}
+                aria-label="Свернуть плеер"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-dark-card text-text-primary"
+              >
+                <i className="ti ti-chevron-down text-lg" aria-hidden="true" />
+              </button>
+              <div className="flex min-w-0 flex-1 flex-col items-center">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-accent-persimmon">
+                  {PHASE_LABELS[currentPhase]}
+                </span>
+                <span className="font-mono text-xs text-text-secondary">
+                  упражнение {orderedBlocks.findIndex((block) => block.id === selectedBlock.id) + 1} из{' '}
+                  {orderedBlocks.length}
+                </span>
+              </div>
+              <span className="min-w-[64px] shrink-0 rounded-full bg-dark-card px-3 py-2 text-center font-mono text-[13px] font-semibold text-text-primary">
+                {!isAhead && sessionElapsedSeconds !== null ? formatElapsed(sessionElapsedSeconds) : '—'}
+              </span>
+            </div>
+            <div className="flex gap-[3px]" aria-hidden="true">
+              {orderedBlocks.map((block) => (
+                <span
+                  key={block.id}
+                  className={`h-1 flex-1 rounded-full ${
+                    block.id === selectedBlock.id
+                      ? 'bg-accent-persimmon'
+                      : isExerciseDone(block, setCompletionCounts)
+                        ? 'bg-accent-ice'
+                        : 'bg-white/15'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
+            <div className="mx-auto w-full max-w-2xl px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
                 <ExerciseFocusScreen
+                  inPlayer
                   // Forces a full remount per exercise -- found live-testing
                   // the skip feature (2026-08-28): without this, auto-advance
                   // reuses the same ExerciseDetailBody/TimerPlayer/SetLogger
@@ -901,15 +1350,16 @@ export function TrainingSessionPage() {
                   block={selectedBlock}
                   position={orderedBlocks.findIndex((block) => block.id === selectedBlock.id) + 1}
                   totalCount={orderedBlocks.length}
-                  elapsedSeconds={sessionElapsedSeconds}
+                  elapsedSeconds={isAhead ? null : sessionElapsedSeconds}
                   phaseLabel={PHASE_LABELS[currentPhase]}
                   phaseIcon={PHASE_ICONS[currentPhase]}
                   skills={skills}
                   trainingSessionId={trainingSessionId}
                   accessToken={accessToken}
                   onBack={handleCloseExerciseDetail}
+                  readOnly={isAhead}
                   onComplete={
-                    selectedBlock.completed_at === null && selectedBlock.skipped_at === null
+                    !isAhead && selectedBlock.completed_at === null && selectedBlock.skipped_at === null
                       ? () => handleComplete(selectedBlock)
                       : undefined
                   }
@@ -942,70 +1392,14 @@ export function TrainingSessionPage() {
                       : undefined
                   }
                 />
-              ) : (
-                currentPhaseBlocks.map((block) => (
-                  <ExerciseRow
-                    key={block.id}
-                    block={block}
-                    isCurrent={block.id === currentExerciseId}
-                    isDone={isExerciseDone(block, setCompletionCounts)}
-                    pending={pendingIds.has(block.id)}
-                    onComplete={() => handleComplete(block)}
-                    feedback={feedbackByBlockId[block.id]}
-                    onFeedbackDone={() => removeFeedback(block.id)}
-                    onOpenDetail={() => setSelectedExercise(block.exercise)}
-                    showTargetStat={currentPhase === 'main'}
-                  />
-                ))
-              )}
             </div>
           </div>
-
-          {/* Reserves scroll space so the sticky footer below never covers
-              the last exercise row -- sized to the
-              footer's own measured height, not a guess (see footerHeight). */}
-          <div aria-hidden="true" style={{ height: footerHeight }} />
-
-          <div
-            ref={setFooterNode}
-            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
-            // Solid all the way down: the floating BottomNav capsule sits on
-            // top of this bar's lower part instead of over a strip of
-            // scrolling exercises; the button stays clear above the capsule.
-            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
-          >
-            <div className="mx-auto max-w-2xl">
-              <Button onClick={handleFinishPhase} disabled={!canFinishPhase} className="w-full">
-                {isRevisitingCompletedSession
-                  ? 'На главную'
-                  : isLastPhase
-                    ? 'Завершить тренировку'
-                    : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
-              </Button>
-              {!canFinishPhase && (
-                <p className="mt-2 text-center text-xs text-text-secondary">
-                  Осталось {currentPhaseTotal - currentPhaseDoneCount}{' '}
-                  {pluralizeExercises(currentPhaseTotal - currentPhaseDoneCount)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {previewPhaseIndex !== null && activePhases[previewPhaseIndex] !== undefined && (
-            <PhasePreviewSheet
-              phase={activePhases[previewPhaseIndex]}
-              stepNumber={previewPhaseIndex + 1}
-              totalSteps={activePhases.length}
-              blocks={blocksByPhase[activePhases[previewPhaseIndex]]}
-              isHistorical={previewPhaseIndex < safePhaseIndex}
-              lockedBehindLabel={PHASE_LABELS_GENITIVE[currentPhase]}
-              onClose={() => setPreviewPhaseIndex(null)}
-            />
-          )}
-        </>
+        </FullScreenOverlay>
       )}
 
-      {sessionComplete !== null && accessToken !== null && (
+      {/* Not over the open player: the last exercise's "как прошло" comes
+          first (found 2026-10-10 walking the full-screen player through). */}
+      {sessionComplete !== null && accessToken !== null && selectedExercise === null && (
         <SessionCompleteModal
           statTotals={sessionComplete.statTotals}
           xpTotal={sessionComplete.xpTotal}

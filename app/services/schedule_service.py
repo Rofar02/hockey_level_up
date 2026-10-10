@@ -23,8 +23,10 @@ from app.core.day_archetype import (
     forces_technical_archetype,
     initial_rotation_order,
 )
+from app.core.config import get_settings
 from app.core.session_duration import compute_phase_split, estimate_session_duration_seconds
 from app.core.stat_difficulty import UNCLASSIFIED_EXERCISE_CAP, max_difficulty_for_stat
+from app.core.week_load import light_legs_dates
 from app.core.training_block import (
     DIFFICULTY_PRIORITY_PREDICATES,
     MAX_DIFFICULTY_LEVEL,
@@ -263,6 +265,107 @@ class ScheduleService:
         )
 
     @staticmethod
+    def _extra_gym_time(day_in: DayPlanIn, session_type: DaySessionType) -> str | None:
+        """Release plan step 6: "+ зал" on an ice/game day, while the switch
+        is on -- else None."""
+        if not get_settings().double_days_enabled:
+            return None
+        if session_type not in (DaySessionType.ON_ICE, DaySessionType.GAME):
+            return None
+        return day_in.extra_gym
+
+    async def _build_extra_gym_day(
+        self,
+        main_day: DayPlan,
+        extra_time: str,
+        user: User,
+        block_phase: BlockPhase,
+        training_block: TrainingBlock | None,
+        archetype_rotation,
+    ) -> DayPlan:
+        """The double day's separate gym training -- an ordinary gym day,
+        built exactly like any other (owner's call, 2026-10-10). The main
+        day takes the other half of the day."""
+        main_day.time_of_day = "evening" if extra_time == "morning" else "morning"
+        extra = DayPlan(
+            date=main_day.date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day=extra_time
+        )
+        extra.training_session = await self._build_session_for_day(
+            DaySessionType.OFF_ICE, user, block_phase, training_block,
+            today=main_day.date, archetype_rotation=archetype_rotation,
+        )
+        return extra
+
+    async def _keep_gym_as_extra(self, weekly_plan: WeeklyPlan, day_plan: DayPlan, day_in: DayPlanIn) -> None:
+        """«Сухая + ещё и лёд» (2026-10-10): a gym day that becomes an ice
+        or game day with "+ зал" keeps the gym training it already has --
+        it moves to the extra day instead of being built again. Doesn't
+        commit; the main day is then built as ice on its own."""
+        extra_time = self._extra_gym_time(day_in, day_in.session_type)
+        if (
+            extra_time is None
+            or day_plan.session_type != DaySessionType.OFF_ICE
+            or day_plan.training_session is None
+            or any(d.date == day_plan.date and d.is_extra for d in weekly_plan.day_plans)
+        ):
+            return
+        extra = DayPlan(date=day_plan.date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day=extra_time)
+        weekly_plan.day_plans.append(extra)
+        day_plan.training_session.day_plan = extra
+        # Flushed now: the gym session's day_plan_id must move before the
+        # main day gets its new (ice) session -- day_plan_id is unique.
+        await self._session.flush()
+
+    async def _sync_extra_gym_day(
+        self,
+        weekly_plan: WeeklyPlan,
+        main_day: DayPlan,
+        extra_time: str | None,
+        user: User,
+        block_phase: BlockPhase | None,
+        training_block: TrainingBlock | None,
+        archetype_rotation,
+    ) -> None:
+        """Make a date's extra gym day match `extra_time`: add it, move it to
+        the other half of the day, or remove it (never a started one)."""
+        extra = next((d for d in weekly_plan.day_plans if d.date == main_day.date and d.is_extra), None)
+        if extra_time is None:
+            main_day.time_of_day = None
+            if extra is not None and not self._has_completed_block(extra):
+                weekly_plan.day_plans.remove(extra)
+                await self._session.delete(extra)
+                await self._session.flush()
+            return
+        if extra is not None:
+            extra.time_of_day = extra_time
+            main_day.time_of_day = "evening" if extra_time == "morning" else "morning"
+            return
+        if block_phase is None:
+            return
+        weekly_plan.day_plans.append(
+            await self._build_extra_gym_day(main_day, extra_time, user, block_phase, training_block, archetype_rotation)
+        )
+        await self._session.flush()
+
+    @staticmethod
+    def _light_legs_dates_for(user: User, days: list[tuple[date, DaySessionType]]) -> set[date]:
+        """Release plan step 5.1 (2026-10-09): gym days right after ice or a
+        game get light legs -- see app.core.week_load. Off with the
+        settings switch."""
+        if not get_settings().week_light_legs_after_ice:
+            return set()
+        return light_legs_dates(days)
+
+    @staticmethod
+    def _move_off_light_day(chosen: date | None, days: list[DayPlanIn], light_dates: set[date]) -> date | None:
+        """The guaranteed locomotion pick is leg work: keep it off a
+        light-legs day when another gym day can take it."""
+        if chosen is None or chosen not in light_dates:
+            return chosen
+        others = [d.date for d in days if d.session_type == DaySessionType.OFF_ICE and d.date not in light_dates]
+        return _GUARANTEED_SLOT_RNG.choice(others) if others else chosen
+
+    @staticmethod
     def _choose_guaranteed_slot_dates(days: list[DayPlanIn]) -> tuple[date | None, date | None]:
         """2026-09-18 audit round 2 item #4 ("выносливость и катание почти не
         попадают в основной блок"): which OFF_ICE day, if any, gets this
@@ -327,6 +430,8 @@ class ScheduleService:
             for day_in in payload.days
         ]
         endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(effective_days)
+        light_dates = self._light_legs_dates_for(user, [(d.date, d.session_type) for d in effective_days])
+        locomotion_date = self._move_off_light_day(locomotion_date, effective_days, light_dates)
 
         weekly_plan = WeeklyPlan(
             user_id=user.id, week_start_date=target_week_start_date, training_block_id=training_block.id
@@ -349,8 +454,14 @@ class ScheduleService:
                     archetype_rotation=archetype_rotation,
                     guarantee_endurance=day_in.date == endurance_date,
                     guarantee_locomotion=day_in.date == locomotion_date,
+                    light_legs=day_in.date in light_dates,
                 )
             weekly_plan.day_plans.append(day_plan)
+            extra_time = self._extra_gym_time(requested_day, day_in.session_type)
+            if extra_time is not None:
+                weekly_plan.day_plans.append(
+                    await self._build_extra_gym_day(day_plan, extra_time, user, block_phase, training_block, archetype_rotation)
+                )
 
         try:
             await self._schedule.save(weekly_plan)
@@ -444,13 +555,20 @@ class ScheduleService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found_detail)
 
         week_end = weekly_plan.week_start_date + timedelta(days=6)
-        day_plans_by_date = {day_plan.date: day_plan for day_plan in weekly_plan.day_plans}
+        # The main day of each date; a double day's extra gym day (step 6)
+        # is synced after its main day below.
+        day_plans_by_date = {day_plan.date: day_plan for day_plan in weekly_plan.day_plans if not day_plan.is_extra}
         training_block = await self._training_block_for_weekly_plan(weekly_plan)
         block_phase = await self._overload_service.apply_brakes(
             user, training_block.phase if training_block is not None else BlockPhase.ACCUMULATION
         )
         archetype_rotation = await self._build_archetype_rotation(user, ExerciseCategory.OFF_ICE)
         endurance_date, locomotion_date = self._choose_guaranteed_slot_dates(payload.days)
+        # The week as it will stand after this patch, for the light-legs rule.
+        week_after = {day_plan.date: day_plan.session_type for day_plan in weekly_plan.day_plans if not day_plan.is_extra}
+        week_after.update({day_in.date: day_in.session_type for day_in in payload.days})
+        light_dates = self._light_legs_dates_for(user, list(week_after.items()))
+        locomotion_date = self._move_off_light_day(locomotion_date, payload.days, light_dates)
 
         conflicts: list[ScheduleConflictRead] = []
         for day_in in payload.days:
@@ -464,6 +582,14 @@ class ScheduleService:
                 continue
 
             day_plan = day_plans_by_date.get(day_in.date)
+            if day_plan is not None and day_plan.session_type == day_in.session_type:
+                # Only "+ зал" changed (step 6): the day itself -- its
+                # session, its team event, its ice charge -- stays as it is.
+                await self._sync_extra_gym_day(
+                    weekly_plan, day_plan, self._extra_gym_time(day_in, day_in.session_type),
+                    user, block_phase, training_block, archetype_rotation,
+                )
+                continue
             if day_plan is None or self._has_completed_block(day_plan):
                 conflicts.append(
                     ScheduleConflictRead(
@@ -477,6 +603,7 @@ class ScheduleService:
             # user's own choice (see revert_team_event_days).
             day_plan.team_event_id = None
             day_plan.replaced_session_type = None
+            await self._keep_gym_as_extra(weekly_plan, day_plan, day_in)
             await self._rebuild_day_session(
                 day_plan,
                 day_in.session_type,
@@ -486,6 +613,11 @@ class ScheduleService:
                 archetype_rotation=archetype_rotation,
                 guarantee_endurance=day_in.date == endurance_date,
                 guarantee_locomotion=day_in.date == locomotion_date,
+                light_legs=day_in.date in light_dates,
+            )
+            await self._sync_extra_gym_day(
+                weekly_plan, day_plan, self._extra_gym_time(day_in, day_in.session_type),
+                user, block_phase, training_block, archetype_rotation,
             )
 
         await self._session.commit()
@@ -513,7 +645,9 @@ class ScheduleService:
         weekly_plan = await self._schedule.get_current(user.id, event_date)
         if weekly_plan is None:
             return False
-        day_plan = next((day for day in weekly_plan.day_plans if day.date == event_date), None)
+        day_plan = next(
+            (day for day in weekly_plan.day_plans if day.date == event_date and not day.is_extra), None
+        )
         if day_plan is None or self._has_completed_block(day_plan):
             return False
 
@@ -549,6 +683,9 @@ class ScheduleService:
             day_plan.replaced_session_type = None
             if original is not None and day_plan.session_type != original:
                 await self._retype_day(user, weekly_plan, day_plan, original)
+            if day_plan.session_type not in (DaySessionType.ON_ICE, DaySessionType.GAME):
+                # No ice any more -- a double day's extra gym day goes too.
+                await self._sync_extra_gym_day(weekly_plan, day_plan, None, user, None, None, None)
         await self._session.flush()
 
     async def _retype_day(
@@ -606,6 +743,7 @@ class ScheduleService:
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None,
         guarantee_endurance: bool,
         guarantee_locomotion: bool,
+        light_legs: bool = False,
     ) -> None:
         """Retype one day and rebuild its TrainingSession from scratch --
         shared by _patch_weekly_plan and the team-event day sync. Caller has
@@ -618,6 +756,13 @@ class ScheduleService:
             # ordering this row's DELETE before the new row's INSERT
             # within the same flush, which SQLAlchemy does not
             # guarantee (inserts/updates are flushed before deletes).
+            if day_plan.training_session.id is not None:
+                # An ice day or game already on the muscle map: take it off
+                # first -- its charge goes with the session, and a rebuilt
+                # ice day would otherwise be charged a second time.
+                from app.services.ice_load_service import IceLoadService
+
+                await IceLoadService(self._session).take_back(day_plan.training_session.id)
             await self._session.delete(day_plan.training_session)
             await self._session.flush()
             day_plan.training_session = None
@@ -632,6 +777,7 @@ class ScheduleService:
                 archetype_rotation=archetype_rotation,
                 guarantee_endurance=guarantee_endurance,
                 guarantee_locomotion=guarantee_locomotion,
+                light_legs=light_legs,
             )
 
     async def _training_block_for_weekly_plan(self, weekly_plan: WeeklyPlan) -> TrainingBlock | None:
@@ -669,6 +815,7 @@ class ScheduleService:
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
         guarantee_endurance: bool = False,
         guarantee_locomotion: bool = False,
+        light_legs: bool = False,
     ) -> TrainingSession:
         """Dispatch to the GAME-day builder (light activation only), the
         ON_ICE-day builder (on-ice warmup+cooldown only, no MAIN -- see
@@ -693,6 +840,7 @@ class ScheduleService:
             archetype_rotation=archetype_rotation,
             guarantee_endurance=guarantee_endurance,
             guarantee_locomotion=guarantee_locomotion,
+            light_legs=light_legs,
         )
 
     async def _build_game_day_session(self, user: User, block_phase: BlockPhase) -> TrainingSession:
@@ -783,6 +931,7 @@ class ScheduleService:
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
         guarantee_endurance: bool = False,
         guarantee_locomotion: bool = False,
+        light_legs: bool = False,
     ) -> TrainingSession:
         """MAIN is picked first and warmup/cooldown are chosen retrospectively
         to match it (Phase 3) -- storage order of `blocks` is still
@@ -801,6 +950,7 @@ class ScheduleService:
             archetype_rotation=archetype_rotation,
             guarantee_endurance=guarantee_endurance,
             guarantee_locomotion=guarantee_locomotion,
+            light_legs=light_legs,
         )
         main_exercise_ids = [exercise.id for exercise in main_exercises]
         main_patterns = await self._movement_patterns_union(main_exercise_ids)
@@ -1205,6 +1355,7 @@ class ScheduleService:
         archetype_rotation: dict[MovementPattern, Iterator[StimulusType]] | None = None,
         guarantee_endurance: bool = False,
         guarantee_locomotion: bool = False,
+        light_legs: bool = False,
     ) -> list[Exercise]:
         """Stage 2.4 (2026-08-20 planning session): role-based assembly,
         replacing the old flat "shuffle every movement_pattern, fill up to
@@ -1768,6 +1919,10 @@ class ScheduleService:
         # tightest DELOAD count (see _MIN_COUNT_TO_ATTEMPT_ROLE1's own
         # comment), so it can never crowd role 3 (push/pull) out entirely.
         explosive_patterns = list(_EXPLOSIVE_PATTERNS)
+        if light_legs:
+            # Step 5.1: the day after ice -- no sprints or jumps as the
+            # explosive pick, stick and coordination work instead.
+            explosive_patterns = [p for p in explosive_patterns if p != MovementPattern.LOCOMOTION]
         random.shuffle(explosive_patterns)
         used_role1_pattern: MovementPattern | None = None
         if block_phase != BlockPhase.DELOAD or count >= _MIN_COUNT_TO_ATTEMPT_ROLE1:
@@ -1803,6 +1958,10 @@ class ScheduleService:
                 # honest: only force SKILL where this pattern actually
                 # has it.
                 if forces_technical and StimulusType.SKILL in PATTERN_ARCHETYPES[pattern]:
+                    archetype = StimulusType.SKILL
+                elif light_legs and pattern in _LOWER_BODY_PATTERNS and StimulusType.SKILL in PATTERN_ARCHETYPES[pattern]:
+                    # Step 5.1: lower body goes technical the day after ice,
+                    # like a deload, without using up a rotation turn.
                     archetype = StimulusType.SKILL
                 elif (
                     archetype_rotation is not None
@@ -2472,6 +2631,12 @@ class ScheduleService:
         replacement's INSERT if the relationship were just reassigned.
         """
         if day_plan.training_session is not None:
+            if day_plan.training_session.id is not None:
+                # Same as _rebuild_day_session: an ice day already on the
+                # muscle map comes off it before its session is deleted.
+                from app.services.ice_load_service import IceLoadService
+
+                await IceLoadService(self._session).take_back(day_plan.training_session.id)
             await self._session.delete(day_plan.training_session)
             await self._session.flush()
             day_plan.training_session = None
@@ -2970,6 +3135,8 @@ class ScheduleService:
             training_session=session_read,
             team_event_id=day.team_event_id,
             replaced_session_type=day.replaced_session_type,
+            is_extra=day.is_extra,
+            time_of_day=day.time_of_day,
         )
 
     async def _to_read_schema(self, weekly_plan: WeeklyPlan) -> WeeklyPlanRead:

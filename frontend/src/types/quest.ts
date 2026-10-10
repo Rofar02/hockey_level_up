@@ -22,3 +22,18 @@ export interface QuestStatusRead {
   // under), null for one_time -- see app/schemas/quest.py.
   period_start: string | null
 }
+
+// GET /quests/coach-tasks -- this week's tasks from the coach (2026-10-09).
+export interface CoachTaskRead {
+  id: string
+  type: string
+  title: string
+  // "coach" -- picked by the AI coach with the weekly review (premium);
+  // "template" -- built off the week's plan.
+  source: 'coach' | 'template'
+  progress: number
+  target: number
+  done: boolean
+  claimed: boolean
+  xp_reward: number
+}

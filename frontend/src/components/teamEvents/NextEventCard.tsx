@@ -101,7 +101,7 @@ function NextEventBody({ teamId, event, isCaptain }: { teamId: string; event: Te
         </span>
         <div className="flex min-w-0 flex-col gap-0.5">
           <p className="truncate text-base font-semibold text-[#F5F7FA]">
-            {isTraining ? 'Тренировка' : `Игра с ${event.opponent_name}`}
+            {isTraining ? 'Тренировка' : `Игра: ${event.opponent_name}`}
           </p>
           <p className="text-sm text-[#8A94A6]">{formatDateTime(new Date(event.starts_at))}</p>
         </div>

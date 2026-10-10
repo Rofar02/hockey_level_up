@@ -9,6 +9,11 @@ import type {
   DrillDiagram,
   DrillTemplateCreatePayload,
   DrillTemplateRead,
+  GuestInvitationRead,
+  GuestTeamRead,
+  TeamCurrentLineupRead,
+  TeamSearchHitRead,
+  TeamReadinessRead,
   TeamEventAttendanceRead,
   TeamEventAttendanceRosterRead,
   TeamEventAttendanceSetPayload,
@@ -58,6 +63,16 @@ export function rescheduleTeamEvent(
   accessToken: string,
 ): Promise<TeamEventRead> {
   return apiPutAuth<TeamEventRead>(`/teams/${teamId}/events/${eventId}/schedule`, payload, accessToken)
+}
+
+// Captain-only, a played game only: the final score (both null clears it).
+export function setTeamEventScore(
+  teamId: string,
+  eventId: string,
+  payload: { our_score: number | null; opponent_score: number | null },
+  accessToken: string,
+): Promise<TeamEventRead> {
+  return apiPutAuth<TeamEventRead>(`/teams/${teamId}/events/${eventId}/score`, payload, accessToken)
 }
 
 // Captain-only. 409s if already cancelled.
@@ -294,10 +309,11 @@ export function assignLineupPlayer(
   targetUserId: string,
   groupId: string,
   accessToken: string,
+  slot: string | null = null,
 ): Promise<TeamEventLineupGroupRead> {
   return apiPutAuth<TeamEventLineupGroupRead>(
     `/teams/${teamId}/events/${eventId}/lineup/players/${targetUserId}`,
-    { group_id: groupId },
+    { group_id: groupId, slot },
     accessToken,
   )
 }
@@ -381,4 +397,57 @@ export function renameDrillTemplate(templateId: string, title: string, accessTok
 // Drills already copied from it stay as they are.
 export function deleteDrillTemplate(templateId: string, accessToken: string): Promise<void> {
   return apiDeleteAuth<void>(`/users/me/drill-templates/${templateId}`, accessToken)
+}
+
+// Members only: the next game's lineup, or the last one's (2026-10-09).
+export function getCurrentLineup(teamId: string, accessToken: string): Promise<TeamCurrentLineupRead> {
+  return apiGet<TeamCurrentLineupRead>(`/teams/${teamId}/lineup/current`, accessToken)
+}
+
+// Captain only: the going players' readiness (release plan step 9).
+export function getEventReadiness(teamId: string, eventId: string, accessToken: string): Promise<TeamReadinessRead> {
+  return apiGet<TeamReadinessRead>(`/teams/${teamId}/events/${eventId}/readiness`, accessToken)
+}
+
+// -- joint trainings (release plan step 3.5) --
+
+export function searchTeamsToInvite(teamId: string, query: string, accessToken: string): Promise<TeamSearchHitRead[]> {
+  return apiGet<TeamSearchHitRead[]>(`/teams/${teamId}/joint/search?q=${encodeURIComponent(query)}`, accessToken)
+}
+
+export function inviteTeamToEvent(teamId: string, eventId: string, guestTeamId: string, accessToken: string): Promise<GuestTeamRead> {
+  return apiPostAuth<GuestTeamRead>(`/teams/${teamId}/events/${eventId}/guests`, { team_id: guestTeamId }, accessToken)
+}
+
+export function inviteTeamToTemplate(teamId: string, templateId: string, guestTeamId: string, accessToken: string): Promise<GuestTeamRead> {
+  return apiPostAuth<GuestTeamRead>(
+    `/teams/${teamId}/ice-schedule-templates/${templateId}/guests`,
+    { team_id: guestTeamId },
+    accessToken,
+  )
+}
+
+export function listEventGuests(teamId: string, eventId: string, accessToken: string): Promise<GuestTeamRead[]> {
+  return apiGet<GuestTeamRead[]>(`/teams/${teamId}/events/${eventId}/guests`, accessToken)
+}
+
+export function listGuestInvitations(teamId: string, accessToken: string): Promise<GuestInvitationRead[]> {
+  return apiGet<GuestInvitationRead[]>(`/teams/${teamId}/joint/invitations`, accessToken)
+}
+
+export function answerGuestInvitation(
+  teamId: string,
+  invitationId: string,
+  payload: { accept: boolean; replace_own?: boolean },
+  accessToken: string,
+): Promise<GuestTeamRead> {
+  return apiPostAuth<GuestTeamRead>(`/teams/${teamId}/joint/invitations/${invitationId}`, payload, accessToken)
+}
+
+export function leaveJointEvent(teamId: string, eventId: string, accessToken: string): Promise<void> {
+  return apiDeleteAuth<void>(`/teams/${teamId}/events/${eventId}/guests/me`, accessToken)
+}
+
+export function removeGuestTeam(teamId: string, eventId: string, guestTeamId: string, accessToken: string): Promise<void> {
+  return apiDeleteAuth<void>(`/teams/${teamId}/events/${eventId}/guests/${guestTeamId}`, accessToken)
 }

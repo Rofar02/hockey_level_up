@@ -155,3 +155,57 @@ def pick_focus(
         matching = [f for f in ICE_FOCUSES if f.stat == stat]
         reason = f"{STAT_REASON_NAMES[stat].capitalize()} — ваш самый низкий стат на льду"
     return matching[day_ordinal % len(matching)], reason
+
+
+# -- Priority skills and the coach's ice theme (2026-10-09, release plan 7.1) --
+
+# Which ice focuses work each skill the player can prioritise, so the gym,
+# the ice and the coach pull the same way: "Взрывной старт" as a priority
+# -> starts in the gym, "first three steps" on the ice. Mobility and
+# endurance don't carry over to an ice cue -- the automatic pick handles
+# those players.
+SKILL_FOCUS_IDS: dict[str, tuple[str, ...]] = {
+    "Взрывной старт": ("skate_first_steps", "skate_stops"),
+    "Катание": ("skate_full_stride", "skate_crossovers", "skate_edges", "skate_backwards"),
+    "Скоростная выносливость": ("skate_tempo",),
+    "Сила броска": ("puck_shot_on_move", "puck_wrist_shot"),
+    "Точность броска": ("puck_wrist_shot", "puck_shot_on_move"),
+    "Обводка": ("puck_wide_dekes", "puck_backhand", "puck_head_up"),
+    "Силовая борьба": ("puck_protect", "puck_net_front"),
+    "Игровое чтение": ("iq_shoulder_check", "iq_get_open", "iq_switch_side", "iq_move_after_pass"),
+    "Баланс и устойчивость": ("skate_low_stance", "skate_edges"),
+    "Координация и реакция": ("skate_transitions", "iq_loose_puck"),
+}
+
+# How long a theme the coach set holds.
+COACH_FOCUS_DAYS = 14
+MAX_COACH_FOCUSES = 3
+
+
+def pick_focus_with_priorities(
+    day_ordinal: int,
+    stat_values: dict[TargetStat, float],
+    work_on: list[str] | None,
+    coach_focus_ids: list[str] | None,
+    coach_until_label: str | None,
+    priority_skills: list[str],
+    task_focus_id: str | None = None,
+) -> tuple[IceFocus, str]:
+    """The full order: the coach's theme -> the focus of this week's
+    unclaimed "держи фокус" task (2026-10-10, or that task could never be
+    done) -> "над чем поработать" from the last game -> the player's
+    priority skills -> the weakest ice stat (pick_focus). The "почему" line
+    names the source."""
+    coach = [FOCUS_BY_ID[i] for i in coach_focus_ids or () if i in FOCUS_BY_ID]
+    if coach:
+        until = f" до {coach_until_label}" if coach_until_label else ""
+        return coach[day_ordinal % len(coach)], f"Тренер поставил фокус{until}"
+    if task_focus_id in FOCUS_BY_ID:
+        return FOCUS_BY_ID[task_focus_id], "Задание тренера на эту неделю"
+    if work_on:
+        return pick_focus(day_ordinal, stat_values, work_on)
+    for skill in sorted(priority_skills):
+        ids = [i for i in SKILL_FOCUS_IDS.get(skill, ()) if i in FOCUS_BY_ID]
+        if ids:
+            return FOCUS_BY_ID[ids[day_ordinal % len(ids)]], f"Ваш приоритет — {skill}"
+    return pick_focus(day_ordinal, stat_values, None)

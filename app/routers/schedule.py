@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
+from app.core.config import get_settings
 from app.schemas.schedule import (
+    ScheduleFeaturesRead,
     DayPlanRead,
     WeeklyPlanCreate,
     WeeklyPlanPatch,
@@ -27,6 +29,14 @@ async def create_weekly_plan(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await ScheduleService(session).create_weekly_plan(current_user, payload)
+
+
+@router.get("/features", response_model=ScheduleFeaturesRead)
+async def get_schedule_features(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Optional week features switched on (release plan step 6)."""
+    return ScheduleFeaturesRead(double_days=get_settings().double_days_enabled)
 
 
 @router.get("/weekly/current", response_model=WeeklyPlanRead)

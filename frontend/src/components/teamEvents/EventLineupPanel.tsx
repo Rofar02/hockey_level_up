@@ -8,6 +8,7 @@ import { TextField } from '../ui/TextField'
 import * as teamEventsApi from '../../api/teamEvents'
 import { ApiError } from '../../api/client'
 import { useAuth } from '../../hooks/useAuth'
+import { LINEUP_SLOTS, LINEUP_SLOT_LABELS } from '../../types/teamEvent'
 import type { TeamEventLineupRead, TeamEventRead } from '../../types/teamEvent'
 import { POSITION_LABELS } from '../../types/user'
 import { getDisplayName } from '../../utils/displayName'
@@ -93,14 +94,14 @@ export function EventLineupPanel({ teamId, event, isCaptain }: EventLineupPanelP
     }
   }
 
-  async function handleAssign(userId: string, groupId: string) {
+  async function handleAssign(userId: string, groupId: string, slot: string | null = null) {
     if (accessToken === null || groupId === '') {
       return
     }
     setBusyUserId(userId)
     setActionError(null)
     try {
-      await teamEventsApi.assignLineupPlayer(teamId, event.id, userId, groupId, accessToken)
+      await teamEventsApi.assignLineupPlayer(teamId, event.id, userId, groupId, accessToken, slot)
       await refresh()
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : 'Не удалось добавить игрока в группу.')
@@ -220,6 +221,25 @@ export function EventLineupPanel({ teamId, event, isCaptain }: EventLineupPanelP
                     <span className="ml-1.5 text-xs text-[#8A94A6]">{POSITION_LABELS[player.position]}</span>
                   )}
                 </span>
+                {isCaptain && event.event_type === 'game' && (
+                  <select
+                    aria-label="Позиция в звене"
+                    disabled={busyUserId === player.user_id}
+                    value={player.slot ?? ''}
+                    onChange={(e) => handleAssign(player.user_id, group.id, e.target.value === '' ? null : e.target.value)}
+                    className="ml-auto shrink-0 rounded border border-white/10 bg-dark-bg px-1.5 py-1 text-xs text-text-primary focus:border-accent-ice focus:outline-none"
+                  >
+                    <option value="">Позиция</option>
+                    {LINEUP_SLOTS.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {LINEUP_SLOT_LABELS[slot]}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!isCaptain && player.slot != null && (
+                  <span className="ml-auto shrink-0 font-display text-xs text-accent-ice">{LINEUP_SLOT_LABELS[player.slot]}</span>
+                )}
                 {isCaptain && (
                   <button
                     type="button"

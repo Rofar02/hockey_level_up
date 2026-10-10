@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    SmallInteger,
     String,
     Text,
     Time,
@@ -107,6 +108,11 @@ class TeamEvent(Base):
     # against, unlike DayPlan.date elsewhere in this codebase.
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     opponent_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # GAME only (2026-10-09): the final score the captain enters after the
+    # game -- wins, goals for and against on the team card come from it.
+    # Both set or both None.
+    our_score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    opponent_score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     source_template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("team_ice_schedule_templates.id", ondelete="SET NULL"),
@@ -324,6 +330,10 @@ class TeamEventLineupSlot(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # The player's spot inside the group (2026-10-09): LW/C/RW for a
+    # forward line, LD/RD for a defense pair, G for a goalie. None = just
+    # in the group (every lineup made before slots, and a scrimmage team).
+    slot_position: Mapped[str | None] = mapped_column(String(3), nullable=True)
 
 
 class TeamEventDiaryEntry(Base):

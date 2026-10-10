@@ -380,6 +380,7 @@ export function ExerciseDetailBody({
               history={history}
               onLastSetCompleted={onLastSetCompleted}
               onSettled={onSettled}
+              variant={variant}
             />
           ) : mode === 'duration' ? (
             <TimerPlayer
@@ -519,6 +520,25 @@ function repsRangeTag(reps: number, min: number, max: number): 'match' | 'less' 
 
 const REPS_TAG_LABELS = { match: 'совпадает', less: 'меньше', more: 'больше' } as const
 
+// One of the player's three rings (2026-10-10 redesign): a number in a ring.
+function PlayerRing({ value, unit, label }: { value: string; unit?: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="flex h-[86px] w-[86px] flex-col items-center justify-center rounded-full border-4 border-accent-ice leading-none">
+        <span className="font-display text-[28px] font-semibold">{value}</span>
+        {unit !== undefined && <span className="text-[11px] text-text-secondary">{unit}</span>}
+      </div>
+      <span className="text-[11px] text-text-secondary">{label}</span>
+    </div>
+  )
+}
+
+function formatRest(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  return minutes > 0 ? `${minutes}:${String(rest).padStart(2, '0')}` : `${rest}с`
+}
+
 // Auto-started by SetLogger right after a non-final set is saved (see
 // restState there) -- counts down from the exercise's computed
 // rest_seconds (app/core/rest.py's stimulus_type/difficulty_level formula)
@@ -540,7 +560,10 @@ function RestTimer({
   accessToken,
   onDone,
   lockScreen,
+  big = false,
 }: {
+  // The full-screen player's rest: a big ring and a big skip button.
+  big?: boolean
   totalSeconds: number
   // Absolute end time (ms) -- survives the app being reloaded mid-rest.
   deadline: number
@@ -644,6 +667,28 @@ function RestTimer({
     onDoneRef.current()
   }, [remaining])
 
+  if (big) {
+    return (
+      <div className="flex min-w-0 flex-col items-center gap-5 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-accent-ice">Отдых</span>
+        <CountdownRing
+          size={220}
+          totalSeconds={totalSeconds}
+          remainingSeconds={Math.max(0, remaining)}
+          label="до следующего подхода"
+          accent="ice"
+        />
+        <button
+          type="button"
+          onClick={onDone}
+          className="min-h-12 w-full rounded-xl border border-white/10 bg-[#1D2740] text-base font-semibold text-text-primary transition-colors hover:border-white/25"
+        >
+          Пропустить отдых
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex min-w-0 flex-col items-center gap-2 py-2">
       <span className="text-xs font-medium uppercase tracking-wide text-text-secondary">
@@ -693,11 +738,16 @@ function SetLogger({
   onLastSetCompleted,
   onSettled,
   history,
+  variant = 'modal',
 }: {
   exercise: ExerciseRead
   trainingSessionId: string
   accessToken: string
   history: ExerciseHistorySession[] | null
+  // 'focus' = the full-screen player (2026-10-10 redesign): the same sets,
+  // rest and feedback, laid out as the player -- three rings, big steppers,
+  // one big «Подход выполнен», a big rest countdown.
+  variant?: 'modal' | 'focus'
   onLastSetCompleted?: () => void
   // Fires once the feedback prompt below is answered (icelevel_player_
   // master_prompt.md, 2026-08-28: auto-advance to the next exercise) --
@@ -1024,6 +1074,13 @@ function SetLogger({
     const isCorrection = editingSetNumber !== null
     const reps = effectiveReps
     const weight = exercise.tracks_weight ? effectiveWeight : null
+    // No suggestion (no body weight on file, nothing logged yet) leaves the
+    // stepper at 0 -- ask for the real weight instead of a server 400 that
+    // read as "сильно отличается от обычного" (found 2026-10-10).
+    if (weight !== null && weight <= 0) {
+      setSaveError('Укажите вес, с которым делали подход.')
+      return
+    }
     // Still inside the tap: unlock audio now, the rest it leads to only
     // starts after the save request below comes back.
     if (lockScreen && !isCorrection) {
@@ -1060,8 +1117,10 @@ function SetLogger({
       // Next set's stepper starts at the fresh suggestion once it loads
       // (repsValue/weightValue are already back to null above) --
       // suggestions personalize per-set (RepsSuggestionService/
-      // WeightSuggestionService), not just once per exercise.
-      setSuggestedWeightKg(result.suggested_weight_kg)
+      // WeightSuggestionService), not just once per exercise. No
+      // suggestion at all (no body weight on file): the weight just used,
+      // not back to 0 (found 2026-10-10).
+      setSuggestedWeightKg(result.suggested_weight_kg ?? weight)
 
       if (hasRepRange) {
         setIsLoadingRepsSuggestion(true)
@@ -1143,6 +1202,187 @@ function SetLogger({
     } finally {
       setIsSavingFeedback(false)
     }
+  }
+
+  if (variant === 'focus') {
+    const doneCount = Object.keys(completedSets).length
+    const activeSetNumber = editingSetNumber ?? (allSetsDone ? null : currentSetNumber)
+    const isResting =
+      editingSetNumber === null && !allSetsDone && restState !== null && restState.forSetNumber === currentSetNumber
+    const lastDone = doneCount > 0 ? completedSets[Math.max(...Object.keys(completedSets).map(Number))] : undefined
+    const ringReps = activeSetNumber !== null ? effectiveReps : (lastDone?.reps_completed ?? effectiveReps)
+    const ringWeight = activeSetNumber !== null ? effectiveWeight : (lastDone?.weight_kg ?? effectiveWeight)
+    const progressShare = targetSets > 0 ? Math.min(1, doneCount / targetSets) : 0
+    return (
+      <div className="flex flex-col gap-5">
+        {isLoadingSets ? (
+          <p className="text-sm text-text-secondary">Загрузка...</p>
+        ) : (
+          <>
+            {!isResting && (
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <PlayerRing value={String(ringReps)} label="повторов" />
+                {exercise.tracks_weight ? (
+                  <PlayerRing value={String(ringWeight)} unit="кг" label="вес" />
+                ) : (
+                  <PlayerRing value={exercise.rest_seconds !== null ? formatRest(exercise.rest_seconds) : "—"} label="отдых" />
+                )}
+                <div className="flex flex-col items-center gap-1.5">
+                  <div
+                    className="flex h-[86px] w-[86px] items-center justify-center rounded-full"
+                    style={{
+                      background: `conic-gradient(#FF5C34 0 ${progressShare * 100}%, rgba(255,255,255,0.12) ${progressShare * 100}% 100%)`,
+                    }}
+                  >
+                    <span className="flex h-[74px] w-[74px] items-center justify-center rounded-full bg-[#0A0F1A] font-display text-[26px] font-semibold">
+                      {doneCount}/{targetSets}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-text-secondary">подходов</span>
+                </div>
+              </div>
+            )}
+
+            {isResting && restState !== null && (
+              <RestTimer
+                key={currentSetNumber}
+                big
+                totalSeconds={restState.totalSeconds}
+                deadline={restState.deadline}
+                accessToken={accessToken}
+                onDone={() => setRestState(null)}
+                lockScreen={
+                  lockScreen && lockStartedRef.current
+                    ? { rest: restCard(currentSetNumber, restState.totalSeconds), next: setCard(currentSetNumber) }
+                    : null
+                }
+              />
+            )}
+
+            {!isResting && activeSetNumber !== null && (
+              <div className="flex flex-col gap-3">
+                {showWeightHint && exercise.tracks_weight && (
+                  <div className="flex flex-col gap-2 rounded border border-accent-ice/30 bg-accent-ice/5 px-3 py-2.5">
+                    <p className="text-xs leading-relaxed text-text-secondary">
+                      Мы подсказываем вес, но его можно поправить стрелками до того, что реально подняли. После
+                      подхода скажите, как ощущалось — в следующий раз подберём точнее.
+                    </p>
+                    <Button variant="neutral" onClick={dismissWeightHint} className="self-start px-3 py-1 text-xs">
+                      Понятно
+                    </Button>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                  <span className="font-display text-base font-semibold">
+                    Подход {activeSetNumber}
+                    {editingSetNumber !== null && (
+                      <span className="ml-2 text-xs font-normal text-text-secondary">(исправление)</span>
+                    )}
+                  </span>
+                  <LastTimeHint history={history} setNumber={activeSetNumber} tracksWeight={exercise.tracks_weight} />
+                </div>
+                <div className={`grid gap-2 ${exercise.tracks_weight ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <div className="flex items-center justify-center rounded-xl bg-dark-card p-2">
+                    <Stepper
+                      value={effectiveReps}
+                      step={1}
+                      min={1}
+                      disabled={isLoadingRepsSuggestion || isSaving}
+                      onChange={setRepsValue}
+                    />
+                  </div>
+                  {exercise.tracks_weight && (
+                    <div className="flex items-center justify-center rounded-xl bg-dark-card p-2">
+                      <Stepper
+                        value={effectiveWeight}
+                        unit="кг"
+                        step={2.5}
+                        disabled={isLoadingSuggestion || isSaving}
+                        onChange={setWeightValue}
+                      />
+                    </div>
+                  )}
+                </div>
+                <FormError message={saveError} />
+                <button
+                  type="button"
+                  onClick={handleSaveSet}
+                  disabled={isSaving}
+                  className="min-h-14 w-full rounded-xl bg-accent-persimmon text-base font-bold text-dark-bg transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {isSaving ? 'Сохраняем…' : `Подход ${activeSetNumber} выполнен`}
+                </button>
+                {editingSetNumber !== null && (
+                  <button
+                    type="button"
+                    onClick={cancelEditSet}
+                    disabled={isSaving}
+                    className="text-sm text-text-secondary underline underline-offset-2 hover:text-text-primary disabled:opacity-50"
+                  >
+                    Отменить исправление
+                  </button>
+                )}
+              </div>
+            )}
+
+            {doneCount > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {Array.from({ length: targetSets }, (_, index) => index + 1)
+                  .filter((setNumber) => completedSets[setNumber] !== undefined)
+                  .map((setNumber) => {
+                    const completed = completedSets[setNumber]!
+                    return (
+                      <button
+                        key={setNumber}
+                        type="button"
+                        onClick={() => beginEditSet(setNumber, completed)}
+                        aria-label={`Исправить подход ${setNumber}`}
+                        className="flex items-center gap-1.5 rounded-full border border-white/10 bg-dark-card px-3 py-1.5 font-mono text-xs text-text-secondary transition-colors hover:border-white/25"
+                      >
+                        <i className="ti ti-check text-accent-ice" aria-hidden="true" />
+                        {setNumber}:{' '}
+                        {exercise.tracks_weight && completed.weight_kg !== null
+                          ? `${completed.weight_kg}×${completed.reps_completed ?? '—'}`
+                          : (completed.reps_completed ?? '—')}
+                      </button>
+                    )
+                  })}
+              </div>
+            )}
+
+            {!skipFeedback && allSetsDone && editingSetNumber === null && (
+              feedback !== null ? (
+                <div className="flex items-center justify-between gap-2 rounded-xl bg-dark-card px-4 py-3 text-sm">
+                  <span className="text-text-secondary">Как ощущения?</span>
+                  <span className="flex items-center gap-1.5 font-medium text-accent-persimmon">
+                    <i className="ti ti-check" aria-hidden="true" />
+                    {SET_FEEDBACK_LABELS[feedback]}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 rounded-xl bg-dark-card p-4">
+                  <p className="text-sm text-text-secondary">Как прошло упражнение?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SET_FEEDBACK_OPTIONS.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        disabled={isSavingFeedback}
+                        onClick={() => handleSaveFeedback(option)}
+                        className="min-h-11 rounded-lg border border-white/10 px-2 text-sm text-text-primary transition-colors hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {SET_FEEDBACK_LABELS[option]}
+                      </button>
+                    ))}
+                  </div>
+                  <FormError message={feedbackError} />
+                </div>
+              )
+            )}
+          </>
+        )}
+      </div>
+    )
   }
 
   return (

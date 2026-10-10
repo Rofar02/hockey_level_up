@@ -189,6 +189,12 @@ class User(Base):
     # as TrainingBlockService.resolve_active_block.
     difficulty_throttle_steps: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # The coach's ice theme (2026-10-09, release plan 7.1): 1-3 ice focus
+    # ids (app.core.ice_focus) the player confirmed from the coach chat,
+    # shown before any other pick until the date passes.
+    coach_ice_focus_ids: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    coach_ice_focus_until: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     # One-time welcome tour shown on first Home visit after onboarding --
     # never reset, so a re-login or a second device just sees Home directly.
     has_seen_onboarding_tour: Mapped[bool] = mapped_column(
@@ -247,6 +253,10 @@ class User(Base):
         nullable=False,
         server_default=SeasonPeriod.OFFSEASON.value,
     )
+    # When the player last changed season_period themselves (2026-10-10):
+    # the default OFFSEASON of a new account is not a switch to the
+    # off-season, so «Мой сезон» does not open on it.
+    season_period_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # P3 #9: chosen in Settings (not onboarding -- a preference people may
     # want to change later, not a one-time setup step). CALM default keeps

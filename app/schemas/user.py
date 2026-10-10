@@ -131,6 +131,8 @@ class UserPublicRead(BaseModel):
     # The six stats' current values, so a friend or teammate sees the same
     # player card the owner does. Filled in by the router (not a column).
     stats: list[PublicStatRead] = []
+    # The player's team for the card (2026-10-09), filled in by the router.
+    team: "PlayerTeamBadgeRead | None" = None
 
 
 class UserUpdate(BaseModel):
@@ -201,3 +203,8 @@ class TeamAttentionRead(BaseModel):
     team_join_requests: int
     # Captains' invitations to the player, still unanswered (2026-10-08).
     team_invitations: int = 0
+
+
+from app.schemas.team import PlayerTeamBadgeRead  # noqa: E402  (team.py imports user.py)
+
+UserPublicRead.model_rebuild()

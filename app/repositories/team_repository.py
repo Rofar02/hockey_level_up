@@ -23,6 +23,22 @@ class TeamRepository:
     async def get_by_id(self, team_id: uuid.UUID) -> Team | None:
         return await self._session.get(Team, team_id)
 
+    async def list_other_league_names(self) -> list[str]:
+        result = await self._session.execute(
+            select(Team.league_other_name).where(
+                Team.league_code == "other", Team.league_other_name.is_not(None)
+            )
+        )
+        return list(result.scalars().all())
+
+    async def list_teams_in_league_with_city(self, league_code: str) -> list[Team]:
+        """Candidates for a league-and-city place; the city (and the
+        "other" name) is matched case-insensitively by the caller."""
+        result = await self._session.execute(
+            select(Team).where(Team.league_code == league_code, Team.city.is_not(None))
+        )
+        return list(result.scalars().all())
+
     async def get_by_invite_code(self, invite_code: str) -> Team | None:
         result = await self._session.execute(select(Team).where(Team.invite_code == invite_code))
         return result.scalar_one_or_none()

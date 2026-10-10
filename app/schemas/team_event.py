@@ -126,12 +126,25 @@ class TeamEventRead(BaseModel):
     board_status: TeamEventPublishStatus | None = None
     sections: list[TeamEventDrillSectionRead] | None = None
     created_at: datetime
+    # GAME only: the final score, once the captain entered it.
+    our_score: int | None = None
+    opponent_score: int | None = None
+    # A joint training seen by a guest team (step 3.5): the host's name.
+    host_team_name: str | None = None
 
 
 class TeamEventCreate(BaseModel):
     event_type: TeamEventType
     starts_at: datetime
     opponent_name: str | None = Field(default=None, max_length=100)
+
+
+class TeamEventScoreUpdate(BaseModel):
+    """PUT /teams/{id}/events/{event_id}/score -- both numbers, or both
+    null to clear a wrongly entered score."""
+
+    our_score: int | None = Field(default=None, ge=0, le=99)
+    opponent_score: int | None = Field(default=None, ge=0, le=99)
 
 
 class TeamEventReschedule(BaseModel):
@@ -225,6 +238,14 @@ class TeamEventLineupPlayerRead(BaseModel):
     last_name: str
     avatar_url: str | None = None
     position: Position | None = None
+    # 2026-10-09, for the mini-cards: the spot in the group (LW/C/RW,
+    # LD/RD, G), the jersey, the level and the card "ОБЩИЙ" with its six
+    # stats (the line card averages them).
+    slot: str | None = None
+    jersey_number: int | None = None
+    level: int = 1
+    rating: int | None = None
+    stats: dict[str, float] = {}
 
 
 class TeamEventLineupGroupRead(BaseModel):
@@ -232,6 +253,11 @@ class TeamEventLineupGroupRead(BaseModel):
     name: str | None = None
     color: str | None = None
     players: list[TeamEventLineupPlayerRead]
+    # Derived from the players' slots: "forwards" (LW/C/RW), "defense"
+    # (LD/RD), "goalies" (G) or "mixed" (no slots, or slots of both kinds).
+    kind: str = "mixed"
+    # Average of the players' ratings.
+    rating: int | None = None
 
 
 class TeamEventLineupRead(BaseModel):
@@ -256,8 +282,29 @@ class TeamEventLineupGroupUpdate(BaseModel):
     color: str | None = Field(default=None, max_length=20)
 
 
+LINEUP_SLOTS = ("LW", "C", "RW", "LD", "RD", "G")
+
+
 class TeamEventLineupPlayerAssign(BaseModel):
     group_id: uuid.UUID
+    # LW/C/RW, LD/RD or G; None = in the group without a spot.
+    slot: str | None = None
+
+
+class TeamCurrentLineupEventRead(BaseModel):
+    id: uuid.UUID
+    starts_at: datetime
+    opponent_name: str | None = None
+
+
+class TeamCurrentLineupRead(BaseModel):
+    """GET /teams/{id}/lineup/current (2026-10-09): the lineup of the next
+    game, or of the last one when none is coming -- None when the team
+    has no games at all. lineup.groups is None for a player while the
+    captain hasn't published it."""
+
+    event: TeamCurrentLineupEventRead | None = None
+    lineup: TeamEventLineupRead | None = None
 
 
 class TeamIceScheduleTemplateRead(BaseModel):
@@ -298,3 +345,68 @@ class DrillTemplateRead(BaseModel):
     diagram: DrillDiagram | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class TeamReadinessPlayerRead(BaseModel):
+    user_id: uuid.UUID
+    first_name: str
+    last_name: str
+    jersey_number: int | None = None
+    # "fresh" / "tired" / "overloaded" / "no_data" (release plan step 9).
+    status: str
+
+
+class TeamReadinessRead(BaseModel):
+    """GET /teams/{id}/events/{event_id}/readiness -- captain only: the
+    "going" players' readiness, by name, without anyone's muscle map."""
+
+    going: int
+    fresh: int
+    tired: int
+    overloaded: int
+    no_data: int
+    players: list[TeamReadinessPlayerRead]
+
+
+# -- joint trainings (release plan step 3.5, 2026-10-09) --
+
+
+class GuestTeamRead(BaseModel):
+    team_id: uuid.UUID
+    name: str
+    logo_url: str | None = None
+    # "host", or the guest team's invited / accepted / declined.
+    status: str
+
+
+class GuestInvitationRead(BaseModel):
+    """An invitation the guest captain sees: to one training ("event") or
+    to a recurring slot ("slot"). `conflict` -- the team already has its
+    own training that day; accepting then offers to replace it."""
+
+    id: uuid.UUID
+    kind: str
+    host_team_id: uuid.UUID
+    host_team_name: str
+    host_logo_url: str | None = None
+    starts_at: datetime | None = None
+    slot_label: str | None = None
+    conflict: bool = False
+
+
+class GuestInvitationAnswer(BaseModel):
+    accept: bool
+    replace_own: bool = False
+
+
+class GuestTeamInvite(BaseModel):
+    team_id: uuid.UUID
+
+
+class TeamSearchHitRead(BaseModel):
+    id: uuid.UUID
+    name: str
+    logo_url: str | None = None
+    city: str | None = None
+    league_name: str | None = None
+    division_name: str | None = None

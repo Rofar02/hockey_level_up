@@ -32,7 +32,10 @@
     inset: 0;
     overflow-x: hidden;
     overflow-y: auto;
-    overscroll-behavior-y: contain;
+    /* none, not contain (2026-10-10): contain still let the page stretch
+       past its ends on iPhone (the rubber band) and the bottom of the page
+       slid under the tab bar while it did. */
+    overscroll-behavior-y: none;
     -webkit-overflow-scrolling: touch;
   }
 

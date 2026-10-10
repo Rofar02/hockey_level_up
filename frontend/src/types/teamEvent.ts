@@ -102,6 +102,11 @@ export interface TeamEventRead {
   board_status: TeamEventPublishStatus | null
   sections: TeamEventDrillSectionRead[] | null
   created_at: string
+  // GAME only: the final score the captain entered.
+  our_score?: number | null
+  opponent_score?: number | null
+  // A joint training seen by a guest team (step 3.5): the host's name.
+  host_team_name?: string | null
 }
 
 export interface TeamEventCreatePayload {
@@ -185,19 +190,47 @@ export interface TeamEventNudgeResult {
   last_nudge_sent_at: string
 }
 
+// The spot inside a line (2026-10-09).
+export const LINEUP_SLOTS = ['LW', 'C', 'RW', 'LD', 'RD', 'G'] as const
+export type LineupSlot = (typeof LINEUP_SLOTS)[number]
+export const LINEUP_SLOT_LABELS: Record<LineupSlot, string> = {
+  LW: 'ЛН',
+  C: 'Ц',
+  RW: 'ПН',
+  LD: 'ЛЗ',
+  RD: 'ПЗ',
+  G: 'ВРТ',
+}
+
 export interface TeamEventLineupPlayerRead {
   user_id: string
   first_name: string
   last_name: string
   avatar_url: string | null
   position: Position | null
+  slot?: LineupSlot | null
+  jersey_number?: number | null
+  level?: number
+  // The card "ОБЩИЙ" and the six stats behind it.
+  rating?: number | null
+  stats?: Record<string, number>
 }
+
+export type LineupGroupKind = 'forwards' | 'defense' | 'goalies' | 'mixed'
 
 export interface TeamEventLineupGroupRead {
   id: string
   name: string | null
   color: string | null
   players: TeamEventLineupPlayerRead[]
+  kind?: LineupGroupKind
+  rating?: number | null
+}
+
+// GET /teams/{id}/lineup/current -- the next game's lineup, or the last one's.
+export interface TeamCurrentLineupRead {
+  event: { id: string; starts_at: string; opponent_name: string | null } | null
+  lineup: TeamEventLineupRead | null
 }
 
 // groups/unassigned are null while the lineup is a draft and the caller
@@ -228,4 +261,44 @@ export interface TeamIceScheduleTemplateRead {
 export interface TeamIceScheduleTemplateCreatePayload {
   weekday: number
   start_time: string
+}
+
+// GET /teams/{id}/events/{event_id}/readiness -- captain only (step 9).
+export interface TeamReadinessRead {
+  going: number
+  fresh: number
+  tired: number
+  overloaded: number
+  no_data: number
+  players: { user_id: string; first_name: string; last_name: string; jersey_number: number | null; status: string }[]
+}
+
+// -- joint trainings (release plan step 3.5, 2026-10-09) --
+
+export interface GuestTeamRead {
+  team_id: string
+  name: string
+  logo_url: string | null
+  // 'host', or the guest team's invited / accepted / declined.
+  status: string
+}
+
+export interface GuestInvitationRead {
+  id: string
+  kind: 'event' | 'slot'
+  host_team_id: string
+  host_team_name: string
+  host_logo_url: string | null
+  starts_at: string | null
+  slot_label: string | null
+  conflict: boolean
+}
+
+export interface TeamSearchHitRead {
+  id: string
+  name: string
+  logo_url: string | null
+  city: string | null
+  league_name: string | null
+  division_name: string | null
 }

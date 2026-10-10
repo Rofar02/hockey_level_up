@@ -20,8 +20,10 @@ from app.models.exercise import (
 from app.models.friend import FriendRequest, FriendRequestStatus
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
-from app.models.progress import StatHistory, TrainingStreak, UserStat
+from app.models.progress import IceLoadCharge, StatHistory, TrainingStreak, UserStat
 from app.models.push_subscription import PushSubscription
+from app.models.coach_task import WeeklyCoachTask
+from app.models.team_event_guest import GuestTeamStatus, TeamEventGuestTeam, TeamIceTemplateGuestTeam
 from app.models.quest import UserQuestCompletion
 from app.models.reference_article import ReferenceArticle
 from app.models.schedule import (
@@ -134,6 +136,10 @@ __all__ = [
     "UserCoachmark",
     "UserEquipmentItem",
     "UserQuestCompletion",
+    "WeeklyCoachTask",
+    "GuestTeamStatus",
+    "TeamEventGuestTeam",
+    "TeamIceTemplateGuestTeam",
     "UserSkillPreference",
     "UserStat",
     "UserTemporaryRestriction",

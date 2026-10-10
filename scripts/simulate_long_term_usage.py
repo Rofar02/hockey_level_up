@@ -353,6 +353,7 @@ async def run_week(
     report: ScenarioReport,
     session_ordinal_start: int,
     previous_block_state: tuple | None,
+    extra_gym: frozenset[int] = frozenset(),
 ) -> tuple:
     """Returns (updated session_ordinal, new_block_state) -- new_block_state
     is (block_number, phase.value), compared by the caller against what it
@@ -378,24 +379,33 @@ async def run_week(
 
     weekly_plan = WeeklyPlan(user_id=user.id, week_start_date=monday, training_block_id=block.id)
     day_entries = []
+    # Light legs the day after ice (release plan 5.1), as create_weekly_plan does.
+    light_dates = schedule_service._light_legs_dates_for(
+        user,
+        [(monday + timedelta(days=o), day_pattern.get(o, DaySessionType.REST)) for o in range(7)],
+    )
     assembly_t0 = time.perf_counter()
     for offset in range(7):
         day_date = monday + timedelta(days=offset)
         session_type = day_pattern.get(offset, DaySessionType.REST)
         day_plan = DayPlan(date=day_date, session_type=session_type)
-        if session_type == DaySessionType.ON_ICE:
-            # Matches the real dispatch (ScheduleService._build_session_for_day):
-            # ON_ICE is warmup+cooldown only, no MAIN, no `today`/training_block
-            # to inject -- see that method's own docstring.
-            day_plan.training_session = await schedule_service._build_on_ice_day_session(
-                user, block_phase
-            )
-        elif session_type != DaySessionType.REST:
-            day_plan.training_session = await schedule_service._build_training_session(
-                session_type, user, block_phase, block, today=monday
+        if session_type != DaySessionType.REST:
+            # The real dispatch: GAME/ON_ICE have no MAIN, OFF_ICE does.
+            day_plan.training_session = await schedule_service._build_session_for_day(
+                session_type, user, block_phase, block, today=monday, light_legs=day_date in light_dates
             )
         weekly_plan.day_plans.append(day_plan)
         day_entries.append((day_date, day_plan, session_type))
+        if offset in extra_gym and session_type in (DaySessionType.ON_ICE, DaySessionType.GAME):
+            # A double day (release plan step 6): a separate ordinary gym
+            # training in the morning -- as _build_extra_gym_day.
+            day_plan.time_of_day = "evening"
+            extra = DayPlan(date=day_date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day="morning")
+            extra.training_session = await schedule_service._build_session_for_day(
+                DaySessionType.OFF_ICE, user, block_phase, block, today=monday
+            )
+            weekly_plan.day_plans.append(extra)
+            day_entries.insert(len(day_entries) - 1, (day_date, extra, DaySessionType.OFF_ICE))
     assembly_seconds = time.perf_counter() - assembly_t0
 
     await schedule_repo.save(weekly_plan)

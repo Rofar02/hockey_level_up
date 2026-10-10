@@ -14,6 +14,7 @@ import * as progressApi from '../api/progress'
 import * as usersApi from '../api/users'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useMyTeam } from '../hooks/useMyTeam'
 import {
   LEVEL_RING_ACCENTS,
   AVATAR_RING_ACCENT_LABELS,
@@ -56,6 +57,7 @@ function toOptionalNumber(value: string): number | null {
 
 export function SettingsProfilePage() {
   const { user, accessToken, updateUser } = useAuth()
+  const myTeam = useMyTeam()
   const hasPremium = user?.has_premium === true
 
   const [lastName, setLastName] = useState(user?.last_name ?? '')
@@ -338,7 +340,7 @@ export function SettingsProfilePage() {
                 level={userLevel}
                 xp={user?.xp ?? 0}
                 avatarUrl={user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null}
-                teamLogoUrl={null}
+                team={myTeam}
                 stats={cardStatsFrom(stats)}
               />
             </div>

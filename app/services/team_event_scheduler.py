@@ -40,6 +40,8 @@ from app.models.user import User
 from app.repositories.team_event_repository import TeamEventRepository
 from app.repositories.team_repository import TeamRepository
 from app.services.push_service import send_push
+from app.services.joint_training_service import JointTrainingService, accepted_template_guest_ids, event_team_ids
+from app.services.team_readiness_service import TeamReadinessService, readiness_line
 
 logger = logging.getLogger(__name__)
 
@@ -79,20 +81,28 @@ async def _due_attendance_summary_events(session: AsyncSession, now_utc: datetim
 
 
 async def _send_attendance_summary(session: AsyncSession, event: TeamEvent, now_utc: datetime) -> None:
+    """One push per captain: the host's, and each accepted guest team's of a
+    joint training (step 3.5) -- every captain gets their own players'
+    numbers."""
     teams = TeamRepository(session)
     events = TeamEventRepository(session)
-    team = await teams.get_by_id(event.team_id)
-    if team is None:
-        return
-    members = await teams.list_members(event.team_id)
     rows = await events.list_attendance_for_event(event.id)
-    going = sum(1 for row in rows if row.status == TeamEventAttendanceStatus.GOING)
-    not_going = sum(1 for row in rows if row.status == TeamEventAttendanceStatus.NOT_GOING)
-    unmarked = len(members) - len(rows)
-
     what = "тренировку" if event.event_type == TeamEventType.TRAINING else "игру"
-    body = f"На {what}: буду -- {going}, не буду -- {not_going}, не отметились -- {unmarked}"
-    await _push_user(session, team.owner_id, ATTENDANCE_SUMMARY_TITLE, body)
+    for event_team_id in await event_team_ids(session, event):
+        team = await teams.get_by_id(event_team_id)
+        if team is None:
+            continue
+        member_ids = {member.id for member in await teams.list_members(team.id)}
+        own_rows = [row for row in rows if row.user_id in member_ids]
+        going = sum(1 for row in own_rows if row.status == TeamEventAttendanceStatus.GOING)
+        not_going = sum(1 for row in own_rows if row.status == TeamEventAttendanceStatus.NOT_GOING)
+        unmarked = len(member_ids) - len(own_rows)
+        body = f"На {what}: буду -- {going}, не буду -- {not_going}, не отметились -- {unmarked}"
+        if going:
+            # Release plan step 9: the going players' readiness in the same push.
+            readiness = await TeamReadinessService(session).readiness_of_going(event, team.id)
+            body += ". " + readiness_line(readiness)
+        await _push_user(session, team.owner_id, ATTENDANCE_SUMMARY_TITLE, body)
     # Guards against a re-send if a slow tick overlaps the next one, same
     # idiom as DayPlan.reminder_sent_at.
     event.attendance_summary_sent_at = now_utc
@@ -179,13 +189,16 @@ async def _stamp_template(session: AsyncSession, template: TeamIceScheduleTempla
             continue
         if await events.get_stamped_event(template.id, candidate_utc) is not None:
             continue
-        await events.create_event(
+        stamped = await events.create_event(
             template.team_id,
             TeamEventType.TRAINING,
             candidate_utc,
             None,
             source_template_id=template.id,
         )
+        # A slot shared with another team (step 3.5): joint from the start.
+        for guest_team_id in await accepted_template_guest_ids(session, template.id):
+            await JointTrainingService(session).add_accepted_guest(stamped, guest_team_id)
 
 
 async def _run_tick(session: AsyncSession, now_utc: datetime) -> None:

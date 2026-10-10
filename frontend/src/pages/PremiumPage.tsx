@@ -9,6 +9,7 @@ import { Modal } from '../components/ui/Modal'
 import * as progressApi from '../api/progress'
 import { API_BASE_URL } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useMyTeam } from '../hooks/useMyTeam'
 import type { UserStatRead } from '../types/progress'
 
 // The premium sales page (2026-10-04, mockup variant A: the player's own card
@@ -52,6 +53,7 @@ const PLANS: { id: Plan; title: string; note: string; badge?: string }[] = [
 
 export function PremiumPage() {
   const { user, accessToken } = useAuth()
+  const myTeam = useMyTeam()
   const hasPremium = user?.has_premium === true
   const [plan, setPlan] = useState<Plan>('year')
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
@@ -95,7 +97,7 @@ export function PremiumPage() {
             level={user?.level ?? 1}
             xp={user?.xp ?? 0}
             avatarUrl={user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null}
-            teamLogoUrl={null}
+            team={myTeam}
             stats={cardStatsFrom(stats)}
           />
         </div>

@@ -67,6 +67,8 @@ async def _due_day_plan(
             WeeklyPlan.user_id == user_id,
             DayPlan.date == target_date,
             DayPlan.session_type != DaySessionType.REST,
+            # One reminder per date: the main day of a double day (step 6).
+            DayPlan.is_extra.is_(False),
             DayPlan.reminder_sent_at.is_(None),
         )
     )

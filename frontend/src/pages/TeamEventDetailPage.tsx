@@ -11,6 +11,8 @@ import { TabButton } from '../components/ui/TabButton'
 import { TextField } from '../components/ui/TextField'
 import { EventBoardPanel } from '../components/teamEvents/EventBoardPanel'
 import { EventAttendancePanel } from '../components/teamEvents/EventAttendancePanel'
+import { GameScoreBlock } from '../components/teamEvents/GameScoreBlock'
+import { JointTrainingBlock } from '../components/teamEvents/JointTrainingBlock'
 import { EventLineupPanel } from '../components/teamEvents/EventLineupPanel'
 import * as teamsApi from '../api/teams'
 import * as teamEventsApi from '../api/teamEvents'
@@ -152,6 +154,10 @@ export function TeamEventDetailPage() {
     )
   }
 
+  // A joint training: only the host team's captain runs it -- a guest
+  // captain sees it like a player (and can take the team out in its block).
+  const isHostCaptain = team !== null && event !== null && team.is_captain && event.team_id === teamId
+
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
@@ -167,12 +173,17 @@ export function TeamEventDetailPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-col gap-1">
                   <h1 className="text-lg font-semibold text-[#F5F7FA]">
-                    {event.event_type === 'training' ? 'Тренировка' : `Игра с ${event.opponent_name}`}
+                    {event.event_type === 'training'
+                  ? event.host_team_name != null
+                    ? `Совместная тренировка с «${event.host_team_name}»`
+                    : 'Тренировка'
+                  : `Игра: ${event.opponent_name}`}
                   </h1>
                   <span className="text-sm text-[#8A94A6]">{formatDateTime(new Date(event.starts_at))}</span>
                 </div>
               </div>
-              {team.is_captain && (
+              <GameScoreBlock teamId={teamId!} event={event} isCaptain={isHostCaptain} onEventChange={setEvent} />
+              {isHostCaptain && (
                 <div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">
                   <Button type="button" variant="neutral" className="!px-3 !py-1.5 !text-xs" onClick={openReschedule}>
                     Перенести
@@ -189,6 +200,8 @@ export function TeamEventDetailPage() {
               )}
               <FormError message={cancelError} />
             </div>
+
+            <JointTrainingBlock teamId={teamId!} event={event} isCaptain={team.is_captain} />
 
             <div className="flex border-b border-white/10">
               {event.event_type === 'training' && (
@@ -208,15 +221,15 @@ export function TeamEventDetailPage() {
               <EventBoardPanel
                 teamId={teamId!}
                 event={event}
-                isCaptain={team.is_captain}
+                isCaptain={isHostCaptain}
                 onEventChange={setEvent}
               />
             )}
             {activeTab === 'attendance' && (
-              <EventAttendancePanel teamId={teamId!} event={event} isCaptain={team.is_captain} />
+              <EventAttendancePanel teamId={teamId!} event={event} isCaptain={isHostCaptain} />
             )}
             {activeTab === 'lineup' && (
-              <EventLineupPanel teamId={teamId!} event={event} isCaptain={team.is_captain} />
+              <EventLineupPanel teamId={teamId!} event={event} isCaptain={isHostCaptain} />
             )}
           </>
         )}

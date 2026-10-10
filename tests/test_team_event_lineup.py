@@ -147,3 +147,71 @@ async def test_lineup_group_requires_captain(db_session) -> None:
     with pytest.raises(HTTPException) as exc_info:
         await events.create_lineup_group(player, team.id, event.id, "A", None)
     assert exc_info.value.status_code == 403
+
+
+# -- slots and the current lineup (2026-10-09) --
+
+
+@pytest.mark.asyncio
+async def test_slot_marks_group_kind_and_takes_spot_from_previous_holder(db_session) -> None:
+    captain, player, team = await _make_team_with_player(db_session)
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.GAME, _future(), "Rivals")
+    line = await events.create_lineup_group(captain, team.id, event.id, "1 звено", None)
+
+    await events.assign_player(captain, team.id, event.id, player.id, line.id, "C")
+    read = await events.assign_player(captain, team.id, event.id, captain.id, line.id, "LW")
+    assert read.kind == "forwards"
+    assert [p.slot for p in read.players] == ["LW", "C"]
+
+    # The captain takes the centre: the player stays in the line, without a spot.
+    read = await events.assign_player(captain, team.id, event.id, captain.id, line.id, "C")
+    slots = {p.user_id: p.slot for p in read.players}
+    assert slots == {captain.id: "C", player.id: None}
+
+    with pytest.raises(HTTPException) as exc_info:
+        await events.assign_player(captain, team.id, event.id, player.id, line.id, "XX")
+    assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_defense_pair_kind(db_session) -> None:
+    captain, player, team = await _make_team_with_player(db_session)
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.GAME, _future(), "Rivals")
+    pair = await events.create_lineup_group(captain, team.id, event.id, "1 пара", None)
+    await events.assign_player(captain, team.id, event.id, player.id, pair.id, "LD")
+    read = await events.assign_player(captain, team.id, event.id, captain.id, pair.id, "RD")
+    assert read.kind == "defense"
+
+
+@pytest.mark.asyncio
+async def test_current_lineup_is_next_game_and_hidden_until_published(db_session) -> None:
+    captain, player, team = await _make_team_with_player(db_session)
+    events = TeamEventService(db_session)
+    assert (await events.get_current_lineup(player, team.id)).event is None
+
+    later = await events.create_event(captain, team.id, TeamEventType.GAME, _future(96), "Later")
+    sooner = await events.create_event(captain, team.id, TeamEventType.GAME, _future(24), "Sooner")
+    group = await events.create_lineup_group(captain, team.id, sooner.id, "1 звено", None)
+    await events.assign_player(captain, team.id, sooner.id, player.id, group.id, "RW")
+
+    as_player = await events.get_current_lineup(player, team.id)
+    assert as_player.event.id == sooner.id
+    assert as_player.lineup.groups is None
+
+    await events.publish_lineup(captain, team.id, sooner.id)
+    as_player = await events.get_current_lineup(player, team.id)
+    assert as_player.lineup.groups[0].players[0].slot == "RW"
+    assert later.id != sooner.id
+
+
+@pytest.mark.asyncio
+async def test_current_lineup_requires_membership(db_session) -> None:
+    captain, _, team = await _make_team_with_player(db_session)
+    stranger = _make_user()
+    db_session.add(stranger)
+    await db_session.flush()
+    with pytest.raises(HTTPException) as exc_info:
+        await TeamEventService(db_session).get_current_lineup(stranger, team.id)
+    assert exc_info.value.status_code == 403

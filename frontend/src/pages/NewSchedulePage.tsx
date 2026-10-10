@@ -20,10 +20,11 @@ import {
   DAY_SESSION_TYPE_LABELS,
   SESSION_TYPE_COLORS,
   SESSION_TYPE_ICONS,
-  TRAINING_PHASES,
 } from '../types/schedule'
 import type {
+  DayPlanRead,
   DaySessionType,
+  ExtraGymTime,
   SessionBlockRead,
   TrainingPhase,
   TrainingSessionRead,
@@ -33,21 +34,6 @@ import { WEEKDAY_LABELS, addDays, formatShortDate, getMondayOfCurrentWeek, parse
 import { hasExerciseTechnique } from '../utils/exerciseTechnique'
 import { loadOptional } from '../utils/loadOptional'
 import { WeekSkeleton } from '../components/ui/Skeleton'
-
-const SESSION_TYPE_OPTIONS: DaySessionType[] = ['on_ice', 'off_ice', 'rest', 'game']
-
-// Explicit per-type classes, matching the existing single-color convention
-// (border-accent-ice bg-accent-ice/10 text-accent-ice) rather than a
-// `border-current`/`bg-current/10` shortcut -- Tailwind's opacity modifier
-// isn't guaranteed to resolve against the `current` keyword the same way it
-// does for a named color, so this stays explicit like every other selected-
-// state style in this codebase.
-const SESSION_TYPE_ACTIVE_CLASSES: Record<DaySessionType, string> = {
-  on_ice: 'border-accent-ice bg-accent-ice/10 text-accent-ice',
-  off_ice: 'border-white/40 bg-white/10 text-[#F5F7FA]',
-  rest: 'border-white/25 bg-white/5 text-[#8A94A6]',
-  game: 'border-accent-persimmon bg-accent-persimmon/10 text-accent-persimmon',
-}
 
 // Same labels TrainingSessionPage uses for these phases -- duplicated
 // locally rather than imported since PHASE_LABELS there is page-local, not
@@ -71,20 +57,6 @@ const PHASE_ICONS: Record<TrainingPhase, string> = {
   main: 'ti-barbell',
   cooldown: 'ti-wind',
   puck: 'ti-disc',
-}
-
-function formatPhaseCounts(trainingSession: TrainingSessionRead): string {
-  const counts: Record<TrainingPhase, number> = { warmup: 0, main: 0, cooldown: 0, puck: 0 }
-  for (const block of trainingSession.blocks) {
-    counts[block.phase] += 1
-  }
-  // Zero-count phases are dropped, not shown as "Шайба: 0" -- meaningful
-  // for a session type that structurally has no MAIN block (on_ice/game),
-  // but pure noise for puck (almost nobody owns a stick) if shown on every
-  // single off-ice day regardless.
-  return TRAINING_PHASES.filter((phase) => counts[phase] > 0)
-    .map((phase) => `${PHASE_LABELS[phase]}: ${counts[phase]}`)
-    .join(' · ')
 }
 
 // Same volume formatting as TrainingSessionPage's own (unexported, page-
@@ -163,6 +135,15 @@ interface DayRow {
   teamEventId: string | null
   // What the day was before that team event (null otherwise).
   replacedSessionType: DaySessionType | null
+  // Double day (step 6): a separate gym training on this ice/game day.
+  extraGym: ExtraGymTime | null
+  extraDay: DayPlanRead | null
+}
+
+const EXTRA_CAPABLE: DaySessionType[] = ['on_ice', 'game']
+
+function extraGymFor(row: DayRow): ExtraGymTime | null {
+  return EXTRA_CAPABLE.includes(row.sessionType) ? row.extraGym : null
 }
 
 // "Started" (in-progress or done) is what actually gates editing controls
@@ -173,7 +154,8 @@ function isStarted(row: DayRow): boolean {
 }
 
 function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
-  return plan.day_plans.map((day) => ({
+  const extras = new Map(plan.day_plans.filter((day) => day.is_extra === true).map((day) => [day.date, day]))
+  return plan.day_plans.filter((day) => day.is_extra !== true).map((day) => ({
     isoDate: day.date,
     date: parseIsoDate(day.date),
     sessionType: day.session_type,
@@ -181,6 +163,8 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     trainingSession: day.training_session,
     teamEventId: day.team_event_id,
     replacedSessionType: day.replaced_session_type ?? null,
+    extraGym: extras.get(day.date)?.time_of_day ?? null,
+    extraDay: extras.get(day.date) ?? null,
   }))
 }
 
@@ -193,6 +177,8 @@ function rowsForWeek(dates: Date[]): DayRow[] {
     trainingSession: null,
     teamEventId: null,
     replacedSessionType: null,
+    extraGym: null,
+    extraDay: null,
   }))
 }
 
@@ -205,6 +191,8 @@ export function NewSchedulePage() {
   const [selectedWeek, setSelectedWeek] = useState<WeekSlot>(searchParams.get('week') === 'next' ? 'next' : 'current')
   const [weekStatus, setWeekStatus] = useState<WeekStatus>('loading')
   const [rows, setRows] = useState<DayRow[]>([])
+  // Double days (step 6) are behind a server switch; off -> no "+ зал".
+  const [doubleDays, setDoubleDays] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -225,7 +213,7 @@ export function NewSchedulePage() {
   // handleSaveChanges can diff against it (rather than per-row original*
   // fields that view/plan mode would carry around for no reason) and
   // handleCancelEditing can revert to it exactly.
-  const [editSnapshot, setEditSnapshot] = useState<Map<string, { sessionType: DaySessionType }> | null>(
+  const [editSnapshot, setEditSnapshot] = useState<Map<string, { sessionType: DaySessionType; extraGym: ExtraGymTime | null }> | null>(
     null,
   )
   // Set only when handleSaveChanges finds a changed, unlocked day -- which
@@ -257,6 +245,24 @@ export function NewSchedulePage() {
     'Нажмите на день, чтобы посмотреть его упражнения: ещё не начатый день откроет превью, а начатый или пройденный — список с результатами.',
     'ti-hand-click',
   )
+
+  useEffect(() => {
+    if (accessToken === null) {
+      return
+    }
+    let cancelled = false
+    scheduleApi
+      .getScheduleFeatures(accessToken)
+      .then((features) => {
+        if (!cancelled) {
+          setDoubleDays(features.double_days)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
 
   useEffect(() => {
     if (accessToken === null) {
@@ -297,6 +303,19 @@ export function NewSchedulePage() {
     setRows((previous) => previous.map((row, i) => (i === index ? { ...row, sessionType: type } : row)))
   }
 
+  function setDayExtra(index: number, extra: ExtraGymTime | null) {
+    setRows((previous) => previous.map((row, i) => (i === index ? { ...row, extraGym: extra } : row)))
+  }
+
+  // «Сухая + ещё и лёд»: the same double day the other way round -- the day
+  // becomes ice at that time and the gym moves to the other half of it.
+  function addIceToGymDay(index: number, iceTime: ExtraGymTime) {
+    const gymTime: ExtraGymTime = iceTime === 'morning' ? 'evening' : 'morning'
+    setRows((previous) =>
+      previous.map((row, i) => (i === index ? { ...row, sessionType: 'on_ice', extraGym: gymTime } : row)),
+    )
+  }
+
   async function handleGeneratePlan() {
     if (accessToken === null) {
       return
@@ -309,6 +328,7 @@ export function NewSchedulePage() {
           days: rows.map((row) => ({
             date: row.isoDate,
             session_type: row.sessionType,
+            extra_gym: extraGymFor(row),
           })),
         },
         accessToken,
@@ -334,7 +354,7 @@ export function NewSchedulePage() {
   function handleStartEditing() {
     setSubmitError(null)
     setExpandedRowIsoDate(null)
-    setEditSnapshot(new Map(rows.map((row) => [row.isoDate, { sessionType: row.sessionType }])))
+    setEditSnapshot(new Map(rows.map((row) => [row.isoDate, { sessionType: row.sessionType, extraGym: row.extraGym }])))
   }
 
   function handleCancelEditing() {
@@ -344,7 +364,7 @@ export function NewSchedulePage() {
     setRows((previous) =>
       previous.map((row) => {
         const original = editSnapshot.get(row.isoDate)
-        return original === undefined ? row : { ...row, sessionType: original.sessionType }
+        return original === undefined ? row : { ...row, sessionType: original.sessionType, extraGym: original.extraGym }
       }),
     )
     setEditSnapshot(null)
@@ -363,10 +383,22 @@ export function NewSchedulePage() {
         return false
       }
       const original = editSnapshot.get(row.isoDate)
-      return original === undefined || original.sessionType !== row.sessionType
+      return (
+        original === undefined ||
+        original.sessionType !== row.sessionType ||
+        extraGymFor({ ...row, extraGym: original.extraGym }) !== extraGymFor(row)
+      )
     })
     if (changed.length === 0) {
       setEditSnapshot(null)
+      return
+    }
+    // Only "Ещё и зал" changed: the days themselves are kept as they are
+    // (the backend leaves a day of the same type alone), nothing to warn
+    // about.
+    const retyped = changed.filter((row) => editSnapshot.get(row.isoDate)?.sessionType !== row.sessionType)
+    if (retyped.length === 0) {
+      void performSaveChanges(changed)
       return
     }
     // Edit mode only exists for an already-generated week (weekStatus ===
@@ -389,6 +421,7 @@ export function NewSchedulePage() {
         days: changed.map((row) => ({
           date: row.isoDate,
           session_type: row.sessionType,
+          extra_gym: extraGymFor(row),
         })),
       }
       // Explicit week_start_date only for next week -- current week keeps
@@ -406,7 +439,9 @@ export function NewSchedulePage() {
         // truth so the failed day (now reverted server-side) doesn't keep
         // showing as "changed".
         setRows(refreshedRows)
-        setEditSnapshot(new Map(refreshedRows.map((row) => [row.isoDate, { sessionType: row.sessionType }])))
+        setEditSnapshot(
+          new Map(refreshedRows.map((row) => [row.isoDate, { sessionType: row.sessionType, extraGym: row.extraGym }])),
+        )
         setSubmitError(
           result.conflicts
             .map((conflict) => `${formatShortDate(parseIsoDate(conflict.date))}: ${conflict.detail}`)
@@ -436,21 +471,34 @@ export function NewSchedulePage() {
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
       <div className="relative z-[1] mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
-        <div className="flex flex-col gap-2">
-          <BackLink />
+        <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-xl font-semibold">Неделя</h1>
+            <BackLink />
             <HelpButton topic="week" />
           </div>
-        </div>
-
-        <div className={`flex overflow-hidden rounded-md ${CARD_BORDER} bg-dark-card`}>
-          <WeekTabButton active={selectedWeek === 'current'} onClick={() => setSelectedWeek('current')}>
-            Текущая неделя
-          </WeekTabButton>
-          <WeekTabButton active={selectedWeek === 'next'} onClick={() => setSelectedWeek('next')}>
-            Следующая неделя
-          </WeekTabButton>
+          <div className="flex items-end justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="font-mono text-[11px] uppercase tracking-[1.2px] text-text-secondary">
+                {formatWeekRange(WEEK_START_DATES[selectedWeek])}
+              </span>
+              <span className="flex items-center gap-2">
+                <h1 className="font-display text-[30px] font-semibold uppercase leading-none tracking-wide">Неделя</h1>
+                {editSnapshot !== null && (
+                  <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-persimmon">
+                    правка
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="flex shrink-0 rounded-lg border border-white/[0.08] bg-dark-card p-[3px]">
+              <WeekTabButton active={selectedWeek === 'current'} onClick={() => setSelectedWeek('current')}>
+                Эта
+              </WeekTabButton>
+              <WeekTabButton active={selectedWeek === 'next'} onClick={() => setSelectedWeek('next')}>
+                Следующая
+              </WeekTabButton>
+            </div>
+          </div>
         </div>
 
         <FormError message={loadError} />
@@ -462,7 +510,7 @@ export function NewSchedulePage() {
             <p className="text-sm text-[#8A94A6]">
               Планируете неделю с {formatShortDate(WEEK_START_DATES[selectedWeek])}
             </p>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {rows.map((row, index) => (
                 <EditableDayRow
                   key={row.isoDate}
@@ -472,6 +520,9 @@ export function NewSchedulePage() {
                   isPast={row.isoDate < todayIso}
                   todayIso={todayIso}
                   onSelectType={(type) => setDayType(index, type)}
+                  doubleDays={doubleDays}
+                  onSelectExtra={(extra) => setDayExtra(index, extra)}
+                  onAddIce={(time) => addIceToGymDay(index, time)}
                 />
               ))}
             </div>
@@ -485,14 +536,8 @@ export function NewSchedulePage() {
         {weekStatus === 'view' && loadError === null && editSnapshot === null && (
           <>
             <DisplacedGymWarning rows={rows} onAdjust={handleStartEditing} />
-            {/* "Campaign path" -- a connecting line + circular weekday node
-                per row, read-only view only (editing keeps EditableDayRow's
-                plain rows below: its interactive type-picker grid doesn't
-                map cleanly onto a path node). */}
-            <div className="relative flex flex-col">
-              {rows.length > 1 && (
-                <div className="absolute bottom-[26px] left-[19px] top-[26px] w-0.5 bg-gradient-to-b from-accent-ice/20 via-white/10 to-white/5" />
-              )}
+            <WeekSummary rows={rows} />
+            <div className="flex flex-col gap-2">
               {rows.map((row, index) => {
                 const trainingSession = row.trainingSession
                 const started = isStarted(row)
@@ -504,6 +549,7 @@ export function NewSchedulePage() {
                 const isPreviewable = !started && trainingSession !== null
                 const isExpandable = started && trainingSession !== null
                 const isTeamTraining = row.teamEventId !== null && row.sessionType === 'on_ice'
+                const isExpanded = isExpandable && expandedRowIsoDate === row.isoDate
                 const openRow = () => {
                   if (isTeamTraining && !started) {
                     setTeamPlanIsoDate(row.isoDate)
@@ -513,146 +559,174 @@ export function NewSchedulePage() {
                     setExpandedRowIsoDate(isExpanded ? null : row.isoDate)
                   }
                 }
-                const isExpanded = isExpandable && expandedRowIsoDate === row.isoDate
+                const canOpen = isPreviewable || isExpandable
                 const badgeLabel = completionBadgeLabel(row, todayIso)
                 const isToday = row.isoDate === todayIso
+                // Coachmark ref on today's row specifically, not the whole
+                // list -- spotlighting all 7 rows at once read as "the
+                // entire screen is selected" (found live-testing,
+                // 2026-08-30).
+                const rowRef = isToday ? dayListCoachmarkRef : undefined
+
+                // A plain rest day is a slim line, not a card (2026-10-10
+                // redesign): the week reads as its trainings.
+                if (row.sessionType === 'rest' && row.extraDay === null && row.teamEventId === null) {
+                  return (
+                    <div
+                      key={row.isoDate}
+                      ref={rowRef}
+                      className={`flex items-center gap-3 rounded-[10px] border border-dashed px-3 py-2.5 text-sm text-text-secondary ${
+                        isToday ? 'border-accent-persimmon/50' : 'border-white/10'
+                      }`}
+                    >
+                      <span className="w-12 font-mono text-[11px] uppercase">
+                        {WEEKDAY_LABELS[index]} {row.date.getDate()}
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <i className={`ti ${SESSION_TYPE_ICONS.rest}`} aria-hidden="true" />
+                        Отдых
+                      </span>
+                      {isToday && (
+                        <span className="ml-auto text-[10px] font-bold uppercase tracking-wide text-accent-persimmon">
+                          Сегодня
+                        </span>
+                      )}
+                    </div>
+                  )
+                }
+
+                const mainTitle =
+                  row.teamEventId !== null
+                    ? row.sessionType === 'game'
+                      ? 'Командная игра'
+                      : 'Командная тренировка'
+                    : DAY_SESSION_TYPE_LABELS[row.sessionType]
+                const mainIcon = row.teamEventId !== null ? 'ti-users-group' : SESSION_TYPE_ICONS[row.sessionType]
+                const extra = row.extraDay
+                const extraStatus = extra !== null ? completionStatusFromBlocks(extra.training_session?.blocks) : null
+                const mainSlot = (
+                  <DaySlot
+                    label={extra !== null ? (extra.time_of_day === 'morning' ? 'вечер' : 'утро') : null}
+                    icon={mainIcon}
+                    colorClass={SESSION_TYPE_COLORS[row.sessionType]}
+                    title={mainTitle}
+                    detail={extra === null && row.teamEventId === null && trainingSession !== null ? formatDayShort(trainingSession) : null}
+                    status={badgeLabel ?? null}
+                    onOpen={canOpen ? openRow : undefined}
+                    chevron={isExpandable ? (isExpanded ? 'up' : 'down') : isPreviewable && extra === null ? 'right' : null}
+                  />
+                )
+                const extraSlot =
+                  extra !== null ? (
+                    <DaySlot
+                      label={extra.time_of_day === 'morning' ? 'утро' : 'вечер'}
+                      icon={SESSION_TYPE_ICONS.off_ice}
+                      colorClass={SESSION_TYPE_COLORS.off_ice}
+                      title={DAY_SESSION_TYPE_LABELS.off_ice}
+                      detail={null}
+                      status={
+                        extraStatus === 'done'
+                          ? '✓ пройдено'
+                          : extraStatus === 'in-progress'
+                            ? 'начато'
+                            : `${extra.training_session?.blocks.length ?? 0} упр.`
+                      }
+                      onOpen={() => navigate(`/training/${extra.id}`)}
+                      chevron={null}
+                    />
+                  ) : null
 
                 return (
                   <div
                     key={row.isoDate}
-                    // Coachmark ref on today's row specifically, not the
-                    // whole list -- spotlighting all 7 rows at once read as
-                    // "the entire screen is selected" (found live-testing,
-                    // 2026-08-30), and today is both the most relevant row
-                    // and (being "current week") almost always already in
-                    // view, so pointing there needs little to no scroll.
-                    ref={isToday ? dayListCoachmarkRef : undefined}
-                    className="relative flex gap-3 pb-3 last:pb-0"
+                    ref={rowRef}
+                    className={`flex gap-3 rounded-[10px] border bg-dark-card p-3 ${
+                      isToday
+                        ? 'border-accent-persimmon/55 shadow-[0_0_0_3px_rgba(255,92,52,0.10)]'
+                        : 'border-white/[0.07]'
+                    }`}
                   >
-                    <div
-                      className={`z-[1] flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 bg-dark-bg font-mono text-[10px] font-bold ${
-                        isToday ? 'border-accent-persimmon text-accent-persimmon' : 'border-white/15 text-[#8A94A6]'
-                      }`}
-                    >
-                      {WEEKDAY_LABELS[index].toUpperCase()}
+                    <div className="flex w-10 shrink-0 flex-col items-center gap-0.5 pt-0.5">
+                      <span
+                        className={`text-[11px] uppercase ${isToday ? 'font-semibold text-accent-persimmon' : 'text-text-secondary'}`}
+                      >
+                        {WEEKDAY_LABELS[index]}
+                      </span>
+                      <span className="font-display text-xl font-semibold leading-none">{row.date.getDate()}</span>
+                      {isToday && (
+                        <span className="mt-1 text-[9px] font-bold uppercase tracking-wide text-accent-persimmon">
+                          сегодня
+                        </span>
+                      )}
                     </div>
-                    <div
-                      // min-w-0: without it this flex-1 item's min-width
-                      // defaults to `auto`, so a long DaySummary line (e.g.
-                      // "Разминка: 3 · Основная часть: 5 · Заминка: 2 ·
-                      // Владение шайбой: 2 · ~45 мин") grows the item to fit
-                      // its own unwrapped width instead of wrapping inside
-                      // it -- the row (and the page) then overflows sideways
-                      // on a phone instead of the text just wrapping.
-                      className={`flex min-w-0 flex-1 flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
-                        isToday ? 'ring-1 ring-inset ring-accent-persimmon/40' : ''
-                      }`}
-                    >
-                    <div
-                      role={isPreviewable || isExpandable ? 'button' : undefined}
-                      tabIndex={isPreviewable || isExpandable ? 0 : undefined}
-                      onClick={isPreviewable || isExpandable ? openRow : undefined}
-                      onKeyDown={
-                        isPreviewable || isExpandable
-                          ? (event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault()
-                                openRow()
-                              }
-                            }
-                          : undefined
-                      }
-                      className={`flex flex-wrap items-center justify-between gap-3 ${
-                        isPreviewable || isExpandable ? 'cursor-pointer' : ''
-                      }`}
-                    >
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm font-medium text-[#F5F7FA]">{WEEKDAY_LABELS[index]}</span>
-                        <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
-                        {isToday && (
-                          <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-persimmon">
-                            Сегодня
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {row.teamEventId !== null ? (
-                          <span className="flex items-center gap-1.5 text-sm text-accent-ice">
-                            <i className="ti ti-users-group" aria-hidden="true" />
-                            {row.sessionType === 'game' ? 'Командная игра' : 'Командная тренировка'}
-                          </span>
-                        ) : (
-                          <span
-                            className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[row.sessionType]}`}
-                          >
-                            <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
-                            {DAY_SESSION_TYPE_LABELS[row.sessionType]}
-                          </span>
-                        )}
-                        {row.teamEventId !== null && row.replacedSessionType === 'off_ice' && !started && (
-                          <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium text-accent-persimmon">
-                            Было: зал
-                          </span>
-                        )}
-                        {badgeLabel !== undefined && (
-                          <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
-                            {badgeLabel}
-                          </span>
-                        )}
-                        {isExpandable && (
-                          <i
-                            className={`ti ti-chevron-down text-xs text-[#8A94A6] transition-transform ${
-                              isExpanded ? 'rotate-180' : ''
-                            }`}
-                            aria-hidden="true"
-                          />
-                        )}
-                      </div>
-                    </div>
-                    {row.teamEventId !== null ? (
-                      <div className="flex flex-col gap-2">
-                        <TeamDayWeekLine eventId={row.teamEventId} />
-                        {isTeamTraining && (
-                          <button
-                            type="button"
-                            onClick={() => setTeamPlanIsoDate(row.isoDate)}
-                            className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-accent-ice/30 bg-accent-ice/10 text-sm font-medium text-accent-ice transition-colors hover:bg-accent-ice/15"
-                          >
-                            <i className="ti ti-clipboard-list" aria-hidden="true" />
-                            План тренировки
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <DaySummary row={row} />
-                    )}
-                    {isExpanded && trainingSession !== null && (
-                      <StartedDayExerciseList
-                        trainingSession={trainingSession}
-                        onSelectExercise={(block) =>
-                          setSelectedExercise({
-                            block,
-                            trainingSessionId: trainingSession.id,
-                            dayIsoDate: row.isoDate,
-                          })
-                        }
-                      />
-                    )}
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">
+                      {extraSlot !== null ? (
+                        <div className="flex flex-col divide-y divide-white/[0.07]">
+                          {extra?.time_of_day === 'morning' ? (
+                            <>
+                              {extraSlot}
+                              {mainSlot}
+                            </>
+                          ) : (
+                            <>
+                              {mainSlot}
+                              {extraSlot}
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        mainSlot
+                      )}
+                      {row.teamEventId !== null && row.replacedSessionType === 'off_ice' && !started && (
+                        <span className="w-fit rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium text-accent-persimmon">
+                          Было: зал
+                        </span>
+                      )}
+                      {row.teamEventId !== null && (
+                        <div className="flex flex-col gap-2">
+                          <TeamDayWeekLine eventId={row.teamEventId} />
+                          {isTeamTraining && (
+                            <button
+                              type="button"
+                              onClick={() => setTeamPlanIsoDate(row.isoDate)}
+                              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-accent-ice/30 bg-accent-ice/10 text-sm font-medium text-accent-ice transition-colors hover:bg-accent-ice/15"
+                            >
+                              <i className="ti ti-clipboard-list" aria-hidden="true" />
+                              План тренировки
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {isExpanded && trainingSession !== null && (
+                        <StartedDayExerciseList
+                          trainingSession={trainingSession}
+                          onSelectExercise={(block) =>
+                            setSelectedExercise({
+                              block,
+                              trainingSessionId: trainingSession.id,
+                              dayIsoDate: row.isoDate,
+                            })
+                          }
+                        />
+                      )}
                     </div>
                   </div>
                 )
               })}
             </div>
             <FormError message={submitError} />
-            <Button variant="neutral" onClick={handleStartEditing} className="self-end">
-              Изменить план
+            <Button variant="neutral" onClick={handleStartEditing} className="w-full">
+              <span className="flex items-center justify-center gap-2">
+                <i className="ti ti-pencil" aria-hidden="true" />
+                Изменить неделю
+              </span>
             </Button>
           </>
         )}
 
         {weekStatus === 'view' && loadError === null && editSnapshot !== null && (
           <>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               {rows.map((row, index) => (
                 <EditableDayRow
                   key={row.isoDate}
@@ -662,16 +736,19 @@ export function NewSchedulePage() {
                   isPast={row.isoDate < todayIso}
                   todayIso={todayIso}
                   onSelectType={(type) => setDayType(index, type)}
+                  doubleDays={doubleDays}
+                  onSelectExtra={(extra) => setDayExtra(index, extra)}
+                  onAddIce={(time) => addIceToGymDay(index, time)}
                 />
               ))}
             </div>
             <FormError message={submitError} />
-            <div className="flex justify-end gap-3">
+            <div className="grid grid-cols-[1fr_2fr] gap-2.5">
               <Button variant="neutral" onClick={handleCancelEditing}>
                 Отмена
               </Button>
               <Button onClick={handleSaveChanges} isLoading={isSubmitting}>
-                Сохранить изменения
+                Сохранить
               </Button>
             </div>
           </>
@@ -685,9 +762,14 @@ export function NewSchedulePage() {
                 текущий набор упражнений — заменён:
               </p>
               <ul className="flex flex-col gap-1 text-sm text-[#F5F7FA]">
-                {pendingRegeneration.map((row) => (
+                {pendingRegeneration
+                  .filter((row) => editSnapshot?.get(row.isoDate)?.sessionType !== row.sessionType)
+                  .map((row) => (
                   <li key={row.isoDate}>
                     {formatShortDate(row.date)} — {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+                    {editSnapshot?.get(row.isoDate)?.sessionType === 'off_ice' && extraGymFor(row) !== null && (
+                      <span className="text-[#8A94A6]"> (зал останется прежним)</span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -743,6 +825,50 @@ export function NewSchedulePage() {
   )
 }
 
+// The edit row's type order and selected looks (2026-10-10 redesign): one
+// segmented control per day.
+const EDIT_TYPE_ORDER: DaySessionType[] = ['on_ice', 'off_ice', 'game', 'rest']
+const EDIT_TYPE_ACTIVE_CLASSES: Record<DaySessionType, string> = {
+  on_ice: 'bg-accent-ice/15 font-semibold text-accent-ice',
+  off_ice: 'bg-white/10 font-semibold text-text-primary',
+  game: 'bg-accent-persimmon/15 font-semibold text-accent-persimmon',
+  rest: 'bg-white/[0.06] font-semibold text-text-primary',
+}
+
+// "+ зал" on an ice/game day, "+ лёд" on a gym day: none / morning / evening.
+function SecondTrainingPicker({
+  label,
+  value,
+  activeClass,
+  onSelect,
+}: {
+  label: string
+  value: ExtraGymTime | null
+  activeClass: string
+  onSelect: (time: ExtraGymTime | null) => void
+}) {
+  return (
+    <div className="flex items-center gap-1.5 pl-[50px]">
+      <span className="flex-1 text-xs text-text-secondary">{label}</span>
+      {([null, 'morning', 'evening'] as const).map((option) => (
+        <button
+          key={option ?? 'none'}
+          type="button"
+          onClick={() => onSelect(option)}
+          aria-pressed={value === option}
+          className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+            value === option
+              ? `${activeClass} font-semibold`
+              : 'border-white/10 font-medium text-text-secondary hover:border-white/30 hover:text-text-primary'
+          }`}
+        >
+          {option === null ? 'Нет' : option === 'morning' ? 'Утром' : 'Вечером'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function EditableDayRow({
   row,
   weekdayLabel,
@@ -750,6 +876,9 @@ function EditableDayRow({
   isPast,
   todayIso,
   onSelectType,
+  doubleDays,
+  onSelectExtra,
+  onAddIce,
 }: {
   row: DayRow
   weekdayLabel: string
@@ -761,56 +890,202 @@ function EditableDayRow({
   isPast: boolean
   todayIso: string
   onSelectType: (type: DaySessionType) => void
+  doubleDays: boolean
+  onSelectExtra: (extra: ExtraGymTime | null) => void
+  onAddIce: (iceTime: ExtraGymTime) => void
 }) {
+  const canAddGym = doubleDays && !isStarted(row) && !isPast && EXTRA_CAPABLE.includes(row.sessionType)
+  const canAddIce = doubleDays && !isStarted(row) && !isPast && row.sessionType === 'off_ice'
+  const isLocked = isStarted(row) || isPast
+
+  // A past or started day is history: one quiet line (2026-10-10 redesign).
+  if (isLocked) {
+    return (
+      <div className="flex items-center gap-3 rounded-[10px] border border-white/5 bg-dark-card/55 px-3 py-2.5 text-text-secondary">
+        <span className="w-12 shrink-0 font-mono text-[11px] uppercase">
+          {weekdayLabel} {row.date.getDate()}
+        </span>
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]">
+          <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
+          {DAY_SESSION_TYPE_LABELS[row.sessionType]}
+          {completionBadgeLabel(row, todayIso) !== undefined && <span>· {completionBadgeLabel(row, todayIso)}</span>}
+        </span>
+        <i className="ti ti-lock text-sm text-text-secondary/60" aria-hidden="true" />
+      </div>
+    )
+  }
+
   return (
     <div
-      className={`flex flex-col gap-2 rounded-md ${CARD_BORDER} bg-dark-card p-3 ${
-        isToday ? 'ring-1 ring-inset ring-accent-persimmon/40' : ''
+      className={`flex flex-col gap-2.5 rounded-[10px] border bg-dark-card p-3 ${
+        isToday ? 'border-accent-persimmon/45' : 'border-white/[0.07]'
       }`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium text-[#F5F7FA]">{weekdayLabel}</span>
-          <span className="font-mono text-sm text-[#8A94A6]">{formatShortDate(row.date)}</span>
-          {isToday && (
-            <span className="rounded-full bg-accent-persimmon/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-persimmon">
-              Сегодня
-            </span>
-          )}
+      <div className="flex items-center gap-2.5">
+        <span className="flex w-10 shrink-0 flex-col">
+          <span className={`text-[11px] uppercase ${isToday ? 'font-semibold text-accent-persimmon' : 'text-text-secondary'}`}>
+            {weekdayLabel}
+          </span>
+          <span className="font-display text-lg font-semibold leading-none">{row.date.getDate()}</span>
+        </span>
+        <div className="grid flex-1 grid-cols-4 gap-1 rounded-lg bg-[#0F1626] p-[3px]">
+          {EDIT_TYPE_ORDER.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onSelectType(option)}
+              aria-pressed={row.sessionType === option}
+              className={`flex min-h-9 items-center justify-center gap-1 rounded-md text-xs transition-colors ${
+                row.sessionType === option
+                  ? EDIT_TYPE_ACTIVE_CLASSES[option]
+                  : 'font-medium text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              <i className={`ti ${SESSION_TYPE_ICONS[option]} text-sm`} aria-hidden="true" />
+              <span className="hidden min-[380px]:inline">{DAY_SESSION_TYPE_LABELS[option]}</span>
+            </button>
+          ))}
         </div>
-        {isStarted(row) || isPast ? (
-          <div className="flex items-center gap-2">
-            <span className={`flex items-center gap-1.5 text-sm ${SESSION_TYPE_COLORS[row.sessionType]}`}>
-              <i className={`ti ${SESSION_TYPE_ICONS[row.sessionType]}`} aria-hidden="true" />
-              {DAY_SESSION_TYPE_LABELS[row.sessionType]}
-            </span>
-            {completionBadgeLabel(row, todayIso) !== undefined && (
-              <span className="rounded border border-white/10 px-2 py-1 text-xs text-[#8A94A6]">
-                {completionBadgeLabel(row, todayIso)}
-              </span>
-            )}
-          </div>
-        ) : (
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-            {SESSION_TYPE_OPTIONS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => onSelectType(option)}
-                className={`flex items-center justify-center gap-1.5 rounded border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  row.sessionType === option
-                    ? SESSION_TYPE_ACTIVE_CLASSES[option]
-                    : 'border-white/15 text-[#8A94A6] hover:border-white/30 hover:text-[#F5F7FA]'
-                }`}
-              >
-                <i className={`ti ${SESSION_TYPE_ICONS[option]}`} aria-hidden="true" />
-                {DAY_SESSION_TYPE_LABELS[option]}
-              </button>
-            ))}
-          </div>
-        )}
+      </div>
+      {canAddGym && (
+        <SecondTrainingPicker
+          label="+ зал"
+          value={row.extraGym}
+          activeClass="border-white/50 bg-white/10 text-text-primary"
+          onSelect={onSelectExtra}
+        />
+      )}
+      {canAddIce && (
+        <SecondTrainingPicker
+          label="+ лёд"
+          value={null}
+          activeClass="border-accent-ice/60 bg-accent-ice/10 text-accent-ice"
+          onSelect={(time) => (time !== null ? onAddIce(time) : undefined)}
+        />
+      )}
+    </div>
+  )
+}
+
+const SUMMARY_SEGMENT_COLORS: Record<DaySessionType, string> = {
+  on_ice: '#7CC4F5',
+  off_ice: '#F2F5F8',
+  game: '#FF5C34',
+  rest: 'rgba(255,255,255,0.10)',
+}
+
+// "15 упражнений · основная часть 6" -- the week list's one line per day.
+function formatDayShort(trainingSession: TrainingSessionRead): string {
+  const total = trainingSession.blocks.length
+  const main = trainingSession.blocks.filter((block) => block.phase === 'main').length
+  const head = `${total} ${plural(total, 'упражнение', 'упражнения', 'упражнений')}`
+  return main > 0 ? `${head} · основная часть ${main}` : head
+}
+
+function formatWeekRange(monday: Date): string {
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  const month = (date: Date) => date.toLocaleDateString('ru-RU', { month: 'long', day: 'numeric' })
+  return monday.getMonth() === sunday.getMonth()
+    ? `${monday.getDate()} — ${month(sunday)}`
+    : `${month(monday)} — ${month(sunday)}`
+}
+
+function plural(n: number, one: string, few: string, many: string): string {
+  if (n % 10 === 1 && n % 100 !== 11) return one
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) return few
+  return many
+}
+
+// The week at a glance (2026-10-10 redesign): a strip of the seven days
+// (a double day split in two) and how many of each.
+function WeekSummary({ rows }: { rows: DayRow[] }) {
+  const ice = rows.filter((row) => row.sessionType === 'on_ice').length
+  const gym = rows.filter((row) => row.sessionType === 'off_ice').length + rows.filter((row) => row.extraDay !== null).length
+  const games = rows.filter((row) => row.sessionType === 'game').length
+  const rest = rows.filter((row) => row.sessionType === 'rest').length
+  const items: { color: string; count: number; label: string }[] = [
+    { color: SUMMARY_SEGMENT_COLORS.on_ice, count: ice, label: plural(ice, 'лёд', 'льда', 'льдов') },
+    { color: SUMMARY_SEGMENT_COLORS.off_ice, count: gym, label: plural(gym, 'зал', 'зала', 'залов') },
+    { color: SUMMARY_SEGMENT_COLORS.game, count: games, label: plural(games, 'игра', 'игры', 'игр') },
+    { color: 'rgba(255,255,255,0.25)', count: rest, label: plural(rest, 'отдых', 'отдыха', 'отдыха') },
+  ]
+  return (
+    <div className="flex flex-col gap-2.5 rounded-[10px] border border-white/[0.07] bg-dark-card p-3.5">
+      <div className="grid grid-cols-7 gap-1" aria-hidden="true">
+        {rows.map((row) => {
+          const main = SUMMARY_SEGMENT_COLORS[row.sessionType]
+          const gymColor = SUMMARY_SEGMENT_COLORS.off_ice
+          const background =
+            row.extraDay === null
+              ? main
+              : row.extraDay.time_of_day === 'morning'
+                ? `linear-gradient(90deg, ${gymColor} 50%, ${main} 50%)`
+                : `linear-gradient(90deg, ${main} 50%, ${gymColor} 50%)`
+          return <span key={row.isoDate} className="h-1.5 rounded-full" style={{ background }} />
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
+        {items.filter((item) => item.count > 0).map((item) => (
+          <span key={item.label} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ background: item.color }} aria-hidden="true" />
+            <b className="font-semibold text-text-primary">{item.count}</b> {item.label}
+          </span>
+        ))}
       </div>
     </div>
+  )
+}
+
+// One training of a day: its half of the day on a double day, what it is,
+// a short detail line and its status. Tappable when it opens something.
+function DaySlot({
+  label,
+  icon,
+  colorClass,
+  title,
+  detail,
+  status,
+  onOpen,
+  chevron,
+}: {
+  label: string | null
+  icon: string
+  colorClass: string
+  title: string
+  detail: string | null
+  status: string | null
+  onOpen?: () => void
+  chevron: 'right' | 'down' | 'up' | null
+}) {
+  const content = (
+    <>
+      {label !== null && (
+        <span className="w-11 shrink-0 font-mono text-[10px] uppercase text-text-secondary">{label}</span>
+      )}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex items-center gap-1.5 text-[15px] font-semibold text-text-primary">
+          <i className={`ti ${icon} ${colorClass}`} aria-hidden="true" />
+          {title}
+        </span>
+        {detail !== null && <span className="text-xs text-text-secondary">{detail}</span>}
+      </span>
+      {status !== null && <span className="shrink-0 text-[11px] text-text-secondary">{status}</span>}
+      {chevron !== null && (
+        <i
+          className={`ti ${chevron === 'right' ? 'ti-chevron-right' : chevron === 'up' ? 'ti-chevron-up' : 'ti-chevron-down'} shrink-0 text-text-secondary/70`}
+          aria-hidden="true"
+        />
+      )}
+    </>
+  )
+  const className = `flex w-full items-center gap-2.5 py-2 text-left first:pt-0 last:pb-0 ${label === null ? 'py-0' : ''}`
+  return onOpen !== undefined ? (
+    <button type="button" onClick={onOpen} className={`${className} cursor-pointer`}>
+      {content}
+    </button>
+  ) : (
+    <div className={className}>{content}</div>
   )
 }
 
@@ -932,28 +1207,13 @@ function WeekTabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex-1 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-        active
-          ? 'border-accent-persimmon text-[#F5F7FA]'
-          : 'border-transparent text-[#8A94A6] hover:text-[#F5F7FA]'
+      aria-pressed={active}
+      className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
+        active ? 'bg-[#24304A] font-semibold text-text-primary' : 'font-medium text-text-secondary hover:text-text-primary'
       }`}
     >
       {children}
     </button>
-  )
-}
-
-// Only ever rendered in view mode, where trainingSession is guaranteed
-// non-null for every non-rest day (the whole plan already exists) -- the
-// null check is a defensive no-op, not a real branch.
-function DaySummary({ row }: { row: DayRow }) {
-  if (row.sessionType === 'rest' || row.trainingSession === null) {
-    return null
-  }
-  return (
-    <p className="text-xs text-[#8A94A6] opacity-55">
-      {formatPhaseCounts(row.trainingSession)}
-    </p>
   )
 }
 

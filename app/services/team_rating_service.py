@@ -4,9 +4,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.leagues import MIN_TEAMS_FOR_LEAGUE_RANK, ranking_group_key
 from app.models.schedule import DayPlan, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.team import Team, TeamMembership
 from app.models.user import User
+from app.repositories.team_repository import TeamRepository
 from app.schemas.team import TeamScoreRead
 from app.services.streak_service import TRAINING_SESSION_TYPES
 
@@ -39,7 +41,38 @@ class TeamRatingService:
     async def compute_team_score(self, team: Team) -> TeamScoreRead:
         sum_xp, member_count = await self._xp_and_member_count(team.id)
         completed_trainings = await self._completed_trainings_count(team.id)
-        return self._to_score(team.id, team.name, sum_xp, member_count, completed_trainings)
+        score = self._to_score(team.id, team.name, sum_xp, member_count, completed_trainings)
+        place = await self._league_place(team, score.team_score)
+        if place is not None:
+            score.league_place, score.league_team_count = place
+        return score
+
+    async def _league_place(self, team: Team, own_score: float) -> tuple[int, int] | None:
+        """(place, team count) among teams of the same league and division
+        in the same city, by the same team_score -- None below MIN_TEAMS_FOR_LEAGUE_RANK.
+        No member-count floor here, unlike the cross-team leaderboard: an
+        amateur team rarely has 8 players in the app."""
+        key = ranking_group_key(team.league_code, team.league_other_name, team.city, team.division_code)
+        if key is None:
+            return None
+        candidates = await TeamRepository(self._session).list_teams_in_league_with_city(team.league_code)
+        rival_ids = [
+            other.id
+            for other in candidates
+            if other.id != team.id
+            and ranking_group_key(other.league_code, other.league_other_name, other.city, other.division_code) == key
+        ]
+        if len(rival_ids) + 1 < MIN_TEAMS_FOR_LEAGUE_RANK:
+            return None
+        xp_by_team = await self._xp_and_member_count_by_team(rival_ids)
+        trainings_by_team = await self._completed_trainings_count_by_team(rival_ids)
+        better = 0
+        for rival_id in rival_ids:
+            _, sum_xp, member_count = xp_by_team.get(rival_id, ("", 0, 0))
+            rival = self._to_score(rival_id, "", sum_xp, member_count, trainings_by_team.get(rival_id, 0))
+            if rival.team_score > own_score:
+                better += 1
+        return better + 1, len(rival_ids) + 1
 
     async def get_team_rankings(self, limit: int, offset: int) -> list[TeamScoreRead]:
         """Cross-team leaderboard: every team with >= MIN_MEMBERS_FOR_LEADERBOARD
@@ -86,14 +119,19 @@ class TeamRatingService:
         )
         return result.one()
 
-    async def _xp_and_member_count_by_team(self) -> dict[uuid.UUID, tuple[str, int, int]]:
-        result = await self._session.execute(
+    async def _xp_and_member_count_by_team(
+        self, team_ids: list[uuid.UUID] | None = None
+    ) -> dict[uuid.UUID, tuple[str, int, int]]:
+        query = (
             select(Team.id, Team.name, func.coalesce(func.sum(User.xp), 0), func.count(User.id))
             .select_from(Team)
             .join(TeamMembership, TeamMembership.team_id == Team.id)
             .join(User, User.id == TeamMembership.user_id)
             .group_by(Team.id, Team.name)
         )
+        if team_ids is not None:
+            query = query.where(Team.id.in_(team_ids))
+        result = await self._session.execute(query)
         return {row[0]: (row[1], row[2], row[3]) for row in result.all()}
 
     def _completed_trainings_exists(self):
@@ -138,12 +176,14 @@ class TeamRatingService:
         )
         return result.scalar_one()
 
-    async def _completed_trainings_count_by_team(self) -> dict[uuid.UUID, int]:
+    async def _completed_trainings_count_by_team(
+        self, team_ids: list[uuid.UUID] | None = None
+    ) -> dict[uuid.UUID, int]:
         # Same intentional UTC choice as _completed_trainings_count above --
         # this one groups across *every* team in a single query, where a
         # per-user timezone isn't even well-defined to begin with.
         since = datetime.now(timezone.utc).date() - timedelta(days=ACTIVITY_WINDOW_DAYS - 1)
-        result = await self._session.execute(
+        query = (
             select(TeamMembership.team_id, func.count(DayPlan.id))
             .select_from(DayPlan)
             .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
@@ -155,4 +195,7 @@ class TeamRatingService:
             )
             .group_by(TeamMembership.team_id)
         )
+        if team_ids is not None:
+            query = query.where(TeamMembership.team_id.in_(team_ids))
+        result = await self._session.execute(query)
         return {row[0]: row[1] for row in result.all()}

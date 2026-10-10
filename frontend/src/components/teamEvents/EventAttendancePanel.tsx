@@ -4,6 +4,7 @@ import { CARD_CLASS } from '../ui/cardStyle'
 import { ChoiceCard } from '../ui/ChoiceCard'
 import { FormError } from '../ui/FormError'
 import { SelectField } from '../ui/SelectField'
+import { TeamReadinessBlock } from './TeamReadinessBlock'
 import { TextField } from '../ui/TextField'
 import * as teamEventsApi from '../../api/teamEvents'
 import { ApiError } from '../../api/client'
@@ -237,7 +238,7 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
         </div>
       )}
 
-      {isCaptain && (
+      {isCaptain && !roster.is_locked && (
         <div className={`flex flex-col gap-2 p-3 ${CARD_CLASS}`}>
           <Button
             type="button"
@@ -251,6 +252,11 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
           {nudgeMessage !== null && <p className="text-xs text-accent-ice">{nudgeMessage}</p>}
           <FormError message={nudgeError} />
         </div>
+      )}
+
+      {/* Readiness matters before the ice, not after it. */}
+      {isCaptain && new Date(event.starts_at).getTime() > Date.now() && (
+        <TeamReadinessBlock teamId={teamId} eventId={event.id} goingCount={roster.going.length} />
       )}
 
       <div className={`flex flex-col gap-4 p-3 ${CARD_CLASS}`}>

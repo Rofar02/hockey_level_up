@@ -50,6 +50,7 @@ from app.schemas.skill import UserSkillPreferenceRead, UserSkillPreferencesRepla
 from app.schemas.game_stats import SeasonRead
 from app.schemas.onboarding import OnboardingRead
 from app.schemas.training_diary import TrainingDiaryEntryListItem
+from app.schemas.season_summary import SeasonSummaryRead
 from app.schemas.user import (
     PublicStatRead,
     TeamAttentionRead,
@@ -72,6 +73,8 @@ from app.services.coachmark_service import CoachmarkService
 from app.services.progress_service import ProgressService
 from app.services.push_subscription_service import PushSubscriptionService
 from app.services.skill_service import SkillService
+from app.services.season_summary_service import SeasonSummaryService
+from app.services.team_service import TeamService
 from app.services.team_attention_service import TeamAttentionService
 from app.services.game_stats_service import GameStatsService
 from app.services.onboarding_service import OnboardingService
@@ -427,6 +430,17 @@ async def dismiss_my_onboarding(
     await OnboardingService(session).dismiss(current_user)
 
 
+@router.get("/me/season-summary", response_model=SeasonSummaryRead)
+async def get_my_season_summary(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    preview: bool = Query(default=False),
+):
+    """«Мой сезон» (release plan step 10) -- from spring; `preview` builds it
+    any time, for a look before the season ends."""
+    return await SeasonSummaryService(session).summary(current_user, preview)
+
+
 @router.get("/me/season", response_model=SeasonRead)
 async def get_my_season(
     current_user: Annotated[User, Depends(get_current_user)],
@@ -586,6 +600,7 @@ async def public_card(session: AsyncSession, profile: User) -> UserPublicRead:
             "stats": [
                 PublicStatRead(stat_type=stat.stat_type, effective_value=stat.effective_value)
                 for stat in stats
-            ]
+            ],
+            "team": await TeamService(session).get_player_team_badge(profile.id),
         }
     )

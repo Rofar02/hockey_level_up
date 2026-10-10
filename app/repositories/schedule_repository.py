@@ -118,7 +118,9 @@ class ScheduleRepository:
         query = (
             select(DayPlan)
             .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
-            .where(WeeklyPlan.user_id == user_id, DayPlan.date == target_date)
+            # The main day of a double day (step 6) -- the extra gym day is
+            # reached by its own id.
+            .where(WeeklyPlan.user_id == user_id, DayPlan.date == target_date, DayPlan.is_extra.is_(False))
             .options(
                 selectinload(DayPlan.training_session)
                 .selectinload(TrainingSession.blocks)
