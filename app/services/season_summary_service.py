@@ -19,7 +19,7 @@ import uuid
 from collections import Counter
 from datetime import date, datetime, time, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.exercise import TargetStat
@@ -38,6 +38,7 @@ from app.models.team_event import (
 from app.models.user import SeasonPeriod, User
 from app.schemas.season_summary import SeasonStatChangeRead, SeasonSummaryRead
 from app.services.game_stats_service import local_today, season_bounds
+from app.services.joint_training_service import joint_event_ids_for_team
 from app.services.progress_service import ProgressService
 from app.services.streak_service import list_activity_calendar
 from app.services.team_service import TeamService
@@ -146,10 +147,12 @@ class SeasonSummaryService:
         if team_id is None:
             return None
         start_at = datetime.combine(start, time.min, tzinfo=timezone.utc)
+        # The team's own events and the joint trainings it went to as a guest.
+        joint_ids = await joint_event_ids_for_team(self._session, team_id)
         event_ids = (
             await self._session.scalars(
                 select(TeamEvent.id).where(
-                    TeamEvent.team_id == team_id,
+                    or_(TeamEvent.team_id == team_id, TeamEvent.id.in_(joint_ids)),
                     TeamEvent.status == TeamEventStatus.SCHEDULED,
                     TeamEvent.starts_at >= start_at,
                     TeamEvent.starts_at < datetime.now(timezone.utc),

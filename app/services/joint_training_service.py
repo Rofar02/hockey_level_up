@@ -338,6 +338,7 @@ class JointTrainingService:
         if row is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invitation not found")
         event = await self._session.get(TeamEvent, event_id)
+        self._require_ahead(event)
         await self._drop_guest_players(event, team.id)
         row.status = GuestTeamStatus.DECLINED
         row.decided_at = datetime.now(timezone.utc)
@@ -352,6 +353,7 @@ class JointTrainingService:
         event = await self._session.get(TeamEvent, event_id)
         if event is None or event.team_id != host.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+        self._require_ahead(event)
         if not await self._drop_guest_team(event, guest_team_id):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
         guest = await self._session.get(Team, guest_team_id)
@@ -394,6 +396,13 @@ class JointTrainingService:
             await self._session.flush()
 
     # -- helpers --
+
+    @staticmethod
+    def _require_ahead(event: TeamEvent) -> None:
+        """A training that already started (or was cancelled) keeps who was
+        on it -- its marks are the attendance history."""
+        if event.status != TeamEventStatus.SCHEDULED or event.starts_at <= datetime.now(timezone.utc):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Тренировка уже прошла или отменена")
 
     async def _captain_team(self, user: User, team_id: uuid.UUID) -> Team:
         team = await self._session.get(Team, team_id)

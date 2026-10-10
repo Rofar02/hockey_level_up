@@ -189,14 +189,19 @@ def pick_focus_with_priorities(
     coach_focus_ids: list[str] | None,
     coach_until_label: str | None,
     priority_skills: list[str],
+    task_focus_id: str | None = None,
 ) -> tuple[IceFocus, str]:
-    """The full order: the coach's theme -> "над чем поработать" from the
-    last game -> the player's priority skills -> the weakest ice stat
-    (pick_focus). The "почему" line names the source."""
+    """The full order: the coach's theme -> the focus of this week's
+    unclaimed "держи фокус" task (2026-10-10, or that task could never be
+    done) -> "над чем поработать" from the last game -> the player's
+    priority skills -> the weakest ice stat (pick_focus). The "почему" line
+    names the source."""
     coach = [FOCUS_BY_ID[i] for i in coach_focus_ids or () if i in FOCUS_BY_ID]
     if coach:
         until = f" до {coach_until_label}" if coach_until_label else ""
         return coach[day_ordinal % len(coach)], f"Тренер поставил фокус{until}"
+    if task_focus_id in FOCUS_BY_ID:
+        return FOCUS_BY_ID[task_focus_id], "Задание тренера на эту неделю"
     if work_on:
         return pick_focus(day_ordinal, stat_values, work_on)
     for skill in sorted(priority_skills):

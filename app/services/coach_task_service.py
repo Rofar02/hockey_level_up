@@ -55,6 +55,7 @@ class WeekPlanCaps:
     has_plan: bool
     trainings: int  # ice + gym days, a double day's extra gym not counted
     ice_like: int  # ice days and games -- the days with a report
+    ice_days: int  # ice days only -- the days with a focus (games have none)
     longest_run: int  # most training days in a row
 
     def target(self, spec: CoachTaskSpec) -> int | None:
@@ -63,8 +64,10 @@ class WeekPlanCaps:
             return spec.count if spec.type != CoachTaskType.NO_MISSED_DAY else 1
         if spec.type == CoachTaskType.COMPLETE_TRAININGS:
             cap = self.trainings
-        elif spec.type in (CoachTaskType.ICE_REPORTS, CoachTaskType.ICE_FOCUS):
+        elif spec.type == CoachTaskType.ICE_REPORTS:
             cap = self.ice_like
+        elif spec.type == CoachTaskType.ICE_FOCUS:
+            cap = self.ice_days
         elif spec.type == CoachTaskType.DAYS_IN_A_ROW:
             cap = self.longest_run if self.longest_run >= 2 else 0
         else:
@@ -217,6 +220,7 @@ class CoachTaskService:
             has_plan=bool(rows),
             trainings=len(training_dates),
             ice_like=sum(1 for _, kind in rows if kind in (DaySessionType.ON_ICE, DaySessionType.GAME)),
+            ice_days=sum(1 for _, kind in rows if kind == DaySessionType.ON_ICE),
             longest_run=longest,
         )
 

@@ -41,6 +41,8 @@ export function JointTrainingBlock({
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isHost = event.team_id === teamId
+  // Who trained together stays as it was once the training started.
+  const isAhead = event.status === 'scheduled' && new Date(event.starts_at).getTime() > Date.now()
 
   async function reload() {
     if (accessToken === null) {
@@ -62,7 +64,7 @@ export function JointTrainingBlock({
     return null
   }
   const others = guests.filter((g) => g.status !== 'host')
-  if (others.length === 0 && !(isHost && isCaptain)) {
+  if (others.length === 0 && !(isHost && isCaptain && isAhead)) {
     return null
   }
 
@@ -104,7 +106,7 @@ export function JointTrainingBlock({
             <Emblem url={guest.logo_url} />
             <span className="min-w-0 flex-1 truncate text-[#F5F7FA]">{guest.name}</span>
             <span className="shrink-0 text-xs text-[#8A94A6]">{STATUS_LABELS[guest.status] ?? guest.status}</span>
-            {isHost && isCaptain && (guest.status === 'invited' || guest.status === 'accepted') && (
+            {isHost && isCaptain && isAhead && (guest.status === 'invited' || guest.status === 'accepted') && (
               <button
                 type="button"
                 aria-label={`Убрать «${guest.name}»`}
@@ -116,12 +118,12 @@ export function JointTrainingBlock({
             )}
           </div>
         ))}
-      {isHost && isCaptain && (
+      {isHost && isCaptain && isAhead && (
         <Button type="button" variant="neutral" className="!py-1.5 !text-xs" onClick={() => setIsSearchOpen(true)}>
           Пригласить команду
         </Button>
       )}
-      {!isHost && isCaptain && (
+      {!isHost && isCaptain && isAhead && (
         <Button type="button" variant="neutral" className="!py-1.5 !text-xs" onClick={handleLeave}>
           Выйти из совместной
         </Button>

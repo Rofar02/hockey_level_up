@@ -501,3 +501,85 @@ async def test_no_nudge_once_attendance_is_closed(db_session) -> None:
     with pytest.raises(HTTPException) as exc:
         await events.send_nudge(captain, team.id, event.id)
     assert exc.value.status_code == 409
+
+
+# -- the second review round (2026-10-10) --
+
+
+def test_the_weeks_focus_task_steers_the_focus_after_the_coach() -> None:
+    from app.core.ice_focus import FOCUS_BY_ID, pick_focus_with_priorities
+
+    task_focus = "skate_stops"
+    focus, reason = pick_focus_with_priorities(3, {}, ["skating"], None, None, ["Мобильность"], task_focus)
+    assert focus.id == task_focus and reason == "Задание тренера на эту неделю"
+    # The coach's own theme still comes first.
+    focus, _ = pick_focus_with_priorities(3, {}, None, ["puck_protect"], "20.10", [], task_focus)
+    assert focus.id == "puck_protect"
+    # An unknown id is ignored.
+    focus, reason = pick_focus_with_priorities(3, {}, None, None, None, [], "made_up")
+    assert focus.id in FOCUS_BY_ID and reason != "Задание тренера на эту неделю"
+
+
+@pytest.mark.asyncio
+async def test_ice_focus_service_uses_the_unclaimed_focus_task(db_session) -> None:
+    from app.services.ice_focus_service import IceFocusService
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    day = utc_today()
+    _, day_plan = await _ice_day(db_session, user, day)
+    await CoachTaskService(db_session).save_specs(
+        user.id, day - timedelta(days=day.weekday()), [CoachTaskSpec(CoachTaskType.ICE_FOCUS, 1, "skate_stops")], "coach"
+    )
+
+    focus = await IceFocusService(db_session).focus_for_session(user, day_plan.training_session.id)
+
+    assert focus.id == "skate_stops"
+
+
+@pytest.mark.asyncio
+async def test_ice_focus_target_counts_ice_days_not_games(db_session) -> None:
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    await _week(db_session, user, MONDAY, [ICE, REST, GYM, REST, REST, GAME, REST])
+    service = CoachTaskService(db_session)
+    await service.save_ai_reply(user.id, MONDAY, '[{"type": "ice_focus", "count": 3}, {"type": "ice_reports", "count": 3}]')
+
+    tasks = {t.type: t for t in await service.list_for_week(user, today=MONDAY)}
+
+    assert tasks["ice_focus"].target == 1  # one ice day; the game has no focus
+    assert tasks["ice_reports"].target == 2  # the ice and the game
+
+
+@pytest.mark.asyncio
+async def test_training_party_overwriting_a_charged_ice_day_takes_the_charge_off(db_session) -> None:
+    from app.services.schedule_service import ScheduleService
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    now = datetime.now(timezone.utc)
+    _, day_plan = await _ice_day(db_session, user, now.date())
+    await IceLoadService(db_session).charge(user.id, day_plan.training_session.id, 1.0, now, now)
+    await ScheduleService(db_session).replace_day_plan_content(day_plan, [], user)
+
+    assert day_plan.session_type == DaySessionType.OFF_ICE
+    assert await _load(db_session, user, MuscleGroup.QUADS) == pytest.approx(0.0, abs=1e-6)
+
+
+@pytest.mark.asyncio
+async def test_no_leaving_or_removing_once_the_training_started(db_session) -> None:
+    host_captain, _, host, guest_captain, _, guest, event, _ = await _joint(db_session)
+    row = await TeamEventService(db_session)._events.get_event(event.id)
+    row.starts_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    await db_session.flush()
+    joint = JointTrainingService(db_session)
+
+    with pytest.raises(HTTPException) as exc:
+        await joint.leave(guest_captain, guest.id, event.id)
+    assert exc.value.status_code == 409
+    with pytest.raises(HTTPException) as exc:
+        await joint.remove_guest(host_captain, host.id, event.id, guest.id)
+    assert exc.value.status_code == 409

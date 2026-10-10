@@ -254,7 +254,10 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
         </div>
       )}
 
-      {isCaptain && <TeamReadinessBlock teamId={teamId} eventId={event.id} goingCount={roster.going.length} />}
+      {/* Readiness matters before the ice, not after it. */}
+      {isCaptain && new Date(event.starts_at).getTime() > Date.now() && (
+        <TeamReadinessBlock teamId={teamId} eventId={event.id} goingCount={roster.going.length} />
+      )}
 
       <div className={`flex flex-col gap-4 p-3 ${CARD_CLASS}`}>
         <RosterSection title="Буду" members={roster.going} />

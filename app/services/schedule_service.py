@@ -2602,6 +2602,12 @@ class ScheduleService:
         replacement's INSERT if the relationship were just reassigned.
         """
         if day_plan.training_session is not None:
+            if day_plan.training_session.id is not None:
+                # Same as _rebuild_day_session: an ice day already on the
+                # muscle map comes off it before its session is deleted.
+                from app.services.ice_load_service import IceLoadService
+
+                await IceLoadService(self._session).take_back(day_plan.training_session.id)
             await self._session.delete(day_plan.training_session)
             await self._session.flush()
             day_plan.training_session = None
