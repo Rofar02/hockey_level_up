@@ -444,6 +444,7 @@ class TeamEventService:
         team = await self._get_team_or_404(team_id)
         await self._require_member(user, team)
         event = await self._get_event_or_404(event_id, team_id, allow_guest=True)
+        self._require_scheduled(event)
         self._require_attendance_open(event)
         if attendance_status == TeamEventAttendanceStatus.NOT_GOING and reason is None:
             raise HTTPException(
@@ -521,7 +522,8 @@ class TeamEventService:
         self._require_captain(user, team)
         event = await self._get_event_or_404(event_id, team_id)
         now = datetime.now(timezone.utc)
-        # Marks are closed -- nobody can answer the reminder any more.
+        # A cancelled event or closed marks -- nothing to remind about.
+        self._require_scheduled(event)
         self._require_attendance_open(event)
         if event.last_nudge_sent_at is not None and now - event.last_nudge_sent_at < NUDGE_MIN_INTERVAL:
             raise HTTPException(
@@ -600,6 +602,7 @@ class TeamEventService:
         color: str | None,
     ) -> TeamEventLineupGroupRead:
         event = await self._require_captain_and_event(user, team_id, event_id)
+        self._require_scheduled(event)
         self._require_color_only_for_training(event, color)
         order = await self._events.next_lineup_group_order(event.id)
         group = await self._events.create_lineup_group(event.id, order, name, color)
@@ -616,6 +619,7 @@ class TeamEventService:
         color: str | None,
     ) -> TeamEventLineupGroupRead:
         event = await self._require_captain_and_event(user, team_id, event_id)
+        self._require_scheduled(event)
         self._require_color_only_for_training(event, color)
         group = await self._get_lineup_group_or_404(group_id, event.id)
         group.name = name
@@ -628,6 +632,7 @@ class TeamEventService:
         self, user: User, team_id: uuid.UUID, event_id: uuid.UUID, group_id: uuid.UUID
     ) -> None:
         event = await self._require_captain_and_event(user, team_id, event_id)
+        self._require_scheduled(event)
         group = await self._get_lineup_group_or_404(group_id, event.id)
         # Slots cascade with the group (ondelete="CASCADE") -- their players
         # simply become unassigned again, no separate cleanup needed.
@@ -649,6 +654,7 @@ class TeamEventService:
         team = await self._get_team_or_404(team_id)
         self._require_captain(user, team)
         event = await self._get_event_or_404(event_id, team_id)
+        self._require_scheduled(event)
         if target_user_id not in {member.id for member in await self._event_members(event)}:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this team"
@@ -682,6 +688,7 @@ class TeamEventService:
         team = await self._get_team_or_404(team_id)
         self._require_captain(user, team)
         event = await self._get_event_or_404(event_id, team_id)
+        self._require_scheduled(event)
         slot = await self._events.get_lineup_slot(event.id, target_user_id)
         if slot is not None:
             await self._events.delete_lineup_slot(slot)
@@ -735,6 +742,7 @@ class TeamEventService:
         self, user: User, team_id: uuid.UUID, event_id: uuid.UUID
     ) -> TeamEventLineupRead:
         event = await self._require_captain_and_event(user, team_id, event_id)
+        self._require_scheduled(event)
         # Idempotent, same reasoning as publish_board.
         already_published = event.lineup_status == TeamEventPublishStatus.PUBLISHED
         event.lineup_status = TeamEventPublishStatus.PUBLISHED
@@ -960,6 +968,8 @@ class TeamEventService:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="A game has no board"
             )
+        # A cancelled training's board is history, not something to edit.
+        self._require_scheduled(event)
         return event
 
     async def _get_team_or_404(self, team_id: uuid.UUID) -> Team:

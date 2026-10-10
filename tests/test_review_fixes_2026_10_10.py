@@ -583,3 +583,38 @@ async def test_no_leaving_or_removing_once_the_training_started(db_session) -> N
     with pytest.raises(HTTPException) as exc:
         await joint.remove_guest(host_captain, host.id, event.id, guest.id)
     assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_no_nudge_for_a_cancelled_event(db_session) -> None:
+    """Found by the end-to-end run (2026-10-10): a cancelled game still sent
+    «отметь явку» pushes."""
+    captain, _, team = await _team(db_session, "Отмена")
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.GAME, _future(), "Соперник")
+    await events.cancel_event(captain, team.id, event.id)
+
+    with pytest.raises(HTTPException) as exc:
+        await events.send_nudge(captain, team.id, event.id)
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_event_takes_no_marks_and_no_lineup_edits(db_session) -> None:
+    """Found by the end-to-end run (2026-10-10): marks and lineup edits
+    still went through on a cancelled game."""
+    captain, player, team = await _team(db_session, "Отменённая")
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.GAME, _future(), "Соперник")
+    group = await events.create_lineup_group(captain, team.id, event.id, "1 звено", None)
+    await events.cancel_event(captain, team.id, event.id)
+
+    for attempt in (
+        events.set_my_attendance(player, team.id, event.id, TeamEventAttendanceStatus.GOING, None, None),
+        events.create_lineup_group(captain, team.id, event.id, "2 звено", None),
+        events.assign_player(captain, team.id, event.id, player.id, group.id),
+        events.publish_lineup(captain, team.id, event.id),
+    ):
+        with pytest.raises(HTTPException) as exc:
+            await attempt
+        assert exc.value.status_code == 409
