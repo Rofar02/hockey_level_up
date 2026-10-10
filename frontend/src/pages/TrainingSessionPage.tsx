@@ -23,7 +23,7 @@ import * as trainingBlockApi from '../api/trainingBlock'
 import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
-import { useSessionClock } from '../hooks/useSessionClock'
+import { formatElapsed, useSessionClock } from '../hooks/useSessionClock'
 import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
@@ -906,8 +906,71 @@ export function TrainingSessionPage() {
                   here, instead of opening a boxed modal -- the progress
                   bar/PhaseTracker/"Этап N из M" heading above this card are
                   unaffected either way. */}
-              {selectedBlock !== null && trainingSessionId !== null && accessToken !== null ? (
+              {currentPhaseBlocks.map((block) => (
+                  <ExerciseRow
+                    key={block.id}
+                    block={block}
+                    isCurrent={block.id === currentExerciseId}
+                    isDone={isExerciseDone(block, setCompletionCounts)}
+                    pending={pendingIds.has(block.id)}
+                    onComplete={() => handleComplete(block)}
+                    feedback={feedbackByBlockId[block.id]}
+                    onFeedbackDone={() => removeFeedback(block.id)}
+                    onOpenDetail={() => setSelectedExercise(block.exercise)}
+                    showTargetStat={currentPhase === 'main'}
+                  />
+                ))}
+            </div>
+          </div>
+
+
+      {/* The player (2026-10-10): over the whole app -- nothing of the page
+          or the tab bar behind it moves or shows; collapsing it goes back
+          to the list. */}
+      {selectedBlock !== null && trainingSessionId !== null && accessToken !== null && currentPhase !== undefined && (
+        <FullScreenOverlay className="flex flex-col bg-[#0A0F1A]">
+          <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-3 px-4 pb-3 pt-[calc(env(safe-area-inset-top,0px)+14px)]">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleCloseExerciseDetail}
+                aria-label="Свернуть плеер"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-dark-card text-text-primary"
+              >
+                <i className="ti ti-chevron-down text-lg" aria-hidden="true" />
+              </button>
+              <div className="flex min-w-0 flex-1 flex-col items-center">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-accent-persimmon">
+                  {PHASE_LABELS[currentPhase]}
+                </span>
+                <span className="font-mono text-xs text-text-secondary">
+                  упражнение {orderedBlocks.findIndex((block) => block.id === selectedBlock.id) + 1} из{' '}
+                  {orderedBlocks.length}
+                </span>
+              </div>
+              <span className="min-w-[64px] shrink-0 rounded-full bg-dark-card px-3 py-2 text-center font-mono text-[13px] font-semibold text-text-primary">
+                {!isAhead && sessionElapsedSeconds !== null ? formatElapsed(sessionElapsedSeconds) : '—'}
+              </span>
+            </div>
+            <div className="flex gap-[3px]" aria-hidden="true">
+              {orderedBlocks.map((block) => (
+                <span
+                  key={block.id}
+                  className={`h-1 flex-1 rounded-full ${
+                    block.id === selectedBlock.id
+                      ? 'bg-accent-persimmon'
+                      : isExerciseDone(block, setCompletionCounts)
+                        ? 'bg-accent-ice'
+                        : 'bg-white/15'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="mx-auto w-full max-w-2xl px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
                 <ExerciseFocusScreen
+                  inPlayer
                   // Forces a full remount per exercise -- found live-testing
                   // the skip feature (2026-08-28): without this, auto-advance
                   // reuses the same ExerciseDetailBody/TimerPlayer/SetLogger
@@ -962,24 +1025,10 @@ export function TrainingSessionPage() {
                       : undefined
                   }
                 />
-              ) : (
-                currentPhaseBlocks.map((block) => (
-                  <ExerciseRow
-                    key={block.id}
-                    block={block}
-                    isCurrent={block.id === currentExerciseId}
-                    isDone={isExerciseDone(block, setCompletionCounts)}
-                    pending={pendingIds.has(block.id)}
-                    onComplete={() => handleComplete(block)}
-                    feedback={feedbackByBlockId[block.id]}
-                    onFeedbackDone={() => removeFeedback(block.id)}
-                    onOpenDetail={() => setSelectedExercise(block.exercise)}
-                    showTargetStat={currentPhase === 'main'}
-                  />
-                ))
-              )}
             </div>
           </div>
+        </FullScreenOverlay>
+      )}
 
           {/* Reserves scroll space so the sticky footer below never covers
               the last exercise row -- sized to the

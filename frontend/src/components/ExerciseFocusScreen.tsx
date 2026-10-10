@@ -29,6 +29,7 @@ export function ExerciseFocusScreen({
   onBack,
   onComplete,
   readOnly = false,
+  inPlayer = false,
   onSettled,
   nextExercise,
   blockId,
@@ -70,6 +71,9 @@ export function ExerciseFocusScreen({
   // A training still ahead (2026-10-10): the exercise can be looked at --
   // video, technique -- not done.
   readOnly?: boolean
+  // Inside the full-screen player (2026-10-10): the back button, the
+  // phase chip and "N из M" / the clock live in the player's own top bar.
+  inPlayer?: boolean
   // Fires once feedback is answered -- TrainingSessionPage uses this to
   // auto-advance to the next not-yet-done exercise in the phase without
   // returning to the list (icelevel_player_master_prompt.md, 2026-08-28).
@@ -119,6 +123,8 @@ export function ExerciseFocusScreen({
 
   return (
     <div className="flex flex-col gap-4">
+      {!inPlayer && (
+        <>
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -141,7 +147,10 @@ export function ExerciseFocusScreen({
           Title sits above it as a normal heading rather than overlaid on
           top, since an overlay would sit on top of a real embed's own
           controls once video exists, not just this placeholder. */}
+        </>
+      )}
       <div className="flex flex-col gap-1">
+        {!inPlayer && (
         <div className="flex items-center justify-between gap-3 font-mono text-xs text-text-secondary">
           <span>
             Упражнение <span className="font-semibold text-text-primary">{position}</span> из {totalCount}
@@ -153,6 +162,7 @@ export function ExerciseFocusScreen({
             </span>
           )}
         </div>
+        )}
         <h2 className="text-xl font-bold leading-tight text-text-primary">{exercise.name}</h2>
       </div>
       <ExerciseVideoStage exercise={exercise} />
