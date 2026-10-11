@@ -32,10 +32,10 @@
     inset: 0;
     overflow-x: hidden;
     overflow-y: auto;
-    /* none, not contain (2026-10-10): contain still let the page stretch
-       past its ends on iPhone (the rubber band) and the bottom of the page
-       slid under the tab bar while it did. */
-    overscroll-behavior-y: none;
+    /* contain: the native rubber band stays (review 2026-10-11, 2.1) --
+       what slid under the tab bar was the page's own fixed footers, which
+       are portaled to <body> now instead of living inside this scroller. */
+    overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
 
