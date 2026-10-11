@@ -102,9 +102,14 @@ async def _stat_value(db_session, user_id: uuid.UUID, stat_type: TargetStat) -> 
 
 
 async def _training(db_session, captain, team):
-    return await TeamEventService(db_session).create_event(
-        captain, team.id, TeamEventType.TRAINING, _future(), None
-    )
+    """A team training that has already started -- a report is only taken
+    from the event's start (2026-10-11)."""
+    service = TeamEventService(db_session)
+    event = await service.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
+    row = await service._events.get_event(event.id)
+    row.starts_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    await db_session.flush()
+    return event
 
 
 ICE_REPORT = DiaryReportIn(duration_minutes=60, effort=IceEffort.NORMAL)
@@ -168,9 +173,10 @@ async def test_the_coach_is_rewarded_the_same_way(db_session) -> None:
 @pytest.mark.asyncio
 async def test_game_day_and_ordinary_ice_day_earn_the_ordinary_report_xp(db_session) -> None:
     captain, player, team = await _make_team_with_player(db_session)
-    game = await TeamEventService(db_session).create_event(
-        captain, team.id, TeamEventType.GAME, _future(), "Rival HC"
-    )
+    events = TeamEventService(db_session)
+    game = await events.create_event(captain, team.id, TeamEventType.GAME, _future(), "Rival HC")
+    (await events._events.get_event(game.id)).starts_at = datetime.now(timezone.utc) - timedelta(hours=3)
+    await db_session.flush()
     game_day = await _day(db_session, player, DaySessionType.GAME, team_event_id=game.id)
     ordinary_ice = await _day(db_session, player, DaySessionType.ON_ICE, block_number=2)
     diary = TrainingDiaryService(db_session)

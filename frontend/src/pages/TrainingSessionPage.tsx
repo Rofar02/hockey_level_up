@@ -262,6 +262,9 @@ export function TrainingSessionPage() {
   const [pendingIce, setPendingIce] = useState<pendingReportsApi.PendingReportRead | null>(null)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const [isMarkingSkipped, setIsMarkingSkipped] = useState(false)
+  // «Позже» (review 1.3): into the gym without the report, for this visit --
+  // Home's card and the morning push still ask for it.
+  const [iceCheckPostponed, setIceCheckPostponed] = useState(false)
   // A training still ahead (owner's call, 2026-10-10): open to look at,
   // started only on its own day -- the backend refuses anything else.
   const isAhead = day !== null && day.date > toIsoDate(new Date())
@@ -447,7 +450,7 @@ export function TrainingSessionPage() {
 
   // Before the gym starts: an unreported ice day / game first (2026-10-10).
   async function beginWithIceCheck(action: () => void) {
-    if (accessToken === null || isAhead) {
+    if (accessToken === null || isAhead || iceCheckPostponed) {
       action()
       return
     }
@@ -1461,10 +1464,15 @@ export function TrainingSessionPage() {
       )}
 
       {pendingIce !== null && (
-        <FullScreenOverlay className="flex items-end justify-center bg-black/60 p-4 sm:items-center">
-          <div className={`flex w-full max-w-md flex-col gap-4 p-5 ${CARD_CLASS}`} role="dialog" aria-modal="true">
+        <FullScreenOverlay className="flex items-end justify-center bg-black/60 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] sm:items-center">
+          <div
+            className={`flex w-full max-w-md flex-col gap-4 p-5 ${CARD_CLASS}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pending-ice-title"
+          >
             <span className="text-xs font-semibold uppercase tracking-wide text-accent-persimmon">Сначала отчёт</span>
-            <p className="text-lg font-semibold leading-snug">
+            <p id="pending-ice-title" className="text-lg font-semibold leading-snug">
               {pendingReportsApi.pendingReportLabel(pendingIce, toIsoDate(new Date()))}
             </p>
             <p className="text-sm leading-relaxed text-text-secondary">
@@ -1476,6 +1484,19 @@ export function TrainingSessionPage() {
             <Button variant="neutral" onClick={() => void markPendingSkipped()} isLoading={isMarkingSkipped} className="w-full">
               {pendingIce.session_type === 'game' ? 'Не играл' : 'Не был на льду'}
             </Button>
+            <button
+              type="button"
+              onClick={() => {
+                const action = pendingAction
+                setIceCheckPostponed(true)
+                setPendingIce(null)
+                setPendingAction(null)
+                action?.()
+              }}
+              className="min-h-11 text-sm text-text-secondary underline underline-offset-2 hover:text-text-primary"
+            >
+              Позже
+            </button>
           </div>
         </FullScreenOverlay>
       )}

@@ -10,6 +10,7 @@ from typing import Iterator
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -590,7 +591,7 @@ class ScheduleService:
                     user, block_phase, training_block, archetype_rotation,
                 )
                 continue
-            if day_plan is None or self._has_completed_block(day_plan):
+            if day_plan is None or await self._is_day_started(day_plan):
                 conflicts.append(
                     ScheduleConflictRead(
                         date=day_in.date, detail="Этот день уже начат, нельзя изменить"
@@ -648,7 +649,7 @@ class ScheduleService:
         day_plan = next(
             (day for day in weekly_plan.day_plans if day.date == event_date and not day.is_extra), None
         )
-        if day_plan is None or self._has_completed_block(day_plan):
+        if day_plan is None or await self._is_day_started(day_plan):
             return False
 
         if day_plan.team_event_id is None:
@@ -676,7 +677,7 @@ class ScheduleService:
             if weekly_plan is None:
                 continue
             day_plan = next(day for day in weekly_plan.day_plans if day.id == linked_day.id)
-            if self._has_completed_block(day_plan):
+            if await self._is_day_started(day_plan):
                 continue
             original = day_plan.replaced_session_type
             day_plan.team_event_id = None
@@ -797,6 +798,26 @@ class ScheduleService:
         if weekly_plan.training_block_id is None:
             return None
         return await self._training_block_service.get_by_id(weekly_plan.training_block_id)
+
+    async def _is_day_started(self, day_plan: DayPlan) -> bool:
+        """A day that already happened in the app: an exercise ticked, or --
+        for an ice day / a game -- its report sent (2026-10-11 review 1.1).
+        Rebuilding a reported day deleted the report with its session, and
+        the new session could be reported and rewarded a second time."""
+        if self._has_completed_block(day_plan):
+            return True
+        if day_plan.training_session is None or day_plan.training_session.id is None:
+            return False
+        from app.models.training_diary import TrainingDiaryEntry
+
+        return (
+            await self._session.scalar(
+                select(TrainingDiaryEntry.id).where(
+                    TrainingDiaryEntry.training_session_id == day_plan.training_session.id,
+                    TrainingDiaryEntry.reported_at.is_not(None),
+                )
+            )
+        ) is not None
 
     @staticmethod
     def _has_completed_block(day_plan: DayPlan) -> bool:

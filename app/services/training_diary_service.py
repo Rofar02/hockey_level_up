@@ -118,6 +118,26 @@ class TrainingDiaryService:
             entry.rewarded = await self._is_rewarded(user, training_session.id)
         return entry
 
+    async def _require_ice_started(self, user: User, day_plan) -> None:
+        """A report is about something that happened (2026-10-11 review 1.2):
+        a team training / game from its start, an own ice day (no time on it)
+        from its day in the player's time zone -- never ahead, which used to
+        hand out the day's reward in advance."""
+        from app.models.team_event import TeamEvent
+
+        now = datetime.now(timezone.utc)
+        event = await self._session.get(TeamEvent, day_plan.team_event_id) if day_plan.team_event_id else None
+        if event is not None:
+            if now < event.starts_at:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Отчёт можно отправить после начала")
+            return
+        try:
+            local_today = now.astimezone(ZoneInfo(user.timezone or "UTC")).date()
+        except Exception:
+            local_today = now.date()
+        if day_plan.date > local_today:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Отчёт можно отправить в день льда")
+
     async def save_entry(
         self,
         user: User,
@@ -130,6 +150,7 @@ class TrainingDiaryService:
         session_type = training_session.day_plan.session_type
         if report is not None:
             self._validate_report(session_type, report)
+            await self._require_ice_started(user, training_session.day_plan)
 
         existing = await self._diary.get_by_training_session(session_id)
         if existing is not None and existing.reported_at is not None:
