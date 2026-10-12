@@ -26,6 +26,7 @@ from app.models.coach_task import WeeklyCoachTask
 from app.models.team_event_guest import GuestTeamStatus, TeamEventGuestTeam, TeamIceTemplateGuestTeam
 from app.models.quest import UserQuestCompletion
 from app.models.reference_article import ReferenceArticle
+from app.models.refresh_session import RefreshSession
 from app.models.schedule import (
     DayPlan,
     DaySessionType,
@@ -73,6 +74,7 @@ from app.models.user_temporary_restriction import UserTemporaryRestriction
 __all__ = [
     "AuthToken",
     "AuthTokenPurpose",
+    "RefreshSession",
     "CoachActionStatus",
     "CoachActionType",
     "CoachChatMessage",

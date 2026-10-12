@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { ShieldIcon } from '../components/ui/ShieldIcon'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
+import { linkToken } from '../utils/linkToken'
 import { useAuth } from '../hooks/useAuth'
 
 type Status = 'checking' | 'success' | 'error' | 'missing-token'
 
 export function VerifyEmailPage() {
-  const [searchParams] = useSearchParams()
-  const token = searchParams.get('token')
+  const location = useLocation()
+  const token = linkToken(location.hash, location.search)
   const { accessToken, updateUser } = useAuth()
 
   const [status, setStatus] = useState<Status>(token === null ? 'missing-token' : 'checking')

@@ -15,6 +15,8 @@ export interface AuthContextValue {
   isInitializing: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => void
+  // Swaps in a new token pair for the same player (after a password change).
+  adoptTokens: (accessToken: string, refreshToken: string) => void
   markAssessmentComplete: () => void
   updateUser: (user: UserRead) => void
 }

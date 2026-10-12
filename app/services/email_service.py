@@ -54,7 +54,7 @@ class EmailService:
                 user.id,
             )
             return
-        link = f"{settings.frontend_url}/verify-email?token={raw_token}"
+        link = f"{settings.frontend_url}/verify-email#token={raw_token}"
         await _send_email(
             settings.resend_api_key,
             settings.email_from_address,
@@ -76,7 +76,7 @@ class EmailService:
                 user.id,
             )
             return
-        link = f"{settings.frontend_url}/reset-password?token={raw_token}"
+        link = f"{settings.frontend_url}/reset-password#token={raw_token}"
         await _send_email(
             settings.resend_api_key,
             settings.email_from_address,

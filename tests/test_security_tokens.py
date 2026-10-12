@@ -23,12 +23,12 @@ def _payload(**extra) -> dict:
 
 def test_round_trip() -> None:
     assert decode_token(create_access_token("abc"), TokenType.ACCESS) == "abc"
-    assert decode_token(create_refresh_token("abc"), TokenType.REFRESH) == "abc"
+    assert decode_token(create_refresh_token("abc", 0, "sid", "jti"), TokenType.REFRESH) == "abc"
 
 
 def test_wrong_type_is_refused() -> None:
     with pytest.raises(InvalidTokenError):
-        decode_token(create_refresh_token("abc"), TokenType.ACCESS)
+        decode_token(create_refresh_token("abc", 0, "sid", "jti"), TokenType.ACCESS)
 
 
 def test_expired_is_refused() -> None:

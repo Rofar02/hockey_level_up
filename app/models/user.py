@@ -203,6 +203,12 @@ class User(Base):
     is_admin: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # Step 8 (security, 2): every access/refresh token carries the version
+    # it was issued under ("ver"); bumping it (password change or reset,
+    # "Выйти на всех устройствах") kills all of them at once.
+    token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     has_premium: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )

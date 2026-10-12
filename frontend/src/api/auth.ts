@@ -47,8 +47,32 @@ export function resendVerificationEmail(accessToken: string): Promise<DetailResp
 }
 
 // Public -- reached from a link in an email, not necessarily a logged-in browser.
+// POST so the token stays out of access logs.
 export function confirmEmailVerification(token: string): Promise<DetailResponse> {
-  return apiGetPublic<DetailResponse>(`/auth/verify-email/confirm?token=${encodeURIComponent(token)}`)
+  return apiPost<DetailResponse>('/auth/verify-email/confirm', { token })
+}
+
+// Ends this device's session on the server; the caller forgets the tokens.
+export function logout(refreshToken: string): Promise<void> {
+  return apiPost<void>('/auth/logout', { refresh_token: refreshToken })
+}
+
+// «Выйти на всех устройствах» -- this device included.
+export function logoutAll(accessToken: string): Promise<void> {
+  return apiPostAuth<void>('/auth/logout-all', {}, accessToken)
+}
+
+// Other devices are signed out; this one continues on the returned pair.
+export function changePassword(
+  currentPassword: string,
+  newPassword: string,
+  accessToken: string,
+): Promise<TokenPair> {
+  return apiPostAuth<TokenPair>(
+    '/auth/change-password',
+    { current_password: currentPassword, new_password: newPassword },
+    accessToken,
+  )
 }
 
 // Public. Always resolves the same way regardless of whether `email` is a

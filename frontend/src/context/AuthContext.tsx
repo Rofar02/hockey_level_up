@@ -93,6 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(() => {
+    const refreshToken = getStoredRefreshToken()
+    if (refreshToken !== null) {
+      authApi.logout(refreshToken).catch(() => {
+        // Best-effort: the tokens are forgotten here either way.
+      })
+    }
     clearApiCache()
     clearStoredTokens()
     setAccessToken(null)
@@ -138,6 +144,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }, [userId])
 
+  const adoptTokens = useCallback((nextAccessToken: string, nextRefreshToken: string) => {
+    persistTokens(nextAccessToken, nextRefreshToken)
+    setAccessToken(nextAccessToken)
+  }, [])
+
   const markAssessmentComplete = useCallback(() => {
     setHasAssessment(true)
   }, [])
@@ -155,10 +166,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isInitializing,
       login,
       logout,
+      adoptTokens,
       markAssessmentComplete,
       updateUser,
     }),
-    [accessToken, user, hasAssessment, isInitializing, login, logout, markAssessmentComplete, updateUser],
+    [accessToken, user, hasAssessment, isInitializing, login, logout, adoptTokens, markAssessmentComplete, updateUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
