@@ -22,9 +22,8 @@ import logging
 import signal
 import sys
 
-import sentry_sdk
-
 from app.core.config import get_settings
+from app.core.error_tracking import init_error_tracking
 from app.events.consumer import run_consumer
 from app.events.outbox_relay import run_outbox_relay
 from app.events.publisher import close_publisher
@@ -100,6 +99,5 @@ async def _run_forever() -> int:
 if __name__ == "__main__":
     settings = get_settings()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    if settings.glitchtip_dsn:
-        sentry_sdk.init(dsn=settings.glitchtip_dsn, environment=settings.environment, traces_sample_rate=0.0)
+    init_error_tracking(settings)
     sys.exit(asyncio.run(_run_forever()))

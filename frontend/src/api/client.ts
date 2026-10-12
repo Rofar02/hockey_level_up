@@ -32,6 +32,10 @@ export class ApiError extends Error {
 // -- not a placeholder like the old "Request failed" that leaked English
 // straight into the UI the one time it actually fired (a real prod outage).
 function fallbackErrorMessage(status: number): string {
+  // nginx's rate limit (deploy/nginx/app.conf) -- an HTML page, no detail.
+  if (status === 429) {
+    return 'Слишком много запросов. Подождите минуту и попробуйте снова.'
+  }
   if (status === 502 || status === 503 || status === 504) {
     return 'Сервер временно недоступен. Попробуйте ещё раз через минуту.'
   }

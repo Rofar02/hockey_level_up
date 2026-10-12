@@ -2,13 +2,13 @@ import contextlib
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.background import start_background_tasks, stop_background_tasks
 from app.core.config import get_settings
+from app.core.error_tracking import init_error_tracking
 from app.events.publisher import close_publisher
 from app.routers import (
     admin_users,
@@ -37,13 +37,7 @@ from app.routers import (
 
 settings = get_settings()
 
-if settings.glitchtip_dsn:
-    # traces_sample_rate=0 -- error tracking only, not APM/performance
-    # tracing (a single-VM, low-traffic app has nothing that budget would
-    # usefully surface right now, and it's extra overhead per request for
-    # no current benefit). Revisit if request-latency visibility is ever
-    # actually needed.
-    sentry_sdk.init(dsn=settings.glitchtip_dsn, environment=settings.environment, traces_sample_rate=0.0)
+init_error_tracking(settings)
 
 
 @contextlib.asynccontextmanager
