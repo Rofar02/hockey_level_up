@@ -151,3 +151,61 @@ def test_a_beginner_keeps_a_fractional_experience() -> None:
     assert 0 <= fresh.years_of_experience <= 0.5
     if today.month > 1:
         assert fresh.years_of_experience > 0
+
+
+def _birthday_days_ago(days: int) -> date:
+    from tests.dates import utc_today
+
+    day = utc_today() - timedelta(days=days)
+    return date(2000, day.month, day.day)  # 2000 is a leap year
+
+
+@pytest.mark.asyncio
+async def test_the_festive_card_is_for_teammates_only(db_session) -> None:
+    """Review of 7c0df2d, 4: a friend outside the team and the invite link
+    never see the birthday week; a teammate does."""
+    from app.models.friend import FriendRequest, FriendRequestStatus
+    from app.models.team import Team, TeamMembership
+    from app.routers.friends import get_invite
+    from app.routers.users import get_user_public_profile
+
+    hero = _make_user(first_name="Иван", last_name="Петров", level=1, xp=0, birth_date=_birthday_days_ago(2))
+    hero.friend_code = uuid.uuid4().hex[:10].upper()
+    mate = _make_user(level=1, xp=0)
+    friend = _make_user(level=1, xp=0)
+    db_session.add_all([hero, mate, friend])
+    await db_session.flush()
+    assert hero.birthday_festive
+    team = Team(id=uuid.uuid4(), name="bd team", owner_id=hero.id, invite_code=uuid.uuid4().hex[:12])
+    db_session.add(team)
+    await db_session.flush()
+    db_session.add_all([TeamMembership(team_id=team.id, user_id=hero.id), TeamMembership(team_id=team.id, user_id=mate.id)])
+    db_session.add(FriendRequest(sender_id=hero.id, receiver_id=friend.id, status=FriendRequestStatus.ACCEPTED))
+    await db_session.flush()
+
+    assert (await get_user_public_profile(hero.id, mate, db_session)).birthday_festive is True
+    assert (await get_user_public_profile(hero.id, friend, db_session)).birthday_festive is False
+    assert (await get_invite(hero.friend_code, db_session)).birthday_festive is False
+    hero.team_birthdays = False
+    await db_session.flush()
+    assert (await get_user_public_profile(hero.id, mate, db_session)).birthday_festive is False
+
+
+@pytest.mark.asyncio
+async def test_birth_date_with_years_keeps_the_start_year_and_checks_it(db_session) -> None:
+    """Review of 7c0df2d, 5: an old client sends the birth date and the
+    years together -- the start year from the years stays, and it's checked
+    against the birth year."""
+    user = _make_user()
+    user.hockey_since_year = 1990
+    db_session.add(user)
+    await db_session.flush()
+    service = UserService(db_session)
+    year = user.local_today().year
+
+    updated = await service.update_profile(user, UserUpdate(birth_date=date(2005, 1, 1), years_of_experience=5))
+    assert updated.hockey_since_year == year - 5
+
+    with pytest.raises(HTTPException) as exc:
+        await service.update_profile(user, UserUpdate(birth_date=date(2015, 1, 1), years_of_experience=year - 2010))
+    assert exc.value.status_code == 400

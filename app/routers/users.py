@@ -81,6 +81,7 @@ from app.services.team_attention_service import TeamAttentionService
 from app.services.game_stats_service import GameStatsService
 from app.services.onboarding_service import OnboardingService
 from app.services.training_diary_service import TrainingDiaryService
+from app.services.friend_service import FriendService
 from app.services.user_service import UserService
 from app.services.user_temporary_restriction_service import (
     UserTemporaryRestrictionService,
@@ -616,14 +617,21 @@ async def get_user_public_profile(
     "/me"-style ordering landmine to worry about here today.
     """
     profile = await UserService(session).get_public_profile(current_user, user_id)
-    return await public_card(session, profile)
+    # The birthday week's festive card -- for teammates only, and only when
+    # the player shares their birthday with the team (review of 7c0df2d, 4).
+    festive = profile.shared_birthday_festive and await FriendService(session).share_a_team(
+        current_user.id, profile.id
+    )
+    return await public_card(session, profile, birthday_festive=festive)
 
 
-async def public_card(session: AsyncSession, profile: User) -> UserPublicRead:
-    """The player card someone else sees -- also behind the invite link."""
+async def public_card(session: AsyncSession, profile: User, birthday_festive: bool = False) -> UserPublicRead:
+    """The player card someone else sees -- also behind the invite link,
+    which never shows the birthday."""
     stats = await ProgressService(session).list_user_stats(profile.id)
     return UserPublicRead.model_validate(profile).model_copy(
         update={
+            "birthday_festive": birthday_festive,
             "stats": [
                 PublicStatRead(stat_type=stat.stat_type, effective_value=stat.effective_value)
                 for stat in stats

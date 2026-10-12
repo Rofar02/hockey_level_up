@@ -695,9 +695,11 @@ class ScheduleService:
         day_plan.team_event_id = event.id
         target = _TEAM_EVENT_SESSION_TYPE[event.event_type]
         if keeps_gym:
+            # Before the move, while the blocks are loaded (see revert).
+            gym_started = self._has_completed_block(day_plan)
             await self._move_gym_to_extra(weekly_plan, day_plan, self._gym_time_beside(event, user))
             extra = next(d for d in weekly_plan.day_plans if d.date == event_date and d.is_extra)
-            if target == DaySessionType.GAME and not self._has_completed_block(extra):
+            if target == DaySessionType.GAME and not gym_started:
                 # Beside the team's game: the same gym day without heavy legs
                 # (review 12.10, 10); a started one stays as it is.
                 await self._retype_day(user, weekly_plan, extra, DaySessionType.OFF_ICE, light_legs=True)
@@ -770,12 +772,17 @@ class ScheduleService:
                 continue
             original = day_plan.replaced_session_type
             was_game = day_plan.session_type == DaySessionType.GAME
+            # Read while the week's sessions are still loaded: moving the gym
+            # back refreshes the day, and its blocks then aren't loaded any
+            # more (lazy load in async -> MissingGreenlet, review of 7c0df2d).
+            extra = next((d for d in weekly_plan.day_plans if d.date == day_plan.date and d.is_extra), None)
+            extra_started = extra is not None and self._has_completed_block(extra)
             day_plan.team_event_id = None
             day_plan.replaced_session_type = None
             if original == DaySessionType.OFF_ICE and await self._move_extra_gym_back(weekly_plan, day_plan):
                 # The gym kept beside the team's ice (2026-10-12) comes back --
                 # with its legs again if the game took them (review 12.10, 10).
-                if was_game and not self._has_completed_block(day_plan):
+                if was_game and not extra_started:
                     await self._retype_day(user, weekly_plan, day_plan, DaySessionType.OFF_ICE)
                 continue
             if original is not None and day_plan.session_type != original:

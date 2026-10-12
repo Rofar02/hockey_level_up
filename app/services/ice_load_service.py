@@ -26,18 +26,20 @@ from app.core.muscle_load import (
 from app.models.progress import IceLoadCharge, UserMuscleLoad
 from app.models.schedule import DayPlan
 from app.models.team_event import TeamEvent
-from app.services.report_reminder_scheduler import REPORT_DELAY, report_due_at
+from app.services.report_reminder_scheduler import ice_ends_at
 
 
 async def ice_ended_at(session: AsyncSession, day_plan: DayPlan, tz_name: str | None) -> datetime:
-    """When the ice is assumed over -- the report reminder's own clock, minus
-    its delay (a team event's start + typical length, else 21:00 local)."""
+    """When the ice is assumed over (report_reminder_scheduler.ice_ends_at):
+    a team event's start + its typical length; an own ice day by 19:00
+    local, a double day's morning ice by noon. The report opens then, and
+    the ice load is dated by it."""
     try:
         tz = ZoneInfo(tz_name or "UTC")
     except Exception:
         tz = ZoneInfo("UTC")
     event = await session.get(TeamEvent, day_plan.team_event_id) if day_plan.team_event_id else None
-    return report_due_at(day_plan, event, tz) - REPORT_DELAY
+    return ice_ends_at(day_plan, event, tz)
 
 
 class IceLoadService:

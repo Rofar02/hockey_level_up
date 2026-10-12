@@ -329,3 +329,72 @@ async def test_the_gym_kept_beside_a_team_game_has_no_heavy_legs(db_session, mon
     assert builds == [(DaySessionType.OFF_ICE, False)]
     day_plan = await _day(db_session, player, event_day)
     assert day_plan.session_type == DaySessionType.OFF_ICE and day_plan.team_event_id is None
+
+
+@pytest.mark.asyncio
+async def test_captain_cancelling_a_game_with_a_gym_kept_beside_it(db_session) -> None:
+    """Review of 7c0df2d, 1: the captain cancels the game -- the player's gym
+    kept beside it comes back, in a fresh request (nothing preloaded)."""
+    captain, player, team = await _make_team_with_player(db_session)
+    event_day = _event_day()
+    await _declare_rest_week(db_session, player, event_day)
+    exercise = Exercise(
+        id=uuid.uuid4(), name=f"Exercise {uuid.uuid4().hex[:8]}", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=1,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+    day_plan = await _day(db_session, player, event_day)
+    day_plan.session_type = DaySessionType.OFF_ICE
+    day_plan.training_session = TrainingSession(
+        id=uuid.uuid4(),
+        blocks=[SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0)],
+    )
+    await db_session.flush()
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.GAME, _noon_utc(event_day), "Rivals")
+    await events.set_my_attendance(player, team.id, event.id, TeamEventAttendanceStatus.GOING, None, None)
+    captain_id, team_id, event_id = captain.id, team.id, event.id
+    await db_session.commit()
+    db_session.expire_all()
+    captain = await db_session.get(User, captain_id)
+
+    await TeamEventService(db_session).cancel_event(captain, team_id, event_id)
+
+    day_plan = await _day(db_session, player, event_day)
+    assert day_plan.session_type == DaySessionType.OFF_ICE and day_plan.team_event_id is None
+
+
+@pytest.mark.asyncio
+async def test_going_to_a_game_in_a_fresh_request_keeps_a_light_gym(db_session) -> None:
+    captain, player, team = await _make_team_with_player(db_session)
+    event_day = _event_day()
+    await _declare_rest_week(db_session, player, event_day)
+    exercise = Exercise(
+        id=uuid.uuid4(), name=f"Exercise {uuid.uuid4().hex[:8]}", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=1,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+    day_plan = await _day(db_session, player, event_day)
+    day_plan.session_type = DaySessionType.OFF_ICE
+    day_plan.training_session = TrainingSession(
+        id=uuid.uuid4(),
+        blocks=[SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0)],
+    )
+    await db_session.flush()
+    event = await TeamEventService(db_session).create_event(captain, team.id, TeamEventType.GAME, _noon_utc(event_day), "Rivals")
+    player_id, team_id, event_id = player.id, team.id, event.id
+    await db_session.commit()
+    db_session.expire_all()
+    player = await db_session.get(User, player_id)
+
+    await TeamEventService(db_session).set_my_attendance(
+        player, team_id, event_id, TeamEventAttendanceStatus.GOING, None, None
+    )
+
+    plans = await ScheduleRepository(db_session).get_current(player_id, event_day)
+    await db_session.refresh(plans, ["day_plans"])
+    assert sorted((d.is_extra, d.session_type) for d in plans.day_plans if d.date == event_day) == [
+        (False, DaySessionType.GAME), (True, DaySessionType.OFF_ICE),
+    ]

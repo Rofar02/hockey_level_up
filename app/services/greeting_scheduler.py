@@ -25,9 +25,10 @@ import uuid
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.config import get_settings
 from app.db.session import AsyncSessionLocal
@@ -47,6 +48,7 @@ logger = logging.getLogger(__name__)
 TICK_INTERVAL_SECONDS = 300
 BIRTHDAY_LOCAL_TIME = time(9, 0)
 BIRTHDAY_XP = 200
+BIRTHDAY_LLM_TIMEOUT = 20
 DAY_DONE_LOCAL_TIME = time(21, 30)
 ICE_TYPES = (DaySessionType.ON_ICE, DaySessionType.GAME)
 
@@ -130,35 +132,42 @@ def _template_congratulation(user: User, facts: list[str]) -> str:
     )
 
 
-async def _coach_congratulation(session: AsyncSession, user: User) -> CoachChatMessage:
-    """The coach's own words when the model answers, else a template --
-    the gift never waits on the model."""
+async def _gather_facts(session: AsyncSession, user: User) -> list[str]:
+    """In a savepoint: a failed read never poisons the transaction."""
     try:
-        facts = await _year_facts(session, user)
+        async with session.begin_nested():
+            return await _year_facts(session, user)
     except Exception:
         logger.exception("Birthday: year facts failed for user_id=%s", user.id)
-        facts = []
+        return []
+
+
+async def _coach_text(user: User, facts: list[str]) -> tuple[str, dict]:
+    """The coach's own words for a premium player when the model answers in
+    time (BIRTHDAY_LLM_TIMEOUT, no retries), else the template. Called with
+    no transaction open. The dict is the usage to store with the message."""
     settings = get_settings()
-    if settings.zai_api_key:
+    if user.has_premium and settings.zai_api_key:
         try:
             from app.services import coach_chat_service
             from app.services.coach_personality_prompts import PERSONALITY_SYSTEM_PROMPTS
             from app.services.coach_philosophy import COACH_VOICE
 
             age = f"Исполняется лет: {user.age}.\n" if user.age is not None else ""
-            reply = await coach_chat_service.call_zai_clean(
-                settings.zai_api_key,
-                settings.zai_base_url,
-                settings.coach_chat_model,
-                f"{PERSONALITY_SYSTEM_PROMPTS[user.coach_personality]}\n\n{COACH_VOICE}\n\n{BIRTHDAY_COACH_INSTRUCTIONS}",
-                [{"role": "user", "content": f"Имя: {user.first_name}.\n{age}" + "\n".join(facts)}],
+            reply = await asyncio.wait_for(
+                coach_chat_service._call_zai(
+                    settings.zai_api_key,
+                    settings.zai_base_url,
+                    settings.coach_chat_model,
+                    f"{PERSONALITY_SYSTEM_PROMPTS[user.coach_personality]}\n\n{COACH_VOICE}\n\n{BIRTHDAY_COACH_INSTRUCTIONS}",
+                    [{"role": "user", "content": f"Имя: {user.first_name}.\n{age}" + "\n".join(facts)}],
+                    timeout=BIRTHDAY_LLM_TIMEOUT,
+                ),
+                BIRTHDAY_LLM_TIMEOUT + 5,
             )
-            text = reply.text.strip()
+            text = coach_chat_service._FOREIGN_SCRIPT_RE.sub("", reply.text).strip()
             if text:
-                return CoachChatMessage(
-                    user_id=user.id,
-                    role=CoachChatRole.ASSISTANT,
-                    content=text,
+                return text, dict(
                     llm_model=settings.coach_chat_model,
                     prompt_tokens=reply.usage.prompt_tokens,
                     cached_tokens=reply.usage.cached_tokens,
@@ -167,7 +176,24 @@ async def _coach_congratulation(session: AsyncSession, user: User) -> CoachChatM
                 )
         except Exception:
             logger.exception("Birthday: coach model failed for user_id=%s, using the template", user.id)
-    return CoachChatMessage(user_id=user.id, role=CoachChatRole.ASSISTANT, content=_template_congratulation(user, facts))
+    return _template_congratulation(user, facts), {}
+
+
+async def _claim(session: AsyncSession, user: User, column, value) -> bool:
+    """Sets users.<column> = value only if it isn't that already -- the
+    winner of two concurrent ticks gets True, the other False (review of
+    7c0df2d). Doesn't commit."""
+    claimed = await session.execute(
+        update(User)
+        .where(User.id == user.id, column.is_distinct_from(value))
+        .values({column.key: value})
+        .returning(User.id)
+        .execution_options(synchronize_session=False)
+    )
+    if claimed.first() is None:
+        return False
+    set_committed_value(user, column.key, value)
+    return True
 
 
 async def _teammates_to_tell(session: AsyncSession, user: User) -> list[uuid.UUID]:
@@ -194,11 +220,17 @@ async def _teammates_to_tell(session: AsyncSession, user: User) -> list[uuid.UUI
 async def _give_birthday_gift(session: AsyncSession, user: User, now_local: datetime) -> None:
     if not _is_birthday(user, now_local) or user.birthday_gift_year == now_local.year:
         return
-    message = await _coach_congratulation(session, user)
-    # One transaction: the mark, the XP and the message -- never twice.
-    user.birthday_gift_year = now_local.year
-    session.add(message)
+    # The mark and the XP in one transaction, claimed atomically -- never twice.
+    if not await _claim(session, user, User.birthday_gift_year, now_local.year):
+        return  # another tick has it; the no-op UPDATE changed nothing
     await award_xp(session, user.id, BIRTHDAY_XP)
+    facts = await _gather_facts(session, user)
+    await session.commit()
+
+    # The model is asked with no transaction open; whatever happens, the
+    # gift is already marked and it's never asked again.
+    text, usage = await _coach_text(user, facts)
+    session.add(CoachChatMessage(user_id=user.id, role=CoachChatRole.ASSISTANT, content=text, **usage))
     await session.commit()
 
     if not user.team_birthdays:
@@ -241,8 +273,9 @@ async def _greet_birthday(session: AsyncSession, user: User, now_local: datetime
         if gift
         else "Команда IceLevel поздравляет! Пусть этот год принесёт быстрые ноги, точные броски и много побед."
     )
-    # Marked and committed first: a crash after the send never repeats it.
-    user.last_birthday_greeted_year = now_local.year
+    # Claimed and committed first: a crash after the send never repeats it.
+    if not await _claim(session, user, User.last_birthday_greeted_year, now_local.year):
+        return  # another tick has it; the no-op UPDATE changed nothing
     await session.commit()
     await _push(session, user.id, title, body, "/coach" if gift else "/")
     await session.commit()
@@ -312,7 +345,8 @@ async def _praise_the_day(session: AsyncSession, user: User, now_local: datetime
     else:
         title = "Двойной день закрыт — мощно! 💪" if len(trained) > 1 else "Тренировка сделана — отличная работа! 💪"
         body = f"{summary}Отчёт дня готов: какие мышцы нагрузили и что выросло."
-    user.day_done_pushed_on = today
+    if not await _claim(session, user, User.day_done_pushed_on, today):
+        return  # another tick has it; the no-op UPDATE changed nothing
     await session.commit()
     await _push(session, user.id, title, body, f"/day-report/{today.isoformat()}")
     await session.commit()
