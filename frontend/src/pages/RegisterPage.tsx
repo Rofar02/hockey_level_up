@@ -5,6 +5,7 @@ import { AuthWizardShell } from '../components/AuthWizardShell'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { birthDateError, hockeySinceError } from '../utils/birth'
 import { AccountStep } from './register/AccountStep'
 import { PhysicalStep } from './register/PhysicalStep'
 import { PlayerStep } from './register/PlayerStep'
@@ -40,9 +41,9 @@ export function RegisterPage() {
   const [jerseyNumber, setJerseyNumber] = useState('')
   const [height, setHeight] = useState('')
   const [weight, setWeight] = useState('')
-  const [age, setAge] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [position, setPosition] = useState('')
-  const [yearsOfExperience, setYearsOfExperience] = useState('')
+  const [hockeySince, setHockeySince] = useState('')
   // Never pre-checked -- the user must actively opt in on every visit to
   // this form, not just once ever (a fresh page load always starts false).
   const [privacyConsent, setPrivacyConsent] = useState(false)
@@ -65,6 +66,12 @@ export function RegisterPage() {
       return
     }
 
+    const datesError = birthDateError(birthDate) ?? hockeySinceError(hockeySince, birthDate)
+    if (datesError !== null) {
+      setError(datesError)
+      return
+    }
+
     setIsSubmitting(true)
     try {
       await authApi.register({
@@ -75,9 +82,9 @@ export function RegisterPage() {
         jersey_number: parsedJerseyNumber,
         height: toOptionalNumber(height),
         weight: toOptionalNumber(weight),
-        age: toOptionalNumber(age),
+        birth_date: birthDate === '' ? undefined : birthDate,
         position: position === '' ? undefined : (position as Position),
-        years_of_experience: toOptionalNumber(yearsOfExperience),
+        hockey_since_year: toOptionalNumber(hockeySince),
         privacy_consent: privacyConsent,
       })
     } catch (err) {
@@ -133,10 +140,10 @@ export function RegisterPage() {
           setHeight={setHeight}
           weight={weight}
           setWeight={setWeight}
-          age={age}
-          setAge={setAge}
-          yearsOfExperience={yearsOfExperience}
-          setYearsOfExperience={setYearsOfExperience}
+          birthDate={birthDate}
+          setBirthDate={setBirthDate}
+          hockeySince={hockeySince}
+          setHockeySince={setHockeySince}
           privacyConsent={privacyConsent}
           setPrivacyConsent={setPrivacyConsent}
           error={error}

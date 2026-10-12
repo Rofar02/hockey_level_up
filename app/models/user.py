@@ -1,6 +1,7 @@
 import enum
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import (
     Boolean,
@@ -16,6 +17,8 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import case, cast
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -23,6 +26,10 @@ from app.db.enum_column import enum_column
 
 # Below this age a player is hidden from the name search by default.
 ADULT_AGE = 18
+
+
+def full_years(birth: date, today: date) -> int:
+    return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
 
 
 class Position(enum.StrEnum):
@@ -132,14 +139,23 @@ class User(Base):
 
     height: Mapped[float | None] = mapped_column(Float, nullable=True)
     weight: Mapped[float | None] = mapped_column(Float, nullable=True)
-    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Review 2026-10-11, 3.1: a typed-in age goes stale, so the player gives
+    # a birth date and `age` is computed from it (`age_stored`, the old
+    # column, is the fallback for those who haven't given one yet).
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    age_stored: Mapped[int | None] = mapped_column("age", Integer, nullable=True)
+    # Review 2026-10-11, 3.4 (greetings, later): the year last congratulated.
+    last_birthday_greeted_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     position: Mapped[Position | None] = mapped_column(
         enum_column(Position, "position"), nullable=True
     )
     # Float, not Integer -- someone 6 months into the sport still deserves a
     # partial experience_bonus/intellect_baseline credit (see
     # app/config/expected_baseline.py) instead of rounding down to 0.
-    years_of_experience: Mapped[float | None] = mapped_column(Float, nullable=True)
+    experience_stored: Mapped[float | None] = mapped_column("years_of_experience", Float, nullable=True)
+    # Review 2026-10-11, 3.2: «С какого года играете?» -- the experience
+    # grows by itself; years_of_experience is computed from it.
+    hockey_since_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Stage 2.2: replaces the old gym/home/bodyweight equipment_access tier.
     # True bypasses the equipment filter entirely (sees every exercise,
@@ -300,6 +316,44 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
+
+    def local_today(self) -> date:
+        try:
+            return datetime.now(ZoneInfo(self.timezone or "UTC")).date()
+        except Exception:
+            return datetime.now(timezone.utc).date()
+
+    @hybrid_property
+    def age(self) -> int | None:
+        """Full years from the birth date, in the player's own time zone;
+        the old typed-in age until a birth date is given."""
+        if self.birth_date is None:
+            return self.age_stored
+        return full_years(self.birth_date, self.local_today())
+
+    @age.inplace.setter
+    def _age_setter(self, value: int | None) -> None:
+        self.age_stored = value
+
+    @age.inplace.expression
+    @classmethod
+    def _age_expression(cls):
+        return case(
+            (cls.birth_date.is_not(None), cast(func.date_part("year", func.age(cls.birth_date)), Integer)),
+            else_=cls.age_stored,
+        )
+
+    @property
+    def years_of_experience(self) -> float | None:
+        if self.hockey_since_year is None:
+            return self.experience_stored
+        return float(max(0, self.local_today().year - self.hockey_since_year))
+
+    @years_of_experience.setter
+    def years_of_experience(self, value: float | None) -> None:
+        # An old client still sends years: kept as the start year.
+        self.experience_stored = value
+        self.hockey_since_year = None if value is None else self.local_today().year - round(value)
 
     @property
     def findable_by_name(self) -> bool:

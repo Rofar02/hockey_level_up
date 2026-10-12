@@ -32,6 +32,7 @@ import type { UserStatRead } from '../types/progress'
 import type { SkillSummaryRead } from '../types/skill'
 import type { UserTemporaryRestrictionRead } from '../types/userTemporaryRestriction'
 import type { UserPublicRead } from '../types/user'
+import { ageLabel, playingSinceLabel } from '../utils/birth'
 import { renderCardImage } from '../utils/cardImage'
 import { countAvailableExercises } from '../utils/equipmentAvailability'
 import { ProfileSkeleton } from '../components/ui/Skeleton'
@@ -243,8 +244,8 @@ function OwnProfileView() {
   const selectedStat = selectedStatType !== null ? statsByType.get(selectedStatType) : undefined
 
   const ageExperienceParts = [
-    user?.age != null ? `${user.age} лет` : null,
-    user?.years_of_experience != null ? `${user.years_of_experience} лет стажа` : null,
+    user?.age != null ? ageLabel(user.age) : null,
+    playingSinceLabel(user?.hockey_since_year, user?.years_of_experience),
   ].filter((part): part is string => part !== null)
   const avatarUrl = user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null
 

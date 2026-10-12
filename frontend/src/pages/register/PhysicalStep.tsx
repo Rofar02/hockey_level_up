@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button'
 import { Checkbox } from '../../components/ui/Checkbox'
 import { FormError } from '../../components/ui/FormError'
 import { TextField } from '../../components/ui/TextField'
+import { toIsoDate } from '../../utils/date'
 
 // Step 3/3, the final one -- its submit IS the real registration submit
 // (RegisterPage's handleSubmit, unchanged from before this split). Every
@@ -14,10 +15,10 @@ export function PhysicalStep({
   setHeight,
   weight,
   setWeight,
-  age,
-  setAge,
-  yearsOfExperience,
-  setYearsOfExperience,
+  birthDate,
+  setBirthDate,
+  hockeySince,
+  setHockeySince,
   privacyConsent,
   setPrivacyConsent,
   error,
@@ -29,10 +30,10 @@ export function PhysicalStep({
   setHeight: (value: string) => void
   weight: string
   setWeight: (value: string) => void
-  age: string
-  setAge: (value: string) => void
-  yearsOfExperience: string
-  setYearsOfExperience: (value: string) => void
+  birthDate: string
+  setBirthDate: (value: string) => void
+  hockeySince: string
+  setHockeySince: (value: string) => void
   privacyConsent: boolean
   setPrivacyConsent: (value: boolean) => void
   error: string | null
@@ -40,6 +41,7 @@ export function PhysicalStep({
   onSubmit: (event: FormEvent) => void
   onBack: () => void
 }) {
+  const todayIso = toIsoDate(new Date())
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Физические данные</h2>
@@ -65,23 +67,24 @@ export function PhysicalStep({
           onChange={(event) => setWeight(event.target.value)}
         />
         <TextField
-          label="Возраст"
-          name="age"
-          type="number"
-          numeric
-          min={0}
-          value={age}
-          onChange={(event) => setAge(event.target.value)}
+          label="Дата рождения"
+          name="birth_date"
+          type="date"
+          max={todayIso}
+          value={birthDate}
+          onChange={(event) => setBirthDate(event.target.value)}
         />
         <TextField
-          label="Стаж в хоккее, лет"
-          name="years_of_experience"
+          label="С какого года играете?"
+          name="hockey_since_year"
           type="number"
           numeric
-          min={0}
-          step="0.5"
-          value={yearsOfExperience}
-          onChange={(event) => setYearsOfExperience(event.target.value)}
+          inputMode="numeric"
+          placeholder="2018"
+          min={1930}
+          max={new Date().getFullYear()}
+          value={hockeySince}
+          onChange={(event) => setHockeySince(event.target.value)}
         />
       </div>
 

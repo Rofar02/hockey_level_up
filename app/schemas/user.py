@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from zoneinfo import available_timezones
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.models.exercise import TargetStat
 from app.models.user import (
@@ -13,6 +13,33 @@ from app.models.user import (
     ReminderPreference,
     SeasonPeriod,
 )
+
+
+MIN_AGE, MAX_AGE = 6, 90
+FIRST_HOCKEY_YEAR = 1930
+
+
+def check_birth_date(value: date | None) -> date | None:
+    """Review 2026-10-11, 3.3: not in the future, an age of 6..90."""
+    if value is None:
+        return value
+    today = date.today()
+    if value > today:
+        raise ValueError("Дата рождения не может быть в будущем")
+    years = today.year - value.year - ((today.month, today.day) < (value.month, value.day))
+    if not MIN_AGE <= years <= MAX_AGE:
+        raise ValueError(f"Возраст должен быть от {MIN_AGE} до {MAX_AGE} лет")
+    return value
+
+
+def check_hockey_since(value: int | None) -> int | None:
+    if value is None:
+        return value
+    if value > date.today().year:
+        raise ValueError("Год не может быть в будущем")
+    if value < FIRST_HOCKEY_YEAR:
+        raise ValueError("Проверьте год")
+    return value
 
 
 class UserBase(BaseModel):
@@ -29,6 +56,9 @@ class UserBase(BaseModel):
     age: int | None = Field(default=None, gt=0)
     position: Position | None = None
     years_of_experience: float | None = Field(default=None, ge=0)
+    # Review 2026-10-11, 3.1-3.2: given instead of the age / the years.
+    birth_date: date | None = None
+    hockey_since_year: int | None = None
 
 
 class UserCreate(UserBase):
@@ -47,6 +77,15 @@ class UserCreate(UserBase):
     # from pydantic that wouldn't distinguish "forgot to send it" from any
     # other malformed request.
     privacy_consent: bool = False
+
+    _birth = field_validator("birth_date")(classmethod(lambda cls, v: check_birth_date(v)))
+    _since = field_validator("hockey_since_year")(classmethod(lambda cls, v: check_hockey_since(v)))
+
+    @model_validator(mode="after")
+    def _since_after_birth(self) -> "UserCreate":
+        if self.birth_date and self.hockey_since_year and self.hockey_since_year < self.birth_date.year:
+            raise ValueError("Год начала игры раньше года рождения")
+        return self
 
 
 class UserRead(UserBase):
@@ -125,6 +164,9 @@ class UserPublicRead(BaseModel):
     jersey_color: JerseyColor | None = None
     has_premium: bool = False
     years_of_experience: float | None = None
+    # Review 2026-10-11, 3.3: «Играю с 2021». Never the age or the birth
+    # date -- this card is also shown to strangers on the invite-link page.
+    hockey_since_year: int | None = None
     level: int
     xp: int
     created_at: datetime
@@ -152,6 +194,8 @@ class UserUpdate(BaseModel):
     age: int | None = Field(default=None, gt=0)
     position: Position | None = None
     years_of_experience: float | None = Field(default=None, ge=0)
+    birth_date: date | None = None
+    hockey_since_year: int | None = None
     timezone: str | None = Field(default=None, min_length=1, max_length=64)
     reminder_preference: ReminderPreference | None = None
     season_period: SeasonPeriod | None = None
@@ -168,6 +212,9 @@ class UserUpdate(BaseModel):
         if value is not None and value not in available_timezones():
             raise ValueError("Unknown IANA timezone")
         return value
+
+    _birth = field_validator("birth_date")(classmethod(lambda cls, v: check_birth_date(v)))
+    _since = field_validator("hockey_since_year")(classmethod(lambda cls, v: check_hockey_since(v)))
 
 
 class UserDeleteRequest(BaseModel):

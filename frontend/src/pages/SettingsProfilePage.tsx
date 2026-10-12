@@ -24,6 +24,8 @@ import {
   POSITION_LABELS,
 } from '../types/user'
 import type { UserStatRead } from '../types/progress'
+import { ageLabel, birthDateError, fullYears, hockeySinceError } from '../utils/birth'
+import { toIsoDate } from '../utils/date'
 import type { AvatarRingAccent, JerseyColor, Position } from '../types/user'
 import { LEVEL_AVATAR_RING_CHOICE, LEVEL_JERSEY_COLOR_CHOICE, hasAvatarRingChoice, hasJerseyColorChoice } from '../utils/levelUnlocks'
 
@@ -71,10 +73,12 @@ export function SettingsProfilePage() {
   // later (previously the profile form had no way to touch them at all).
   const [height, setHeight] = useState(user?.height != null ? String(user.height) : '')
   const [weight, setWeight] = useState(user?.weight != null ? String(user.weight) : '')
-  const [age, setAge] = useState(user?.age != null ? String(user.age) : '')
+  // Review 2026-10-11, 3.1-3.2: the age and the years grow by themselves
+  // from these two.
+  const [birthDate, setBirthDate] = useState(user?.birth_date ?? '')
   const [position, setPosition] = useState<Position | ''>(user?.position ?? '')
-  const [yearsOfExperience, setYearsOfExperience] = useState(
-    user?.years_of_experience != null ? String(user.years_of_experience) : '',
+  const [hockeySince, setHockeySince] = useState(
+    user?.hockey_since_year != null ? String(user.hockey_since_year) : '',
   )
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -124,8 +128,13 @@ export function SettingsProfilePage() {
     const patronymicValue = patronymic.trim() === '' ? null : patronymic
     const heightValue = toOptionalNumber(height)
     const weightValue = toOptionalNumber(weight)
-    const ageValue = toOptionalNumber(age)
-    const yearsOfExperienceValue = toOptionalNumber(yearsOfExperience)
+    const datesError = birthDateError(birthDate) ?? hockeySinceError(hockeySince, birthDate)
+    if (datesError !== null) {
+      setProfileError(datesError)
+      return
+    }
+    const birthDateValue = birthDate === '' ? null : birthDate
+    const hockeySinceValue = toOptionalNumber(hockeySince)
     const positionValue = position === '' ? null : position
 
     // Only PATCH fields that actually changed from the last-known user.
@@ -148,14 +157,14 @@ export function SettingsProfilePage() {
     if (weightValue !== user.weight) {
       updates.weight = weightValue
     }
-    if (ageValue !== user.age) {
-      updates.age = ageValue
+    if (birthDateValue !== user.birth_date) {
+      updates.birth_date = birthDateValue
     }
     if (positionValue !== user.position) {
       updates.position = positionValue
     }
-    if (yearsOfExperienceValue !== user.years_of_experience) {
-      updates.years_of_experience = yearsOfExperienceValue
+    if (hockeySinceValue !== user.hockey_since_year) {
+      updates.hockey_since_year = hockeySinceValue
     }
 
     if (Object.keys(updates).length === 0) {
@@ -284,23 +293,24 @@ export function SettingsProfilePage() {
               onChange={(event) => setWeight(event.target.value)}
             />
             <TextField
-              label="Возраст (необязательно)"
-              name="age"
-              type="number"
-              numeric
-              min={0}
-              value={age}
-              onChange={(event) => setAge(event.target.value)}
+              label="Дата рождения"
+              name="birth_date"
+              type="date"
+              max={toIsoDate(new Date())}
+              value={birthDate}
+              onChange={(event) => setBirthDate(event.target.value)}
             />
             <TextField
-              label="Стаж в хоккее, лет (необязательно)"
-              name="years_of_experience"
+              label="С какого года играете?"
+              name="hockey_since_year"
               type="number"
               numeric
-              min={0}
-              step="0.5"
-              value={yearsOfExperience}
-              onChange={(event) => setYearsOfExperience(event.target.value)}
+              inputMode="numeric"
+              placeholder="2018"
+              min={1930}
+              max={new Date().getFullYear()}
+              value={hockeySince}
+              onChange={(event) => setHockeySince(event.target.value)}
             />
           </div>
           <SelectField
@@ -336,7 +346,7 @@ export function SettingsProfilePage() {
                 position={position === '' ? null : position}
                 jerseyNumber={/^\d+$/.test(jerseyNumber) ? Number(jerseyNumber) : null}
                 surname={lastName || firstName}
-                subtitle={[firstName, age !== '' ? `${age} лет` : null].filter(Boolean).join(' · ')}
+                subtitle={[firstName, birthDate !== '' && birthDateError(birthDate) === null ? ageLabel(fullYears(birthDate)) : null].filter(Boolean).join(' · ')}
                 level={userLevel}
                 xp={user?.xp ?? 0}
                 avatarUrl={user?.avatar_url != null ? `${API_BASE_URL}${user.avatar_url}` : null}

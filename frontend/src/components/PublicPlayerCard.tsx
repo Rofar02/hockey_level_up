@@ -4,6 +4,7 @@ import { cardTeamFrom } from '../hooks/useMyTeam'
 import { PlayerCard } from './PlayerCard'
 import { cardStyleFor } from './playerCardLook'
 import { cardStatsFrom, overallRatingOf } from './playerCardStats'
+import { playingSinceLabel } from '../utils/birth'
 
 // Someone else's player card, read-only, from UserPublicRead -- on their
 // profile, in the friend search sheet and on the invite-link page. Never
@@ -11,7 +12,7 @@ import { cardStatsFrom, overallRatingOf } from './playerCardStats'
 export function PublicPlayerCard({ profile }: { profile: UserPublicRead }) {
   const subtitle = [
     profile.first_name,
-    profile.years_of_experience != null ? `${profile.years_of_experience} лет стажа` : null,
+    playingSinceLabel(profile.hockey_since_year, profile.years_of_experience),
   ]
     .filter(Boolean)
     .join(' · ')
