@@ -8,8 +8,9 @@ import { useAuth } from '../hooks/useAuth'
 
 const ADULT_AGE = 18
 
-const SHOWN = ['Имя и фото', 'Команда', 'Позиция', 'Уровень', 'Карточка со статами']
-const FRIENDS_ONLY = ['Возраст', 'Лента тренировок']
+const SHOWN = ['Имя и фото', 'Команда', 'Позиция', 'Уровень', 'С какого года играет', 'Карточка со статами']
+// The age is shown to nobody (owner's call, 2026-10-12).
+const FRIENDS_ONLY = ['Лента тренировок']
 
 function Chip({ label, open }: { label: string; open: boolean }) {
   return (

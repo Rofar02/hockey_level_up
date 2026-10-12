@@ -97,7 +97,7 @@ class ProgressService:
         if user.age is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Чтобы рассчитать рейтинг, укажите возраст в настройках профиля",
+                detail="Чтобы рассчитать рейтинг, укажите дату рождения в настройках профиля",
             )
         stat = await self._progress.get_user_stat(user.id, stat_type)
         return _stat_excess(stat_type, user, stat, datetime.now(timezone.utc))
@@ -106,7 +106,7 @@ class ProgressService:
         if user.age is None:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Чтобы рассчитать рейтинг, укажите возраст в настройках профиля",
+                detail="Чтобы рассчитать рейтинг, укажите дату рождения в настройках профиля",
             )
         stats = await self._progress.list_user_stats(user.id)
         stats_by_type = {stat.stat_type: stat for stat in stats}

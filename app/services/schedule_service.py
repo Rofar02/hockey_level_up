@@ -609,6 +609,11 @@ class ScheduleService:
                     user, block_phase, training_block, archetype_rotation,
                 )
                 continue
+            if day_plan is not None and day_in.date < user_today(user):
+                # A past day is history (the week editor locks it too,
+                # 2026-10-12): the API doesn't retype it either.
+                conflicts.append(ScheduleConflictRead(date=day_in.date, detail="Прошедший день нельзя изменить"))
+                continue
             if day_plan is None or await self._is_day_started(day_plan):
                 conflicts.append(
                     ScheduleConflictRead(

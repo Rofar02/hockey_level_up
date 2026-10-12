@@ -92,26 +92,26 @@ async def _day_plans(session: AsyncSession, user: User, day: date) -> list[DayPl
 
 
 async def day_is_done(session: AsyncSession, plans: list[DayPlan]) -> bool:
-    """Every training of the day done, and at least one really trained."""
+    """Every training of the day closed -- the same rule as Home's «Все
+    тренировки дня сделаны» (an ice report counts even as «не был», a gym
+    session once each exercise is done or skipped) -- and at least one of
+    them really trained."""
     trainings = [p for p in plans if p.session_type != DaySessionType.REST and p.training_session is not None]
-    if not trainings:
-        return False
+    trained = False
     for plan in trainings:
         if plan.session_type in ICE_TYPES:
             entry = await session.scalar(
                 select(TrainingDiaryEntry).where(TrainingDiaryEntry.training_session_id == plan.training_session.id)
             )
-            if entry is None or entry.reported_at is None or entry.skipped:
+            if entry is None or entry.reported_at is None:
                 return False
+            trained = trained or not entry.skipped
         else:
             blocks = plan.training_session.blocks
-            if (
-                not blocks
-                or any(b.completed_at is None and b.skipped_at is None for b in blocks)
-                or all(b.completed_at is None for b in blocks)
-            ):
+            if not blocks or any(b.completed_at is None and b.skipped_at is None for b in blocks):
                 return False
-    return True
+            trained = trained or any(b.completed_at is not None for b in blocks)
+    return trained
 
 
 async def _praise_the_day(session: AsyncSession, user: User, now_local: datetime) -> None:
@@ -130,7 +130,11 @@ async def _praise_the_day(session: AsyncSession, user: User, now_local: datetime
     ice_minutes = sum((t.ice.duration_minutes or 0) for t in report.trainings if t.ice is not None)
     if ice_minutes:
         parts.append(f"{ice_minutes} мин на льду")
-    double = sum(1 for t in report.trainings if t.session_type != DaySessionType.REST) > 1
+    trained = [
+        t for t in report.trainings
+        if (t.ice is not None and not t.ice.skipped) or (t.ice is None and t.exercises_done > 0)
+    ]
+    double = len(trained) > 1
     title = "Двойной день закрыт — мощно! 💪" if double else "Тренировка сделана — отличная работа! 💪"
     summary = f"{', '.join(parts)}. " if parts else ""
     await _push(

@@ -159,3 +159,25 @@ async def test_ice_counts_only_with_a_sent_report_not_skipped(db_session, monkey
     entry.duration_minutes = 60
     await _tick(db_session, _at(21, 50))
     assert len(sent) == 1 and "60 мин на льду" in sent[0]["body"]
+
+
+@pytest.mark.asyncio
+async def test_skipped_ice_plus_done_gym_is_praised(db_session, monkeypatch) -> None:
+    """«Не был» on the ice closes it, same as on Home -- the gym trained."""
+    sent = _capture(monkeypatch)
+    user = await _user(db_session)
+    gym_day = await _gym_day(db_session, user, done=True)
+    gym_day.is_extra = True
+    gym_day.time_of_day = "morning"
+    ice = TrainingSession(id=uuid.uuid4(), blocks=[])
+    plan = await db_session.get(WeeklyPlan, gym_day.weekly_plan_id)
+    plan.day_plans.append(
+        DayPlan(id=uuid.uuid4(), date=TODAY, session_type=DaySessionType.ON_ICE, time_of_day="evening", training_session=ice)
+    )
+    await db_session.flush()
+    db_session.add(TrainingDiaryEntry(user_id=user.id, training_session_id=ice.id, skipped=True, reported_at=_at(20, 0)))
+    await db_session.flush()
+
+    await _tick(db_session, _at(21, 40))
+
+    assert len(sent) == 1 and sent[0]["title"].startswith("Тренировка сделана")

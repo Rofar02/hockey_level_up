@@ -155,7 +155,7 @@ export function PlayerSheet({
         <FormError message={sendError} />
         {player !== null && player.relation !== 'friend' && (
           <p className="text-center text-xs leading-relaxed text-text-secondary">
-            Это заявка в друзья. Возраст и лента тренировок откроются, когда вы станете друзьями.
+            Это заявка в друзья. Лента тренировок откроется, когда вы станете друзьями.
           </p>
         )}
       </div>
