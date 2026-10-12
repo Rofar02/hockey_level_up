@@ -18,6 +18,7 @@ from app.repositories.training_diary_repository import TrainingDiaryRepository
 from app.schemas.training_diary import DiaryReportIn, TrainingDiaryEntryListItem
 from app.services.ice_load_service import IceLoadService, ice_ended_at
 from app.services.stat_award import award_xp, credit_stats
+from app.services.streak_service import credit_streak_day
 from app.services.week_load_service import shadow_check
 from app.services.team_event_service import TEAM_TRAINING_XP_BONUS, TeamEventService
 
@@ -172,6 +173,9 @@ class TrainingDiaryService:
             await IceLoadService(self._session).charge(user.id, session_id, scale, ended_at)
             if scale > 0:
                 await shadow_check(self._session, user.id)
+            if not report.skipped:
+                # The report closes an ice day for the streak (2026-10-12).
+                await credit_streak_day(self._session, user.id, training_session.day_plan.date)
 
         # Transient, for the response only (see TrainingDiaryEntryRead):
         # what this save credited, and whether the day has its reward.
