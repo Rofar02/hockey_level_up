@@ -64,15 +64,16 @@ def test_29_february_is_greeted_on_the_28th_in_a_common_year() -> None:
 
 
 @pytest.mark.asyncio
-async def test_birthday_greeting_once_from_ten_local(db_session, monkeypatch) -> None:
+async def test_birthday_greeting_once_from_nine_local(db_session, monkeypatch) -> None:
     sent = _capture(monkeypatch)
     user = await _user(db_session, birth_date=date(2000, 3, 10), timezone="Asia/Vladivostok")  # UTC+10
 
-    await _tick(db_session, _at(23, 0, date(2026, 3, 9)))  # 09:00 local on the 10th
+    await _tick(db_session, _at(22, 55, date(2026, 3, 9)))  # 08:55 local on the 10th
     assert sent == []
-    await _tick(db_session, _at(0, 5))  # 10:05 local
+    await _tick(db_session, _at(23, 5, date(2026, 3, 9)))  # 09:05 local
     await _tick(db_session, _at(1, 0))
     assert [p["title"] for p in sent] == ["С днём рождения, Лёша! 🎂"]
+    assert "+200 XP" in sent[0]["body"] and sent[0]["url"] == "/coach"
     await db_session.refresh(user)
     assert user.last_birthday_greeted_year == 2026
 
@@ -181,3 +182,114 @@ async def test_skipped_ice_plus_done_gym_is_praised(db_session, monkeypatch) -> 
     await _tick(db_session, _at(21, 40))
 
     assert len(sent) == 1 and sent[0]["title"].startswith("Тренировка сделана")
+
+
+@pytest.mark.asyncio
+async def test_a_failing_player_never_stops_or_repeats_the_others(db_session, monkeypatch) -> None:
+    """Review 12.10, 1: an error on the 2nd player rolls back only theirs;
+    the 1st and the 3rd get the push once, the next tick sends nothing."""
+    from app.services import greeting_scheduler
+
+    sent = _capture(monkeypatch)
+    users = [await _user(db_session) for _ in range(3)]
+    for user in users:
+        await _gym_day(db_session, user, done=True)
+    await db_session.commit()
+    order = {user.id: index for index, user in enumerate(users)}
+    real_report = greeting_scheduler.DayReportService.report
+
+    async def _report(self, user, day):
+        if order.get(user.id) == 1:
+            raise RuntimeError("boom")
+        return await real_report(self, user, day)
+
+    monkeypatch.setattr(greeting_scheduler.DayReportService, "report", _report)
+    # Only our three, in a fixed order.
+    real_rows = greeting_scheduler._for_each_user
+
+    async def _ours(session, rows, now_utc, handle, what):
+        mine = sorted((r for r in rows if r[0] in order), key=lambda r: order[r[0]])
+        await real_rows(session, mine, now_utc, handle, what)
+
+    monkeypatch.setattr(greeting_scheduler, "_for_each_user", _ours)
+
+    await _tick(db_session, _at(21, 40))
+    assert len(sent) == 2
+    await _tick(db_session, _at(21, 50))
+    assert len(sent) == 2
+    for index, user in enumerate(users):
+        await db_session.refresh(user)
+        assert (user.day_done_pushed_on == TODAY) == (index != 1)
+
+
+@pytest.mark.asyncio
+async def test_any_push_error_is_caught(db_session, monkeypatch) -> None:
+    async def _broken(*_args, **_kwargs):
+        raise ConnectionError("network down")
+
+    monkeypatch.setattr(push_service, "webpush_async", _broken)
+    user = await _user(db_session)
+    await _gym_day(db_session, user, done=True)
+
+    await _tick(db_session, _at(21, 40))
+
+    await db_session.refresh(user)
+    assert user.day_done_pushed_on == TODAY  # marked, never retried
+
+
+@pytest.mark.asyncio
+async def test_birthday_gift_once_with_xp_coach_word_and_the_team(db_session, monkeypatch) -> None:
+    from sqlalchemy import select
+
+    from app.core.config import get_settings
+    from app.models.coach_chat import CoachChatMessage
+    from app.models.team import Team, TeamMembership
+
+    monkeypatch.setattr(get_settings(), "zai_api_key", "")  # the template, no model call
+    sent = _capture(monkeypatch)
+    hero = await _user(db_session, birth_date=date(2000, 3, 10), first_name="Иван", last_name="Петров",
+                       reminder_preference=ReminderPreference.NONE, level=1, xp=0)
+    mate = await _user(db_session)
+    quiet = await _user(db_session, team_birthdays=False)
+    outsider = await _user(db_session)
+    team = Team(id=uuid.uuid4(), name="gr team", owner_id=hero.id, invite_code=uuid.uuid4().hex[:12])
+    db_session.add(team)
+    await db_session.flush()
+    for member in (hero, mate, quiet):
+        db_session.add(TeamMembership(id=uuid.uuid4(), team_id=team.id, user_id=member.id))
+    await db_session.flush()
+    assert outsider.id is not None
+
+    await _tick(db_session, _at(8, 55))
+    assert sent == []
+    await _tick(db_session, _at(9, 5))
+    await _tick(db_session, _at(12, 0))
+
+    assert [p["title"] for p in sent] == ["🎂 Сегодня день рождения у Иван Петров"]
+    assert sent[0]["url"] == f"/profile/{hero.id}"
+    await db_session.refresh(hero)
+    from app.events.handlers.block_completed import xp_to_next_level
+
+    assert hero.birthday_gift_year == 2026
+    assert (hero.level, hero.xp) == (2, 200 - xp_to_next_level(1))
+    messages = (await db_session.scalars(select(CoachChatMessage).where(CoachChatMessage.user_id == hero.id))).all()
+    assert len(messages) == 1 and "С днём рождения, Иван" in messages[0].content and "+200 XP" in messages[0].content
+
+
+@pytest.mark.asyncio
+async def test_a_game_day_has_its_own_evening_words(db_session, monkeypatch) -> None:
+    sent = _capture(monkeypatch)
+    user = await _user(db_session)
+    game = TrainingSession(id=uuid.uuid4(), blocks=[])
+    day = DayPlan(id=uuid.uuid4(), date=TODAY, session_type=DaySessionType.GAME, training_session=game)
+    db_session.add(WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=TODAY, day_plans=[day]))
+    await db_session.flush()
+    db_session.add(
+        TrainingDiaryEntry(user_id=user.id, training_session_id=game.id, skipped=False, reported_at=_at(20, 0),
+                           game_result="win", self_rating=4)
+    )
+    await db_session.flush()
+
+    await _tick(db_session, _at(21, 40))
+
+    assert len(sent) == 1 and sent[0]["title"].startswith("Игра сыграна")

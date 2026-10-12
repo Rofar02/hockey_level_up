@@ -1,6 +1,7 @@
+import calendar
 import enum
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import (
@@ -15,6 +16,7 @@ from sqlalchemy import (
     false,
     func,
     text,
+    true,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy import case, cast
@@ -30,6 +32,17 @@ ADULT_AGE = 18
 
 def full_years(birth: date, today: date) -> int:
     return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+
+
+# Review 12.10, 5: the player card looks festive for a week from the birthday.
+BIRTHDAY_FESTIVE_DAYS = 7
+
+
+def birthday_in(birth: date, year: int) -> date:
+    """The birthday in `year` -- 29 February on the 28th in a common year."""
+    if birth.month == 2 and birth.day == 29 and not calendar.isleap(year):
+        return date(year, 2, 28)
+    return date(year, birth.month, birth.day)
 
 
 class Position(enum.StrEnum):
@@ -148,6 +161,14 @@ class User(Base):
     last_birthday_greeted_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # The local date the «день закрыт» praise was last sent (greeting_scheduler).
     day_done_pushed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Review 12.10, 5: the year the birthday gift (+XP, the coach's word, the
+    # team's push) was given -- once a year, whatever happens to the push.
+    birthday_gift_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # «🎂 Сегодня день рождения у …» both ways: the player hears about the
+    # teammates' birthdays and the team hears about theirs. On by default.
+    team_birthdays: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
     position: Mapped[Position | None] = mapped_column(
         enum_column(Position, "position"), nullable=True
     )
@@ -349,13 +370,40 @@ class User(Base):
     def years_of_experience(self) -> float | None:
         if self.hockey_since_year is None:
             return self.experience_stored
-        return float(max(0, self.local_today().year - self.hockey_since_year))
+        today = self.local_today()
+        years = today.year - self.hockey_since_year
+        if years >= 1:
+            return float(years)
+        # Started this year (review 12.10, 3): a typed-in fraction (half a
+        # season) is kept; else half of the year gone so far -- a beginner's
+        # partial baseline credit isn't rounded down to 0.
+        if self.experience_stored is not None and 0 < self.experience_stored < 1:
+            return self.experience_stored
+        elapsed = (today - date(today.year, 1, 1)).days / (366 if calendar.isleap(today.year) else 365)
+        return round(elapsed / 2, 2)
 
     @years_of_experience.setter
     def years_of_experience(self, value: float | None) -> None:
         # An old client still sends years: kept as the start year.
         self.experience_stored = value
         self.hockey_since_year = None if value is None else self.local_today().year - round(value)
+
+    @property
+    def birthday_festive(self) -> bool:
+        """From the birthday (player's own date) for BIRTHDAY_FESTIVE_DAYS."""
+        if self.birth_date is None:
+            return False
+        today = self.local_today()
+        return any(
+            birthday_in(self.birth_date, year) <= today < birthday_in(self.birth_date, year) + timedelta(days=BIRTHDAY_FESTIVE_DAYS)
+            for year in (today.year, today.year - 1)
+        )
+
+    @property
+    def shared_birthday_festive(self) -> bool:
+        """The festive card others see -- only when the player shares their
+        birthday with the team (team_birthdays)."""
+        return self.team_birthdays is not False and self.birthday_festive
 
     @property
     def findable_by_name(self) -> bool:

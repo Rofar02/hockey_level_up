@@ -5,10 +5,11 @@ asyncio.sleep shape as reminder_scheduler.py, and the same opt-out: a player
 with training reminders off (ReminderPreference.NONE) gets none of these
 either.
 
-When: REPORT_DELAY after the day is assumed over. A team event has a start
-time but no length, so a typical one is assumed (TEAM_EVENT_LENGTH); a day
-the player marked themselves has no time at all, so it's asked at
-OWN_DAY_LOCAL_TIME. A reminder more than STALE_AFTER late (the worker was
+When: REPORT_DELAY after the ice is assumed over (ice_ends_at). A team
+event has a start time but no length, so a typical one is assumed
+(TEAM_EVENT_LENGTH); a day the player marked themselves has no time at all,
+so its ice is assumed over at OWN_ICE_ENDS (a double day's morning ice at
+noon) and it's asked at OWN_DAY_LOCAL_TIME. A reminder more than STALE_AFTER late (the worker was
 down, say) is dropped rather than sent the next morning.
 
 Still no report the next morning: one more ask at FOLLOWUP_LOCAL_TIME
@@ -42,6 +43,10 @@ TEAM_EVENT_LENGTH: dict[TeamEventType, timedelta] = {
     TeamEventType.GAME: timedelta(hours=2),
 }
 OWN_DAY_LOCAL_TIME = time(21, 0)
+# The player's own ice, no time on it: assumed over by the evening -- or by
+# noon when a double day puts it in the morning.
+OWN_ICE_ENDS = time(19, 0)
+OWN_MORNING_ICE_ENDS = time(12, 0)
 STALE_AFTER = timedelta(hours=12)
 FOLLOWUP_LOCAL_TIME = time(9, 0)
 FOLLOWUP_TITLES: dict[DaySessionType, str] = {
@@ -60,10 +65,17 @@ REPORT_BODIES: dict[DaySessionType, str] = {
 }
 
 
-def report_due_at(day_plan: DayPlan, event: TeamEvent | None, tz: ZoneInfo) -> datetime:
+def ice_ends_at(day_plan: DayPlan, event: TeamEvent | None, tz: ZoneInfo) -> datetime:
+    """When the ice / game is assumed over -- the report opens then (review
+    12.10, 7), it counts as pending, and its load is dated by it."""
     if event is not None:
-        return event.starts_at + TEAM_EVENT_LENGTH[event.event_type] + REPORT_DELAY
-    return datetime.combine(day_plan.date, OWN_DAY_LOCAL_TIME, tzinfo=tz)
+        return event.starts_at + TEAM_EVENT_LENGTH[event.event_type]
+    ends = OWN_MORNING_ICE_ENDS if day_plan.time_of_day == "morning" else OWN_ICE_ENDS
+    return datetime.combine(day_plan.date, ends, tzinfo=tz)
+
+
+def report_due_at(day_plan: DayPlan, event: TeamEvent | None, tz: ZoneInfo) -> datetime:
+    return ice_ends_at(day_plan, event, tz) + REPORT_DELAY
 
 
 async def _candidate_days(session: AsyncSession, user: User, local_today: date_) -> list[DayPlan]:

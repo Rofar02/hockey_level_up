@@ -80,6 +80,8 @@ export interface TrainingSessionRead {
   // for on_ice/game, true as soon as any TrainingDiaryEntry row exists
   // for this session, including a quietly-skipped one with no note.
   has_diary_entry: boolean | null
+  // The sent report was «не был» -- the day reads «Пропущен» (review 12.10).
+  diary_skipped?: boolean | null
 }
 
 export interface DayPlanRead {
@@ -95,6 +97,9 @@ export interface DayPlanRead {
   // of the same date; each carries its half of the day.
   is_extra?: boolean
   time_of_day?: ExtraGymTime | null
+  // When the ice / game report opens -- the ice assumed over (review
+  // 12.10). Only on a single day's read (getDayPlanById / for a date).
+  report_opens_at?: string | null
 }
 
 // GET /schedule/features

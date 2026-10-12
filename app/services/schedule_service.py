@@ -286,8 +286,9 @@ class ScheduleService:
         archetype_rotation,
     ) -> DayPlan:
         """The double day's separate gym training -- an ordinary gym day,
-        built exactly like any other (owner's call, 2026-10-10). The main
-        day takes the other half of the day."""
+        built exactly like any other (owner's call, 2026-10-10) -- but
+        beside a game without heavy legs (review 12.10, 10). The main day
+        takes the other half of the day."""
         main_day.time_of_day = "evening" if extra_time == "morning" else "morning"
         extra = DayPlan(
             date=main_day.date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day=extra_time
@@ -295,6 +296,7 @@ class ScheduleService:
         extra.training_session = await self._build_session_for_day(
             DaySessionType.OFF_ICE, user, block_phase, training_block,
             today=main_day.date, archetype_rotation=archetype_rotation,
+            light_legs=main_day.session_type == DaySessionType.GAME,
         )
         return extra
 
@@ -694,6 +696,11 @@ class ScheduleService:
         target = _TEAM_EVENT_SESSION_TYPE[event.event_type]
         if keeps_gym:
             await self._move_gym_to_extra(weekly_plan, day_plan, self._gym_time_beside(event, user))
+            extra = next(d for d in weekly_plan.day_plans if d.date == event_date and d.is_extra)
+            if target == DaySessionType.GAME and not self._has_completed_block(extra):
+                # Beside the team's game: the same gym day without heavy legs
+                # (review 12.10, 10); a started one stays as it is.
+                await self._retype_day(user, weekly_plan, extra, DaySessionType.OFF_ICE, light_legs=True)
         if day_plan.session_type != target:
             await self._retype_day(user, weekly_plan, day_plan, target)
         await self._session.flush()
@@ -762,10 +769,14 @@ class ScheduleService:
             if await self._is_day_started(day_plan):
                 continue
             original = day_plan.replaced_session_type
+            was_game = day_plan.session_type == DaySessionType.GAME
             day_plan.team_event_id = None
             day_plan.replaced_session_type = None
             if original == DaySessionType.OFF_ICE and await self._move_extra_gym_back(weekly_plan, day_plan):
-                # The gym kept beside the team's ice (2026-10-12) comes back.
+                # The gym kept beside the team's ice (2026-10-12) comes back --
+                # with its legs again if the game took them (review 12.10, 10).
+                if was_game and not self._has_completed_block(day_plan):
+                    await self._retype_day(user, weekly_plan, day_plan, DaySessionType.OFF_ICE)
                 continue
             if original is not None and day_plan.session_type != original:
                 await self._retype_day(user, weekly_plan, day_plan, original)
@@ -780,9 +791,11 @@ class ScheduleService:
         weekly_plan: WeeklyPlan,
         day_plan: DayPlan,
         session_type: DaySessionType,
+        light_legs: bool = False,
     ) -> None:
         """Single-day version of _patch_weekly_plan's per-day rebuild, with
-        the same block/phase/rotation/guarantee context it builds per batch."""
+        the same block/phase/rotation/guarantee context it builds per batch.
+        `light_legs`: no heavy legs and no guaranteed sprint pick."""
         training_block = await self._training_block_for_weekly_plan(weekly_plan)
         block_phase = await self._overload_service.apply_brakes(
             user, training_block.phase if training_block is not None else BlockPhase.ACCUMULATION
@@ -799,7 +812,8 @@ class ScheduleService:
             training_block,
             archetype_rotation=archetype_rotation,
             guarantee_endurance=day_plan.date == endurance_date,
-            guarantee_locomotion=day_plan.date == locomotion_date,
+            guarantee_locomotion=day_plan.date == locomotion_date and not light_legs,
+            light_legs=light_legs,
         )
 
     async def _going_team_events_by_date(
@@ -3192,7 +3206,7 @@ class ScheduleService:
         self,
         day: DayPlan,
         stats_by_id: dict[uuid.UUID, list[TargetStat]],
-        diary_session_ids: set[uuid.UUID],
+        diary_session_ids: dict[uuid.UUID, bool],
         patterns_by_id: dict[uuid.UUID, list[MovementPattern]] | None = None,
     ) -> DayPlanRead:
         session_read = None
@@ -3233,6 +3247,7 @@ class ScheduleService:
                 duration_seconds=duration_seconds,
                 blocks=blocks_read,
                 has_diary_entry=has_diary_entry,
+                diary_skipped=diary_session_ids.get(day.training_session.id, False) if has_diary_entry is not None else None,
             )
         return DayPlanRead(
             id=day.id,
@@ -3289,7 +3304,7 @@ class ScheduleService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No day plan for {target_date.isoformat()}",
             )
-        return await self._single_day_plan_to_read_schema(day)
+        return await self._single_day_plan_to_read_schema(day, user)
 
     async def get_day_plan_by_id(self, user: User, day_plan_id: uuid.UUID) -> DayPlanRead:
         """GET /schedule/day-plans/{day_plan_id} -- a single day by id, from
@@ -3304,9 +3319,9 @@ class ScheduleService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No day plan {day_plan_id}",
             )
-        return await self._single_day_plan_to_read_schema(day)
+        return await self._single_day_plan_to_read_schema(day, user)
 
-    async def _single_day_plan_to_read_schema(self, day: DayPlan) -> DayPlanRead:
+    async def _single_day_plan_to_read_schema(self, day: DayPlan, user: User | None = None) -> DayPlanRead:
         exercise_ids = (
             [block.exercise_id for block in day.training_session.blocks]
             if day.training_session is not None
@@ -3321,4 +3336,9 @@ class ScheduleService:
             else []
         )
         diary_session_ids = await self._diary.list_session_ids_with_entries(diary_candidate_ids)
-        return self._day_plan_to_read_schema(day, stats_by_id, diary_session_ids, patterns_by_id)
+        read = self._day_plan_to_read_schema(day, stats_by_id, diary_session_ids, patterns_by_id)
+        if user is not None and day.session_type in self._DIARY_ELIGIBLE_SESSION_TYPES:
+            from app.services.ice_load_service import ice_ended_at
+
+            read.report_opens_at = await ice_ended_at(self._session, day, user.timezone)
+        return read

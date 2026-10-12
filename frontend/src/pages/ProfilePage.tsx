@@ -291,6 +291,7 @@ function OwnProfileView() {
           <PlayerCard
             cardStyle={cardStyleFor(user?.level ?? 1, user?.avatar_ring_accent)}
             premium={user?.has_premium === true}
+            birthday={user?.birthday_festive === true}
             jerseyColor={user?.jersey_color ?? null}
             rating={overallRating}
             position={user?.position ?? null}

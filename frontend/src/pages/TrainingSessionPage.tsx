@@ -1048,14 +1048,23 @@ export function TrainingSessionPage() {
 
       {isIceLike && day !== null ? (
         <>
-          {day.training_session?.has_diary_entry === true && (
-            <div className={`flex items-center gap-3 p-4 ${CARD_CLASS}`}>
-              <i className="ti ti-circle-check text-xl text-accent-ice" aria-hidden="true" />
-              <p className="text-sm text-text-primary">
-                {day.session_type === 'game' ? 'Игра пройдена' : 'Лёд пройден'} — отчёт отправлен
-              </p>
-            </div>
-          )}
+          {day.training_session?.has_diary_entry === true &&
+            (day.training_session.diary_skipped === true ? (
+              // «Не был» (review 12.10): a day missed, not a day done.
+              <div className={`flex items-center gap-3 p-4 ${CARD_CLASS}`}>
+                <i className="ti ti-circle-x text-xl text-text-secondary" aria-hidden="true" />
+                <p className="text-sm text-text-primary">
+                  {day.session_type === 'game' ? 'Игра пропущена' : 'Пропущен'} — отмечено «Не был»
+                </p>
+              </div>
+            ) : (
+              <div className={`flex items-center gap-3 p-4 ${CARD_CLASS}`}>
+                <i className="ti ti-circle-check text-xl text-accent-ice" aria-hidden="true" />
+                <p className="text-sm text-text-primary">
+                  {day.session_type === 'game' ? 'Игра пройдена' : 'Лёд пройден'} — отчёт отправлен
+                </p>
+              </div>
+            ))}
           {day.session_type === 'on_ice' && trainingSessionId !== null && (
             <IceFocusCard trainingSessionId={trainingSessionId} />
           )}

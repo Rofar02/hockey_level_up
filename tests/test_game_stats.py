@@ -65,7 +65,7 @@ def _report(goals: int, assists: int, rating: int, share: bool = False, work_on=
 
 
 @pytest.mark.asyncio
-async def test_my_season_sums_the_reports(db_session) -> None:
+async def test_my_season_sums_the_reports(db_session, ice_over) -> None:
     user = _user()
     db_session.add(user)
     await db_session.flush()

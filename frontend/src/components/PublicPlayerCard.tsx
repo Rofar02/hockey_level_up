@@ -21,6 +21,7 @@ export function PublicPlayerCard({ profile }: { profile: UserPublicRead }) {
     <PlayerCard
       cardStyle={cardStyleFor(profile.level, profile.avatar_ring_accent)}
       premium={profile.has_premium}
+      birthday={profile.birthday_festive === true}
       jerseyColor={profile.jersey_color}
       rating={overallRatingOf(profile.stats)}
       position={profile.position}

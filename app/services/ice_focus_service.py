@@ -24,8 +24,13 @@ class IceFocusService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def focus_for_session(self, user: User, training_session_id: uuid.UUID) -> IceFocusRead | None:
-        """None for a day that isn't an ice day (games have no focus)."""
+    async def focus_for_session(
+        self, user: User, training_session_id: uuid.UUID, fix: bool = False
+    ) -> IceFocusRead | None:
+        """None for a day that isn't an ice day (games have no focus).
+        Review 12.10, 11: a read never writes. `fix` (POST, the focus shown
+        to the player) pins it for the day -- only on the ice day itself, so
+        a look at next Thursday's ice from Monday doesn't settle it early."""
         training_session = await ScheduleRepository(self._session).get_training_session_with_owner(
             training_session_id
         )
@@ -94,9 +99,10 @@ class IceFocusService:
         focus, reason = pick_focus_with_priorities(
             day_plan.date.toordinal(), stats, work_on or None, coach_ids, until_label, priority, task_focus_id
         )
-        training_session.ice_focus_id = focus.id
-        training_session.ice_focus_reason = reason[:200]
-        await self._session.commit()
+        if fix and day_plan.date == user.local_today():
+            training_session.ice_focus_id = focus.id
+            training_session.ice_focus_reason = reason[:200]
+            await self._session.commit()
         return IceFocusRead(id=focus.id, stat=focus.stat, title=focus.title, cues=list(focus.cues), reason=reason)
 
     async def _focus_held(self, user: User, week_start, focus_id: str) -> int:

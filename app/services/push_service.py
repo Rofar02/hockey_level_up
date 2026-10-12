@@ -68,3 +68,9 @@ async def send_push(
             "Push send failed for subscription_id=%s: malformed key data", subscription.id
         )
         return False
+    except Exception:
+        # Anything else from pywebpush / the HTTP client (a timeout, a TLS or
+        # connection error, ...) -- review 12.10, 1: one failed send must
+        # never break the loop that's sending to everyone else.
+        logger.exception("Push send failed for subscription_id=%s", subscription.id)
+        return False

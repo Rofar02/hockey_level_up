@@ -90,7 +90,8 @@ function datesForWeek(slot: WeekSlot): Date[] {
 // 'in-progress' (some but not all blocks completed) vs 'done' (every block
 // completed) -- previously collapsed into one "locked" boolean, which is
 // exactly what made "уже начат" show on a fully-finished day too.
-type DayCompletionStatus = 'not-started' | 'in-progress' | 'done'
+// 'skipped' (review 12.10): an ice day / game whose report was «не был».
+type DayCompletionStatus = 'not-started' | 'in-progress' | 'done' | 'skipped'
 
 function completionStatusFromBlocks(blocks: SessionBlockRead[] | undefined): DayCompletionStatus {
   if (blocks === undefined || blocks.length === 0) {
@@ -111,6 +112,7 @@ function completionStatusFromBlocks(blocks: SessionBlockRead[] | undefined): Day
 const COMPLETION_BADGE_LABELS: Partial<Record<DayCompletionStatus, string>> = {
   'in-progress': 'уже начат',
   done: 'пройдено',
+  skipped: 'пропущен',
 }
 
 // 'уже начат' reads as an invitation to go finish it -- true for today (or,
@@ -163,7 +165,9 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     // 2026-10-11, 4.4) -- the preparation ticks are optional.
     completionStatus:
       (day.session_type === 'on_ice' || day.session_type === 'game') && day.training_session?.has_diary_entry === true
-        ? 'done'
+        ? day.training_session.diary_skipped === true
+          ? 'skipped'
+          : 'done'
         : completionStatusFromBlocks(day.training_session?.blocks),
     trainingSession: day.training_session,
     teamEventId: day.team_event_id,

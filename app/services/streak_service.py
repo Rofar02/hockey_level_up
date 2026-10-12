@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.progress import TrainingStreak
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
@@ -12,7 +13,7 @@ TRAINING_SESSION_TYPES = (DaySessionType.ON_ICE, DaySessionType.OFF_ICE)
 ICE_TYPES = (DaySessionType.ON_ICE, DaySessionType.GAME)
 
 
-def _ice_trained():
+def _ice_trained(plan=DayPlan):
     """An ice day / game the player went to (2026-10-12): its report is
     sent and isn't «не был». The preparation checklist is optional, so the
     report alone closes the day for the streak and the calendar too."""
@@ -20,12 +21,29 @@ def _ice_trained():
         select(TrainingDiaryEntry.id)
         .join(TrainingSession, TrainingSession.id == TrainingDiaryEntry.training_session_id)
         .where(
-            TrainingSession.day_plan_id == DayPlan.id,
+            TrainingSession.day_plan_id == plan.id,
             TrainingDiaryEntry.reported_at.is_not(None),
             TrainingDiaryEntry.skipped.is_(False),
         )
         .exists()
     )
+
+
+def _plan_done(plan):
+    """One DayPlan trained: every block done or skipped (at least one), or
+    -- an ice day / game -- its report sent and not «не был»."""
+    has_any_block = exists().where(SessionBlock.session_id == TrainingSession.id)
+    has_incomplete_block = exists().where(
+        SessionBlock.session_id == TrainingSession.id,
+        SessionBlock.completed_at.is_(None),
+        SessionBlock.skipped_at.is_(None),
+    )
+    session_fully_completed = (
+        select(TrainingSession.id)
+        .where(TrainingSession.day_plan_id == plan.id, has_any_block, ~has_incomplete_block)
+        .exists()
+    )
+    return or_(session_fully_completed, _ice_trained(plan))
 
 
 async def credit_streak_day(session: AsyncSession, user_id: uuid.UUID, day: date) -> None:
@@ -96,6 +114,7 @@ async def list_activity_calendar(
                 or_(SessionBlock.completed_at.is_not(None), SessionBlock.skipped_at.is_not(None))
             ),
             _ice_trained().label("ice_trained"),
+            DayPlan.is_extra,
         )
         .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
         .outerjoin(TrainingSession, TrainingSession.day_plan_id == DayPlan.id)
@@ -104,21 +123,23 @@ async def list_activity_calendar(
             WeeklyPlan.user_id == user_id,
             DayPlan.date >= from_date,
             DayPlan.date <= to_date,
-            # The streak goes by dates: a double day (step 6) counts through
-            # its main ice/game day, an unfinished extra gym day never breaks it.
-            DayPlan.is_extra.is_(False),
         )
-        .group_by(DayPlan.id, DayPlan.date, DayPlan.session_type)
+        .group_by(DayPlan.id, DayPlan.date, DayPlan.session_type, DayPlan.is_extra)
         .order_by(DayPlan.date)
     )
-    return [
-        DayActivity(
-            day,
-            session_type,
-            (total_blocks > 0 and total_blocks == completed_blocks) or (session_type in ICE_TYPES and ice_trained),
-        )
-        for day, session_type, total_blocks, completed_blocks, ice_trained in result.all()
-    ]
+    # One row per date, typed by its main day. A double day (step 6) is
+    # done when either of its trainings is (review 12.10, 6): a gym trained
+    # before "иду" moved it to the extra day stays done.
+    by_date: dict[date, DayActivity] = {}
+    done_dates: set[date] = set()
+    for day, session_type, total_blocks, completed_blocks, ice_trained, is_extra in result.all():
+        if (total_blocks > 0 and total_blocks == completed_blocks) or (session_type in ICE_TYPES and ice_trained):
+            done_dates.add(day)
+        if not is_extra:
+            by_date[day] = DayActivity(day, session_type, False)
+    for day, activity in by_date.items():
+        activity.fully_completed = day in done_dates
+    return [by_date[day] for day in sorted(by_date)]
 
 
 async def is_session_fully_completed(session: AsyncSession, session_block_id: uuid.UUID) -> bool:
@@ -183,19 +204,15 @@ async def has_missed_training_day(
     if to_date - from_date <= timedelta(days=1):
         return False  # nothing strictly between two consecutive (or equal) dates
 
-    has_any_block = exists().where(SessionBlock.session_id == TrainingSession.id)
-    has_incomplete_block = exists().where(
-        SessionBlock.session_id == TrainingSession.id,
-        SessionBlock.completed_at.is_(None),
-        SessionBlock.skipped_at.is_(None),
-    )
-    session_fully_completed = (
-        select(TrainingSession.id)
-        .where(
-            TrainingSession.day_plan_id == DayPlan.id,
-            has_any_block,
-            ~has_incomplete_block,
-        )
+    # Review 12.10, 6: a date is trained when any of its plans is -- the
+    # main day or a double day's extra gym (a gym done before "иду" moved
+    # it to the extra day).
+    other = aliased(DayPlan)
+    other_week = aliased(WeeklyPlan)
+    date_trained = (
+        select(other.id)
+        .join(other_week, other.weekly_plan_id == other_week.id)
+        .where(other_week.user_id == user_id, other.date == DayPlan.date, _plan_done(other))
         .exists()
     )
 
@@ -210,8 +227,7 @@ async def has_missed_training_day(
             # A double day's extra gym (step 6) never breaks the streak --
             # the date counts through its main ice/game day.
             DayPlan.is_extra.is_(False),
-            ~session_fully_completed,
-            ~_ice_trained(),
+            ~date_trained,
         )
         .limit(1)
     )

@@ -48,6 +48,7 @@ export interface UserProfileUpdate {
   jersey_color?: JerseyColor | null
   // "Меня можно найти по имени"; null goes back to the age default.
   name_search?: boolean | null
+  team_birthdays?: boolean
 }
 
 export function updateProfile(
