@@ -460,6 +460,9 @@ class ScheduleService:
                 )
             weekly_plan.day_plans.append(day_plan)
             extra_time = self._extra_gym_time(requested_day, day_in.session_type)
+            if extra_time is None and team_event is not None and self._gym_kept_beside(requested_day.session_type):
+                # A gym day the team takes over keeps its gym (2026-10-12).
+                extra_time = self._gym_time_beside(team_event, user)
             if extra_time is not None:
                 weekly_plan.day_plans.append(
                     await self._build_extra_gym_day(day_plan, extra_time, user, block_phase, training_block, archetype_rotation)
@@ -672,16 +675,72 @@ class ScheduleService:
         day_plan = next(
             (day for day in weekly_plan.day_plans if day.date == event_date and not day.is_extra), None
         )
-        if day_plan is None or await self._is_day_started(day_plan):
+        if day_plan is None:
+            return False
+        # A gym day -- planned or already started -- keeps its gym as the
+        # double day's second training (owner's call, 2026-10-12, same as
+        # «+ лёд» by hand); the team's ice becomes the main day.
+        keeps_gym = (
+            self._gym_kept_beside(day_plan.session_type)
+            and day_plan.training_session is not None
+            and not any(d.date == event_date and d.is_extra for d in weekly_plan.day_plans)
+        )
+        if not keeps_gym and await self._is_day_started(day_plan):
             return False
 
         if day_plan.team_event_id is None:
             day_plan.replaced_session_type = day_plan.session_type
         day_plan.team_event_id = event.id
         target = _TEAM_EVENT_SESSION_TYPE[event.event_type]
+        if keeps_gym:
+            await self._move_gym_to_extra(weekly_plan, day_plan, self._gym_time_beside(event, user))
         if day_plan.session_type != target:
             await self._retype_day(user, weekly_plan, day_plan, target)
         await self._session.flush()
+        return True
+
+    @staticmethod
+    def _gym_kept_beside(session_type: DaySessionType) -> bool:
+        return session_type == DaySessionType.OFF_ICE and get_settings().double_days_enabled
+
+    @staticmethod
+    def _gym_time_beside(event: TeamEvent, user: User) -> str:
+        """The gym goes to the other half of the day from the team's ice."""
+        local_hour = event.starts_at.astimezone(ZoneInfo(user.timezone or "UTC")).hour
+        return "morning" if local_hour >= 14 else "evening"
+
+    async def _move_gym_to_extra(self, weekly_plan: WeeklyPlan, day_plan: DayPlan, extra_time: str) -> None:
+        """The day's gym session, as it is (started or not), becomes the
+        extra day's; the main day takes the other half of the day."""
+        extra = DayPlan(date=day_plan.date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day=extra_time)
+        weekly_plan.day_plans.append(extra)
+        day_plan.training_session.day_plan = extra
+        day_plan.time_of_day = "evening" if extra_time == "morning" else "morning"
+        # day_plan_id is unique: the gym must move before the ice is built.
+        await self._session.flush()
+        await self._session.refresh(day_plan, ["training_session"])
+
+    async def _move_extra_gym_back(self, weekly_plan: WeeklyPlan, day_plan: DayPlan) -> bool:
+        """Undo _move_gym_to_extra: the team's ice goes, the gym returns to
+        the main day. False when there's no extra gym to bring back."""
+        extra = next((d for d in weekly_plan.day_plans if d.date == day_plan.date and d.is_extra), None)
+        if extra is None or extra.training_session is None:
+            return False
+        if day_plan.training_session is not None:
+            from app.services.ice_load_service import IceLoadService
+
+            ice = day_plan.training_session
+            await IceLoadService(self._session).take_back(ice.id)
+            await self._session.delete(ice)
+            await self._session.flush()
+        extra.training_session.day_plan = day_plan
+        await self._session.flush()
+        weekly_plan.day_plans.remove(extra)
+        await self._session.delete(extra)
+        day_plan.session_type = DaySessionType.OFF_ICE
+        day_plan.time_of_day = None
+        await self._session.flush()
+        await self._session.refresh(day_plan, ["training_session"])
         return True
 
     @_assembly_scoped
@@ -705,6 +764,9 @@ class ScheduleService:
             original = day_plan.replaced_session_type
             day_plan.team_event_id = None
             day_plan.replaced_session_type = None
+            if original == DaySessionType.OFF_ICE and await self._move_extra_gym_back(weekly_plan, day_plan):
+                # The gym kept beside the team's ice (2026-10-12) comes back.
+                continue
             if original is not None and day_plan.session_type != original:
                 await self._retype_day(user, weekly_plan, day_plan, original)
             if day_plan.session_type not in (DaySessionType.ON_ICE, DaySessionType.GAME):

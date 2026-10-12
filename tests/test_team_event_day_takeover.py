@@ -169,7 +169,10 @@ async def test_reschedule_moves_the_takeover_to_the_new_day(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_started_day_is_left_alone(db_session) -> None:
+async def test_started_gym_day_keeps_its_gym_as_the_second_training(db_session) -> None:
+    """2026-10-12 (owner): a gym day -- even a started one -- keeps its gym
+    as the double day's extra, the team's ice becomes the main day; «не иду»
+    brings the same gym back."""
     captain, player, team = await _make_team_with_player(db_session)
     event_day = _event_day()
     await _declare_rest_week(db_session, player, event_day)
@@ -202,14 +205,33 @@ async def test_started_day_is_left_alone(db_session) -> None:
         ],
     )
     await db_session.flush()
+    gym_session_id = day_plan.training_session.id
     events = TeamEventService(db_session)
     event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _noon_utc(event_day), None)
 
     await events.set_my_attendance(player, team.id, event.id, TeamEventAttendanceStatus.GOING, None, None)
 
+    plans = await ScheduleRepository(db_session).get_current(player.id, event_day)
+    await db_session.refresh(plans, ["day_plans"])
+    days = {d.is_extra: d for d in plans.day_plans if d.date == event_day}
+    for d in days.values():
+        await db_session.refresh(d, ["training_session"])
+    assert days[False].session_type == DaySessionType.ON_ICE and days[False].team_event_id == event.id
+    assert days[True].session_type == DaySessionType.OFF_ICE and days[True].training_session.id == gym_session_id
+    # The event at noon UTC: the gym goes to the evening.
+    assert (days[False].time_of_day, days[True].time_of_day) == ("morning", "evening")
+
+    await events.set_my_attendance(
+        player, team.id, event.id, TeamEventAttendanceStatus.NOT_GOING, TeamEventAbsenceReason.WORK, None
+    )
+
     day_plan = await _day(db_session, player, event_day)
-    assert day_plan.session_type == DaySessionType.OFF_ICE
-    assert day_plan.team_event_id is None
+    await db_session.refresh(day_plan, ["training_session"])
+    assert day_plan.session_type == DaySessionType.OFF_ICE and day_plan.team_event_id is None
+    assert day_plan.training_session.id == gym_session_id and day_plan.time_of_day is None
+    plans = await ScheduleRepository(db_session).get_current(player.id, event_day)
+    await db_session.refresh(plans, ["day_plans"])
+    assert not any(d.is_extra for d in plans.day_plans)
 
 
 @pytest.mark.asyncio
