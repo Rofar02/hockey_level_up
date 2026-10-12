@@ -38,11 +38,17 @@ const TEXT_SHADOW: CSSProperties = { textShadow: '0 2px 12px rgba(0,0,0,0.75)' }
 // every render.
 const BIRTHDAY_GLOW = '0 0 30px rgba(255,140,170,0.45), 0 0 46px rgba(255,214,120,0.25)'
 const CONFETTI_COLORS = ['#FF8CAA', '#FFD678', '#7FC4FF', '#B9F18C', '#FFFFFF']
-const CONFETTI = Array.from({ length: 22 }, (_, index) => ({
-  x: (index * 67 + 23) % 350,
-  y: (index * 41 + 11) % 210,
-  rotate: (index * 53) % 180,
-  round: index % 3 === 0,
+// A fixed pseudo-random scatter (a plain modulo walk lined up in stripes).
+function scatter(seed: number): number {
+  const value = Math.sin(seed * 12.9898) * 43758.5453
+  return value - Math.floor(value)
+}
+const CONFETTI = Array.from({ length: 26 }, (_, index) => ({
+  x: 8 + scatter(index + 1) * 340,
+  // Denser at the top, thinning out towards the photo.
+  y: 4 + scatter(index + 101) ** 1.6 * 215,
+  rotate: Math.round(scatter(index + 201) * 180),
+  round: scatter(index + 301) < 0.35,
   color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
 }))
 
