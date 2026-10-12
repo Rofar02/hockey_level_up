@@ -220,6 +220,10 @@ class TrainingSession(Base):
     )
 
     day_plan: Mapped["DayPlan"] = relationship(back_populates="training_session")
+    # The ice day's focus as first shown (review 2026-10-11, 4.5): fixed for
+    # the day -- a report about the last game no longer changes it midway.
+    ice_focus_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    ice_focus_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
     blocks: Mapped[list["SessionBlock"]] = relationship(
         back_populates="session", cascade="all, delete-orphan", order_by="SessionBlock.order"
     )

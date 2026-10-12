@@ -18,7 +18,7 @@ export const ICE_DURATIONS = [45, 60, 75, 90] as const
 export const ICE_EFFORT_LABELS: Record<IceEffort, string> = {
   easy: 'Легко',
   normal: 'Нормально',
-  hard: 'На пределе',
+  hard: 'Тяжело',
 }
 
 export const ICE_HIGHLIGHT_LABELS: Record<IceHighlight, string> = {

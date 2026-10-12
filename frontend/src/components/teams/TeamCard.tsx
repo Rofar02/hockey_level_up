@@ -119,7 +119,12 @@ export function TeamCard({ card }: { card: TeamCardRead }) {
           )}
           <div className="flex w-full items-center gap-2.5">
             <span data-card="stripe-line" className="h-px flex-1" style={{ background: look.stripe }} />
-            <span data-card-text className="max-w-[260px] truncate font-display text-[32px] font-bold uppercase tracking-[2px] text-text-primary">
+            <span
+              data-card-text
+              className="max-w-[300px] text-center font-display font-bold uppercase leading-none tracking-[2px] text-text-primary"
+              // Shrinks with the name instead of cutting it («СЕВЕРНЫЕ ВОЛ…»).
+              style={{ fontSize: `${card.name.length <= 10 ? 32 : card.name.length <= 14 ? 26 : card.name.length <= 18 ? 21 : 17}px` }}
+            >
               {card.name}
             </span>
             <span data-card="stripe-line" className="h-px flex-1" style={{ background: look.stripe }} />

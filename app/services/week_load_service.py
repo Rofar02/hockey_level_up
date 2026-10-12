@@ -57,8 +57,8 @@ async def _dose_events(
     ).all()
     for completed_at, difficulty, muscle, weight in gym:
         events.append((completed_at, muscle, difficulty * GAIN_PER_DIFFICULTY_LEVEL * weight))
-    # Dated by when the ice was over, not when the report (or the 24-hour
-    # default) came in; a charge from before ice_ended_at existed: its update.
+    # Dated by when the ice was over, not when the report came in; a charge
+    # from before ice_ended_at existed: its update.
     ice_at = func.coalesce(IceLoadCharge.ice_ended_at, IceLoadCharge.updated_at)
     ice = (
         await session.execute(

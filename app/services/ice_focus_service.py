@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.coach_tasks import CoachTaskType
-from app.core.ice_focus import ON_ICE_STATS, WORK_ON_LOOKBACK_DAYS, pick_focus_with_priorities
+from app.core.ice_focus import FOCUS_BY_ID, ON_ICE_STATS, WORK_ON_LOOKBACK_DAYS, pick_focus_with_priorities
 from app.models.coach_task import WeeklyCoachTask
 from app.models.progress import UserStat
 from app.models.schedule import DayPlan, DaySessionType, TrainingSession, WeeklyPlan
@@ -34,6 +34,13 @@ class IceFocusService:
         day_plan = training_session.day_plan
         if day_plan.session_type != DaySessionType.ON_ICE:
             return None
+        # Fixed when first shown (review 2026-10-11, 4.5).
+        fixed = FOCUS_BY_ID.get(training_session.ice_focus_id or "")
+        if fixed is not None:
+            return IceFocusRead(
+                id=fixed.id, stat=fixed.stat, title=fixed.title, cues=list(fixed.cues),
+                reason=training_session.ice_focus_reason or "",
+            )
 
         stats = dict(
             (
@@ -68,16 +75,46 @@ class IceFocusService:
             until_label = user.coach_ice_focus_until.strftime("%d.%m")
         priority = [name for _, name in await UserSkillPreferenceRepository(self._session).list_with_skill_names(user.id)]
         week_start = day_plan.date - timedelta(days=day_plan.date.weekday())
-        task_focus_id = await self._session.scalar(
-            select(WeeklyCoachTask.focus_id).where(
-                WeeklyCoachTask.user_id == user.id,
-                WeeklyCoachTask.week_start == week_start,
-                WeeklyCoachTask.task_type == CoachTaskType.ICE_FOCUS.value,
-                WeeklyCoachTask.focus_id.is_not(None),
-                WeeklyCoachTask.claimed_at.is_(None),
+        task = (
+            await self._session.execute(
+                select(WeeklyCoachTask.focus_id, WeeklyCoachTask.count).where(
+                    WeeklyCoachTask.user_id == user.id,
+                    WeeklyCoachTask.week_start == week_start,
+                    WeeklyCoachTask.task_type == CoachTaskType.ICE_FOCUS.value,
+                    WeeklyCoachTask.focus_id.is_not(None),
+                    WeeklyCoachTask.claimed_at.is_(None),
+                )
             )
-        )
+        ).first()
+        task_focus_id = None
+        if task is not None and await self._focus_held(user, week_start, task.focus_id) < task.count:
+            # Only while the task still needs it (review 2026-10-11, 5.4) --
+            # a done one no longer steers the day, claimed or not.
+            task_focus_id = task.focus_id
         focus, reason = pick_focus_with_priorities(
             day_plan.date.toordinal(), stats, work_on or None, coach_ids, until_label, priority, task_focus_id
         )
+        training_session.ice_focus_id = focus.id
+        training_session.ice_focus_reason = reason[:200]
+        await self._session.commit()
         return IceFocusRead(id=focus.id, stat=focus.stat, title=focus.title, cues=list(focus.cues), reason=reason)
+
+    async def _focus_held(self, user: User, week_start, focus_id: str) -> int:
+        """Ice reports this week that answered about `focus_id`."""
+        return len(
+            (
+                await self._session.scalars(
+                    select(TrainingDiaryEntry.id)
+                    .join(TrainingSession, TrainingSession.id == TrainingDiaryEntry.training_session_id)
+                    .join(DayPlan, DayPlan.id == TrainingSession.day_plan_id)
+                    .join(WeeklyPlan, WeeklyPlan.id == DayPlan.weekly_plan_id)
+                    .where(
+                        WeeklyPlan.user_id == user.id,
+                        DayPlan.date >= week_start,
+                        DayPlan.date <= week_start + timedelta(days=6),
+                        TrainingDiaryEntry.focus_id == focus_id,
+                        TrainingDiaryEntry.focus_result.is_not(None),
+                    )
+                )
+            ).all()
+        )

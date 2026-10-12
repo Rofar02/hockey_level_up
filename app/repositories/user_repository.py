@@ -57,7 +57,10 @@ class UserRepository:
             jersey_number=user_in.jersey_number,
             privacy_consent_at=datetime.now(timezone.utc),
             friend_code=friend_code,
+            birth_date=user_in.birth_date,
         )
+        if user_in.hockey_since_year is not None:
+            user.hockey_since_year = user_in.hockey_since_year
         self._session.add(user)
         await self._session.flush()
         return user

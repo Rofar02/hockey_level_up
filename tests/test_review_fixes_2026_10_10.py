@@ -654,3 +654,132 @@ async def test_a_training_ahead_can_be_looked_at_not_started(db_session) -> None
         assert exc.value.status_code == 409
     # Looking is fine.
     assert await SetCompletionService(db_session).list_sets(user, exercise.id, session.id) == []
+
+
+# -- the 2026-10-11 review --
+
+
+@pytest.mark.asyncio
+async def test_a_reported_ice_day_is_started_and_never_rebuilt(db_session) -> None:
+    """1.1: rebuilding a reported ice day deleted its report with its
+    session, and the new session could be reported and rewarded again."""
+    from app.models.progress import StatHistory
+    from app.models.schedule import BlockPhase
+    from app.schemas.schedule import DayPlanIn, WeeklyPlanPatch
+    from app.schemas.training_diary import DiaryReportIn
+    from app.models.training_diary import IceEffort
+    from app.services.schedule_service import ScheduleService
+    from app.services.training_diary_service import TrainingDiaryService
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    today = utc_today()
+    plan, day_plan = await _ice_day(db_session, user, today)
+    session_id = day_plan.training_session.id
+    await TrainingDiaryService(db_session).save_entry(
+        user, session_id, None, DiaryReportIn(duration_minutes=60, effort=IceEffort.NORMAL)
+    )
+    rewards_before = len((await db_session.scalars(select(StatHistory).where(StatHistory.user_id == user.id))).all())
+
+    result = await ScheduleService(db_session).patch_weekly_plan(
+        user, WeeklyPlanPatch(days=[DayPlanIn(date=today, session_type=DaySessionType.REST)]), plan.week_start_date
+    )
+
+    assert [c.date for c in result.conflicts] == [today]
+    still = await db_session.get(DayPlan, day_plan.id)
+    await db_session.refresh(still, ["training_session"])
+    assert still.session_type == DaySessionType.ON_ICE and still.training_session.id == session_id
+    assert (await db_session.scalars(select(IceLoadCharge).where(IceLoadCharge.training_session_id == session_id))).one()
+    rewards_after = len((await db_session.scalars(select(StatHistory).where(StatHistory.user_id == user.id))).all())
+    assert rewards_after == rewards_before
+
+
+@pytest.mark.asyncio
+async def test_no_report_before_the_ice(db_session) -> None:
+    """1.2: an own ice day from its day, a team event from its start."""
+    from app.schemas.training_diary import DiaryReportIn
+    from app.models.training_diary import IceEffort
+    from app.services.training_diary_service import TrainingDiaryService
+
+    report = DiaryReportIn(duration_minutes=60, effort=IceEffort.NORMAL)
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    _, tomorrow = await _ice_day(db_session, user, utc_today() + timedelta(days=1))
+    with pytest.raises(HTTPException) as exc:
+        await TrainingDiaryService(db_session).save_entry(user, tomorrow.training_session.id, None, report)
+    assert exc.value.status_code == 409
+
+    captain, player, team = await _team(db_session, "Отчёт до льда")
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
+    _, team_day = await _ice_day(db_session, player, utc_today())
+    team_day.team_event_id = event.id
+    await db_session.flush()
+    with pytest.raises(HTTPException) as exc:
+        await TrainingDiaryService(db_session).save_entry(player, team_day.training_session.id, None, report)
+    assert exc.value.status_code == 409
+    (await events._events.get_event(event.id)).starts_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    await db_session.flush()
+    saved = await TrainingDiaryService(db_session).save_entry(player, team_day.training_session.id, None, report)
+    assert saved.reported_at is not None
+
+
+@pytest.mark.asyncio
+async def test_a_done_focus_task_no_longer_steers_the_focus(db_session) -> None:
+    """Review 2026-10-11, 5.4: the week's «держи фокус X» steers the day only
+    while it still needs it -- done (not just claimed) releases it."""
+    from app.models.training_diary import FocusResult, TrainingDiaryEntry
+    from app.services.ice_focus_service import IceFocusService
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    today = utc_today()
+    week_start = today - timedelta(days=today.weekday())
+    await CoachTaskService(db_session).save_specs(
+        user.id, week_start, [CoachTaskSpec(CoachTaskType.ICE_FOCUS, 1, "skate_stops")], "coach"
+    )
+    _, held = await _ice_day(db_session, user, today)
+
+    async def _fresh_ice_today(offset_weeks: int):
+        # Another plan row (one plan per week start) holding an ice day today.
+        day = DayPlan(
+            id=uuid.uuid4(), date=today, session_type=DaySessionType.ON_ICE,
+            training_session=TrainingSession(id=uuid.uuid4(), blocks=[]),
+        )
+        db_session.add(
+            WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=week_start + timedelta(weeks=offset_weeks),
+                       day_plans=[day])
+        )
+        await db_session.flush()
+        return await IceFocusService(db_session).focus_for_session(user, day.training_session.id)
+
+    assert (await _fresh_ice_today(10)).id == "skate_stops"
+
+    db_session.add(
+        TrainingDiaryEntry(
+            user_id=user.id, training_session_id=held.training_session.id, focus_id="skate_stops",
+            focus_result=FocusResult.DONE, reported_at=datetime.now(timezone.utc),
+        )
+    )
+    await db_session.flush()
+
+    assert (await _fresh_ice_today(11)).reason != "Задание тренера на эту неделю"
+
+
+@pytest.mark.asyncio
+async def test_lineup_groups_sort_by_number_goalies_last() -> None:
+    """Review 2026-10-11, 4.3: «Пятёрка 2» before «Пятёрка 10», goalies last."""
+    from types import SimpleNamespace
+
+    from app.repositories.team_event_repository import lineup_group_sort_key
+
+    groups = [
+        SimpleNamespace(name=name, order=order)
+        for order, name in enumerate(["Вратари", "Пятёрка 10", "Пятёрка 2", "Запас", "Пятёрка 1"])
+    ]
+    assert [g.name for g in sorted(groups, key=lineup_group_sort_key)] == [
+        "Пятёрка 1", "Пятёрка 2", "Пятёрка 10", "Запас", "Вратари",
+    ]

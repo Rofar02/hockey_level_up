@@ -38,7 +38,7 @@ import type { SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
 import { lockBodyScroll, unlockBodyScroll } from '../utils/bodyScrollLock'
-import { formatShortDate, parseIsoDate, toIsoDate } from '../utils/date'
+import { formatShortDate, parseIsoDate, toIsoDate, todayIsoIn } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -224,8 +224,8 @@ function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
 
 // "Сегодня" / "Завтра" / "Вчера" -- other days are named by the big date
 // under it (2026-10-10 redesign).
-function dayTagFor(isoDate: string): string | null {
-  const today = new Date()
+function dayTagFor(isoDate: string, todayIso: string): string | null {
+  const today = parseIsoDate(todayIso)
   const shift = (days: number) => {
     const d = new Date(today)
     d.setDate(today.getDate() + days)
@@ -245,7 +245,7 @@ function formatLongDate(isoDate: string): string {
 
 export function TrainingSessionPage() {
   const { dayPlanId } = useParams<{ dayPlanId: string }>()
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   const navigate = useNavigate()
 
   const [day, setDay] = useState<DayPlanRead | null>(null)
@@ -262,9 +262,13 @@ export function TrainingSessionPage() {
   const [pendingIce, setPendingIce] = useState<pendingReportsApi.PendingReportRead | null>(null)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const [isMarkingSkipped, setIsMarkingSkipped] = useState(false)
+  // «Позже» (review 1.3): into the gym without the report, for this visit --
+  // Home's card and the morning push still ask for it.
+  const [iceCheckPostponed, setIceCheckPostponed] = useState(false)
   // A training still ahead (owner's call, 2026-10-10): open to look at,
   // started only on its own day -- the backend refuses anything else.
-  const isAhead = day !== null && day.date > toIsoDate(new Date())
+  const todayIso = todayIsoIn(user?.timezone)
+  const isAhead = day !== null && day.date > todayIso
   const [blocks, setBlocks] = useState<SessionBlockRead[] | null>(null)
   const [trainingSessionId, setTrainingSessionId] = useState<string | null>(null)
   const [trainingBlock, setTrainingBlock] = useState<TrainingBlockRead | null>(null)
@@ -447,7 +451,7 @@ export function TrainingSessionPage() {
 
   // Before the gym starts: an unreported ice day / game first (2026-10-10).
   async function beginWithIceCheck(action: () => void) {
-    if (accessToken === null || isAhead) {
+    if (accessToken === null || isAhead || iceCheckPostponed) {
       action()
       return
     }
@@ -816,7 +820,7 @@ export function TrainingSessionPage() {
       ? (currentPhaseBlocks.find((block) => block.exercise.id === selectedExercise.id) ?? null)
       : null
 
-  const dayTag = day !== null ? dayTagFor(day.date) : null
+  const dayTag = day !== null ? dayTagFor(day.date, todayIso) : null
   const eyebrow = [dayTag, trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null]
     .filter(Boolean)
     .join(' · ')
@@ -1044,6 +1048,14 @@ export function TrainingSessionPage() {
 
       {isIceLike && day !== null ? (
         <>
+          {day.training_session?.has_diary_entry === true && (
+            <div className={`flex items-center gap-3 p-4 ${CARD_CLASS}`}>
+              <i className="ti ti-circle-check text-xl text-accent-ice" aria-hidden="true" />
+              <p className="text-sm text-text-primary">
+                {day.session_type === 'game' ? 'Игра пройдена' : 'Лёд пройден'} — отчёт отправлен
+              </p>
+            </div>
+          )}
           {day.session_type === 'on_ice' && trainingSessionId !== null && (
             <IceFocusCard trainingSessionId={trainingSessionId} />
           )}
@@ -1061,8 +1073,10 @@ export function TrainingSessionPage() {
                       : PHASE_LABELS[phase]}
                 </span>
                 <span className="font-mono text-[11px] text-text-secondary">
-                  {blocksByPhase[phase].filter((block) => isExerciseDone(block, setCompletionCounts)).length} из{' '}
-                  {blocksByPhase[phase].length}
+                  {day.training_session?.has_diary_entry === true &&
+                  blocksByPhase[phase].every((block) => !isExerciseDone(block, setCompletionCounts))
+                    ? 'необязательно'
+                    : `${blocksByPhase[phase].filter((block) => isExerciseDone(block, setCompletionCounts)).length} из ${blocksByPhase[phase].length}`}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
@@ -1082,38 +1096,41 @@ export function TrainingSessionPage() {
               </div>
             </div>
           ))}
-          <div aria-hidden="true" style={{ height: footerHeight }} />
-          <div
-            ref={setFooterNode}
-            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
-            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
-          >
-            <div className="mx-auto max-w-2xl">
-              {isAhead ? (
-                <Button disabled className="w-full">
-                  Начнётся {formatShortDate(parseIsoDate(day.date))}
-                </Button>
-              ) : (
-                <Button
-                  variant={day.training_session?.has_diary_entry === true ? 'neutral' : undefined}
-                  onClick={() =>
-                    navigate(
-                      day.training_session?.has_diary_entry === true
-                        ? `/day-report/${day.date}`
-                        : `/training/${day.id}/diary`,
-                    )
-                  }
-                  className="w-full"
-                >
-                  {day.training_session?.has_diary_entry === true
-                    ? 'Как прошёл день'
-                    : day.session_type === 'game'
-                      ? 'Как сыграли?'
-                      : 'Отчёт после льда'}
-                </Button>
-              )}
-            </div>
-          </div>
+          <div aria-hidden="true" style={{ height: `max(0px, calc(${footerHeight}px - var(--bottom-nav-space)))` }} />
+          {createPortal(
+            <div
+              ref={setFooterNode}
+              className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+              style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+            >
+              <div className="mx-auto max-w-2xl">
+                {isAhead ? (
+                  <Button disabled className="w-full">
+                    Начнётся {formatShortDate(parseIsoDate(day.date))}
+                  </Button>
+                ) : (
+                  <Button
+                    variant={day.training_session?.has_diary_entry === true ? 'neutral' : undefined}
+                    onClick={() =>
+                      navigate(
+                        day.training_session?.has_diary_entry === true
+                          ? `/day-report/${day.date}`
+                          : `/training/${day.id}/diary`,
+                      )
+                    }
+                    className="w-full"
+                  >
+                    {day.training_session?.has_diary_entry === true
+                      ? 'Как прошёл день'
+                      : day.session_type === 'game'
+                        ? 'Как сыграли?'
+                        : 'Отчёт после льда'}
+                  </Button>
+                )}
+              </div>
+            </div>,
+            document.body,
+          )}
           {peekExercise !== null && trainingSessionId !== null && accessToken !== null && (
             <ExerciseDetailModal
               exercise={peekExercise}
@@ -1176,38 +1193,41 @@ export function TrainingSessionPage() {
               )
             })}
           </div>
-          <div aria-hidden="true" style={{ height: footerHeight }} />
-          <div
-            ref={setFooterNode}
-            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
-            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
-          >
-            <div className="mx-auto max-w-2xl">
-              {isAhead && day !== null ? (
-                <Button disabled className="w-full">
-                  Начнётся {formatShortDate(parseIsoDate(day.date))}
-                </Button>
-              ) : (
-                <Button
-                  onClick={() =>
-                    void beginWithIceCheck(() => {
-                      setStartedHere(true)
-                      const first = orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))
-                      if (first !== undefined) {
-                        setSelectedExercise(first.exercise)
-                      }
-                    })
-                  }
-                  className="w-full"
-                >
-                  <span className="flex items-center justify-center gap-2">
-                    <i className="ti ti-player-play-filled" aria-hidden="true" />
-                    Начать тренировку
-                  </span>
-                </Button>
-              )}
-            </div>
-          </div>
+          <div aria-hidden="true" style={{ height: `max(0px, calc(${footerHeight}px - var(--bottom-nav-space)))` }} />
+          {createPortal(
+            <div
+              ref={setFooterNode}
+              className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+              style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+            >
+              <div className="mx-auto max-w-2xl">
+                {isAhead && day !== null ? (
+                  <Button disabled className="w-full">
+                    Начнётся {formatShortDate(parseIsoDate(day.date))}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() =>
+                      void beginWithIceCheck(() => {
+                        setStartedHere(true)
+                        const first = orderedBlocks.find((block) => !isExerciseDone(block, setCompletionCounts))
+                        if (first !== undefined) {
+                          setSelectedExercise(first.exercise)
+                        }
+                      })
+                    }
+                    className="w-full"
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <i className="ti ti-player-play-filled" aria-hidden="true" />
+                      Начать тренировку
+                    </span>
+                  </Button>
+                )}
+              </div>
+            </div>,
+            document.body,
+          )}
         </>
       ) : (
         <>
@@ -1308,34 +1328,37 @@ export function TrainingSessionPage() {
           {/* Reserves scroll space so the sticky footer below never covers
               the last exercise row -- sized to the
               footer's own measured height, not a guess (see footerHeight). */}
-          <div aria-hidden="true" style={{ height: footerHeight }} />
+          <div aria-hidden="true" style={{ height: `max(0px, calc(${footerHeight}px - var(--bottom-nav-space)))` }} />
 
-          <div
-            ref={setFooterNode}
-            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
-            // Solid all the way down: the floating BottomNav capsule sits on
-            // top of this bar's lower part instead of over a strip of
-            // scrolling exercises; the button stays clear above the capsule.
-            style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
-          >
-            <div className="mx-auto max-w-2xl">
-              <Button onClick={handleFinishPhase} disabled={!canFinishPhase || isAhead} className="w-full">
-                {isAhead && day !== null
-                  ? `Начнётся ${formatShortDate(parseIsoDate(day.date))}`
-                  : isRevisitingCompletedSession
-                    ? 'На главную'
-                    : isLastPhase
-                      ? 'Завершить тренировку'
-                      : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
-              </Button>
-              {!canFinishPhase && !isAhead && (
-                <p className="mt-2 text-center text-xs text-text-secondary">
-                  Осталось {currentPhaseTotal - currentPhaseDoneCount}{' '}
-                  {pluralizeExercises(currentPhaseTotal - currentPhaseDoneCount)}
-                </p>
-              )}
-            </div>
-          </div>
+          {createPortal(
+            <div
+              ref={setFooterNode}
+              className="fixed inset-x-0 bottom-0 z-40 border-t border-white/5 bg-dark-card px-4 pt-3"
+              // Solid all the way down: the floating BottomNav capsule sits on
+              // top of this bar's lower part instead of over a strip of
+              // scrolling exercises; the button stays clear above the capsule.
+              style={{ paddingBottom: 'calc(var(--bottom-nav-space) + 4px)' }}
+            >
+              <div className="mx-auto max-w-2xl">
+                <Button onClick={handleFinishPhase} disabled={!canFinishPhase || isAhead} className="w-full">
+                  {isAhead && day !== null
+                    ? `Начнётся ${formatShortDate(parseIsoDate(day.date))}`
+                    : isRevisitingCompletedSession
+                      ? 'На главную'
+                      : isLastPhase
+                        ? 'Завершить тренировку'
+                        : `Завершить ${PHASE_LABELS_ACCUSATIVE[currentPhase]} →`}
+                </Button>
+                {!canFinishPhase && !isAhead && (
+                  <p className="mt-2 text-center text-xs text-text-secondary">
+                    Осталось {currentPhaseTotal - currentPhaseDoneCount}{' '}
+                    {pluralizeExercises(currentPhaseTotal - currentPhaseDoneCount)}
+                  </p>
+                )}
+              </div>
+            </div>,
+            document.body,
+          )}
 
           {previewPhaseIndex !== null && activePhases[previewPhaseIndex] !== undefined && (
             <PhasePreviewSheet
@@ -1359,13 +1382,13 @@ export function TrainingSessionPage() {
           to the list. */}
       {selectedBlock !== null && trainingSessionId !== null && accessToken !== null && currentPhase !== undefined && (
         <FullScreenOverlay className="flex flex-col bg-[#0A0F1A]">
-          <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-3 px-4 pb-3 pt-[calc(env(safe-area-inset-top,0px)+14px)]">
+          <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-3 pb-3 pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))] pt-[calc(env(safe-area-inset-top,0px)+14px)]">
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={handleCloseExerciseDetail}
                 aria-label="Свернуть плеер"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-dark-card text-text-primary"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-dark-card text-text-primary"
               >
                 <i className="ti ti-chevron-down text-lg" aria-hidden="true" />
               </button>
@@ -1397,7 +1420,7 @@ export function TrainingSessionPage() {
               ))}
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div className="mx-auto w-full max-w-2xl px-4 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
                 <ExerciseFocusScreen
                   inPlayer
@@ -1461,11 +1484,16 @@ export function TrainingSessionPage() {
       )}
 
       {pendingIce !== null && (
-        <FullScreenOverlay className="flex items-end justify-center bg-black/60 p-4 sm:items-center">
-          <div className={`flex w-full max-w-md flex-col gap-4 p-5 ${CARD_CLASS}`} role="dialog" aria-modal="true">
+        <FullScreenOverlay className="flex items-end justify-center bg-black/60 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)] sm:items-center">
+          <div
+            className={`flex w-full max-w-md flex-col gap-4 p-5 ${CARD_CLASS}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pending-ice-title"
+          >
             <span className="text-xs font-semibold uppercase tracking-wide text-accent-persimmon">Сначала отчёт</span>
-            <p className="text-lg font-semibold leading-snug">
-              {pendingReportsApi.pendingReportLabel(pendingIce, toIsoDate(new Date()))}
+            <p id="pending-ice-title" className="text-lg font-semibold leading-snug">
+              {pendingReportsApi.pendingReportLabel(pendingIce, todayIso)}
             </p>
             <p className="text-sm leading-relaxed text-text-secondary">
               Без отчёта приложение не знает, катались ли вы, — и нагрузку на ноги сегодня посчитает вслепую.
@@ -1476,6 +1504,19 @@ export function TrainingSessionPage() {
             <Button variant="neutral" onClick={() => void markPendingSkipped()} isLoading={isMarkingSkipped} className="w-full">
               {pendingIce.session_type === 'game' ? 'Не играл' : 'Не был на льду'}
             </Button>
+            <button
+              type="button"
+              onClick={() => {
+                const action = pendingAction
+                setIceCheckPostponed(true)
+                setPendingIce(null)
+                setPendingAction(null)
+                action?.()
+              }}
+              className="min-h-11 text-sm text-text-secondary underline underline-offset-2 hover:text-text-primary"
+            >
+              Позже
+            </button>
           </div>
         </FullScreenOverlay>
       )}

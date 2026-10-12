@@ -7,6 +7,7 @@ import { CoachPlanReminderCard } from '../components/teamEvents/CoachPlanReminde
 import { TeamDayCard } from '../components/teamEvents/TeamDayCard'
 import { IceFocusCard } from '../components/IceFocusCard'
 import { OnboardingCard } from '../components/OnboardingCard'
+import { BirthdayAskCard } from '../components/BirthdayAskCard'
 import { Button } from '../components/ui/Button'
 import { CardGlow } from '../components/ui/CardGlow'
 import { CARD_BORDER, CARD_CLASS } from '../components/ui/cardStyle'
@@ -509,6 +510,8 @@ export function HomePage() {
             {/* New players: the main loop as a paid checklist, until done or
                 hidden. */}
             <OnboardingCard />
+
+            <BirthdayAskCard />
 
             {/* Ice / games over without a report (2026-10-10): today's own
                 ice has its report button on the day card below. */}

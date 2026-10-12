@@ -1337,7 +1337,7 @@ function SetLogger({
                         type="button"
                         onClick={() => beginEditSet(setNumber, completed)}
                         aria-label={`Исправить подход ${setNumber}`}
-                        className="flex items-center gap-1.5 rounded-full border border-white/10 bg-dark-card px-3 py-1.5 font-mono text-xs text-text-secondary transition-colors hover:border-white/25"
+                        className="flex min-h-11 items-center gap-1.5 rounded-full border border-white/10 bg-dark-card px-3.5 font-mono text-xs text-text-secondary transition-colors hover:border-white/25"
                       >
                         <i className="ti ti-check text-accent-ice" aria-hidden="true" />
                         {setNumber}:{' '}

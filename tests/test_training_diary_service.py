@@ -416,11 +416,15 @@ async def test_no_reward_for_a_future_day_or_after_the_window(db_session) -> Non
     )
     service = TrainingDiaryService(db_session)
 
-    future = await service.save_entry(user, future_session.id, None, GAME_REPORT)
+    # A day ahead can't be reported at all (2026-10-11): 409, not just unpaid.
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc:
+        await service.save_entry(user, future_session.id, None, GAME_REPORT)
+    assert exc.value.status_code == 409
     late = await service.save_entry(user, too_late.id, None, ICE_REPORT)
     in_time = await service.save_entry(user, last_day.id, None, ICE_REPORT)
 
-    assert future.stat_rewards == {} and future.rewarded is False
     assert late.stat_rewards == {} and late.rewarded is False
     assert late.reported_at is not None  # still recorded, just not paid
     assert in_time.rewarded is True

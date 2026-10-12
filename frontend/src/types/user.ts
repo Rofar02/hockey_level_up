@@ -85,6 +85,9 @@ export interface UserRead {
   age: number | null
   position: Position | null
   years_of_experience: number | null
+  // Review 2026-10-11, 3.1-3.2: age and years are computed from these.
+  birth_date: string | null
+  hockey_since_year: number | null
   jersey_number: number | null
   avatar_url: string | null
   avatar_ring_accent: AvatarRingAccent | null
@@ -132,6 +135,9 @@ export interface UserPublicRead {
   // Shown as the PREMIUM plate on the player card (2026-10-04).
   has_premium: boolean
   years_of_experience: number | null
+  // «Играю с 2021» -- never the age or the birth date (strangers see this
+  // card on the invite-link page).
+  hockey_since_year: number | null
   level: number
   xp: number
   created_at: string
@@ -191,5 +197,7 @@ export interface RegisterPayload {
   age?: number | null
   position?: Position | null
   years_of_experience?: number | null
+  birth_date?: string | null
+  hockey_since_year?: number | null
   privacy_consent: boolean
 }

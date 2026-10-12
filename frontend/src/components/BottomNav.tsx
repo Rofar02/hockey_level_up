@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import * as coachChatApi from '../api/coachChat'
 import * as usersApi from '../api/users'
@@ -178,12 +179,16 @@ export function BottomNav() {
   const teamAttention = useTeamAttention()
   const rebuildKey = useRebuildKey()
 
-  return (
+  // Portaled to <body> (review 2026-10-11, 2.2): inside #root -- the app's
+  // scroller -- iOS moved it with the rubber band. z-45: above a page's own
+  // fixed footers (z-40, portaled too), below modals and full-screen layers
+  // (z-50), so it never shows through a modal.
+  return createPortal(
     <nav
       data-app-bottom-nav
       data-nav-state={isKeyboardOpen ? 'hidden' : 'shown'}
       aria-label="Основная навигация"
-      className={`pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pt-7 transition-transform duration-200 ${
+      className={`pointer-events-none fixed inset-x-0 bottom-0 z-[45] px-3 pt-7 transition-transform duration-200 ${
         isKeyboardOpen ? 'translate-y-[120%]' : ''
       }`}
       // 2026-09-18 fix: iOS Safari briefly hides/flickers a `position: fixed`
@@ -199,7 +204,8 @@ export function BottomNav() {
       }}
     >
       <NavCapsule key={rebuildKey} teamAttention={teamAttention} />
-    </nav>
+    </nav>,
+    document.body,
   )
 }
 

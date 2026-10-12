@@ -79,3 +79,42 @@ async def test_no_plan_no_report(db_session) -> None:
     with pytest.raises(HTTPException) as exc:
         await DayReportService(db_session).report(user, utc_today())
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_stats_follow_the_days_rewards_not_the_record_date(db_session) -> None:
+    """Review 2026-10-11, 5.1: yesterday's ice reported this morning moves
+    yesterday's stats, «до» starts from 0, a reward of something else that
+    day isn't counted."""
+    from datetime import timedelta
+
+    from app.models.exercise import TargetStat
+    from app.models.progress import StatHistory, UserStat
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    yesterday = utc_today() - timedelta(days=1)
+    ice = TrainingSession(id=uuid.uuid4(), blocks=[])
+    db_session.add(
+        WeeklyPlan(
+            id=uuid.uuid4(), user_id=user.id, week_start_date=yesterday,
+            day_plans=[DayPlan(id=uuid.uuid4(), date=yesterday, session_type=DaySessionType.ON_ICE, training_session=ice)],
+        )
+    )
+    db_session.add(
+        StatHistory(
+            user_id=user.id, stat_type=TargetStat.INTELLECT, value=5.0, reason="team_bonus",
+            recorded_at=datetime.combine(yesterday, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=12),
+        )
+    )
+    db_session.add(UserStat(user_id=user.id, stat_type=TargetStat.INTELLECT, current_value=5.0))
+    await db_session.flush()
+    await TrainingDiaryService(db_session).save_entry(
+        user, ice.id, None, DiaryReportIn(duration_minutes=60, effort=IceEffort.NORMAL)
+    )
+
+    stats = {s.stat: s for s in (await DayReportService(db_session).report(user, yesterday)).stats}
+
+    assert stats["on_ice_skating"].before == 0 and stats["on_ice_skating"].after > 0
+    assert stats["intellect"].before == 5.0 and stats["intellect"].after > 5.0  # the ice's own gain only

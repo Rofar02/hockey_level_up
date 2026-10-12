@@ -35,6 +35,8 @@ export interface UserProfileUpdate {
   age?: number | null
   position?: Position | null
   years_of_experience?: number | null
+  birth_date?: string | null
+  hockey_since_year?: number | null
   reminder_preference?: ReminderPreference
   season_period?: SeasonPeriod
   coach_personality?: CoachPersonality

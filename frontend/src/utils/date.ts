@@ -21,6 +21,19 @@ export function toIsoDate(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+// Today in the player's own time zone (review 2026-10-11, 4.9) -- the
+// backend judges "a day ahead" by it, not by the device's clock.
+export function todayIsoIn(timeZone: string | null | undefined, now: Date = new Date()): string {
+  if (timeZone) {
+    try {
+      return now.toLocaleDateString('en-CA', { timeZone })
+    } catch {
+      // An unknown zone -- the device's day.
+    }
+  }
+  return toIsoDate(now)
+}
+
 // Local-date parse -- avoids the UTC-midnight shift `new Date(iso)` causes
 // in negative-offset timezones when the caller only cares about the local
 // calendar day (weekday label, "is this today").
