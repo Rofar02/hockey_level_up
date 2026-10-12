@@ -11,6 +11,8 @@ from app.routers.deps import get_current_user
 from app.schemas.auth import (
     DetailResponse,
     EmailAvailabilityRead,
+    EmailVerifyConfirm,
+    PasswordChange,
     PasswordResetConfirm,
     PasswordResetRequest,
     RefreshRequest,
@@ -53,6 +55,31 @@ async def refresh(body: RefreshRequest, session: Annotated[AsyncSession, Depends
     return await AuthService(session).refresh(body.refresh_token)
 
 
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(body: RefreshRequest, session: Annotated[AsyncSession, Depends(get_db)]):
+    """Ends this device's session (its refresh token stops working)."""
+    await AuthService(session).logout(body.refresh_token)
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """«Выйти на всех устройствах» -- this one included."""
+    await AuthService(session).logout_all(current_user)
+
+
+@router.post("/change-password", response_model=TokenPair)
+async def change_password(
+    body: PasswordChange,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Other devices are signed out; this one continues on the returned pair."""
+    return await AuthService(session).change_password(current_user, body.current_password, body.new_password)
+
+
 @router.get("/me", response_model=UserRead)
 async def read_current_user(current_user: Annotated[UserRead, Depends(get_current_user)]):
     return current_user
@@ -70,11 +97,12 @@ async def resend_verification_email(
     return DetailResponse(detail="Письмо с подтверждением отправлено")
 
 
-@router.get("/verify-email/confirm", response_model=DetailResponse)
-async def confirm_verify_email(token: str, session: Annotated[AsyncSession, Depends(get_db)]):
+@router.post("/verify-email/confirm", response_model=DetailResponse)
+async def confirm_verify_email(body: EmailVerifyConfirm, session: Annotated[AsyncSession, Depends(get_db)]):
     """Public (a link clicked from an email, not necessarily from a logged-in
-    browser) -- consume_token itself is what actually validates `token`."""
-    await AuthService(session).confirm_email_verification(token)
+    browser) -- consume_token itself is what actually validates the token.
+    POST, so the token stays out of access logs (step 8, security, 6)."""
+    await AuthService(session).confirm_email_verification(body.token)
     return DetailResponse(detail="Email подтверждён")
 
 

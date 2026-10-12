@@ -13,6 +13,7 @@ import {
 } from '../api/tokenStorage'
 import type { TokensRefreshedDetail } from '../api/tokenStorage'
 import type { UserRead } from '../types/user'
+import { resyncPushSubscription } from '../push'
 import { AuthContext } from './authContext'
 import type { AuthContextValue } from './authContext'
 
@@ -92,6 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(() => {
+    const refreshToken = getStoredRefreshToken()
+    if (refreshToken !== null) {
+      authApi.logout(refreshToken).catch(() => {
+        // Best-effort: the tokens are forgotten here either way.
+      })
+    }
     clearApiCache()
     clearStoredTokens()
     setAccessToken(null)
@@ -126,6 +133,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Once per signed-in player, not on every token refresh.
+  const userId = user?.id ?? null
+  useEffect(() => {
+    if (userId === null || accessToken === null) {
+      return
+    }
+    resyncPushSubscription(accessToken).catch(() => {
+      // Best-effort: Settings still lets the player turn pushes on again.
+    })
+  }, [userId])
+
+  const adoptTokens = useCallback((nextAccessToken: string, nextRefreshToken: string) => {
+    persistTokens(nextAccessToken, nextRefreshToken)
+    setAccessToken(nextAccessToken)
+  }, [])
+
   const markAssessmentComplete = useCallback(() => {
     setHasAssessment(true)
   }, [])
@@ -143,10 +166,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isInitializing,
       login,
       logout,
+      adoptTokens,
       markAssessmentComplete,
       updateUser,
     }),
-    [accessToken, user, hasAssessment, isInitializing, login, logout, markAssessmentComplete, updateUser],
+    [accessToken, user, hasAssessment, isInitializing, login, logout, adoptTokens, markAssessmentComplete, updateUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

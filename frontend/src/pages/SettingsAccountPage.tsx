@@ -7,18 +7,76 @@ import { FormError } from '../components/ui/FormError'
 import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { Modal } from '../components/ui/Modal'
 import { TextField } from '../components/ui/TextField'
+import * as authApi from '../api/auth'
 import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 
 export function SettingsAccountPage() {
-  const { user, accessToken, logout } = useAuth()
+  const { user, accessToken, logout, adoptTokens } = useAuth()
   const navigate = useNavigate()
 
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [passwordChanged, setPasswordChanged] = useState(false)
+
+  const [showLogoutAllModal, setShowLogoutAllModal] = useState(false)
+  const [logoutAllError, setLogoutAllError] = useState<string | null>(null)
+  const [isLoggingOutAll, setIsLoggingOutAll] = useState(false)
+
+  function openPasswordModal() {
+    setCurrentPassword('')
+    setNewPassword('')
+    setPasswordError(null)
+    setShowPasswordModal(true)
+  }
+
+  async function handleChangePassword(event: FormEvent) {
+    event.preventDefault()
+    if (accessToken === null) {
+      return
+    }
+    setPasswordError(null)
+    setIsChangingPassword(true)
+    try {
+      const tokens = await authApi.changePassword(currentPassword, newPassword, accessToken)
+      adoptTokens(tokens.access_token, tokens.refresh_token)
+      setShowPasswordModal(false)
+      setPasswordChanged(true)
+    } catch (err) {
+      setPasswordError(
+        err instanceof ApiError ? err.message : 'Не удалось сменить пароль. Попробуйте ещё раз.',
+      )
+    } finally {
+      setIsChangingPassword(false)
+    }
+  }
+
+  async function handleLogoutAll() {
+    if (accessToken === null) {
+      return
+    }
+    setLogoutAllError(null)
+    setIsLoggingOutAll(true)
+    try {
+      await authApi.logoutAll(accessToken)
+      logout()
+      navigate('/login', { replace: true })
+    } catch (err) {
+      setLogoutAllError(
+        err instanceof ApiError ? err.message : 'Не удалось выйти на всех устройствах. Попробуйте ещё раз.',
+      )
+      setIsLoggingOutAll(false)
+    }
+  }
 
   function handleLogout() {
     logout()
@@ -73,6 +131,33 @@ export function SettingsAccountPage() {
           Выйти из аккаунта
         </Button>
 
+        <section className="flex flex-col gap-3">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
+            <i className="ti ti-shield-lock text-accent-ice" aria-hidden="true" />
+            Безопасность
+            <span className="h-px flex-1 bg-white/10" aria-hidden="true" />
+          </h2>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="neutral" onClick={openPasswordModal}>
+              Сменить пароль
+            </Button>
+            <Button
+              variant="neutral"
+              onClick={() => {
+                setLogoutAllError(null)
+                setShowLogoutAllModal(true)
+              }}
+            >
+              Выйти на всех устройствах
+            </Button>
+          </div>
+          {passwordChanged && (
+            <p className="text-sm text-accent-ice">
+              Пароль изменён. На других устройствах нужно войти заново.
+            </p>
+          )}
+        </section>
+
         <section className="flex flex-col gap-4">
           <h2 className="flex items-center gap-2 text-sm font-medium text-[#8A94A6]">
             <i className="ti ti-alert-triangle text-accent-persimmon" aria-hidden="true" />
@@ -94,6 +179,75 @@ export function SettingsAccountPage() {
           </div>
         </section>
       </div>
+
+      {showPasswordModal && (
+        <Modal title="Сменить пароль" onClose={() => setShowPasswordModal(false)}>
+          <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+            <TextField
+              label="Текущий пароль"
+              name="current_password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+            />
+            <TextField
+              label="Новый пароль"
+              name="new_password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              maxLength={128}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              required
+            />
+            <p className="text-sm text-text-secondary">
+              Не короче 8 символов. На других устройствах после смены нужно будет войти заново.
+            </p>
+            <FormError message={passwordError} />
+            <div className="flex gap-3">
+              <Button type="submit" isLoading={isChangingPassword}>
+                Сменить пароль
+              </Button>
+              <Button
+                type="button"
+                variant="neutral"
+                onClick={() => setShowPasswordModal(false)}
+                disabled={isChangingPassword}
+              >
+                Отмена
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showLogoutAllModal && (
+        <Modal title="Выйти на всех устройствах?" onClose={() => setShowLogoutAllModal(false)}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-text-secondary">
+              Аккаунт закроется на всех телефонах и компьютерах, включая этот. Войти можно будет
+              снова по паролю.
+            </p>
+            <FormError message={logoutAllError} />
+            <div className="flex gap-3">
+              <Button onClick={handleLogoutAll} isLoading={isLoggingOutAll}>
+                Выйти везде
+              </Button>
+              <Button
+                type="button"
+                variant="neutral"
+                onClick={() => setShowLogoutAllModal(false)}
+                disabled={isLoggingOutAll}
+              >
+                Отмена
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {showDeleteModal && (
         <Modal title="Удалить аккаунт?" onClose={() => setShowDeleteModal(false)}>

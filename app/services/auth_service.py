@@ -2,9 +2,11 @@ import logging
 import re
 import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
-from jose import JWTError
+from jwt import InvalidTokenError
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -12,11 +14,13 @@ from app.core.security import (
     TokenType,
     create_access_token,
     create_refresh_token,
-    decode_token,
+    decode_claims,
     hash_password_async,
+    token_version,
     verify_password_async,
 )
 from app.models.auth_token import AuthTokenPurpose
+from app.models.refresh_session import RefreshSession
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import TokenPair
@@ -38,6 +42,16 @@ _USERNAME_GENERATION_ATTEMPTS = 10
 # secrets.token_hex(4).upper(), also a bounded-retry uniqueness loop) --
 # one friend_code per user rather than one invite_code per team.
 _FRIEND_CODE_GENERATION_ATTEMPTS = 10
+
+# How long the refresh token just swapped out still works (step 8, security,
+# 2): two tabs refreshing at once, or a retry after the answer got lost on a
+# bad network, send the same token twice. Past it, a used token ends the
+# device's session -- someone else has it.
+REFRESH_REUSE_GRACE = timedelta(seconds=30)
+
+
+def _new_jti() -> str:
+    return uuid.uuid4().hex
 
 
 class AuthService:
@@ -160,7 +174,41 @@ class AuthService:
     async def confirm_password_reset(self, raw_token: str, new_password: str) -> None:
         user = await self._tokens.consume_token(raw_token, AuthTokenPurpose.PASSWORD_RESET)
         user.password_hash = await hash_password_async(new_password)
+        # Whoever knew the old password is signed out everywhere.
+        await self._end_all_sessions(user)
         await self._session.commit()
+
+    async def change_password(self, user: User, current_password: str, new_password: str) -> TokenPair:
+        """Signs out every other device; this one gets a fresh pair."""
+        if not await verify_password_async(current_password, user.password_hash):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный текущий пароль")
+        user.password_hash = await hash_password_async(new_password)
+        await self._end_all_sessions(user)
+        return await self._start_session(user)
+
+    async def logout(self, refresh_token: str) -> None:
+        """Ends this device's session. Quiet on a bad or expired token --
+        the client forgets its tokens either way."""
+        try:
+            claims = decode_claims(refresh_token, TokenType.REFRESH)
+            session_id = uuid.UUID(str(claims.get("sid")))
+            user_id = uuid.UUID(claims["sub"])
+        except (InvalidTokenError, ValueError):
+            return
+        await self._session.execute(
+            delete(RefreshSession).where(RefreshSession.id == session_id, RefreshSession.user_id == user_id)
+        )
+        await self._session.commit()
+
+    async def logout_all(self, user: User) -> None:
+        """«Выйти на всех устройствах»: every token issued so far, access
+        ones included, stops working."""
+        await self._end_all_sessions(user)
+        await self._session.commit()
+
+    async def _end_all_sessions(self, user: User) -> None:
+        user.token_version += 1
+        await self._session.execute(delete(RefreshSession).where(RefreshSession.user_id == user.id))
 
     async def _generate_username(self, email: str) -> str:
         local_part = email.split("@", 1)[0]
@@ -203,26 +251,85 @@ class AuthService:
 
     async def login(self, identifier: str, password: str) -> TokenPair:
         user = await self.authenticate(identifier, password)
-        return self._issue_tokens(user.id)
+        return await self._start_session(user)
 
     async def refresh(self, refresh_token: str) -> TokenPair:
+        invalid = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
         try:
-            subject = decode_token(refresh_token, TokenType.REFRESH)
-        except JWTError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-            ) from exc
+            claims = decode_claims(refresh_token, TokenType.REFRESH)
+            user_id = uuid.UUID(claims["sub"])
+        except (InvalidTokenError, ValueError) as exc:
+            raise invalid from exc
 
-        user = await self._users.get_by_id(uuid.UUID(subject))
+        user = await self._users.get_by_id(user_id)
         if user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        if token_version(claims) != user.token_version:
+            raise invalid
 
-        return self._issue_tokens(user.id)
+        if "sid" not in claims:
+            # Issued before step 8 -- moves to a device session once; the
+            # next version bump ends it like any other.
+            return await self._start_session(user)
+        try:
+            session_id = uuid.UUID(str(claims["sid"]))
+        except ValueError as exc:
+            raise invalid from exc
+
+        # Locked: two refreshes of one device run one after another, so the
+        # second sees the first one's rotation and takes the grace path.
+        device = await self._session.scalar(
+            select(RefreshSession)
+            .where(RefreshSession.id == session_id, RefreshSession.user_id == user.id)
+            .with_for_update()
+        )
+        now = datetime.now(timezone.utc)
+        if device is None or device.expires_at <= now:
+            raise invalid
+        jti = claims.get("jti")
+        if jti == device.current_jti:
+            device.previous_jti = device.current_jti
+            device.current_jti = _new_jti()
+            device.rotated_at = now
+            device.expires_at = now + self._refresh_lifetime()
+        elif not (
+            jti is not None
+            and jti == device.previous_jti
+            and device.rotated_at is not None
+            and now - device.rotated_at <= REFRESH_REUSE_GRACE
+        ):
+            # A refresh token used twice: whoever holds the other copy
+            # loses this device's session along with the player.
+            logger.warning("Refresh token reuse, session %s ended (user_id=%s)", device.id, user.id)
+            await self._session.delete(device)
+            await self._session.commit()
+            raise invalid
+        pair = self._issue_tokens(user, device)
+        await self._session.commit()
+        return pair
+
+    async def _start_session(self, user: User) -> TokenPair:
+        now = datetime.now(timezone.utc)
+        # The player's own long-expired devices go on the way.
+        await self._session.execute(
+            delete(RefreshSession).where(RefreshSession.user_id == user.id, RefreshSession.expires_at <= now)
+        )
+        device = RefreshSession(
+            id=uuid.uuid4(), user_id=user.id, current_jti=_new_jti(), expires_at=now + self._refresh_lifetime()
+        )
+        self._session.add(device)
+        pair = self._issue_tokens(user, device)
+        await self._session.commit()
+        return pair
 
     @staticmethod
-    def _issue_tokens(user_id: uuid.UUID) -> TokenPair:
-        subject = str(user_id)
+    def _refresh_lifetime() -> timedelta:
+        return timedelta(days=get_settings().refresh_token_expire_days)
+
+    @staticmethod
+    def _issue_tokens(user: User, device: RefreshSession) -> TokenPair:
+        subject = str(user.id)
         return TokenPair(
-            access_token=create_access_token(subject),
-            refresh_token=create_refresh_token(subject),
+            access_token=create_access_token(subject, user.token_version),
+            refresh_token=create_refresh_token(subject, user.token_version, str(device.id), device.current_jti),
         )

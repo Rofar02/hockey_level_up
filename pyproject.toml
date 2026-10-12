@@ -15,7 +15,6 @@ asyncpg = "^0.30.0"
 alembic = "^1.13.3"
 pydantic = "^2.9.2"
 pydantic-settings = "^2.6.0"
-python-jose = { extras = ["cryptography"], version = "^3.3.0" }
 passlib = { extras = ["bcrypt"], version = "^1.7.4" }
 bcrypt = "4.0.1"
 python-multipart = "^0.0.12"
@@ -28,6 +27,7 @@ tzdata = "^2026.3"
 pillow-heif = "^1.5.0"
 openai = "^3.6.0"
 sentry-sdk = "^2.69.2"
+pyjwt = "^2.10"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
