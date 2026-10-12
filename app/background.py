@@ -32,6 +32,7 @@ from app.services.checkin_scheduler import run_checkin_scheduler
 from app.services.coach_memory_service import run_coach_memory_scheduler
 from app.services.weekly_review_service import run_weekly_review_scheduler
 from app.services.event_retention import run_event_retention
+from app.services.greeting_scheduler import run_greeting_scheduler
 from app.services.reminder_scheduler import run_reminder_scheduler
 from app.services.report_reminder_scheduler import run_report_reminder_scheduler
 from app.services.team_event_scheduler import run_team_event_scheduler
@@ -43,6 +44,7 @@ def start_background_tasks() -> list[asyncio.Task]:
         asyncio.create_task(run_outbox_relay()),
         asyncio.create_task(run_reminder_scheduler()),
         asyncio.create_task(run_report_reminder_scheduler()),
+        asyncio.create_task(run_greeting_scheduler()),
         asyncio.create_task(run_checkin_scheduler()),
         asyncio.create_task(run_team_event_scheduler()),
         asyncio.create_task(run_event_retention()),
