@@ -110,3 +110,44 @@ def test_public_card_has_the_year_never_the_age_or_date() -> None:
     user.created_at = datetime.now(timezone.utc)
     card = UserPublicRead.model_validate(user)
     assert card.hockey_since_year == 2012
+
+
+@pytest.mark.asyncio
+async def test_a_birth_date_alone_drops_a_contradicting_old_start_year(db_session) -> None:
+    """Review 12.10, 2: Home's birthday card sends the date only -- an old
+    estimated start year before it is dropped, not a 400."""
+    user = _make_user()
+    user.hockey_since_year = 2005
+    db_session.add(user)
+    await db_session.flush()
+
+    updated = await UserService(db_session).update_profile(user, UserUpdate(birth_date=date(2010, 3, 3)))
+
+    assert updated.birth_date == date(2010, 3, 3) and updated.hockey_since_year is None
+
+
+@pytest.mark.asyncio
+async def test_a_birth_date_alone_keeps_a_fitting_start_year(db_session) -> None:
+    user = _make_user()
+    user.hockey_since_year = 2016
+    db_session.add(user)
+    await db_session.flush()
+
+    updated = await UserService(db_session).update_profile(user, UserUpdate(birth_date=date(2010, 3, 3)))
+
+    assert updated.hockey_since_year == 2016
+
+
+def test_a_beginner_keeps_a_fractional_experience() -> None:
+    """Review 12.10, 3: started this year -- the typed-in half a season is
+    kept; a start year alone gives half of the year gone so far."""
+    typed = _make_user(years_of_experience=0.5)
+    assert typed.hockey_since_year == typed.local_today().year
+    assert typed.years_of_experience == 0.5
+
+    fresh = _make_user()
+    fresh.hockey_since_year = fresh.local_today().year
+    today = fresh.local_today()
+    assert 0 <= fresh.years_of_experience <= 0.5
+    if today.month > 1:
+        assert fresh.years_of_experience > 0

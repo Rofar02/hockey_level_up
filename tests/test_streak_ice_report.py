@@ -69,3 +69,39 @@ async def test_ne_byl_is_still_a_gap(db_session) -> None:
     assert streak.current_streak == 4 and streak.last_activity_date == ice_day - timedelta(days=1)
     calendar = {d.date: d.fully_completed for d in await list_activity_calendar(db_session, user.id, ice_day, ice_day)}
     assert calendar[ice_day] is False
+
+
+@pytest.mark.asyncio
+async def test_a_done_extra_gym_keeps_the_date_trained(db_session) -> None:
+    """Review 12.10, 6: the gym was done, then "иду" made the team's ice the
+    main day and moved the gym to the extra one -- the date stays done for
+    the calendar and the gap check, whatever the unreported ice."""
+    user, _ice, ice_day, today = await _setup(db_session)
+    exercise = Exercise(
+        id=uuid.uuid4(), name=f"si gym {uuid.uuid4().hex[:6]}", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=3,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+    main_day = await db_session.scalar(select(DayPlan).where(DayPlan.date == ice_day, DayPlan.training_session.has(id=_ice.id)))
+    gym = TrainingSession(
+        id=uuid.uuid4(),
+        blocks=[SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0, completed_at=_now())],
+    )
+    db_session.add(
+        DayPlan(
+            id=uuid.uuid4(), weekly_plan_id=main_day.weekly_plan_id, date=ice_day, session_type=DaySessionType.OFF_ICE,
+            is_extra=True, time_of_day="morning", training_session=gym,
+        )
+    )
+    await db_session.flush()
+
+    assert await has_missed_training_day(db_session, user.id, ice_day - timedelta(days=1), today) is False
+    calendar = await list_activity_calendar(db_session, user.id, ice_day, ice_day)
+    assert [(d.date, d.session_type, d.fully_completed) for d in calendar] == [(ice_day, DaySessionType.ON_ICE, True)]
+
+
+def _now():
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc)

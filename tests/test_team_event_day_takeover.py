@@ -279,3 +279,53 @@ async def test_week_read_says_what_the_day_was_before_the_team_event(db_session)
     assert by_date[event_day].replaced_session_type == DaySessionType.REST
     other_day = next(day for day in week.day_plans if day.date != event_day)
     assert other_day.replaced_session_type is None
+
+
+@pytest.mark.asyncio
+async def test_the_gym_kept_beside_a_team_game_has_no_heavy_legs(db_session, monkeypatch) -> None:
+    """Review 12.10, 10: "иду" on a game -- the unstarted gym kept beside it
+    is rebuilt with light legs; «не иду» brings it back with its legs."""
+    captain, player, team = await _make_team_with_player(db_session)
+    event_day = _event_day()
+    await _declare_rest_week(db_session, player, event_day)
+    exercise = Exercise(
+        id=uuid.uuid4(), name=f"Exercise {uuid.uuid4().hex[:8]}", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=1,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+    day_plan = await _day(db_session, player, event_day)
+    day_plan.session_type = DaySessionType.OFF_ICE
+    day_plan.training_session = TrainingSession(
+        id=uuid.uuid4(),
+        blocks=[SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=exercise.id, order=0)],
+    )
+    await db_session.flush()
+
+    builds: list[tuple[DaySessionType, bool]] = []
+    real_build = ScheduleService._build_session_for_day
+
+    async def _spy(self, session_type, *args, **kwargs):
+        builds.append((session_type, kwargs.get("light_legs", False)))
+        return await real_build(self, session_type, *args, **kwargs)
+
+    monkeypatch.setattr(ScheduleService, "_build_session_for_day", _spy)
+    events = TeamEventService(db_session)
+    event = await events.create_event(captain, team.id, TeamEventType.GAME, _noon_utc(event_day), "Rivals")
+
+    await events.set_my_attendance(player, team.id, event.id, TeamEventAttendanceStatus.GOING, None, None)
+
+    assert (DaySessionType.OFF_ICE, True) in builds
+    plans = await ScheduleRepository(db_session).get_current(player.id, event_day)
+    await db_session.refresh(plans, ["day_plans"])
+    days = {d.is_extra: d for d in plans.day_plans if d.date == event_day}
+    assert days[False].session_type == DaySessionType.GAME and days[True].session_type == DaySessionType.OFF_ICE
+
+    builds.clear()
+    await events.set_my_attendance(
+        player, team.id, event.id, TeamEventAttendanceStatus.NOT_GOING, TeamEventAbsenceReason.WORK, None
+    )
+
+    assert builds == [(DaySessionType.OFF_ICE, False)]
+    day_plan = await _day(db_session, player, event_day)
+    assert day_plan.session_type == DaySessionType.OFF_ICE and day_plan.team_event_id is None

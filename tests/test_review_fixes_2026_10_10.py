@@ -660,9 +660,15 @@ async def test_a_training_ahead_can_be_looked_at_not_started(db_session) -> None
 
 
 @pytest.mark.asyncio
-async def test_a_reported_ice_day_is_started_and_never_rebuilt(db_session) -> None:
+async def test_a_reported_ice_day_is_started_and_never_rebuilt(db_session, monkeypatch) -> None:
     """1.1: rebuilding a reported ice day deleted its report with its
     session, and the new session could be reported and rewarded again."""
+    from app.services import training_diary_service
+
+    async def _over(*_args):  # today's ice is already over
+        return datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    monkeypatch.setattr(training_diary_service, "ice_ended_at", _over)
     from app.models.progress import StatHistory
     from app.models.schedule import BlockPhase
     from app.schemas.schedule import DayPlanIn, WeeklyPlanPatch
@@ -697,7 +703,8 @@ async def test_a_reported_ice_day_is_started_and_never_rebuilt(db_session) -> No
 
 @pytest.mark.asyncio
 async def test_no_report_before_the_ice(db_session) -> None:
-    """1.2: an own ice day from its day, a team event from its start."""
+    """1.2 + review 12.10, 7: not before the ice is assumed over -- a team
+    event's start + its typical length; «не был» from the day itself."""
     from app.schemas.training_diary import DiaryReportIn
     from app.models.training_diary import IceEffort
     from app.services.training_diary_service import TrainingDiaryService
@@ -722,8 +729,34 @@ async def test_no_report_before_the_ice(db_session) -> None:
     assert exc.value.status_code == 409
     (await events._events.get_event(event.id)).starts_at = datetime.now(timezone.utc) - timedelta(minutes=5)
     await db_session.flush()
+    with pytest.raises(HTTPException) as exc:  # started, not over yet
+        await TrainingDiaryService(db_session).save_entry(player, team_day.training_session.id, None, report)
+    assert exc.value.status_code == 409 and "после льда" in exc.value.detail
+    (await events._events.get_event(event.id)).starts_at = datetime.now(timezone.utc) - timedelta(minutes=95)
+    await db_session.flush()
     saved = await TrainingDiaryService(db_session).save_entry(player, team_day.training_session.id, None, report)
     assert saved.reported_at is not None
+
+    from app.schemas.training_diary import DiaryReportIn as Report
+
+    with pytest.raises(HTTPException):
+        await TrainingDiaryService(db_session).save_entry(user, tomorrow.training_session.id, None, Report(skipped=True))
+    _, past_day = await _ice_day(db_session, user, utc_today() - timedelta(days=7))
+    skipped = await TrainingDiaryService(db_session).save_entry(user, past_day.training_session.id, None, Report(skipped=True))
+    assert skipped.skipped is True
+
+
+def test_own_ice_is_over_by_the_evening_or_noon_for_a_morning_one() -> None:
+    from zoneinfo import ZoneInfo
+
+    from app.services.report_reminder_scheduler import ice_ends_at, report_due_at
+
+    tz = ZoneInfo("Europe/Moscow")
+    day = DayPlan(date=date(2026, 10, 12), session_type=DaySessionType.ON_ICE)
+    assert ice_ends_at(day, None, tz).hour == 19
+    assert report_due_at(day, None, tz).hour == 21  # the reminder as before
+    day.time_of_day = "morning"
+    assert ice_ends_at(day, None, tz).hour == 12
 
 
 @pytest.mark.asyncio

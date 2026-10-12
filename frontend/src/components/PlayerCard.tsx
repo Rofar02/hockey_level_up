@@ -33,6 +33,19 @@ const PHOTO_MASK_STYLE: CSSProperties = { maskImage: PHOTO_MASK, WebkitMaskImage
 // Keeps the rating and the nameplate legible over a bright photo or arena.
 const TEXT_SHADOW: CSSProperties = { textShadow: '0 2px 12px rgba(0,0,0,0.75)' }
 
+// The birthday week (review 12.10): a warm pink-gold glow and confetti over
+// the top of the card, on any card colour. Fixed pieces -- the same card
+// every render.
+const BIRTHDAY_GLOW = '0 0 30px rgba(255,140,170,0.45), 0 0 46px rgba(255,214,120,0.25)'
+const CONFETTI_COLORS = ['#FF8CAA', '#FFD678', '#7FC4FF', '#B9F18C', '#FFFFFF']
+const CONFETTI = Array.from({ length: 22 }, (_, index) => ({
+  x: (index * 67 + 23) % 350,
+  y: (index * 41 + 11) % 210,
+  rotate: (index * 53) % 180,
+  round: index % 3 === 0,
+  color: CONFETTI_COLORS[index % CONFETTI_COLORS.length],
+}))
+
 // The player's team on the card (2026-10-09): a bigger emblem under the
 // number and a "КОМАНДА · ГОРОД" plate under the surname, both leading to
 // the team card.
@@ -72,6 +85,9 @@ interface PlayerCardProps {
   shine?: boolean
   // The card owner has premium: a PREMIUM plate on any card colour (2026-10-04).
   premium?: boolean
+  // The birthday week (review 12.10): a «День рождения» plate, confetti and
+  // a warm glow over whatever the card's own colours are.
+  birthday?: boolean
   // All optional: without them the card is read-only (someone else's
   // profile) -- no camera button, nothing tappable.
   onAvatarClick?: () => void
@@ -97,6 +113,7 @@ export function PlayerCard({
   statGridRef,
   shine,
   premium = false,
+  birthday = false,
   onAvatarClick,
   onChangePhoto,
   onLevelClick,
@@ -147,7 +164,7 @@ export function PlayerCard({
     <div
       data-card="frame"
       className="relative overflow-hidden rounded-2xl p-[3px]"
-      style={{ background: look.frame, boxShadow: look.glow }}
+      style={{ background: look.frame, boxShadow: birthday ? `${BIRTHDAY_GLOW}, ${look.glow}` : look.glow }}
     >
       <div data-card="inner" className="relative overflow-hidden rounded-[13px] bg-[#0E1524]" style={{ height: 478 + shift }}>
         <img
@@ -182,6 +199,44 @@ export function PlayerCard({
               PREMIUM
             </span>
           </span>
+        )}
+
+        {birthday && (
+          <>
+            <svg
+              data-share-hide
+              className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-[230px] w-full"
+              viewBox="0 0 360 230"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              {CONFETTI.map((piece, index) => (
+                <rect
+                  key={index}
+                  x={piece.x}
+                  y={piece.y}
+                  width={piece.round ? 6 : 4}
+                  height={piece.round ? 6 : 10}
+                  rx={piece.round ? 3 : 1}
+                  fill={piece.color}
+                  opacity={0.85}
+                  transform={`rotate(${piece.rotate} ${piece.x + 2} ${piece.y + 5})`}
+                />
+              ))}
+            </svg>
+            <span
+              data-share-hide
+              className={`absolute right-4 z-[3] flex items-center gap-1.5 rounded-full border border-white/35 px-2.5 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-md ${
+                premium ? 'top-[52px]' : 'top-5'
+              }`}
+              style={{ background: 'linear-gradient(180deg, rgba(255,140,170,0.35), rgba(10,14,24,0.55))' }}
+            >
+              <span aria-hidden="true">🎂</span>
+              <span className="font-display text-[11px] font-bold uppercase tracking-[1.2px] text-[#FFE3EC] [text-shadow:0_1px_2px_rgba(0,0,0,0.6)]">
+                День рождения
+              </span>
+            </span>
+          </>
         )}
 
         <div className="absolute left-5 top-5 z-[2] flex flex-col items-start gap-1">

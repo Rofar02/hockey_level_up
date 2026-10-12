@@ -44,7 +44,9 @@ def _make_user() -> User:
 async def _make_session(
     db_session, user: User, session_type: DaySessionType, *, day: date | None = None
 ) -> TrainingSession:
-    day = day or utc_today()
+    # Yesterday by default: an own ice day's report opens after the ice
+    # (review 12.10, 7).
+    day = day or utc_today() - timedelta(days=1)
     training_session = TrainingSession(id=uuid.uuid4(), blocks=[])
     day_plan = DayPlan(
         id=uuid.uuid4(), date=day, session_type=session_type, training_session=training_session
@@ -378,7 +380,7 @@ async def test_goalie_game_report_without_counters_is_accepted(db_session) -> No
 async def test_incomplete_report_is_rejected(db_session) -> None:
     user = await _user(db_session)
     ice = await _make_session(db_session, user, DaySessionType.ON_ICE)
-    game = await _make_session(db_session, user, DaySessionType.GAME, day=utc_today() - timedelta(days=1))
+    game = await _make_session(db_session, user, DaySessionType.GAME, day=utc_today() - timedelta(days=2))
     service = TrainingDiaryService(db_session)
 
     with pytest.raises(HTTPException) as ice_error:
@@ -433,9 +435,9 @@ async def test_no_reward_for_a_future_day_or_after_the_window(db_session) -> Non
 @pytest.mark.asyncio
 async def test_reports_reach_the_coach_as_plain_facts(db_session) -> None:
     user = await _user(db_session)
-    ice = await _make_session(db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=1))
+    ice = await _make_session(db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=2))
     game = await _make_session(db_session, user, DaySessionType.GAME)
-    blank = await _make_session(db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=2))
+    blank = await _make_session(db_session, user, DaySessionType.ON_ICE, day=utc_today() - timedelta(days=3))
     service = TrainingDiaryService(db_session)
     await service.save_entry(
         user, ice.id, None, ICE_REPORT.model_copy(update={"highlights": [IceHighlight.SKATING]})

@@ -38,6 +38,9 @@ export function SettingsNotificationsPage() {
   const [pushError, setPushError] = useState<string | null>(null)
   const [isSendingTestPush, setIsSendingTestPush] = useState(false)
   const [testPushSuccess, setTestPushSuccess] = useState(false)
+  const [teamBirthdays, setTeamBirthdays] = useState(user?.team_birthdays !== false)
+  const [isSavingTeamBirthdays, setIsSavingTeamBirthdays] = useState(false)
+  const [teamBirthdaysError, setTeamBirthdaysError] = useState<string | null>(null)
   const [reminderPreference, setReminderPreference] = useState<Exclude<ReminderPreference, 'none'>>(
     user?.reminder_preference !== undefined && user.reminder_preference !== 'none'
       ? user.reminder_preference
@@ -152,6 +155,27 @@ export function SettingsNotificationsPage() {
     }
   }
 
+  // Review 12.10: «🎂 Сегодня день рождения у …» both ways -- the player
+  // hears about the teammates' birthdays and the team about theirs.
+  async function handleTeamBirthdaysToggle() {
+    if (accessToken === null || isSavingTeamBirthdays) {
+      return
+    }
+    const next = !teamBirthdays
+    setTeamBirthdays(next)
+    setTeamBirthdaysError(null)
+    setIsSavingTeamBirthdays(true)
+    try {
+      const updated = await usersApi.updateProfile({ team_birthdays: next }, accessToken)
+      updateUser(updated)
+    } catch (err) {
+      setTeamBirthdays(!next)
+      setTeamBirthdaysError(err instanceof ApiError ? err.message : 'Не удалось сохранить выбор.')
+    } finally {
+      setIsSavingTeamBirthdays(false)
+    }
+  }
+
   async function handleSendTestPush() {
     if (accessToken === null) {
       return
@@ -240,6 +264,20 @@ export function SettingsNotificationsPage() {
             )}
           </div>
         )}
+
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-medium text-text-primary">Дни рождения в команде</p>
+              <p className="text-sm text-text-secondary">
+                Пуш «🎂 Сегодня день рождения у …», когда он у тиммейта, — и команда узнает о вашем. Дата и
+                возраст не показываются.
+              </p>
+            </div>
+            <Switch checked={teamBirthdays} disabled={isSavingTeamBirthdays} onClick={handleTeamBirthdaysToggle} />
+          </div>
+          <FormError message={teamBirthdaysError} />
+        </div>
 
         {isLockScreenPlayerSupported() && (
           <div className="flex flex-col gap-2">

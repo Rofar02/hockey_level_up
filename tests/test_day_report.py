@@ -23,7 +23,7 @@ def _make_user() -> User:
 
 
 @pytest.mark.asyncio
-async def test_double_day_report_has_sets_weights_muscles_and_the_ice(db_session) -> None:
+async def test_double_day_report_has_sets_weights_muscles_and_the_ice(db_session, ice_over) -> None:
     user = _make_user()
     db_session.add(user)
     row = Exercise(

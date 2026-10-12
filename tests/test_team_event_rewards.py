@@ -81,7 +81,9 @@ async def _day(
     weekly_plan.day_plans.append(
         DayPlan(
             id=uuid.uuid4(),
-            date=utc_today(),
+            # Yesterday: an own ice day's report opens after the ice
+            # (review 12.10, 7).
+            date=utc_today() - timedelta(days=1),
             session_type=session_type,
             team_event_id=team_event_id,
             training_session=session,
@@ -102,12 +104,12 @@ async def _stat_value(db_session, user_id: uuid.UUID, stat_type: TargetStat) -> 
 
 
 async def _training(db_session, captain, team):
-    """A team training that has already started -- a report is only taken
-    from the event's start (2026-10-11)."""
+    """A team training that is already over -- a report is only taken after
+    the event's start + its typical length (review 12.10, 7)."""
     service = TeamEventService(db_session)
     event = await service.create_event(captain, team.id, TeamEventType.TRAINING, _future(), None)
     row = await service._events.get_event(event.id)
-    row.starts_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    row.starts_at = datetime.now(timezone.utc) - timedelta(hours=2)
     await db_session.flush()
     return event
 

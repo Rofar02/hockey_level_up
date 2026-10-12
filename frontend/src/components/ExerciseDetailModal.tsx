@@ -919,7 +919,16 @@ function SetLogger({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, after sets load
   }, [isLoadingSets])
 
-  function setDetail(): string {
+  // Owner's call (2026-10-12): the next set starts from the weight of the
+  // last logged set, not the suggestion -- the suggestion only fills set 1.
+  // The lock-screen card shows this same weight (review 12.10, 12).
+  const lastLoggedWeight =
+    Object.entries(completedSets)
+      .filter(([, completed]) => completed.weight_kg != null)
+      .sort(([a], [b]) => Number(b) - Number(a))[0]?.[1].weight_kg ?? null
+  const prefilledWeight = lastLoggedWeight ?? suggestedWeightKg
+
+  function setDetail(weight: number | null): string {
     const parts: string[] = []
     if (exercise.rep_range_min !== null && exercise.rep_range_max !== null) {
       parts.push(
@@ -928,13 +937,14 @@ function SetLogger({
           : `${exercise.rep_range_min}–${exercise.rep_range_max} повт.`,
       )
     }
-    if (exercise.tracks_weight && suggestedWeightKg !== null) {
-      parts.push(`${suggestedWeightKg} кг`)
+    if (exercise.tracks_weight && weight !== null) {
+      parts.push(`${weight} кг`)
     }
     return parts.join(' · ')
   }
 
-  function setCard(setNumber: number): LockScreenInfo {
+  // `weight`: the set just saved, when called before the re-render.
+  function setCard(setNumber: number, weight: number | null = prefilledWeight): LockScreenInfo {
     const total = targetSets ?? setNumber
     return {
       title: exercise.name,
@@ -943,7 +953,7 @@ function SetLogger({
         renderLockScreenArtwork({
           phase: 'set',
           exerciseName: exercise.name,
-          detail: setDetail() || undefined,
+          detail: setDetail(weight) || undefined,
           rounds: total,
           completedRounds: setNumber - 1,
         }) ?? undefined,
@@ -1047,13 +1057,7 @@ function SetLogger({
   // ставится прочерком, не изменить нифига" -- the stepper can't reach
   // that state at all, there's no empty state to leave it in.)
   const effectiveReps = repsValue ?? suggestedReps ?? exercise.rep_range_min ?? 1
-  // Owner's call (2026-10-12): the next set starts from the weight of the
-  // last logged set, not the suggestion -- the suggestion only fills set 1.
-  const lastLoggedWeight =
-    Object.entries(completedSets)
-      .filter(([, completed]) => completed.weight_kg != null)
-      .sort(([a], [b]) => Number(b) - Number(a))[0]?.[1].weight_kg ?? null
-  const effectiveWeight = weightValue ?? lastLoggedWeight ?? suggestedWeightKg ?? 0
+  const effectiveWeight = weightValue ?? prefilledWeight ?? 0
 
   function beginEditSet(
     setNumber: number,
@@ -1170,7 +1174,7 @@ function SetLogger({
           deadline: Date.now() + exercise.rest_seconds * 1000,
         })
       } else if (lockStartedRef.current) {
-        holdLockScreen(setCard(targetSetNumber + 1))
+        holdLockScreen(setCard(targetSetNumber + 1, weight))
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {

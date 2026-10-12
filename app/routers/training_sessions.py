@@ -64,3 +64,14 @@ async def get_ice_focus(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await IceFocusService(session).focus_for_session(current_user, session_id)
+
+
+@router.post("/{session_id}/focus", response_model=IceFocusRead | None)
+async def show_ice_focus(
+    session_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """The focus as shown to the player: pinned for the day when it's the
+    ice day itself (review 12.10, 11); GET only reads."""
+    return await IceFocusService(session).focus_for_session(current_user, session_id, fix=True)

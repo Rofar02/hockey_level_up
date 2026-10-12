@@ -117,6 +117,10 @@ export interface UserRead {
   has_seen_weight_hint: boolean
   has_seen_coach_personality_intro: boolean
   created_at: string
+  // «🎂 Сегодня день рождения у …» with the team, both ways (review 12.10).
+  team_birthdays?: boolean
+  // The festive player card, a week from the birthday.
+  birthday_festive?: boolean
 }
 
 // GET /users/{id}/profile -- what a friend or teammate can see, deliberately
@@ -141,6 +145,9 @@ export interface UserPublicRead {
   level: number
   xp: number
   created_at: string
+  // The birthday week's festive card -- only when the player shares the
+  // birthday with the team.
+  birthday_festive?: boolean
   // The six stats' current values, for the read-only player card.
   stats: PublicStatRead[]
   // The player's team, shown on the card (2026-10-09).

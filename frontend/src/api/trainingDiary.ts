@@ -1,4 +1,4 @@
-import { apiGet, apiPutAuth } from './client'
+import { apiGet, apiPostAuth, apiPutAuth } from './client'
 import type {
   IceFocusRead,
   TrainingDiaryEntryIn,
@@ -29,6 +29,8 @@ export function listDiaryEntries(accessToken: string): Promise<TrainingDiaryEntr
   return apiGet<TrainingDiaryEntryListItem[]>('/users/me/training-diary', accessToken)
 }
 
+// POST, not GET (review 12.10): the focus as shown to the player -- the
+// server pins it for the day when it's the ice day itself.
 export function getIceFocus(trainingSessionId: string, accessToken: string): Promise<IceFocusRead | null> {
-  return apiGet<IceFocusRead | null>(`/training-sessions/${trainingSessionId}/focus`, accessToken)
+  return apiPostAuth<IceFocusRead | null>(`/training-sessions/${trainingSessionId}/focus`, {}, accessToken)
 }

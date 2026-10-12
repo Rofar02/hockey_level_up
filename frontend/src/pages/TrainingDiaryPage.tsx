@@ -256,6 +256,11 @@ export function TrainingDiaryPage() {
   const dateLabel = parseIsoDate(day.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
   const ageDays = daysBetween(day.date, toIsoDate(new Date()))
   const isFuture = ageDays < 0
+  // Review 12.10: the report opens once the ice is assumed over (a team
+  // event's start + its length, an own ice day by the evening); «Не был»
+  // can come on the day itself.
+  const opensAt = day.report_opens_at != null ? new Date(day.report_opens_at) : null
+  const notOpenYet = !isFuture && opensAt !== null && opensAt.getTime() > Date.now()
   const tooLate = ageDays > REPORT_REWARD_WINDOW_DAYS
   const complete = isGame ? result !== null && selfRating !== null : duration !== null && effort !== null
 
@@ -290,6 +295,11 @@ export function TrainingDiaryPage() {
             </p>
           ) : isFuture ? (
             <p className="text-xs text-text-secondary">Этот день ещё впереди — отчёт можно будет заполнить после.</p>
+          ) : notOpenYet && opensAt !== null ? (
+            <p className="text-xs text-text-secondary">
+              Отчёт откроется после {isGame ? 'игры' : 'льда'} — в{' '}
+              {opensAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}.
+            </p>
           ) : tooLate ? (
             <p className="text-xs text-text-secondary">
               Очки начисляются за отчёт в течение {REPORT_REWARD_WINDOW_DAYS} дней — за этот день уже не начислятся,
@@ -432,8 +442,12 @@ export function TrainingDiaryPage() {
 
         <div className="mt-auto flex flex-col gap-2 pt-6">
           <FormError message={saveError} />
-          <Button onClick={submitReport} disabled={!complete || isSaving || isFuture} className="w-full">
-            {isSaving ? 'Сохраняем...' : 'Сохранить'}
+          <Button onClick={submitReport} disabled={!complete || isSaving || isFuture || notOpenYet} className="w-full">
+            {isSaving
+              ? 'Сохраняем...'
+              : notOpenYet && opensAt !== null
+                ? `Откроется в ${opensAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+                : 'Сохранить'}
           </Button>
           <div className="flex items-center justify-between text-sm">
             <button

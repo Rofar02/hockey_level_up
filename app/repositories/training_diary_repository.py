@@ -73,7 +73,7 @@ class TrainingDiaryRepository:
 
     async def list_session_ids_with_entries(
         self, training_session_ids: list[uuid.UUID]
-    ) -> set[uuid.UUID]:
+    ) -> dict[uuid.UUID, bool]:
         """2026-09-17 (audit item #3): bulk EXISTS check backing
         TrainingSessionRead.has_diary_entry -- a row existing at all (note
         possibly None -- see the "quiet skip" flow in TrainingDiaryEntryIn's
@@ -82,13 +82,14 @@ class TrainingDiaryRepository:
         circuits without a query, same convention as
         ExerciseRepository.list_target_stats_by_exercise."""
         if not training_session_ids:
-            return set()
+            return {}
+        # Review 12.10, 8: session id -> whether the report was «не был».
         result = await self._session.execute(
-            select(TrainingDiaryEntry.training_session_id).where(
+            select(TrainingDiaryEntry.training_session_id, TrainingDiaryEntry.skipped).where(
                 TrainingDiaryEntry.training_session_id.in_(training_session_ids),
                 # 2026-10-10: the report sent, not a note autosaved while
                 # typing -- the ice/game day closes on the report.
                 TrainingDiaryEntry.reported_at.is_not(None),
             )
         )
-        return set(result.scalars().all())
+        return {session_id: bool(skipped) for session_id, skipped in result.all()}

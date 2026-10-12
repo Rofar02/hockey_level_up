@@ -89,8 +89,13 @@ async def test_focus_follows_stats_then_the_last_game_and_stays_for_the_day(db_s
     service = IceFocusService(db_session)
 
     assert await service.focus_for_session(user, sessions[DaySessionType.GAME].id) is None
-    before = await service.focus_for_session(user, sessions[DaySessionType.ON_ICE].id)
-    assert before.stat == TargetStat.ON_ICE_SKATING
+    # A read never writes (review 12.10, 11)...
+    peek = await service.focus_for_session(user, sessions[DaySessionType.ON_ICE].id)
+    assert sessions[DaySessionType.ON_ICE].ice_focus_id is None
+    # ...shown on the ice day itself, it's pinned.
+    before = await service.focus_for_session(user, sessions[DaySessionType.ON_ICE].id, fix=True)
+    assert before.stat == TargetStat.ON_ICE_SKATING and before.id == peek.id
+    assert sessions[DaySessionType.ON_ICE].ice_focus_id == before.id
 
     await TrainingDiaryService(db_session).save_entry(
         user,
@@ -108,12 +113,20 @@ async def test_focus_follows_stats_then_the_last_game_and_stays_for_the_day(db_s
     fresh = await db_session.get(TrainingSession, sessions[DaySessionType.ON_ICE].id)
     fresh.ice_focus_id = None
     await db_session.flush()
-    after = await service.focus_for_session(user, sessions[DaySessionType.ON_ICE].id)
+    after = await service.focus_for_session(user, sessions[DaySessionType.ON_ICE].id, fix=True)
     assert after.stat == TargetStat.PUCK_HANDLING and FOCUS_BY_ID[after.id].work_on == "shooting"
 
 
 @pytest.mark.asyncio
-async def test_report_stores_the_focus_and_pays_its_bonus(db_session) -> None:
+async def test_report_stores_the_focus_and_pays_its_bonus(db_session, monkeypatch) -> None:
+    from datetime import datetime, timezone
+
+    from app.services import training_diary_service
+
+    async def _over(*_args):  # today's ice is already over (review 12.10, 7)
+        return datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    monkeypatch.setattr(training_diary_service, "ice_ended_at", _over)
     user, sessions = await _user_with_days(db_session)
     focus = await IceFocusService(db_session).focus_for_session(user, sessions[DaySessionType.ON_ICE].id)
 
@@ -126,3 +139,21 @@ async def test_report_stores_the_focus_and_pays_its_bonus(db_session) -> None:
 
     assert saved.focus_id == focus.id and saved.focus_result == FocusResult.DONE
     assert saved.stat_rewards[focus.stat] > 0
+
+
+@pytest.mark.asyncio
+async def test_a_future_ice_day_is_never_pinned_early(db_session) -> None:
+    user, _sessions = await _user_with_days(db_session)
+    today = utc_today()
+    later = TrainingSession(id=uuid.uuid4(), blocks=[])
+    db_session.add(
+        WeeklyPlan(
+            id=uuid.uuid4(), user_id=user.id, week_start_date=today - timedelta(days=today.weekday()) + timedelta(weeks=1),
+            day_plans=[DayPlan(id=uuid.uuid4(), date=today + timedelta(days=7), session_type=DaySessionType.ON_ICE, training_session=later)],
+        )
+    )
+    await db_session.flush()
+
+    shown = await IceFocusService(db_session).focus_for_session(user, later.id, fix=True)
+
+    assert shown is not None and later.ice_focus_id is None

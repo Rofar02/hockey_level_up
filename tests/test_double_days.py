@@ -75,9 +75,11 @@ async def test_extra_gym_day_next_to_ice_and_game(db_session, builds, monkeypatc
     mains = {d.date: d for d in plan.day_plans if not d.is_extra}
     assert mains[MONDAY].time_of_day == "evening"
     assert mains[MONDAY + timedelta(days=2)].time_of_day == "morning"
-    # The double day's gym is an ordinary gym day -- full legs.
+    # The double day's gym is an ordinary gym day -- full legs; beside a
+    # game without heavy legs (review 12.10, 10).
     assert (MONDAY, GYM, False) in builds
-    assert not any(light for _, _, light in builds)
+    assert (MONDAY + timedelta(days=2), GYM, True) in builds
+    assert [d for d, _, light in builds if light] == [MONDAY + timedelta(days=2)]
 
 
 @pytest.mark.asyncio

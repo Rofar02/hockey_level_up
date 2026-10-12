@@ -35,3 +35,17 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
             await outer_transaction.rollback()
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def ice_over(monkeypatch):
+    """Today's ice is already over -- an ice / game report opens only then
+    (review 12.10, 7), whatever the clock says while the suite runs."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services import training_diary_service
+
+    async def _over(*_args):
+        return datetime.now(timezone.utc) - timedelta(minutes=1)
+
+    monkeypatch.setattr(training_diary_service, "ice_ended_at", _over)

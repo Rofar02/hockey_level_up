@@ -23,6 +23,14 @@ from app.services.week_load_service import shadow_check
 from app.services.team_event_service import TEAM_TRAINING_XP_BONUS, TeamEventService
 
 _DIARY_ELIGIBLE_SESSION_TYPES = (DaySessionType.ON_ICE, DaySessionType.GAME)
+_MONTHS = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря")
+
+
+def _zone(name: str | None) -> ZoneInfo:
+    try:
+        return ZoneInfo(name or "UTC")
+    except Exception:
+        return ZoneInfo("UTC")
 
 # 2026-10-08: the app has no exercises for an ice day or a game, so these
 # stats (intellect above all -- the catalog has almost nothing for it) barely
@@ -119,25 +127,25 @@ class TrainingDiaryService:
             entry.rewarded = await self._is_rewarded(user, training_session.id)
         return entry
 
-    async def _require_ice_started(self, user: User, day_plan) -> None:
+    async def _require_ice_started(self, user: User, day_plan, skipped: bool = False) -> None:
         """A report is about something that happened (2026-10-11 review 1.2):
-        a team training / game from its start, an own ice day (no time on it)
-        from its day in the player's time zone -- never ahead, which used to
-        hand out the day's reward in advance."""
-        from app.models.team_event import TeamEvent
-
+        never ahead, which used to hand out the day's reward in advance.
+        Review 12.10, 7: not before the ice is assumed over -- a team event's
+        start + its typical length, an own ice day (no time on it) by the
+        evening (noon for a double day's morning ice), see ice_ends_at.
+        «Не был» pays nothing and may come on the day itself."""
         now = datetime.now(timezone.utc)
-        event = await self._session.get(TeamEvent, day_plan.team_event_id) if day_plan.team_event_id else None
-        if event is not None:
-            if now < event.starts_at:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Отчёт можно отправить после начала")
+        if skipped:
+            if day_plan.date > now.astimezone(_zone(user.timezone)).date():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Отчёт можно отправить в день льда")
             return
-        try:
-            local_today = now.astimezone(ZoneInfo(user.timezone or "UTC")).date()
-        except Exception:
-            local_today = now.date()
-        if day_plan.date > local_today:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Отчёт можно отправить в день льда")
+        opens_at = await ice_ended_at(self._session, day_plan, user.timezone)
+        if now < opens_at:
+            local = opens_at.astimezone(_zone(user.timezone))
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Отчёт откроется после льда — {local.day} {_MONTHS[local.month - 1]} в {local:%H:%M}",
+            )
 
     async def save_entry(
         self,
@@ -151,7 +159,7 @@ class TrainingDiaryService:
         session_type = training_session.day_plan.session_type
         if report is not None:
             self._validate_report(session_type, report)
-            await self._require_ice_started(user, training_session.day_plan)
+            await self._require_ice_started(user, training_session.day_plan, report.skipped)
 
         existing = await self._diary.get_by_training_session(session_id)
         if existing is not None and existing.reported_at is not None:

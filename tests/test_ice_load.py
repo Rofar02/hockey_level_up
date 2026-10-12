@@ -60,7 +60,7 @@ def test_recovery_factor_has_the_map_grace_and_half_life() -> None:
 
 
 @pytest.mark.asyncio
-async def test_medium_ice_report_loads_glutes_and_quads(db_session) -> None:
+async def test_medium_ice_report_loads_glutes_and_quads(db_session, ice_over) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -78,7 +78,7 @@ async def test_medium_ice_report_loads_glutes_and_quads(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_sent_report_is_final_and_charged_once(db_session) -> None:
+async def test_a_sent_report_is_final_and_charged_once(db_session, ice_over) -> None:
     """2026-10-10: a report can't be re-sent or changed to «Не был» -- the
     load it put on stays exactly once."""
     from fastapi import HTTPException
@@ -98,7 +98,7 @@ async def test_a_sent_report_is_final_and_charged_once(db_session) -> None:
 
 
 @pytest.mark.asyncio
-async def test_game_is_heavier_and_hits_the_cap_when_stacked(db_session) -> None:
+async def test_game_is_heavier_and_hits_the_cap_when_stacked(db_session, ice_over) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()

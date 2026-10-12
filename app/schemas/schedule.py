@@ -81,6 +81,9 @@ class TrainingSessionRead(BaseModel):
     # types TrainingDiaryCard never renders for (see
     # TrainingSessionPage.tsx) -- the diary step just doesn't apply there.
     has_diary_entry: bool | None
+    # Review 12.10, 8: the sent report was «не был» -- the day reads
+    # «Пропущен», not «Лёд пройден». None where has_diary_entry is None.
+    diary_skipped: bool | None = None
 
 
 class DayPlanRead(BaseModel):
@@ -99,6 +102,9 @@ class DayPlanRead(BaseModel):
     # Double day (step 6), see DayPlan.is_extra/time_of_day.
     is_extra: bool = False
     time_of_day: str | None = None
+    # Review 12.10, 7: when the ice / game report opens (the ice assumed
+    # over). Only on a single day's read, for an ice day or a game.
+    report_opens_at: datetime | None = None
 
 
 class ScheduleFeaturesRead(BaseModel):

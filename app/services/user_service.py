@@ -62,14 +62,25 @@ class UserService:
             )
         if "season_period" in updates and updates["season_period"] != user.season_period:
             user.season_period_changed_at = datetime.now(timezone.utc)
-        # Review 2026-10-11, 3.3: hockey can't start before the player was born.
+        # Review 2026-10-11, 3.3: hockey can't start before the player was
+        # born -- checked when the start year is being typed in. A birth date
+        # sent alone (Home's birthday card, review 12.10, 2) never fails on
+        # an old start year: one estimated from the typed-in years that
+        # contradicts it is dropped instead.
         birth = updates.get("birth_date", user.birth_date)
-        since = updates.get("hockey_since_year", user.hockey_since_year)
-        if birth is not None and since is not None and since < birth.year:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Год начала игры раньше года рождения",
-            )
+        if updates.get("hockey_since_year") is not None:
+            if birth is not None and updates["hockey_since_year"] < birth.year:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Год начала игры раньше года рождения",
+                )
+        elif (
+            "hockey_since_year" not in updates
+            and updates.get("birth_date") is not None
+            and user.hockey_since_year is not None
+            and user.hockey_since_year < birth.year
+        ):
+            updates["hockey_since_year"] = None
         for field, value in updates.items():
             setattr(user, field, value)
         await self._session.commit()

@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from zoneinfo import available_timezones
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from app.models.exercise import TargetStat
 from app.models.user import (
@@ -128,6 +128,10 @@ class UserRead(UserBase):
     has_seen_weight_hint: bool
     has_seen_coach_personality_intro: bool
     created_at: datetime
+    # Review 12.10, 5: «🎂 день рождения у …» with the team, both ways.
+    team_birthdays: bool = True
+    # The festive player card, a week from the birthday.
+    birthday_festive: bool = False
 
 
 class PublicStatRead(BaseModel):
@@ -170,6 +174,9 @@ class UserPublicRead(BaseModel):
     level: int
     xp: int
     created_at: datetime
+    # Review 12.10, 5: the festive card for the birthday week -- only when
+    # the player shares the birthday with the team (User.team_birthdays).
+    birthday_festive: bool = Field(default=False, validation_alias=AliasChoices("shared_birthday_festive"))
     # The six stats' current values, so a friend or teammate sees the same
     # player card the owner does. Filled in by the router (not a column).
     stats: list[PublicStatRead] = []
@@ -205,6 +212,7 @@ class UserUpdate(BaseModel):
     avatar_ring_accent: AvatarRingAccent | None = None
     jersey_color: JerseyColor | None = None
     name_search: bool | None = None
+    team_birthdays: bool | None = None
 
     @field_validator("timezone")
     @classmethod
