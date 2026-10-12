@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError
+from jwt import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import TokenType, decode_token
@@ -25,7 +25,7 @@ async def get_current_user(
     )
     try:
         subject = decode_token(token, TokenType.ACCESS)
-    except JWTError as exc:
+    except InvalidTokenError as exc:
         raise credentials_error from exc
 
     user = await UserRepository(session).get_by_id(uuid.UUID(subject))

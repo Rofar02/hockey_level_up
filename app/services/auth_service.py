@@ -4,7 +4,7 @@ import secrets
 import uuid
 
 from fastapi import HTTPException, status
-from jose import JWTError
+from jwt import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -208,7 +208,7 @@ class AuthService:
     async def refresh(self, refresh_token: str) -> TokenPair:
         try:
             subject = decode_token(refresh_token, TokenType.REFRESH)
-        except JWTError as exc:
+        except InvalidTokenError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
             ) from exc

@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
@@ -67,11 +68,18 @@ def create_refresh_token(subject: str) -> str:
 
 
 def decode_token(token: str, expected_type: TokenType) -> str:
-    """Return the token subject, or raise JWTError if invalid/expired/wrong type."""
-    payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    """Return the token subject, or raise InvalidTokenError if invalid,
+    expired (ExpiredSignatureError is a subclass) or of the wrong type.
+    The algorithm list is fixed -- never taken from the token header."""
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+        options={"require": ["exp", "sub", "type"]},
+    )
     if payload.get("type") != expected_type.value:
-        raise JWTError("Unexpected token type")
+        raise InvalidTokenError("Unexpected token type")
     subject = payload.get("sub")
-    if subject is None:
-        raise JWTError("Token missing subject")
+    if not isinstance(subject, str):
+        raise InvalidTokenError("Token missing subject")
     return subject
