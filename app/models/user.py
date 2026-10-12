@@ -146,6 +146,8 @@ class User(Base):
     age_stored: Mapped[int | None] = mapped_column("age", Integer, nullable=True)
     # Review 2026-10-11, 3.4 (greetings, later): the year last congratulated.
     last_birthday_greeted_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The local date the «день закрыт» praise was last sent (greeting_scheduler).
+    day_done_pushed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     position: Mapped[Position | None] = mapped_column(
         enum_column(Position, "position"), nullable=True
     )
