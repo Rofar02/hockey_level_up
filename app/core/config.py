@@ -1,6 +1,12 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The committed dev values -- fine locally, never on prod.
+DEV_JWT_SECRET_KEY = "change-me"
+DEV_VAPID_PRIVATE_KEY = "fmVrz4YsbsIibjJcNvHVpUGLkDuAHvcO-2CQwsveCy0"
+MIN_JWT_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -13,7 +19,7 @@ class Settings(BaseSettings):
 
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
 
-    jwt_secret_key: str = "change-me"
+    jwt_secret_key: str = DEV_JWT_SECRET_KEY
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
@@ -50,7 +56,7 @@ class Settings(BaseSettings):
     # browser's PushManager.subscribe({applicationServerKey}) both expect.
     # Dev-only pair, same "committed, not actually secret" convention as
     # jwt_secret_key above -- regenerate before any real deployment.
-    vapid_private_key: str = "fmVrz4YsbsIibjJcNvHVpUGLkDuAHvcO-2CQwsveCy0"
+    vapid_private_key: str = DEV_VAPID_PRIVATE_KEY
     vapid_public_key: str = (
         "BPD8KGVrzMDG5oZONsvz7dVBRDiE9b8IRFJdQn7BZ-Adqjz7o_U753g3zrK01JeBzBmU3NVoUJxNWPVNa1IVOXA"
     )
@@ -134,6 +140,22 @@ class Settings(BaseSettings):
     # ordinary extra gym ran clean (0 errors, 0 empty sessions); the week
     # page hides "+ зал" when it is off.
     double_days_enabled: bool = True
+
+    @model_validator(mode="after")
+    def _no_dev_secrets_in_production(self) -> "Settings":
+        """Step 8 (security, 1): prod refuses to start on the committed dev
+        secrets -- anyone could sign tokens or pushes with them. How to make
+        real ones: docs/deploy.md."""
+        if self.environment != "production":
+            return self
+        problems = []
+        if self.jwt_secret_key == DEV_JWT_SECRET_KEY or len(self.jwt_secret_key) < MIN_JWT_SECRET_LENGTH:
+            problems.append(f"JWT_SECRET_KEY must be a random string of {MIN_JWT_SECRET_LENGTH}+ characters")
+        if self.vapid_private_key == DEV_VAPID_PRIVATE_KEY:
+            problems.append("VAPID_PRIVATE_KEY is the committed dev key")
+        if problems:
+            raise ValueError("Unsafe production settings: " + "; ".join(problems))
+        return self
 
 
 @lru_cache

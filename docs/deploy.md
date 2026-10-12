@@ -97,9 +97,26 @@ the URL parser (seen live: RabbitMQ consumer failed to start with a
 disabled). Hex output (`0-9a-f`) can never contain a URL-special
 character. `JWT_SECRET_KEY` never goes into a URL, base64 is fine there.
 
-VAPID-пару (для push-уведомлений) сгенерировать отдельно (например,
-`npx web-push generate-vapid-keys` локально) и вставить
-`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`.
+VAPID-пару (для push-уведомлений) сгенерировать отдельно и вставить
+`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (формат — сырые байты в base64url,
+как ждут pywebpush и браузер):
+
+```bash
+docker compose -f docker-compose.prod.yml exec backend python -c "
+import base64; from py_vapid import Vapid
+from cryptography.hazmat.primitives import serialization as s
+v = Vapid(); v.generate_keys()
+b = lambda x: base64.urlsafe_b64encode(x).rstrip(b'=').decode()
+print('VAPID_PRIVATE_KEY=' + b(v.private_key.private_numbers().private_value.to_bytes(32, 'big')))
+print('VAPID_PUBLIC_KEY=' + b(v.public_key.public_bytes(s.Encoding.X962, s.PublicFormat.UncompressedPoint)))"
+```
+
+С `ENVIRONMENT=production` бэкенд **не стартует**, если `JWT_SECRET_KEY`
+короче 32 символов или равен `change-me`, либо `VAPID_PRIVATE_KEY` —
+закоммиченный dev-ключ (`app/core/config.py`). Смена `JWT_SECRET_KEY`
+разлогинивает всех. Смена VAPID-пары делает старые push-подписки
+недействительными: фронт сам переподписывает игрока при следующем открытии
+приложения, до этого пушей у него не будет.
 
 `RESEND_API_KEY` — вставить свой реальный ключ Resend (тот же, что
 используется локально, либо новый — но см. шаг 9 про верификацию домена,

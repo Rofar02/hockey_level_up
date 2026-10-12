@@ -13,6 +13,7 @@ import {
 } from '../api/tokenStorage'
 import type { TokensRefreshedDetail } from '../api/tokenStorage'
 import type { UserRead } from '../types/user'
+import { resyncPushSubscription } from '../push'
 import { AuthContext } from './authContext'
 import type { AuthContextValue } from './authContext'
 
@@ -125,6 +126,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
     }
   }, [])
+
+  // Once per signed-in player, not on every token refresh.
+  const userId = user?.id ?? null
+  useEffect(() => {
+    if (userId === null || accessToken === null) {
+      return
+    }
+    resyncPushSubscription(accessToken).catch(() => {
+      // Best-effort: Settings still lets the player turn pushes on again.
+    })
+  }, [userId])
 
   const markAssessmentComplete = useCallback(() => {
     setHasAssessment(true)

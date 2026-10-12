@@ -1,3 +1,5 @@
+import * as pushApi from './api/push'
+
 export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
 }
@@ -64,13 +66,60 @@ export async function getActivePushSubscription(): Promise<PushSubscription | nu
   return registration.pushManager.getSubscription()
 }
 
+function sameKey(subscription: PushSubscription, vapidPublicKey: string): boolean {
+  const current = subscription.options.applicationServerKey
+  if (current === null) {
+    return false
+  }
+  const a = new Uint8Array(current)
+  const b = urlBase64ToUint8Array(vapidPublicKey)
+  return a.length === b.length && a.every((byte, i) => byte === b[i])
+}
+
 export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubscription> {
   const registration = await getRegistration()
   if (registration === null) {
     throw new Error('Service worker недоступен в этом браузере.')
   }
+  // A subscription made with an old VAPID key can't be reused -- subscribe()
+  // throws on it -- so it is dropped first.
+  const existing = await registration.pushManager.getSubscription()
+  if (existing !== null && !sameKey(existing, vapidPublicKey)) {
+    await existing.unsubscribe()
+  }
   return registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
   })
+}
+
+// Step 8 (security, 1): after the server's VAPID pair is rotated, every old
+// subscription silently stops receiving pushes. On each sign-in the
+// browser's subscription is checked against the server key and, if it was
+// made with another one, replaced -- the player never has to notice.
+export async function resyncPushSubscription(accessToken: string): Promise<void> {
+  if (!isPushSupported() || Notification.permission !== 'granted') {
+    return
+  }
+  const existing = await getActivePushSubscription()
+  if (existing === null) {
+    return
+  }
+  const { public_key: vapidPublicKey } = await pushApi.getVapidPublicKey(accessToken)
+  if (sameKey(existing, vapidPublicKey)) {
+    return
+  }
+  const oldEndpoint = existing.endpoint
+  const subscription = await subscribeToPush(vapidPublicKey)
+  const json = subscription.toJSON()
+  if (json.endpoint === undefined || json.keys === undefined) {
+    return
+  }
+  await pushApi.savePushSubscription(
+    { endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth } },
+    accessToken,
+  )
+  if (oldEndpoint !== json.endpoint) {
+    await pushApi.deletePushSubscription(oldEndpoint, accessToken).catch(() => undefined)
+  }
 }
