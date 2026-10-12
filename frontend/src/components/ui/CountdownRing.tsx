@@ -3,8 +3,12 @@ const ACCENT_COLORS = {
   persimmon: '#FF5C34',
 } as const
 
-function formatSeconds(totalSeconds: number): string {
-  return String(Math.max(0, Math.ceil(totalSeconds)))
+// Owner's call (2026-10-12): a timer of a minute or more reads as a clock,
+// «1:06» (and keeps that look to the end, «0:45»); shorter ones stay «45».
+function formatSeconds(seconds: number, asClock: boolean): string {
+  const whole = Math.max(0, Math.ceil(seconds))
+  if (!asClock) return String(whole)
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
 }
 
 // The one ring shared by TimerPlayer's work/rest states and SetLogger's
@@ -94,7 +98,7 @@ export function CountdownRing({
       ) : (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1">
           <span className="font-display text-4xl font-semibold leading-none text-text-primary">
-            {formatSeconds(remainingSeconds)}
+            {formatSeconds(remainingSeconds, totalSeconds >= 60)}
           </span>
           <span className="text-[11px] uppercase tracking-wide text-text-secondary">{label}</span>
           {interactive && (
