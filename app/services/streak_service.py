@@ -4,9 +4,51 @@ from datetime import date, timedelta
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.progress import TrainingStreak
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
+from app.models.training_diary import TrainingDiaryEntry
 
 TRAINING_SESSION_TYPES = (DaySessionType.ON_ICE, DaySessionType.OFF_ICE)
+ICE_TYPES = (DaySessionType.ON_ICE, DaySessionType.GAME)
+
+
+def _ice_trained():
+    """An ice day / game the player went to (2026-10-12): its report is
+    sent and isn't «не был». The preparation checklist is optional, so the
+    report alone closes the day for the streak and the calendar too."""
+    return (
+        select(TrainingDiaryEntry.id)
+        .join(TrainingSession, TrainingSession.id == TrainingDiaryEntry.training_session_id)
+        .where(
+            TrainingSession.day_plan_id == DayPlan.id,
+            TrainingDiaryEntry.reported_at.is_not(None),
+            TrainingDiaryEntry.skipped.is_(False),
+        )
+        .exists()
+    )
+
+
+async def credit_streak_day(session: AsyncSession, user_id: uuid.UUID, day: date) -> None:
+    """The streak's credit for a day trained -- streak_consumer's rule, for
+    an ice report (2026-10-12). Dated by the ice day itself, so a report
+    sent the next morning counts for yesterday; one older than the last
+    credited day changes nothing (has_missed_training_day sees it anyway).
+    Doesn't commit."""
+    streak = (
+        await session.execute(select(TrainingStreak).where(TrainingStreak.user_id == user_id).with_for_update())
+    ).scalar_one_or_none()
+    if streak is None:
+        streak = TrainingStreak(user_id=user_id, current_streak=0, longest_streak=0, last_activity_date=None)
+        session.add(streak)
+    last = streak.last_activity_date
+    if last is not None and day <= last:
+        return
+    if last is not None and not await has_missed_training_day(session, user_id, last, day):
+        streak.current_streak += 1
+    else:
+        streak.current_streak = 1
+    streak.longest_streak = max(streak.longest_streak, streak.current_streak)
+    streak.last_activity_date = day
 
 
 class DayActivity:
@@ -53,6 +95,7 @@ async def list_activity_calendar(
             func.count(SessionBlock.id).filter(
                 or_(SessionBlock.completed_at.is_not(None), SessionBlock.skipped_at.is_not(None))
             ),
+            _ice_trained().label("ice_trained"),
         )
         .join(WeeklyPlan, DayPlan.weekly_plan_id == WeeklyPlan.id)
         .outerjoin(TrainingSession, TrainingSession.day_plan_id == DayPlan.id)
@@ -65,12 +108,16 @@ async def list_activity_calendar(
             # its main ice/game day, an unfinished extra gym day never breaks it.
             DayPlan.is_extra.is_(False),
         )
-        .group_by(DayPlan.date, DayPlan.session_type)
+        .group_by(DayPlan.id, DayPlan.date, DayPlan.session_type)
         .order_by(DayPlan.date)
     )
     return [
-        DayActivity(day, session_type, total_blocks > 0 and total_blocks == completed_blocks)
-        for day, session_type, total_blocks, completed_blocks in result.all()
+        DayActivity(
+            day,
+            session_type,
+            (total_blocks > 0 and total_blocks == completed_blocks) or (session_type in ICE_TYPES and ice_trained),
+        )
+        for day, session_type, total_blocks, completed_blocks, ice_trained in result.all()
     ]
 
 
@@ -164,6 +211,7 @@ async def has_missed_training_day(
             # the date counts through its main ice/game day.
             DayPlan.is_extra.is_(False),
             ~session_fully_completed,
+            ~_ice_trained(),
         )
         .limit(1)
     )

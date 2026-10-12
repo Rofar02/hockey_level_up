@@ -261,3 +261,26 @@ async def test_a_past_day_cannot_get_or_lose_its_extra_gym(db_session, builds, m
 
     assert [(c.date, c.detail) for c in result.conflicts] == [(MONDAY, "Прошедший день нельзя изменить")]
     assert not any(d.is_extra for d in result.weekly_plan.day_plans)
+
+
+@pytest.mark.asyncio
+async def test_a_past_day_is_not_retyped(db_session, builds, monkeypatch) -> None:
+    """2026-10-12: the week editor locks past days -- so does the API."""
+    from app.services import schedule_service
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    service = ScheduleService(db_session)
+    await service.create_weekly_plan(user, WeeklyPlanCreate(days=_days({})))
+    monkeypatch.setattr(schedule_service, "user_today", lambda _user: MONDAY + timedelta(days=3))
+
+    result = await service.patch_weekly_plan(
+        user,
+        WeeklyPlanPatch(days=[DayPlanIn(date=MONDAY, session_type=REST), DayPlanIn(date=MONDAY + timedelta(days=4), session_type=ICE)]),
+        MONDAY,
+    )
+
+    assert [(c.date, c.detail) for c in result.conflicts] == [(MONDAY, "Прошедший день нельзя изменить")]
+    types = {d.date: d.session_type for d in result.weekly_plan.day_plans if not d.is_extra}
+    assert types[MONDAY] == ICE and types[MONDAY + timedelta(days=4)] == ICE
