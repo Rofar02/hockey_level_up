@@ -1047,7 +1047,13 @@ function SetLogger({
   // ставится прочерком, не изменить нифига" -- the stepper can't reach
   // that state at all, there's no empty state to leave it in.)
   const effectiveReps = repsValue ?? suggestedReps ?? exercise.rep_range_min ?? 1
-  const effectiveWeight = weightValue ?? suggestedWeightKg ?? 0
+  // Owner's call (2026-10-12): the next set starts from the weight of the
+  // last logged set, not the suggestion -- the suggestion only fills set 1.
+  const lastLoggedWeight =
+    Object.entries(completedSets)
+      .filter(([, completed]) => completed.weight_kg != null)
+      .sort(([a], [b]) => Number(b) - Number(a))[0]?.[1].weight_kg ?? null
+  const effectiveWeight = weightValue ?? lastLoggedWeight ?? suggestedWeightKg ?? 0
 
   function beginEditSet(
     setNumber: number,
