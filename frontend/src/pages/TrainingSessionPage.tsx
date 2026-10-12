@@ -38,7 +38,7 @@ import type { SkillSummaryRead } from '../types/skill'
 import { BLOCK_PHASE_LABELS } from '../types/trainingBlock'
 import type { TrainingBlockRead } from '../types/trainingBlock'
 import { lockBodyScroll, unlockBodyScroll } from '../utils/bodyScrollLock'
-import { formatShortDate, parseIsoDate, toIsoDate } from '../utils/date'
+import { formatShortDate, parseIsoDate, toIsoDate, todayIsoIn } from '../utils/date'
 import { loadOptional } from '../utils/loadOptional'
 
 const PHASE_LABELS: Record<TrainingPhase, string> = {
@@ -224,8 +224,8 @@ function computeSessionTotals(sessionBlocks: SessionBlockRead[]): {
 
 // "Сегодня" / "Завтра" / "Вчера" -- other days are named by the big date
 // under it (2026-10-10 redesign).
-function dayTagFor(isoDate: string): string | null {
-  const today = new Date()
+function dayTagFor(isoDate: string, todayIso: string): string | null {
+  const today = parseIsoDate(todayIso)
   const shift = (days: number) => {
     const d = new Date(today)
     d.setDate(today.getDate() + days)
@@ -245,7 +245,7 @@ function formatLongDate(isoDate: string): string {
 
 export function TrainingSessionPage() {
   const { dayPlanId } = useParams<{ dayPlanId: string }>()
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   const navigate = useNavigate()
 
   const [day, setDay] = useState<DayPlanRead | null>(null)
@@ -267,7 +267,8 @@ export function TrainingSessionPage() {
   const [iceCheckPostponed, setIceCheckPostponed] = useState(false)
   // A training still ahead (owner's call, 2026-10-10): open to look at,
   // started only on its own day -- the backend refuses anything else.
-  const isAhead = day !== null && day.date > toIsoDate(new Date())
+  const todayIso = todayIsoIn(user?.timezone)
+  const isAhead = day !== null && day.date > todayIso
   const [blocks, setBlocks] = useState<SessionBlockRead[] | null>(null)
   const [trainingSessionId, setTrainingSessionId] = useState<string | null>(null)
   const [trainingBlock, setTrainingBlock] = useState<TrainingBlockRead | null>(null)
@@ -819,7 +820,7 @@ export function TrainingSessionPage() {
       ? (currentPhaseBlocks.find((block) => block.exercise.id === selectedExercise.id) ?? null)
       : null
 
-  const dayTag = day !== null ? dayTagFor(day.date) : null
+  const dayTag = day !== null ? dayTagFor(day.date, todayIso) : null
   const eyebrow = [dayTag, trainingBlock !== null ? BLOCK_PHASE_LABELS[trainingBlock.phase] : null]
     .filter(Boolean)
     .join(' · ')
@@ -1047,6 +1048,14 @@ export function TrainingSessionPage() {
 
       {isIceLike && day !== null ? (
         <>
+          {day.training_session?.has_diary_entry === true && (
+            <div className={`flex items-center gap-3 p-4 ${CARD_CLASS}`}>
+              <i className="ti ti-circle-check text-xl text-accent-ice" aria-hidden="true" />
+              <p className="text-sm text-text-primary">
+                {day.session_type === 'game' ? 'Игра пройдена' : 'Лёд пройден'} — отчёт отправлен
+              </p>
+            </div>
+          )}
           {day.session_type === 'on_ice' && trainingSessionId !== null && (
             <IceFocusCard trainingSessionId={trainingSessionId} />
           )}
@@ -1064,8 +1073,10 @@ export function TrainingSessionPage() {
                       : PHASE_LABELS[phase]}
                 </span>
                 <span className="font-mono text-[11px] text-text-secondary">
-                  {blocksByPhase[phase].filter((block) => isExerciseDone(block, setCompletionCounts)).length} из{' '}
-                  {blocksByPhase[phase].length}
+                  {day.training_session?.has_diary_entry === true &&
+                  blocksByPhase[phase].every((block) => !isExerciseDone(block, setCompletionCounts))
+                    ? 'необязательно'
+                    : `${blocksByPhase[phase].filter((block) => isExerciseDone(block, setCompletionCounts)).length} из ${blocksByPhase[phase].length}`}
                 </span>
               </div>
               <div className="flex flex-col gap-1">
@@ -1371,13 +1382,13 @@ export function TrainingSessionPage() {
           to the list. */}
       {selectedBlock !== null && trainingSessionId !== null && accessToken !== null && currentPhase !== undefined && (
         <FullScreenOverlay className="flex flex-col bg-[#0A0F1A]">
-          <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-3 px-4 pb-3 pt-[calc(env(safe-area-inset-top,0px)+14px)]">
+          <div className="mx-auto flex w-full max-w-2xl shrink-0 flex-col gap-3 pb-3 pl-[max(16px,env(safe-area-inset-left))] pr-[max(16px,env(safe-area-inset-right))] pt-[calc(env(safe-area-inset-top,0px)+14px)]">
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={handleCloseExerciseDetail}
                 aria-label="Свернуть плеер"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-dark-card text-text-primary"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-dark-card text-text-primary"
               >
                 <i className="ti ti-chevron-down text-lg" aria-hidden="true" />
               </button>
@@ -1482,7 +1493,7 @@ export function TrainingSessionPage() {
           >
             <span className="text-xs font-semibold uppercase tracking-wide text-accent-persimmon">Сначала отчёт</span>
             <p id="pending-ice-title" className="text-lg font-semibold leading-snug">
-              {pendingReportsApi.pendingReportLabel(pendingIce, toIsoDate(new Date()))}
+              {pendingReportsApi.pendingReportLabel(pendingIce, todayIso)}
             </p>
             <p className="text-sm leading-relaxed text-text-secondary">
               Без отчёта приложение не знает, катались ли вы, — и нагрузку на ноги сегодня посчитает вслепую.

@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 from datetime import time as time_
@@ -20,6 +21,16 @@ from app.models.team_event import (
     TeamEventType,
     TeamIceScheduleTemplate,
 )
+
+
+
+def lineup_group_sort_key(group) -> tuple:
+    """The same order everywhere (review 2026-10-11, 4.3): numbered lines
+    by their number («1 звено», «2 звено» ...), unnumbered groups (a
+    training's «Белые») as created, the goalies last."""
+    name = (group.name or "").casefold()
+    number = re.search(r"\d+", name)
+    return ("вратар" in name, int(number.group()) if number else 10**6, group.order)
 
 
 class TeamEventRepository:
@@ -251,7 +262,7 @@ class TeamEventRepository:
             .where(TeamEventLineupGroup.team_event_id == team_event_id)
             .order_by(TeamEventLineupGroup.order)
         )
-        return list(result.scalars().all())
+        return sorted(result.scalars().all(), key=lineup_group_sort_key)
 
     async def next_lineup_group_order(self, team_event_id: uuid.UUID) -> int:
         result = await self._session.execute(

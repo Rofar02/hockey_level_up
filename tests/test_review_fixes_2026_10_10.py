@@ -724,3 +724,62 @@ async def test_no_report_before_the_ice(db_session) -> None:
     await db_session.flush()
     saved = await TrainingDiaryService(db_session).save_entry(player, team_day.training_session.id, None, report)
     assert saved.reported_at is not None
+
+
+@pytest.mark.asyncio
+async def test_a_done_focus_task_no_longer_steers_the_focus(db_session) -> None:
+    """Review 2026-10-11, 5.4: the week's «держи фокус X» steers the day only
+    while it still needs it -- done (not just claimed) releases it."""
+    from app.models.training_diary import FocusResult, TrainingDiaryEntry
+    from app.services.ice_focus_service import IceFocusService
+
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    today = utc_today()
+    week_start = today - timedelta(days=today.weekday())
+    await CoachTaskService(db_session).save_specs(
+        user.id, week_start, [CoachTaskSpec(CoachTaskType.ICE_FOCUS, 1, "skate_stops")], "coach"
+    )
+    _, held = await _ice_day(db_session, user, today)
+
+    async def _fresh_ice_today(offset_weeks: int):
+        # Another plan row (one plan per week start) holding an ice day today.
+        day = DayPlan(
+            id=uuid.uuid4(), date=today, session_type=DaySessionType.ON_ICE,
+            training_session=TrainingSession(id=uuid.uuid4(), blocks=[]),
+        )
+        db_session.add(
+            WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=week_start + timedelta(weeks=offset_weeks),
+                       day_plans=[day])
+        )
+        await db_session.flush()
+        return await IceFocusService(db_session).focus_for_session(user, day.training_session.id)
+
+    assert (await _fresh_ice_today(10)).id == "skate_stops"
+
+    db_session.add(
+        TrainingDiaryEntry(
+            user_id=user.id, training_session_id=held.training_session.id, focus_id="skate_stops",
+            focus_result=FocusResult.DONE, reported_at=datetime.now(timezone.utc),
+        )
+    )
+    await db_session.flush()
+
+    assert (await _fresh_ice_today(11)).reason != "Задание тренера на эту неделю"
+
+
+@pytest.mark.asyncio
+async def test_lineup_groups_sort_by_number_goalies_last() -> None:
+    """Review 2026-10-11, 4.3: «Пятёрка 2» before «Пятёрка 10», goalies last."""
+    from types import SimpleNamespace
+
+    from app.repositories.team_event_repository import lineup_group_sort_key
+
+    groups = [
+        SimpleNamespace(name=name, order=order)
+        for order, name in enumerate(["Вратари", "Пятёрка 10", "Пятёрка 2", "Запас", "Пятёрка 1"])
+    ]
+    assert [g.name for g in sorted(groups, key=lineup_group_sort_key)] == [
+        "Пятёрка 1", "Пятёрка 2", "Пятёрка 10", "Запас", "Вратари",
+    ]

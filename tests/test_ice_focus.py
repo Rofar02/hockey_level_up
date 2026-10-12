@@ -84,7 +84,7 @@ async def _user_with_days(db_session):
 
 
 @pytest.mark.asyncio
-async def test_endpoint_follows_stats_then_the_last_game_report(db_session) -> None:
+async def test_focus_follows_stats_then_the_last_game_and_stays_for_the_day(db_session) -> None:
     user, sessions = await _user_with_days(db_session)
     service = IceFocusService(db_session)
 
@@ -98,6 +98,16 @@ async def test_endpoint_follows_stats_then_the_last_game_report(db_session) -> N
         None,
         DiaryReportIn(game_result=GameResult.LOSS, self_rating=2, work_on=[GameWorkOn.SHOOTING]),
     )
+    # Once shown, the day's focus is fixed (review 2026-10-11, 4.5) -- the
+    # game report doesn't change it midway...
+    same = await service.focus_for_session(user, sessions[DaySessionType.ON_ICE].id)
+    assert same.id == before.id
+    # ...a day whose focus wasn't shown yet follows the report.
+    from app.models.schedule import TrainingSession
+
+    fresh = await db_session.get(TrainingSession, sessions[DaySessionType.ON_ICE].id)
+    fresh.ice_focus_id = None
+    await db_session.flush()
     after = await service.focus_for_session(user, sessions[DaySessionType.ON_ICE].id)
     assert after.stat == TargetStat.PUCK_HANDLING and FOCUS_BY_ID[after.id].work_on == "shooting"
 

@@ -159,7 +159,12 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     isoDate: day.date,
     date: parseIsoDate(day.date),
     sessionType: day.session_type,
-    completionStatus: completionStatusFromBlocks(day.training_session?.blocks),
+    // An ice day / a game is done once its report is sent (review
+    // 2026-10-11, 4.4) -- the preparation ticks are optional.
+    completionStatus:
+      (day.session_type === 'on_ice' || day.session_type === 'game') && day.training_session?.has_diary_entry === true
+        ? 'done'
+        : completionStatusFromBlocks(day.training_session?.blocks),
     trainingSession: day.training_session,
     teamEventId: day.team_event_id,
     replacedSessionType: day.replaced_session_type ?? null,
@@ -1009,12 +1014,13 @@ const SUMMARY_SEGMENT_COLORS: Record<DaySessionType, string> = {
   rest: 'rgba(255,255,255,0.10)',
 }
 
-// "15 упражнений · основная часть 6" -- the week list's one line per day.
+// "14 упр. · основная 6" -- the week list's one line per day, no lone
+// number wrapped onto its own line (review 2026-10-11, 4.6).
 function formatDayShort(trainingSession: TrainingSessionRead): string {
   const total = trainingSession.blocks.length
   const main = trainingSession.blocks.filter((block) => block.phase === 'main').length
-  const head = `${total} ${plural(total, 'упражнение', 'упражнения', 'упражнений')}`
-  return main > 0 ? `${head} · основная часть ${main}` : head
+  const head = `${total} упр.`
+  return main > 0 ? `${head} · основная ${main}` : head
 }
 
 function formatWeekRange(monday: Date): string {
