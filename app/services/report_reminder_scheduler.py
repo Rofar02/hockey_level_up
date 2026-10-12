@@ -9,8 +9,9 @@ When: REPORT_DELAY after the ice is assumed over (ice_ends_at). A team
 event has a start time but no length, so a typical one is assumed
 (TEAM_EVENT_LENGTH); a day the player marked themselves has no time at all,
 so its ice is assumed over at OWN_ICE_ENDS (a double day's morning ice at
-noon) and it's asked at OWN_DAY_LOCAL_TIME. A reminder more than STALE_AFTER late (the worker was
-down, say) is dropped rather than sent the next morning.
+noon) and it's asked REPORT_DELAY after that (21:00). A reminder more than
+STALE_AFTER late (the worker was down, say) is dropped rather than sent the
+next morning.
 
 Still no report the next morning: one more ask at FOLLOWUP_LOCAL_TIME
 (2026-10-10) -- since then the ice reaches the muscle map only through the
@@ -42,7 +43,6 @@ TEAM_EVENT_LENGTH: dict[TeamEventType, timedelta] = {
     TeamEventType.TRAINING: timedelta(minutes=90),
     TeamEventType.GAME: timedelta(hours=2),
 }
-OWN_DAY_LOCAL_TIME = time(21, 0)
 # The player's own ice, no time on it: assumed over by the evening -- or by
 # noon when a double day puts it in the morning.
 OWN_ICE_ENDS = time(19, 0)

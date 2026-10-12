@@ -883,8 +883,16 @@ async def _call_zai(
     system_prompt: str,
     messages: list[dict[str, str]],
     tools: list[dict] | None = None,
+    timeout: float | None = None,
 ) -> ZaiReply:
-    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    # `timeout` (review of 7c0df2d): a background caller -- the birthday
+    # word -- waits that long at most, with no client-side retries, so one
+    # hung call never holds up the loop it runs in.
+    client = (
+        AsyncOpenAI(api_key=api_key, base_url=base_url)
+        if timeout is None
+        else AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=0)
+    )
     extra: dict = {"tools": tools} if tools else {}
     try:
         response = await client.chat.completions.create(

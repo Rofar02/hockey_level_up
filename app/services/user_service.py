@@ -68,14 +68,20 @@ class UserService:
         # an old start year: one estimated from the typed-in years that
         # contradicts it is dropped instead.
         birth = updates.get("birth_date", user.birth_date)
-        if updates.get("hockey_since_year") is not None:
-            if birth is not None and updates["hockey_since_year"] < birth.year:
+        since = updates.get("hockey_since_year")
+        if since is None and updates.get("years_of_experience") is not None:
+            # An old client's years become the start year (User's setter) --
+            # checked the same way, never wiped below (review of 7c0df2d, 5).
+            since = user.local_today().year - round(updates["years_of_experience"])
+        if since is not None:
+            if birth is not None and since < birth.year:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Год начала игры раньше года рождения",
                 )
         elif (
             "hockey_since_year" not in updates
+            and "years_of_experience" not in updates
             and updates.get("birth_date") is not None
             and user.hockey_since_year is not None
             and user.hockey_since_year < birth.year

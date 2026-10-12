@@ -293,3 +293,93 @@ async def test_a_game_day_has_its_own_evening_words(db_session, monkeypatch) -> 
     await _tick(db_session, _at(21, 40))
 
     assert len(sent) == 1 and sent[0]["title"].startswith("Игра сыграна")
+
+
+async def _birthday_hero(db_session, **overrides):
+    return await _user(
+        db_session, birth_date=date(2000, 3, 10), first_name="Иван", reminder_preference=ReminderPreference.NONE,
+        level=1, xp=0, **overrides,
+    )
+
+
+async def _coach_messages(db_session, user):
+    from sqlalchemy import select
+
+    from app.models.coach_chat import CoachChatMessage
+
+    return (await db_session.scalars(select(CoachChatMessage).where(CoachChatMessage.user_id == user.id))).all()
+
+
+@pytest.mark.asyncio
+async def test_two_ticks_racing_give_one_gift(db_session, monkeypatch) -> None:
+    """Review of 7c0df2d, 2: the second tick read the player before the
+    first one committed (a stale birthday_gift_year) -- the atomic claim
+    still gives +200 XP and one coach message, once."""
+    from sqlalchemy.orm.attributes import set_committed_value
+
+    from app.core.config import get_settings
+    from app.events.handlers.block_completed import xp_to_next_level
+    from app.services.greeting_scheduler import _give_birthday_gift
+
+    monkeypatch.setattr(get_settings(), "zai_api_key", "")
+    hero = await _birthday_hero(db_session)
+    now_local = _at(9, 5)
+
+    await _give_birthday_gift(db_session, hero, now_local)
+    set_committed_value(hero, "birthday_gift_year", None)  # what the other tick saw
+    await _give_birthday_gift(db_session, hero, now_local)
+
+    await db_session.refresh(hero)
+    assert hero.birthday_gift_year == 2026
+    assert (hero.level, hero.xp) == (2, 200 - xp_to_next_level(1))
+    assert len(await _coach_messages(db_session, hero)) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_model_writes_only_for_premium(db_session, monkeypatch) -> None:
+    """Review of 7c0df2d, 3: premium -- the coach model, with a timeout and
+    no retries; free -- the template, no call at all."""
+    from app.core.config import get_settings
+    from app.services import coach_chat_service
+    from app.services.coach_chat_service import ZaiReply, ZaiUsage
+
+    monkeypatch.setattr(get_settings(), "zai_api_key", "test-key")
+    calls: list[dict] = []
+
+    async def _fake_zai(*_args, **kwargs):
+        calls.append(kwargs)
+        return ZaiReply(text="Иван, с днём рождения от тренера!", tool_call=None, usage=ZaiUsage())
+
+    monkeypatch.setattr(coach_chat_service, "_call_zai", _fake_zai)
+    premium = await _birthday_hero(db_session, has_premium=True)
+    free = await _birthday_hero(db_session)
+
+    await _tick(db_session, _at(9, 5))
+
+    assert len(calls) == 1 and calls[0]["timeout"] == 20
+    assert [m.content for m in await _coach_messages(db_session, premium)] == ["Иван, с днём рождения от тренера!"]
+    [free_message] = await _coach_messages(db_session, free)
+    assert free_message.content.startswith("С днём рождения, Иван!") and free_message.llm_model is None
+
+
+@pytest.mark.asyncio
+async def test_a_failing_model_falls_back_to_the_template_once(db_session, monkeypatch) -> None:
+    from app.core.config import get_settings
+    from app.services import coach_chat_service
+
+    monkeypatch.setattr(get_settings(), "zai_api_key", "test-key")
+    calls = []
+
+    async def _broken(*_args, **_kwargs):
+        calls.append(1)
+        raise TimeoutError("z.ai hung")
+
+    monkeypatch.setattr(coach_chat_service, "_call_zai", _broken)
+    hero = await _birthday_hero(db_session, has_premium=True)
+
+    await _tick(db_session, _at(9, 5))
+    await _tick(db_session, _at(9, 10))
+
+    assert len(calls) == 1
+    [message] = await _coach_messages(db_session, hero)
+    assert message.content.startswith("С днём рождения, Иван!")
