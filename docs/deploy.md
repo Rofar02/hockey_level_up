@@ -250,6 +250,67 @@ crontab -e
 Сразу проверить руками, что `deploy/backup.sh` реально отрабатывает и файлы
 появляются в `/var/backups/icelevel/` — не дожидаться первого 3:00 ночи.
 
+Что попадает в бэкап: дамп Postgres (`db-ДАТА.sql.gz`) и архив загрузок —
+аватары, картинки статей, логотипы команд, скриншоты из обратной связи
+(`uploads-ДАТА.tar.gz`). На сервере хранятся 14 дней.
+
+### 10.1. Копия вне сервера
+
+Если сервер пропадёт целиком, локальные бэкапы пропадут вместе с ним. Поэтому
+`backup.sh` после локальных архивов шифрует их (gpg, AES256 — в дампе почты и
+хэши паролей) и загружает через rclone в S3-совместимое хранилище, где они
+живут 30 дней. Ролики упражнений (`/srv/hlu-media/exercise-videos`)
+синхронизируются туда же без шифрования (это публичный контент).
+
+1. Поставить rclone и gpg: `apt install -y rclone gnupg`.
+2. Создать бакет (например, Yandex Object Storage — данные остаются в РФ)
+   и сервисный ключ доступа только к нему.
+3. В `.env` заполнить `BACKUP_PASSPHRASE`, `BACKUP_REMOTE` и
+   `RCLONE_CONFIG_OFFSITE_*` (образец в `.env.prod.example`).
+   **Пароль `BACKUP_PASSPHRASE` сохранить вне сервера** (менеджер паролей) —
+   без него бэкап не расшифровать.
+4. Запустить `deploy/backup.sh` руками, убедиться, что в бакете появились
+   `daily/db-ДАТА.sql.gz.gpg` и `daily/uploads-ДАТА.tar.gz.gpg`.
+5. Проверить, что бэкап реально восстанавливается:
+
+   ```bash
+   deploy/restore_check.sh                                    # последний локальный дамп
+   rclone copy offsite:icelevel-backups/daily/db-ДАТА.sql.gz.gpg /tmp/
+   deploy/restore_check.sh /tmp/db-ДАТА.sql.gz.gpg            # копия из хранилища
+   ```
+
+   Скрипт поднимает временный Postgres, заливает дамп, считает игроков и
+   удаляет контейнер — боевую базу не трогает. Повторять раз в месяц.
+
+### 10.2. Восстановление прода из бэкапа
+
+1. Остановить всё, что пишет в базу:
+   `docker compose -f docker-compose.prod.yml stop backend worker nginx`.
+2. Если дамп из хранилища — скачать и расшифровать:
+
+   ```bash
+   rclone copy offsite:icelevel-backups/daily/db-ДАТА.sql.gz.gpg /tmp/
+   gpg --decrypt --output /tmp/db.sql.gz /tmp/db-ДАТА.sql.gz.gpg   # спросит BACKUP_PASSPHRASE
+   ```
+
+3. Пересоздать базу и залить дамп (`source .env` даёт `POSTGRES_USER`/`POSTGRES_DB`):
+
+   ```bash
+   source .env
+   docker compose -f docker-compose.prod.yml exec -T postgres      psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE \"$POSTGRES_DB\"" -c "CREATE DATABASE \"$POSTGRES_DB\""
+   gunzip -c /tmp/db.sql.gz | docker compose -f docker-compose.prod.yml exec -T postgres      psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+   ```
+
+4. Загрузки — распаковать архив обратно в тома:
+
+   ```bash
+   docker run --rm -v icelevel_avatars_data:/avatars -v icelevel_reference_articles_data:/reference-articles      -v icelevel_team_logos_data:/team-logos -v icelevel_feedback_data:/feedback      -v /tmp:/backup alpine tar xzf /backup/uploads-ДАТА.tar.gz -C /
+   ```
+
+5. Поднять всё обратно: `docker compose -f docker-compose.prod.yml up -d`
+   (сервис `migrate` догонит миграции, если код новее дампа), затем смок-тест
+   из раздела 12.
+
 ## 11. Обновление сервера (обычный рабочий цикл)
 
 Локально: разработка в этом репозитории, коммит, `git push`. На сервере:
