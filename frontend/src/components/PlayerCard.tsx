@@ -213,7 +213,7 @@ export function PlayerCard({
               data-share-hide
               className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-[230px] w-full"
               viewBox="0 0 360 230"
-              preserveAspectRatio="none"
+              preserveAspectRatio="xMidYMid slice"
               aria-hidden="true"
             >
               {CONFETTI.map((piece, index) => (

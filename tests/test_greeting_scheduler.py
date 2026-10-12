@@ -383,3 +383,25 @@ async def test_a_failing_model_falls_back_to_the_template_once(db_session, monke
     assert len(calls) == 1
     [message] = await _coach_messages(db_session, hero)
     assert message.content.startswith("С днём рождения, Иван!")
+
+
+@pytest.mark.asyncio
+async def test_a_tick_picks_only_players_in_a_window(db_session) -> None:
+    """After the release review, 1-2: by time zone and the indexed MMDD --
+    nobody before a window, everyone with pushes from 21:30 local,
+    a birthday from 09:00 local."""
+    from app.services.greeting_scheduler import _push_candidates
+
+    plain = await _user(db_session)
+    birthday = await _user(db_session, birth_date=date(2001, 3, 10))
+    east = await _user(db_session, timezone="Asia/Vladivostok")  # UTC+10
+    await db_session.refresh(birthday)
+    assert birthday.birth_mmdd == 310
+    ours = {plain.id, birthday.id, east.id}
+
+    async def picked(at: datetime) -> set:
+        return {user_id for user_id, _ in await _push_candidates(db_session, at)} & ours
+
+    assert await picked(_at(8, 0)) == set()
+    assert await picked(_at(12, 0)) == {birthday.id, east.id}  # 22:00 in Vladivostok
+    assert await picked(_at(21, 40)) == {plain.id, birthday.id}  # 07:40 next morning in Vladivostok

@@ -25,7 +25,7 @@ import uuid
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import set_committed_value
@@ -247,16 +247,20 @@ async def _give_birthday_gift(session: AsyncSession, user: User, now_local: date
     await session.commit()
 
 
-def _gift_candidates(now_utc: datetime):
-    """Birthdays on yesterday's, today's or tomorrow's UTC date -- every
-    time zone's "today" is among them; the exact check is per player."""
+def _birthday_mmdds(now_utc: datetime) -> set[int]:
+    """Yesterday's, today's and tomorrow's UTC dates as MMDD -- every time
+    zone's "today" is among them (29 Feb counts on the 28th); the exact
+    check is per player."""
     days = [(now_utc + timedelta(days=shift)).date() for shift in (-1, 0, 1)]
-    month_days = {d.strftime("%m-%d") for d in days}
-    if "02-28" in month_days:
-        month_days.add("02-29")
-    return select(User.id, User.timezone).where(
-        User.birth_date.is_not(None), func.to_char(User.birth_date, "MM-DD").in_(month_days)
-    )
+    mmdds = {d.month * 100 + d.day for d in days}
+    if 228 in mmdds:
+        mmdds.add(229)
+    return mmdds
+
+
+def _gift_candidates(now_utc: datetime):
+    """By the indexed users.birth_mmdd, no scan of everyone."""
+    return select(User.id, User.timezone).where(User.birth_mmdd.in_(_birthday_mmdds(now_utc)))
 
 
 # --- The pushes -------------------------------------------------------------
@@ -356,6 +360,11 @@ async def _praise_the_day(session: AsyncSession, user: User, now_local: datetime
 
 
 async def _for_each_user(session: AsyncSession, rows, now_utc: datetime, handle, what: str) -> None:
+    rows = list(rows)
+    # One query for all of them; session.get below then hits the identity
+    # map (it reloads only a player rolled back by a failure).
+    if rows:
+        await session.scalars(select(User).where(User.id.in_([user_id for user_id, _ in rows])))
     for user_id, user_timezone in rows:
         now_local = _local_now(user_timezone, now_utc)
         if now_local is None:
@@ -380,15 +389,34 @@ async def _run_tick(session: AsyncSession, now_utc: datetime) -> None:
     gift_rows = (await session.execute(_gift_candidates(now_utc))).all()
     await _for_each_user(session, gift_rows, now_utc, _give_birthday_gift, "Birthday gift")
 
+    await _for_each_user(session, await _push_candidates(session, now_utc), now_utc, _greet_and_praise, "Greetings")
+
+
+async def _push_candidates(session: AsyncSession, now_utc: datetime) -> list[tuple]:
+    """Players with pushes on whose local clock is in a window right now:
+    past DAY_DONE_LOCAL_TIME for the evening praise, past
+    BIRTHDAY_LOCAL_TIME with a birthday around today for the greeting.
+    Picked by time zone first (a handful of distinct ones), so a tick
+    doesn't load every subscriber."""
     has_subscription = select(PushSubscription.id).where(PushSubscription.user_id == User.id).exists()
-    push_rows = (
-        await session.execute(
-            select(User.id, User.timezone).where(
-                User.reminder_preference != ReminderPreference.NONE, has_subscription
-            )
-        )
-    ).all()
-    await _for_each_user(session, push_rows, now_utc, _greet_and_praise, "Greetings")
+    pushes_on = (User.reminder_preference != ReminderPreference.NONE, has_subscription)
+    zones = (await session.scalars(select(User.timezone).where(*pushes_on).distinct())).all()
+    evening, morning = [], []
+    for zone in zones:
+        now_local = _local_now(zone, now_utc)
+        if now_local is None:
+            logger.error("Greetings: skipping invalid timezone %r", zone)
+            continue
+        if now_local.time() >= DAY_DONE_LOCAL_TIME:
+            evening.append(zone)
+        if now_local.time() >= BIRTHDAY_LOCAL_TIME:
+            morning.append(zone)
+    if not morning:  # the evening window is inside the morning one
+        return []
+    in_window = User.timezone.in_(evening) | (
+        User.timezone.in_(morning) & User.birth_mmdd.in_(_birthday_mmdds(now_utc))
+    )
+    return list((await session.execute(select(User.id, User.timezone).where(*pushes_on, in_window))).all())
 
 
 async def _greeting_tick() -> None:

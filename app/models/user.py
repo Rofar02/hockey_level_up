@@ -7,11 +7,13 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Computed,
     Date,
     DateTime,
     Float,
     Index,
     Integer,
+    SmallInteger,
     String,
     false,
     func,
@@ -157,6 +159,14 @@ class User(Base):
     # column, is the fallback for those who haven't given one yet).
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     age_stored: Mapped[int | None] = mapped_column("age", Integer, nullable=True)
+    # MMDD of the birth date (1231 for 31 Dec), kept by Postgres and indexed:
+    # the greeting loop finds today's birthdays without scanning everyone.
+    birth_mmdd: Mapped[int | None] = mapped_column(
+        SmallInteger,
+        Computed("(EXTRACT(month FROM birth_date) * 100 + EXTRACT(day FROM birth_date))::smallint", persisted=True),
+        nullable=True,
+        index=True,
+    )
     # Review 2026-10-11, 3.4 (greetings, later): the year last congratulated.
     last_birthday_greeted_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # The local date the «день закрыт» praise was last sent (greeting_scheduler).
