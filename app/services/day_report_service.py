@@ -15,7 +15,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,6 +36,7 @@ from app.schemas.day_report import (
     DayReportStatRead,
     DayReportTrainingRead,
 )
+from app.services.training_diary_service import diary_reward_reason
 
 
 def _local_zone(user: User) -> ZoneInfo:
@@ -86,7 +87,7 @@ class DayReportService:
                 for group, value in sorted(muscles.items(), key=lambda item: -item[1])
                 if value > 0.05
             ],
-            stats=await self._stats(user, day),
+            stats=await self._stats(user, day, plans),
             sets_total=sum(t.sets_total for t in trainings),
             tonnage_kg=round(sum(t.tonnage_kg for t in trainings), 1),
             exercises_done=sum(t.exercises_done for t in trainings),
@@ -195,29 +196,67 @@ class DayReportService:
             note=entry.note,
         )
 
-    async def _stats(self, user: User, day: date) -> list[DayReportStatRead]:
-        """Each stat the day moved: its last value before the day and at its
-        end, in the player's own time zone."""
+    async def _stats(self, user: User, day: date, plans: list[DayPlan]) -> list[DayReportStatRead]:
+        """Each stat the day's own rewards moved (review 2026-10-11, 5.1): an
+        ice report sent the next morning still counts for its day, another
+        day's gym in between doesn't. Rows are picked by their reward reason
+        -- the day's diary reports, and the gym exercises completed within the
+        day (their reason names the exercise, not the session) -- and each
+        row's gain is its value minus the stat's previous value (0 before the
+        first ever), computed in SQL rather than loading the whole history."""
+        sessions = [plan.training_session for plan in plans if plan.training_session is not None]
+        diary_reasons = [diary_reward_reason(session.id) for session in sessions]
+        gym_reasons = sorted(
+            {
+                f"quest_completed:{block.exercise_id}"
+                for session in sessions
+                for block in session.blocks
+                if block.completed_at is not None
+            }
+        )
         zone = _local_zone(user)
         start = datetime.combine(day, time.min, tzinfo=zone).astimezone(timezone.utc)
         end = start + timedelta(days=1)
+
+        previous = func.lag(StatHistory.value, 1, 0.0).over(
+            partition_by=StatHistory.stat_type, order_by=(StatHistory.recorded_at, StatHistory.id)
+        )
+        history = (
+            select(
+                StatHistory.stat_type.label("stat_type"),
+                StatHistory.value.label("value"),
+                previous.label("previous"),
+                StatHistory.recorded_at.label("recorded_at"),
+                StatHistory.reason.label("reason"),
+            )
+            .where(StatHistory.user_id == user.id)
+            .subquery()
+        )
         rows = (
             await self._session.execute(
-                select(StatHistory.stat_type, StatHistory.value, StatHistory.recorded_at)
-                .where(StatHistory.user_id == user.id, StatHistory.recorded_at < end)
-                .order_by(StatHistory.recorded_at)
+                select(history.c.stat_type, history.c.value, history.c.previous)
+                .where(
+                    or_(
+                        history.c.reason.in_(diary_reasons or [""]),
+                        and_(
+                            history.c.reason.in_(gym_reasons or [""]),
+                            history.c.recorded_at >= start,
+                            history.c.recorded_at < end,
+                        ),
+                    )
+                )
+                .order_by(history.c.recorded_at)
             )
         ).all()
         before: dict[str, float] = {}
-        after: dict[str, float] = {}
-        for stat, value, at in rows:
-            if at < start:
-                before[str(stat)] = value
-            else:
-                after[str(stat)] = value
-        result = []
-        for stat, value in after.items():
-            gain = value - before.get(stat, value)
-            if abs(gain) >= 0.05:
-                result.append(DayReportStatRead(stat=stat, before=round(before.get(stat, value), 1), after=round(value, 1)))
+        gains: dict[str, float] = defaultdict(float)
+        for stat, value, prior in rows:
+            key = str(stat)
+            before.setdefault(key, prior)
+            gains[key] += value - prior
+        result = [
+            DayReportStatRead(stat=stat, before=round(before[stat], 1), after=round(before[stat] + gain, 1))
+            for stat, gain in gains.items()
+            if abs(gain) >= 0.05
+        ]
         return sorted(result, key=lambda item: item.before - item.after)

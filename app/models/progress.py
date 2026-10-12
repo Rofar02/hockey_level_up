@@ -96,8 +96,8 @@ class IceLoadCharge(Base):
     """What an ice day or a game has put on the muscle map (2026-10-09), one
     row per TrainingSession: the scale charged so far (duration factor x
     effort factor x game factor, see app.core.muscle_load.ice_load_scale).
-    A later report only adds the difference -- the 24-hour default and a
-    late report never count twice, and "Не был" takes it back.
+    Charged only by the report (no report, no charge -- 2026-10-10); a
+    rebuilt day takes it back (IceLoadService.take_back), "Не был" is 0.
 
     `applied` is what really landed on each muscle at `applied_at` (after
     the 0..10 clamp), so taking a charge back removes exactly that, aged

@@ -26,6 +26,7 @@ from app.core.day_archetype import (
 )
 from app.core.config import get_settings
 from app.core.session_duration import compute_phase_split, estimate_session_duration_seconds
+from app.core.training_day import user_today
 from app.core.stat_difficulty import UNCLASSIFIED_EXERCISE_CAP, max_difficulty_for_stat
 from app.core.week_load import light_legs_dates
 from app.core.training_block import (
@@ -583,7 +584,24 @@ class ScheduleService:
                 continue
 
             day_plan = day_plans_by_date.get(day_in.date)
+            extra_time = self._extra_gym_time(day_in, day_in.session_type)
+            extra = next((d for d in weekly_plan.day_plans if d.date == day_in.date and d.is_extra), None)
+            if extra is not None and extra_time is None and await self._is_day_started(extra):
+                # Review 2026-10-11, 5.2: never drop (or silently hide) a
+                # started second training -- e.g. retyping its ice day to gym.
+                conflicts.append(
+                    ScheduleConflictRead(
+                        date=day_in.date, detail="Вторая тренировка этого дня уже начата, её не убрать"
+                    )
+                )
+                continue
             if day_plan is not None and day_plan.session_type == day_in.session_type:
+                current_time = extra.time_of_day if extra is not None else None
+                if extra_time != current_time and day_in.date < user_today(user):
+                    conflicts.append(
+                        ScheduleConflictRead(date=day_in.date, detail="Прошедший день нельзя изменить")
+                    )
+                    continue
                 # Only "+ зал" changed (step 6): the day itself -- its
                 # session, its team event, its ice charge -- stays as it is.
                 await self._sync_extra_gym_day(

@@ -165,8 +165,8 @@ class TrainingDiaryService:
             await self._diary.save(entry)
         if report is not None:
             self._apply_report(entry, session_type, report)
-            # The ice or game on the muscle map (2026-10-09): "Не был" takes
-            # back anything the 24-hour default already put on.
+            # The ice or game on the muscle map (2026-10-09), only through
+            # its report; "Не был" charges nothing.
             scale = 0.0 if report.skipped else ice_load_scale(session_type, report.duration_minutes, report.effort)
             ended_at = await ice_ended_at(self._session, training_session.day_plan, user.timezone)
             await IceLoadService(self._session).charge(user.id, session_id, scale, ended_at)

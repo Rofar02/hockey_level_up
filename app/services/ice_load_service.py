@@ -103,7 +103,7 @@ class IceLoadService:
 
     async def take_back(self, training_session_id: uuid.UUID, now: datetime | None = None) -> None:
         """Before an ice/game session is deleted (the day is rebuilt): take
-        its charge off the map, or the next default would count it twice."""
+        its charge off the map, or it would stay there without a session."""
         charge = await self._session.scalar(
             select(IceLoadCharge).where(IceLoadCharge.training_session_id == training_session_id)
         )

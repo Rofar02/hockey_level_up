@@ -207,3 +207,57 @@ async def test_gym_day_plus_ice_keeps_its_gym_training(db_session, builds, monke
     assert extra.session_type == GYM and extra.time_of_day == "morning"
     assert extra.training_session.id == gym_session_id
     assert main.training_session.id != gym_session_id
+
+
+@pytest.mark.asyncio
+async def test_retyping_the_ice_never_drops_a_started_extra_gym(db_session, builds, monkeypatch) -> None:
+    """Review 2026-10-11, 5.2: ice -> gym/rest while the day's extra gym is
+    started is a conflict; the day stays as it was."""
+    monkeypatch.setattr(config.get_settings(), "double_days_enabled", True)
+
+    async def started(self, day_plan):
+        return day_plan.is_extra
+
+    monkeypatch.setattr(ScheduleService, "_is_day_started", started)
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    service = ScheduleService(db_session)
+    await service.create_weekly_plan(user, WeeklyPlanCreate(days=_days({0: "morning"})))
+
+    result = await service.patch_weekly_plan(
+        user, WeeklyPlanPatch(days=[DayPlanIn(date=MONDAY, session_type=GYM)]), MONDAY
+    )
+
+    assert [c.date for c in result.conflicts] == [MONDAY]
+    monday = [(d.session_type, d.is_extra) for d in result.weekly_plan.day_plans if d.date == MONDAY]
+    assert sorted(monday, key=lambda x: x[1]) == [(ICE, False), (GYM, True)]
+
+
+@pytest.mark.asyncio
+async def test_a_past_day_cannot_get_or_lose_its_extra_gym(db_session, builds, monkeypatch) -> None:
+    """Review 2026-10-11, 5.2: the "+ зал" branch checks the date too; an
+    unchanged past day in the same patch isn't a conflict."""
+    from app.services import schedule_service
+
+    monkeypatch.setattr(config.get_settings(), "double_days_enabled", True)
+    user = _make_user()
+    db_session.add(user)
+    await db_session.flush()
+    service = ScheduleService(db_session)
+    await service.create_weekly_plan(user, WeeklyPlanCreate(days=_days({})))
+    monkeypatch.setattr(schedule_service, "user_today", lambda _user: MONDAY + timedelta(days=3))
+
+    result = await service.patch_weekly_plan(
+        user,
+        WeeklyPlanPatch(
+            days=[
+                DayPlanIn(date=MONDAY, session_type=ICE, extra_gym="morning"),
+                DayPlanIn(date=MONDAY + timedelta(days=2), session_type=GAME),
+            ]
+        ),
+        MONDAY,
+    )
+
+    assert [(c.date, c.detail) for c in result.conflicts] == [(MONDAY, "Прошедший день нельзя изменить")]
+    assert not any(d.is_extra for d in result.weekly_plan.day_plans)

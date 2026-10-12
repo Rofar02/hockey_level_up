@@ -195,7 +195,7 @@ function DiaryEntryModal({ entry, onClose }: { entry: TrainingDiaryEntryListItem
             className="flex min-h-11 items-center gap-1.5 text-sm text-accent-ice transition-colors hover:text-text-primary"
           >
             <i className="ti ti-pencil" aria-hidden="true" />
-            {entry.reported_at === null ? 'Заполнить отчёт' : 'Изменить отчёт'}
+            {entry.reported_at === null ? 'Заполнить отчёт' : 'Открыть отчёт'}
           </button>
           <button
             type="button"
