@@ -8,9 +8,12 @@ import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { TextField } from '../components/ui/TextField'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../components/OfflineBanner'
 
 export function LoginPage() {
   const { login } = useAuth()
+  const online = useOnline()
   const navigate = useNavigate()
 
   const [username, setUsername] = useState('')
@@ -68,9 +71,10 @@ export function LoginPage() {
             Забыли пароль?
           </Link>
           <FormError message={error} />
-          <Button type="submit" isLoading={isSubmitting}>
+          <Button type="submit" isLoading={isSubmitting} disabled={!online}>
             Войти
           </Button>
+          <NeedsNetworkHint className="justify-center" />
         </form>
         <p className="mt-6 text-sm text-text-secondary">
           Нет аккаунта?{' '}

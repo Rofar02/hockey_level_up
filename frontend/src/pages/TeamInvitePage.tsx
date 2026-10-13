@@ -8,6 +8,8 @@ import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { useAuth } from '../hooks/useAuth'
 import type { TeamInvitePreviewRead } from '../types/team'
 import { savePendingTeamCode, teamJoinErrorText } from '../utils/pendingFriendInvite'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../components/OfflineBanner'
 
 // /t/:code -- a team's invite link (2026-10-08). Open to anyone: the team
 // and one button. "Вступить" is the usual join request the captain
@@ -17,6 +19,7 @@ export function TeamInvitePage() {
   const { code = '' } = useParams<{ code: string }>()
   const navigate = useNavigate()
   const { isAuthenticated, isInitializing, accessToken } = useAuth()
+  const online = useOnline()
   const [team, setTeam] = useState<TeamInvitePreviewRead | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
@@ -112,7 +115,8 @@ export function TeamInvitePage() {
                   </>
                 ) : (
                   <>
-                    <Button type="button" onClick={() => void join()} isLoading={isSending} className="w-full">
+                    <NeedsNetworkHint className="justify-center" />
+                    <Button type="button" onClick={() => void join()} isLoading={isSending} disabled={!online} className="w-full">
                       Вступить в команду
                     </Button>
                     <FormError message={sendError} />

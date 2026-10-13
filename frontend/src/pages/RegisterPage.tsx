@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthWizardShell } from '../components/AuthWizardShell'
+import { isOnline } from '../utils/networkStatus'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -54,6 +55,10 @@ export function RegisterPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
+    if (!isOnline()) {
+      setError('Нужна связь: регистрация работает только онлайн.')
+      return
+    }
 
     const parsedJerseyNumber = Number(jerseyNumber.trim())
     if (

@@ -14,12 +14,15 @@ import * as teamsApi from '../api/teams'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { TeamJoinRequestRead, TeamLeagueFields as TeamLeagueValues, TeamSummaryRead } from '../types/team'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../components/OfflineBanner'
 
 type TeamsTab = 'mine' | 'create' | 'join'
 
 export function TeamsPage() {
   const navigate = useNavigate()
   const { accessToken } = useAuth()
+  const online = useOnline()
 
   const [activeTab, setActiveTab] = useState<TeamsTab>('mine')
 
@@ -254,10 +257,11 @@ export function TeamsPage() {
                   <Button
                     type="submit"
                     isLoading={isCreating}
-                    disabled={createName.trim() === '' || !isTeamLeagueComplete(createLeague)}
+                    disabled={createName.trim() === '' || !isTeamLeagueComplete(createLeague) || !online}
                   >
                     Создать
                   </Button>
+                  <NeedsNetworkHint />
                 </form>
                 <FormError message={createError} />
               </div>
@@ -277,11 +281,12 @@ export function TeamsPage() {
                     type="submit"
                     variant="neutral"
                     isLoading={isJoining}
-                    disabled={joinCode.trim() === ''}
+                    disabled={joinCode.trim() === '' || !online}
                   >
                     Отправить заявку
                   </Button>
                 </form>
+                <NeedsNetworkHint />
                 <FormError message={joinError} />
               </div>
             )}

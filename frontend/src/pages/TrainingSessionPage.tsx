@@ -1228,7 +1228,7 @@ export function TrainingSessionPage() {
                     className="w-full"
                   >
                     <span className="flex items-center justify-center gap-2">
-                      <i className="ti ti-player-play-filled" aria-hidden="true" />
+                      <i className="ti ti-player-play" aria-hidden="true" />
                       Начать тренировку
                     </span>
                   </Button>

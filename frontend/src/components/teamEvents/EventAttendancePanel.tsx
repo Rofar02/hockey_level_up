@@ -17,6 +17,8 @@ import type {
   TeamEventRead,
 } from '../../types/teamEvent'
 import { getDisplayName } from '../../utils/displayName'
+import { useOnline } from '../../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../OfflineBanner'
 
 interface EventAttendancePanelProps {
   teamId: string
@@ -71,6 +73,7 @@ function RosterSection({
 
 export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendancePanelProps) {
   const { accessToken, user } = useAuth()
+  const online = useOnline()
   const [roster, setRoster] = useState<TeamEventAttendanceRosterRead | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -231,10 +234,11 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
             <Button type="button" variant="neutral" className="flex-1" onClick={() => setIsEditing(false)}>
               Отмена
             </Button>
-            <Button type="button" className="flex-1" disabled={choice === null} isLoading={isSaving} onClick={handleSave}>
+            <Button type="button" className="flex-1" disabled={choice === null || !online} isLoading={isSaving} onClick={handleSave}>
               Сохранить
             </Button>
           </div>
+          <NeedsNetworkHint className="justify-end" />
         </div>
       )}
 

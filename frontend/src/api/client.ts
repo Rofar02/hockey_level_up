@@ -7,7 +7,25 @@ import {
   TOKENS_REFRESHED_EVENT,
 } from './tokenStorage'
 
+import { isNetworkError, markOffline, markOnline } from '../utils/networkStatus'
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
+// Every API call goes through here, so the "Нет связи" banner (Б0) learns
+// about a dropped connection from the first request that hits it, and about
+// its return from the first answer.
+async function trackedFetch(input: string, init: RequestInit): Promise<Response> {
+  try {
+    const response = await fetch(input, init)
+    markOnline()
+    return response
+  } catch (err) {
+    if (isNetworkError(err)) {
+      markOffline()
+    }
+    throw err
+  }
+}
 
 interface FastApiValidationError {
   loc: (string | number)[]
@@ -104,7 +122,7 @@ async function refreshAccessToken(): Promise<string> {
       if (storedRefreshToken === null) {
         throw new ApiError(401, 'No refresh token')
       }
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      const response = await trackedFetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: storedRefreshToken }),
@@ -242,7 +260,7 @@ export function warmApiCache(paths: string[], accessToken: string): void {
 async function request<T>(path: string, method: string, options: RequestOptions = {}): Promise<T> {
   const isAuthedRequest = options.accessToken !== undefined
 
-  let response = await fetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, options.accessToken))
+  let response = await trackedFetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, options.accessToken))
 
   if (response.status === 401 && isAuthedRequest) {
     let freshAccessToken: string | null = null
@@ -259,7 +277,7 @@ async function request<T>(path: string, method: string, options: RequestOptions 
       }
     }
     if (freshAccessToken !== null) {
-      response = await fetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, freshAccessToken))
+      response = await trackedFetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, freshAccessToken))
     }
   }
 

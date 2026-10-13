@@ -55,6 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(storedAccessToken)
     setUser(currentUser)
     setHasAssessment(status.has_assessment)
+    // Б0: ask the browser not to evict the offline copy (the cached app, the
+    // saved data and the queued workout) when the phone runs low on space.
+    void navigator.storage?.persist?.().catch(() => false)
   }, [])
 
   // Re-checks the stored session. Tokens go only when the server itself

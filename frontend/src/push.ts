@@ -1,4 +1,5 @@
 import * as pushApi from './api/push'
+import { registerAppServiceWorker } from './utils/serviceWorker'
 
 export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
@@ -21,19 +22,11 @@ export function isStandalone(): boolean {
   )
 }
 
-// Called once at app startup so the worker is already active by the time
-// the user opens Settings and toggles notifications on -- register() is
-// idempotent (the browser reuses the existing registration when the script
-// hasn't changed), so calling it again lazily from getRegistration() below
-// is harmless.
+// Called once at app startup: the worker is what lets the app open without
+// a connection (Б0), and it's already active by the time the user opens
+// Settings and toggles notifications on.
 export function registerServiceWorker(): void {
-  if (!('serviceWorker' in navigator)) {
-    return
-  }
-  navigator.serviceWorker.register('/sw.js').catch(() => {
-    // Best-effort -- push notifications are an enhancement, not something
-    // the rest of the app depends on (e.g. blocked on a plain-HTTP LAN IP).
-  })
+  void registerAppServiceWorker()
 }
 
 function urlBase64ToUint8Array(base64Url: string): Uint8Array<ArrayBuffer> {
@@ -51,11 +44,7 @@ async function getRegistration(): Promise<ServiceWorkerRegistration | null> {
   if (!isPushSupported()) {
     return null
   }
-  try {
-    return await navigator.serviceWorker.register('/sw.js')
-  } catch {
-    return null
-  }
+  return registerAppServiceWorker()
 }
 
 export async function getActivePushSubscription(): Promise<PushSubscription | null> {

@@ -28,3 +28,4 @@ dist-ssr
 # Playwright e2e output
 e2e/.results/
 e2e/screenshots/
+dist-preview
