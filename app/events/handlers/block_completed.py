@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, update
@@ -289,6 +289,12 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
             await session.execute(select(User.timezone).where(User.id == user_id))
         ).scalar_one_or_none()
         today = datetime.now(ZoneInfo(user_timezone or "UTC")).date()
+        # Б2 (2026-10-13): the day the work was actually done on, sent by
+        # complete_block -- a workout finished at 23:50 and synced from the
+        # offline queue at 00:10 belongs to the day before. Older events
+        # carry no activity_date and keep the clock's day.
+        if payload.get("activity_date"):
+            today = date.fromisoformat(payload["activity_date"])
 
         result = await session.execute(
             select(TrainingStreak).where(TrainingStreak.user_id == user_id).with_for_update()
@@ -350,8 +356,10 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
             await session.commit()
             return
 
-        if streak.last_activity_date == today:
-            pass  # already counted today, don't touch the streak
+        if streak.last_activity_date is not None and streak.last_activity_date >= today:
+            # Already counted today -- or a late, out-of-order sync of an
+            # earlier day (a second device's queue): never moves it back.
+            pass
         elif streak.last_activity_date is not None and not await has_missed_training_day(
             session, user_id, streak.last_activity_date, today
         ):
@@ -362,7 +370,8 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
 
         if streak.current_streak > streak.longest_streak:
             streak.longest_streak = streak.current_streak
-        streak.last_activity_date = today
+        if streak.last_activity_date is None or today > streak.last_activity_date:
+            streak.last_activity_date = today
 
         await session.commit()
 

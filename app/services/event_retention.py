@@ -12,6 +12,8 @@ forever -- ~40% of all database growth in a year-long simulation
   original, not weeks later.
 - refresh_sessions (2026-10-13, А11): a device session past its expires_at
   can never refresh again; login only tidies up the player's own.
+- idempotency_keys (Б2): a resend from the offline queue comes within hours
+  (48 h at most, see training_day.PERFORMED_AT_MAX_AGE); kept a week.
 """
 import asyncio
 import logging
@@ -21,6 +23,8 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import AsyncSessionLocal
+from app.core.idempotency import RETENTION_DAYS as IDEMPOTENCY_RETENTION_DAYS
+from app.models.idempotency_key import IdempotencyKey
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
 from app.models.refresh_session import RefreshSession
@@ -51,17 +55,26 @@ async def purge_expired_sessions(session: AsyncSession, now_utc: datetime) -> in
     return result.rowcount
 
 
+async def purge_old_idempotency_keys(session: AsyncSession, now_utc: datetime) -> int:
+    cutoff = now_utc - timedelta(days=IDEMPOTENCY_RETENTION_DAYS)
+    result = await session.execute(delete(IdempotencyKey).where(IdempotencyKey.created_at < cutoff))
+    return result.rowcount
+
+
 async def _retention_tick() -> None:
     now_utc = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as session, session.begin():
         outbox_deleted, processed_deleted = await purge_old_events(session, now_utc)
         sessions_deleted = await purge_expired_sessions(session, now_utc)
+        keys_deleted = await purge_old_idempotency_keys(session, now_utc)
     logger.info(
-        "Event retention: deleted %s outbox_events, %s processed_events older than %s days, %s expired refresh sessions",
+        "Event retention: deleted %s outbox_events, %s processed_events older than %s days, "
+        "%s expired refresh sessions, %s idempotency keys",
         outbox_deleted,
         processed_deleted,
         RETENTION_DAYS,
         sessions_deleted,
+        keys_deleted,
     )
 
 

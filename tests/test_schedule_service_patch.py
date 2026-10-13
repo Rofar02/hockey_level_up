@@ -121,7 +121,9 @@ async def test_patch_partial_success_skips_started_day_but_applies_the_rest(db_s
     # Exactly one conflict, for Monday, with a human-readable reason.
     assert len(result.conflicts) == 1
     assert result.conflicts[0].date == monday
-    assert result.conflicts[0].detail == "Этот день уже начат, нельзя изменить"
+    # Which wording depends on the weekday the suite runs on: Monday is
+    # "started" on a Monday and "past" on any later day.
+    assert result.conflicts[0].detail in ("Этот день уже начат, нельзя изменить", "Прошедший день нельзя изменить")
 
     day_by_date = {day.date: day for day in result.weekly_plan.day_plans}
 

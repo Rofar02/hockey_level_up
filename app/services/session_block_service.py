@@ -1,11 +1,11 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.training_day import require_day_started
+from app.core.training_day import effective_performed_at, local_date, require_day_started
 from app.models.exercise import TrainingPhase
 from app.models.schedule import SessionBlock
 from app.models.user import User
@@ -32,7 +32,29 @@ class SessionBlockService:
         self._parties = TrainingPartyService(session)
         self._exercises = ExerciseRepository(session)
 
-    async def complete_block(self, block_id: uuid.UUID, user: User) -> SessionBlockRead:
+    async def _read(
+        self, block: SessionBlock, ceiling_escalations: list[CeilingEscalationRead] | None = None
+    ) -> SessionBlockRead:
+        # response_model=SessionBlockRead needs exercise.target_stats, which
+        # isn't a plain ORM attribute (see exercise_to_read's docstring) --
+        # returning `block` directly 500s since FastAPI's response validation
+        # can't populate it from from_attributes alone.
+        target_stats = await self._exercises.list_target_stats(block.exercise_id)
+        return SessionBlockRead(
+            id=block.id,
+            phase=block.phase,
+            order=block.order,
+            completed_at=block.completed_at,
+            skipped_at=block.skipped_at,
+            exercise=exercise_to_read(
+                block.exercise, target_stats, await self._exercises.list_movement_patterns(block.exercise_id)
+            ),
+            ceiling_escalations=ceiling_escalations or [],
+        )
+
+    async def complete_block(
+        self, block_id: uuid.UUID, user: User, performed_at: datetime | None = None
+    ) -> SessionBlockRead:
         block = await self._schedule.get_session_block_with_owner(block_id)
         if block is None or block.session.day_plan.weekly_plan.user_id != user.id:
             raise HTTPException(
@@ -41,11 +63,11 @@ class SessionBlockService:
         require_day_started(block.session.day_plan.date, user)
 
         if block.completed_at is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="already completed"
-            )
+            # Б2: done already (a resend from the offline queue, a second
+            # device) -- the same answer again, nothing credited twice.
+            return await self._read(block)
 
-        block.completed_at = datetime.now(timezone.utc)
+        block.completed_at = effective_performed_at(performed_at)
         target_stats = await self._exercises.list_target_stats(block.exercise_id)
         # Outbox pattern: the event row is written in the same transaction as
         # completed_at, instead of publishing to RabbitMQ directly here. That
@@ -63,6 +85,9 @@ class SessionBlockService:
                 "difficulty_level": block.exercise.difficulty_level,
                 # Warm-up/cool-down credit less (see stat_consumer).
                 "phase": block.phase.value,
+                # Б2: the player's day the work was done on -- the streak
+                # counts it, not the day the queue finally got through.
+                "activity_date": local_date(block.completed_at, user).isoformat(),
             },
         )
         await self._maybe_publish_training_completed(block, user)
@@ -79,23 +104,11 @@ class SessionBlockService:
                 self._session
             ).escalate_ceiling_variant_for_week(user, block.exercise)
         await self._session.commit()
-        # response_model=SessionBlockRead needs exercise.target_stats, which
-        # isn't a plain ORM attribute (see exercise_to_read's docstring) --
-        # returning `block` directly here 500s on every call since FastAPI's
-        # response validation can't populate it from from_attributes alone.
-        return SessionBlockRead(
-            id=block.id,
-            phase=block.phase,
-            order=block.order,
-            completed_at=block.completed_at,
-            skipped_at=block.skipped_at,
-            exercise=exercise_to_read(
-                block.exercise, target_stats, await self._exercises.list_movement_patterns(block.exercise_id)
-            ),
-            ceiling_escalations=ceiling_escalations,
-        )
+        return await self._read(block, ceiling_escalations)
 
-    async def skip_block(self, block_id: uuid.UUID, user: User) -> SessionBlockRead:
+    async def skip_block(
+        self, block_id: uuid.UUID, user: User, performed_at: datetime | None = None
+    ) -> SessionBlockRead:
         block = await self._schedule.get_session_block_with_owner(block_id)
         if block is None or block.session.day_plan.weekly_plan.user_id != user.id:
             raise HTTPException(
@@ -113,11 +126,9 @@ class SessionBlockService:
             )
 
         if block.completed_at is not None or block.skipped_at is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="already resolved"
-            )
+            return await self._read(block)
 
-        block.skipped_at = datetime.now(timezone.utc)
+        block.skipped_at = effective_performed_at(performed_at)
         # Deliberately no BLOCK_COMPLETED_EVENT outbox row here -- a skip
         # earns no stat/XP/muscle-load gain, that's the whole point. It still
         # resolves the block for session/streak-completion purposes though,
@@ -126,17 +137,7 @@ class SessionBlockService:
         # feature) treats skipped_at the same as completed_at.
         await self._maybe_publish_training_completed(block, user)
         await self._session.commit()
-        target_stats = await self._exercises.list_target_stats(block.exercise_id)
-        return SessionBlockRead(
-            id=block.id,
-            phase=block.phase,
-            order=block.order,
-            completed_at=block.completed_at,
-            skipped_at=block.skipped_at,
-            exercise=exercise_to_read(
-                block.exercise, target_stats, await self._exercises.list_movement_patterns(block.exercise_id)
-            ),
-        )
+        return await self._read(block)
 
     async def _maybe_publish_training_completed(self, block: SessionBlock, user: User) -> None:
         # Flush first so the count below sees *this* block's just-set

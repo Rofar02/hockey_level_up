@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.training_day import require_day_started
 from app.models.exercise import Exercise
+from app.core.training_day import effective_performed_at
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
@@ -59,6 +60,7 @@ class SetCompletionService:
         weight_kg: float | None,
         reps_completed: int | None,
         duration_seconds_completed: int | None,
+        performed_at: datetime | None = None,
     ) -> SetCompletion:
         exercise = await self._get_owned_exercise_in_session(user, training_session_id, exercise_id)
 
@@ -118,7 +120,7 @@ class SetCompletionService:
                 duration_seconds_completed=duration_seconds_completed,
                 suggested_weight_kg=suggested_weight_kg,
                 was_weight_adjusted_manually=was_adjusted,
-                completed_at=datetime.now(timezone.utc),
+                completed_at=effective_performed_at(performed_at),
             )
             await self._sets.save(set_completion)
 

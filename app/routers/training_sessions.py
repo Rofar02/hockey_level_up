@@ -1,9 +1,10 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.idempotency import run_idempotent
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
@@ -50,11 +51,26 @@ async def save_diary_entry(
     body: TrainingDiaryEntryIn,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ):
-    entry = await TrainingDiaryService(session).save_entry(
-        user=current_user, training_session_id=session_id, note=body.note, report=body.report
+    """The ice/game report and "не был на льду" too (Б2: a repeat with the
+    same Idempotency-Key is replayed, not saved again)."""
+
+    async def _save() -> TrainingDiaryEntryRead:
+        entry = await TrainingDiaryService(session).save_entry(
+            user=current_user, training_session_id=session_id, note=body.note, report=body.report
+        )
+        return TrainingDiaryEntryRead.model_validate(entry)
+
+    return await run_idempotent(
+        session,
+        current_user,
+        idempotency_key,
+        f"PUT /training-sessions/{session_id}/diary",
+        status.HTTP_200_OK,
+        TrainingDiaryEntryRead,
+        _save,
     )
-    return TrainingDiaryEntryRead.model_validate(entry)
 
 
 @router.get("/{session_id}/focus", response_model=IceFocusRead | None)
