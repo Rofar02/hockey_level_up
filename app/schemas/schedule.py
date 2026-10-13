@@ -111,6 +111,8 @@ class ScheduleFeaturesRead(BaseModel):
     """GET /schedule/features -- optional week features switched on."""
 
     double_days: bool
+    # The offline workout queue (Б2) -- the client keeps the last answer.
+    offline_queue: bool = False
 
 
 class WeeklyPlanRead(BaseModel):

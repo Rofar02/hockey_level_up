@@ -44,6 +44,8 @@ import {
   scheduleRestDoneNotification,
   type ScheduledRestNotification,
 } from '../utils/restNotification'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from './OfflineBanner'
 
 // Same volume formatting as NewSchedulePage's own (page-local there, for
 // its own unrelated display) -- duplicated rather than imported, matching
@@ -168,6 +170,8 @@ export function ExerciseDetailBody({
 }: ExerciseDetailBodyProps) {
   const [activeTab, setActiveTab] = useState<ExerciseModalTab>(readOnly ? 'technique' : 'sets')
   const [isReplacing, setIsReplacing] = useState(false)
+  // Б2: a swap needs the server to pick the replacement.
+  const online = useOnline()
   const [replaceError, setReplaceError] = useState<string | null>(null)
   const [isSkipConfirming, setIsSkipConfirming] = useState(false)
   const [isSkipping, setIsSkipping] = useState(false)
@@ -474,12 +478,13 @@ export function ExerciseDetailBody({
               <button
                 type="button"
                 onClick={handleReplace}
-                disabled={isReplacing}
+                disabled={isReplacing || !online}
                 className="self-start text-sm text-accent-ice hover:underline disabled:opacity-50"
               >
                 {isReplacing ? 'Подбираем замену...' : 'Заменить упражнение'}
               </button>
             )}
+            {canReplace && <NeedsNetworkHint />}
             <FormError message={replaceError} />
             {onSkip !== undefined && (
               <button

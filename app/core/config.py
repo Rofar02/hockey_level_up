@@ -148,6 +148,10 @@ class Settings(BaseSettings):
     # ordinary extra gym ran clean (0 errors, 0 empty sessions); the week
     # page hides "+ зал" when it is off.
     double_days_enabled: bool = True
+    # Б2 (2026-10-13): the phone queues workout writes and sends them when
+    # it can (offline workouts). Off until checked on real phones; turned on
+    # per environment with OFFLINE_QUEUE_ENABLED=true.
+    offline_queue_enabled: bool = False
 
     @model_validator(mode="after")
     def _no_dev_secrets_in_production(self) -> "Settings":

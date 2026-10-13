@@ -102,6 +102,7 @@ interface RequestOptions {
   form?: Record<string, string>
   formData?: FormData
   accessToken?: string
+  headers?: Record<string, string>
 }
 
 interface RawTokenPair {
@@ -176,7 +177,7 @@ function buildRequestInit(method: string, options: RequestOptions, accessToken: 
     headers.Authorization = `Bearer ${accessToken}`
   }
 
-  return { method, headers, body: requestBody }
+  return { method, headers: { ...headers, ...options.headers }, body: requestBody }
 }
 
 // -- GET cache (2026-10-04): "открываю вкладку ещё раз -- всё уже на месте" --
@@ -414,4 +415,16 @@ export function apiPostMultipartAuth<T>(
   accessToken: string,
 ): Promise<T> {
   return request<T>(path, 'POST', { formData, accessToken })
+}
+
+// The offline write queue's sender (Б2, utils/writeQueue.ts): one queued
+// workout action, with its Idempotency-Key so a resend is never applied twice.
+export function apiSendQueued<T>(
+  method: string,
+  path: string,
+  body: unknown,
+  accessToken: string,
+  idempotencyKey: string,
+): Promise<T> {
+  return request<T>(path, method, { body, accessToken, headers: { 'Idempotency-Key': idempotencyKey } })
 }

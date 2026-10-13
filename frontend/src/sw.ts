@@ -25,30 +25,30 @@ const NEVER_HANDLED = [/^\/api\//, /^\/media\//, /^\/version\.json/]
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
 
-async function fetchWithTimeout(request: Request, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetch(request, { signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
-  }
+function delay(ms: number): Promise<'timeout'> {
+  return new Promise((resolve) => setTimeout(() => resolve('timeout'), ms))
 }
 
 registerRoute(
   new NavigationRoute(
     async ({ request }) => {
-      try {
-        const response = await fetchWithTimeout(request, NAVIGATION_TIMEOUT_MS)
-        // A gateway error page (deploy in progress) is worse than the app.
-        if (response.status < 500) {
-          return response
-        }
-      } catch {
-        // Offline or too slow -- the cached shell below.
+      const live = fetch(request).then(
+        (response) => response,
+        () => null,
+      )
+      const first = await Promise.race([live, delay(NAVIGATION_TIMEOUT_MS)])
+      // A gateway error page (deploy in progress) is worse than the app.
+      if (first !== 'timeout' && first !== null && first.status < 500) {
+        return first
       }
       const shell = await matchPrecache('/index.html')
-      return shell ?? Response.error()
+      if (shell) {
+        return shell
+      }
+      // Nothing cached yet (first visit, `vite dev`): the network is all
+      // there is, however slow.
+      const late = first === 'timeout' ? await live : first
+      return late ?? Response.error()
     },
     { denylist: NEVER_HANDLED },
   ),

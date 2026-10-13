@@ -7,6 +7,8 @@ import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
 import { warmApiCache } from '../api/client'
 import { warmOfflineData } from '../utils/offlineWarm'
+import { setQueueEnabled } from '../utils/writeQueue'
+import { getScheduleFeatures } from '../api/schedule'
 import { prefetchPages } from '../utils/prefetchPages'
 import { recordRoute } from '../utils/routeHistory'
 
@@ -69,6 +71,11 @@ export function ProtectedRoute() {
       prefetchPages()
       warmApiCache(WARM_PATHS, accessToken)
       void warmOfflineData(accessToken, timeZone)
+      // Б2: whether workout writes go through the offline queue -- kept
+      // in localStorage so an offline start knows it too.
+      getScheduleFeatures(accessToken)
+        .then((features) => setQueueEnabled(features.offline_queue === true))
+        .catch(() => undefined)
     }, 1500)
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps

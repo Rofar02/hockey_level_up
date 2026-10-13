@@ -1,5 +1,7 @@
+import { createPortal } from 'react-dom'
 import { useSyncExternalStore } from 'react'
 import { useOnline } from '../hooks/useNetworkStatus'
+import { usePendingWrites } from '../hooks/useWriteQueue'
 import { getOldestShownAt, subscribeSavedDataAge } from '../utils/offlineData'
 
 function formatShownAt(storedAt: number): string {
@@ -20,10 +22,14 @@ export function OfflineBanner() {
   const online = useOnline()
   // Б1: when saved answers are on screen, how old the oldest one is.
   const shownAt = useSyncExternalStore(subscribeSavedDataAge, getOldestShownAt, () => null)
+  // Б2: workout writes waiting to be sent.
+  const pending = usePendingWrites()
   if (online) {
     return null
   }
-  return (
+  // Portaled to <body> like FullScreenOverlay, so it stays on top of the
+  // workout player and the finish screen too.
+  return createPortal(
     <div
       role="status"
       aria-live="polite"
@@ -33,8 +39,11 @@ export function OfflineBanner() {
         <i className="ti ti-wifi-off text-sm text-accent-persimmon" aria-hidden="true" />
         Нет связи
         {shownAt !== null && <span className="text-text-secondary">· данные от {formatShownAt(shownAt)}</span>}
+        {pending > 0 && <span className="text-text-secondary">· ждут отправки: {pending}</span>}
       </div>
-    </div>
+    </div>,
+    document.body,
+
   )
 }
 

@@ -36,7 +36,10 @@ async def get_schedule_features(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Optional week features switched on (release plan step 6)."""
-    return ScheduleFeaturesRead(double_days=get_settings().double_days_enabled)
+    settings = get_settings()
+    return ScheduleFeaturesRead(
+        double_days=settings.double_days_enabled, offline_queue=settings.offline_queue_enabled
+    )
 
 
 @router.get("/weekly/current", response_model=WeeklyPlanRead)

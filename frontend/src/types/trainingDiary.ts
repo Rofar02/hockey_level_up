@@ -92,6 +92,8 @@ export interface TrainingDiaryEntryRead {
   // What this particular save credited -- empty/0 on every other save.
   stat_rewards: Partial<Record<TargetStat, number>>
   xp_reward: number
+  // Client-only (Б2): saved in the offline queue, not on the server yet.
+  queued?: boolean
 }
 
 // Mirrors REPORT_REWARD_WINDOW_DAYS in app/services/training_diary_service.py.

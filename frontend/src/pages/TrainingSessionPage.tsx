@@ -28,6 +28,7 @@ import * as trainingSessionsApi from '../api/trainingSessions'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { formatElapsed, useSessionClock } from '../hooks/useSessionClock'
+import { usePendingWrites } from '../hooks/useWriteQueue'
 import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
@@ -592,7 +593,7 @@ export function TrainingSessionPage() {
     setActionError(null)
     setPendingIds((previous) => new Set(previous).add(block.id))
     try {
-      const updated = await sessionBlocksApi.completeSessionBlock(block.id, accessToken)
+      const updated = await sessionBlocksApi.completeSessionBlock(block.id, accessToken, block)
       const mergedBlocks = blocks.map((b) => (b.id === updated.id ? updated : b))
       setBlocks(mergedBlocks)
 
@@ -653,7 +654,7 @@ export function TrainingSessionPage() {
     setActionError(null)
     setPendingIds((previous) => new Set(previous).add(block.id))
     try {
-      const updated = await sessionBlocksApi.skipSessionBlock(block.id, accessToken)
+      const updated = await sessionBlocksApi.skipSessionBlock(block.id, accessToken, block)
       const mergedBlocks = blocks.map((b) => (b.id === updated.id ? updated : b))
       setBlocks(mergedBlocks)
 
@@ -1927,8 +1928,15 @@ function SessionCompleteModal({
   const [serverStateError, setServerStateError] = useState<string | null>(null)
   // Same reasoning as Modal.tsx's own -- this covers the whole page too.
   useSuppressCoachmarks(true)
+  // Б2: finished offline -- the server hasn't seen the workout yet, so XP,
+  // the streak and a level-up wait until the queue has gone through.
+  const pendingWrites = usePendingWrites()
+  const synced = pendingWrites === 0
 
   useEffect(() => {
+    if (!synced) {
+      return
+    }
     let cancelled = false
     const todayIso = toIsoDate(new Date())
 
@@ -1969,7 +1977,7 @@ function SessionCompleteModal({
     return () => {
       cancelled = true
     }
-  }, [accessToken])
+  }, [accessToken, synced])
 
   // 2026-10-08: the first finished workout explains the stats once (per
   // device -- a convenience, not something to sync).
@@ -2013,6 +2021,12 @@ function SessionCompleteModal({
             <span className="text-text-secondary">XP за тренировку</span>
             <span className="font-mono text-text-primary">+{xpTotal}</span>
           </div>
+          {!synced && (
+            <p className="flex items-center gap-1.5 text-xs text-text-secondary">
+              <i className="ti ti-cloud-upload" aria-hidden="true" />
+              Начислится, когда появится связь
+            </p>
+          )}
         </div>
 
         {showStatsIntro && (
@@ -2043,7 +2057,8 @@ function SessionCompleteModal({
           <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
             Серия тренировок
           </p>
-          {isLoadingServerState && <p className="text-sm text-text-secondary">Загрузка...</p>}
+          {!synced && <p className="text-sm text-text-secondary">Обновится, когда появится связь</p>}
+          {synced && isLoadingServerState && <p className="text-sm text-text-secondary">Загрузка...</p>}
           <FormError message={serverStateError} />
           {!isLoadingServerState && streak !== null && (
             <div className="flex items-center gap-2">

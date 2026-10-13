@@ -1,4 +1,5 @@
 import { apiGet, apiPatchAuth, apiPostAuth } from './client'
+import { isQueueEnabled, pendingBlockResolution, whenQueueLoaded } from '../utils/writeQueue'
 import type {
   DayPlanRead,
   ScheduleFeaturesRead,
@@ -32,8 +33,32 @@ export function getDayPlan(dateIso: string, accessToken: string): Promise<DayPla
 // A single day by id, from any week -- TrainingSessionPage/TrainingDiaryPage
 // open a day by the id in their URL, which can point at any past week (e.g.
 // a DiaryPage entry). 404s for an id that isn't one of the user's own days.
-export function getDayPlanById(dayPlanId: string, accessToken: string): Promise<DayPlanRead> {
-  return apiGet<DayPlanRead>(`/schedule/day-plans/${dayPlanId}`, accessToken)
+export async function getDayPlanById(dayPlanId: string, accessToken: string): Promise<DayPlanRead> {
+  const plan = await apiGet<DayPlanRead>(`/schedule/day-plans/${dayPlanId}`, accessToken)
+  return withQueuedResolutions(plan)
+}
+
+// Б2: exercises marked done/skipped while their write still waits in the
+// offline queue show as done -- a workout reopened without signal (from
+// saved data) picks up where the player left off.
+async function withQueuedResolutions(plan: DayPlanRead): Promise<DayPlanRead> {
+  if (!isQueueEnabled() || plan.training_session == null) {
+    return plan
+  }
+  await whenQueueLoaded()
+  let changed = false
+  const blocks = plan.training_session.blocks.map((block) => {
+    if (block.completed_at !== null || block.skipped_at !== null) {
+      return block
+    }
+    const queued = pendingBlockResolution(block.id)
+    if (queued === null) {
+      return block
+    }
+    changed = true
+    return { ...block, ...queued }
+  })
+  return changed ? { ...plan, training_session: { ...plan.training_session, blocks } } : plan
 }
 
 export function createWeeklyPlan(
