@@ -62,7 +62,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=8, max_length=128, repr=False)
     last_name: str = Field(min_length=1, max_length=100)
     first_name: str = Field(min_length=1, max_length=100)
     # No username input at registration -- AuthService.register generates
@@ -230,7 +230,7 @@ class UserDeleteRequest(BaseModel):
     # Defaults to "" rather than a required field, same reasoning as
     # UserCreate.privacy_consent above -- an omitted password should fail
     # UserService.delete_account's explicit 400 check, not a generic 422.
-    password: str = ""
+    password: str = Field(default="", repr=False)
 
 
 class UserAdminRead(BaseModel):

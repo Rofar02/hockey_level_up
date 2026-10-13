@@ -1,14 +1,18 @@
 from pydantic import BaseModel, EmailStr, Field
 
 
+# 2026-10-13 (А3): repr=False on every secret-bearing field -- a model that
+# lands in a log line or an exception message prints without them.
+
+
 class TokenPair(BaseModel):
-    access_token: str
-    refresh_token: str
+    access_token: str = Field(repr=False)
+    refresh_token: str = Field(repr=False)
     token_type: str = "bearer"
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str = Field(repr=False)
 
 
 class DetailResponse(BaseModel):
@@ -30,16 +34,16 @@ class PasswordResetRequest(BaseModel):
 
 
 class PasswordResetConfirm(BaseModel):
-    token: str
+    token: str = Field(repr=False)
     # Same bounds as UserCreate.password (app/schemas/user.py) -- a reset
     # password is still just a password, same policy applies.
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128, repr=False)
 
 
 class PasswordChange(BaseModel):
-    current_password: str = Field(min_length=1, max_length=128)
-    new_password: str = Field(min_length=8, max_length=128)
+    current_password: str = Field(min_length=1, max_length=128, repr=False)
+    new_password: str = Field(min_length=8, max_length=128, repr=False)
 
 
 class EmailVerifyConfirm(BaseModel):
-    token: str
+    token: str = Field(repr=False)
