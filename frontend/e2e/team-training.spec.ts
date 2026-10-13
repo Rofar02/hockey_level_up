@@ -381,7 +381,8 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await shot(page, '09-home-team-card')
   await expectNoHorizontalOverflow(page)
 
-  await page.getByRole('button', { name: 'Смотреть план' }).click()
+  // "Смотреть план" opens the reel (2026-10-13); the list is "Списком".
+  await page.getByRole('button', { name: 'Списком' }).click()
   const modal = page.getByRole('dialog', { name: 'План тренировки' })
   await expect(modal.getByText('Разминка')).toBeVisible()
   // The scheme is visible right in the list, before opening the drill.

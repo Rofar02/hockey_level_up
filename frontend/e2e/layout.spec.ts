@@ -176,7 +176,8 @@ test('player screens fit the phone', async ({ page }) => {
   await expectNoHorizontalOverflow(page)
   await shot(page, 'layout-home-card')
 
-  await page.getByRole('button', { name: 'Смотреть план' }).click()
+  // "Смотреть план" opens the reel (2026-10-13); the list is "Списком".
+  await page.getByRole('button', { name: 'Списком' }).click()
   const modal = page.getByRole('dialog', { name: 'План тренировки' })
   await expect(modal.getByText('Броски и завершение атаки после розыгрыша')).toBeVisible()
   await expectNoHorizontalOverflow(page)
