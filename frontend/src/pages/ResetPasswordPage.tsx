@@ -33,6 +33,8 @@ export function ResetPasswordPage() {
     setIsSubmitting(true)
     try {
       const result = await authApi.confirmPasswordReset(token, newPassword)
+      // Spent: out of the address bar and the history (А11).
+      window.history.replaceState(window.history.state, '', location.pathname)
       setSuccessMessage(result.detail)
     } catch (err) {
       if (err instanceof ApiError && err.status === 410) {

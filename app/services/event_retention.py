@@ -10,6 +10,8 @@ forever -- ~40% of all database growth in a year-long simulation
 - processed_events: the consumer's "already handled" marks. They guard
   against a redelivered message, which happens within minutes of the
   original, not weeks later.
+- refresh_sessions (2026-10-13, А11): a device session past its expires_at
+  can never refresh again; login only tidies up the player's own.
 """
 import asyncio
 import logging
@@ -21,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import AsyncSessionLocal
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
+from app.models.refresh_session import RefreshSession
 from app.services.friend_activity_service import FEED_EVENT_TYPES
 
 logger = logging.getLogger(__name__)
@@ -43,14 +46,22 @@ async def purge_old_events(session: AsyncSession, now_utc: datetime) -> tuple[in
     return outbox.rowcount, processed.rowcount
 
 
+async def purge_expired_sessions(session: AsyncSession, now_utc: datetime) -> int:
+    result = await session.execute(delete(RefreshSession).where(RefreshSession.expires_at <= now_utc))
+    return result.rowcount
+
+
 async def _retention_tick() -> None:
+    now_utc = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as session, session.begin():
-        outbox_deleted, processed_deleted = await purge_old_events(session, datetime.now(timezone.utc))
+        outbox_deleted, processed_deleted = await purge_old_events(session, now_utc)
+        sessions_deleted = await purge_expired_sessions(session, now_utc)
     logger.info(
-        "Event retention: deleted %s outbox_events, %s processed_events older than %s days",
+        "Event retention: deleted %s outbox_events, %s processed_events older than %s days, %s expired refresh sessions",
         outbox_deleted,
         processed_deleted,
         RETENTION_DAYS,
+        sessions_deleted,
     )
 
 
