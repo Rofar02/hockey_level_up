@@ -314,6 +314,7 @@ class TeamEventService:
         description: str | None,
         duration_minutes: int | None,
         diagram: DrillDiagram | None = None,
+        keywords: list[str] | None = None,
     ) -> TeamEventDrillRead:
         event = await self._require_captain_and_training_event(user, team_id, event_id)
         section = await self._get_section_or_404(section_id, event.id)
@@ -326,6 +327,7 @@ class TeamEventService:
             description,
             duration_minutes,
             diagram.model_dump() if diagram is not None else None,
+            keywords,
         )
         await self._session.commit()
         return self._to_drill_read(drill)
@@ -340,6 +342,7 @@ class TeamEventService:
         title: str,
         description: str | None,
         duration_minutes: int | None,
+        keywords: list[str] | None = None,
     ) -> TeamEventDrillRead:
         """A different section_id moves the drill to the end of that
         section, closing the gap it left in the old one."""
@@ -355,6 +358,7 @@ class TeamEventService:
         drill.title = title
         drill.description = description
         drill.duration_minutes = duration_minutes
+        drill.keywords = keywords or None
         await self._session.commit()
         await self._session.refresh(drill)
         return self._to_drill_read(drill)
@@ -1038,6 +1042,7 @@ class TeamEventService:
             description=drill.description,
             duration_minutes=drill.duration_minutes,
             diagram=DrillDiagram.model_validate(drill.diagram) if drill.diagram is not None else None,
+            keywords=drill.keywords or [],
         )
 
     @classmethod

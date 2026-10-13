@@ -2,9 +2,9 @@ import uuid
 from datetime import datetime
 from datetime import time as time_
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.models.team_event import (
     TeamEventAbsenceReason,
@@ -92,6 +92,12 @@ class TeamEventDrillDiagramSet(BaseModel):
     diagram: DrillDiagram | None
 
 
+# 2026-10-13 (В): the reel's cues under a drill's title -- at most 3, each
+# a couple of words.
+DrillKeyword = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+DrillKeywords = Annotated[list[DrillKeyword] | None, Field(default=None, max_length=3)]
+
+
 class TeamEventDrillRead(BaseModel):
     id: uuid.UUID
     section_id: uuid.UUID
@@ -100,6 +106,7 @@ class TeamEventDrillRead(BaseModel):
     description: str | None = None
     duration_minutes: int | None = None
     diagram: DrillDiagram | None = None
+    keywords: list[str] = []
 
 
 class TeamEventDrillSectionRead(BaseModel):
@@ -171,6 +178,7 @@ class TeamEventDrillCreate(BaseModel):
     # Set when the drill comes from a coach's template -- the scheme lands
     # in the same write as the drill itself.
     diagram: DrillDiagram | None = None
+    keywords: DrillKeywords = None
 
 
 class TeamEventDrillUpdate(BaseModel):
@@ -179,6 +187,7 @@ class TeamEventDrillUpdate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = None
     duration_minutes: int | None = Field(default=None, ge=1, le=180)
+    keywords: DrillKeywords = None
 
 
 class TeamEventDrillReorder(BaseModel):
