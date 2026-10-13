@@ -48,6 +48,11 @@ _FRIEND_CODE_GENERATION_ATTEMPTS = 10
 # bad network, send the same token twice. Past it, a used token ends the
 # device's session -- someone else has it.
 REFRESH_REUSE_GRACE = timedelta(seconds=30)
+# 2026-10-13 (А7): refresh tokens from before step 8 (deployed 2026-10-12)
+# carry no device session, so a copy of one could mint new sessions over and
+# over. They expire on their own within refresh_token_expire_days (30) of
+# being issued; past this date none can be genuine, whatever exp says.
+LEGACY_REFRESH_CUTOFF = datetime(2026, 11, 12, tzinfo=timezone.utc)
 
 
 def _new_jti() -> str:
@@ -270,6 +275,8 @@ class AuthService:
         if "sid" not in claims:
             # Issued before step 8 -- moves to a device session once; the
             # next version bump ends it like any other.
+            if datetime.now(timezone.utc) >= LEGACY_REFRESH_CUTOFF:
+                raise invalid
             return await self._start_session(user)
         try:
             session_id = uuid.UUID(str(claims["sid"]))

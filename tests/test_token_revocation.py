@@ -158,6 +158,23 @@ async def test_pre_step_8_tokens_move_to_a_session(db_session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_pre_step_8_tokens_stop_at_the_cutoff(db_session, monkeypatch) -> None:
+    import jwt
+
+    from app.core.config import get_settings
+
+    user = await _user(db_session)
+    now = datetime.now(timezone.utc)
+    legacy = jwt.encode(
+        {"sub": str(user.id), "type": "refresh", "iat": now, "exp": now + timedelta(days=30)},
+        get_settings().jwt_secret_key,
+        algorithm="HS256",
+    )
+    monkeypatch.setattr(auth_service, "LEGACY_REFRESH_CUTOFF", now - timedelta(seconds=1))
+    await _assert_401(AuthService(db_session).refresh(legacy))
+
+
+@pytest.mark.asyncio
 async def test_access_token_of_another_version_is_refused(db_session) -> None:
     user = await _user(db_session)
     await _assert_401(get_current_user(create_access_token(str(user.id), version=5), db_session))
