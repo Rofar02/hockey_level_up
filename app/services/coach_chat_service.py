@@ -37,10 +37,10 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from openai import APIError, AsyncOpenAI
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.ice_focus import COACH_FOCUS_DAYS, FOCUS_BY_ID, ICE_FOCUSES, MAX_COACH_FOCUSES
 from app.core.training_block import sessions_to_advance_phase, taper_start_dates
 from app.models.coach_chat import CoachChatMessage, CoachChatRole
@@ -951,6 +951,12 @@ class CoachChatService:
         month_start = datetime.now(ZoneInfo(user.timezone)).replace(
             day=1, hour=0, minute=0, second=0, microsecond=0
         )
+        # 2026-10-13 (А9): one player's sends run one at a time through the
+        # count -- otherwise five parallel requests all see "9 of 10" and all
+        # go through. The player's own message is written and committed right
+        # after the check (that commit ends the lock), so the next send counts
+        # it; the slow LLM call happens outside the lock.
+        await self._session.execute(select(func.pg_advisory_xact_lock(func.hashtext(f"coach_chat:{user.id}"))))
         sent_this_month = await self._chat.count_user_messages_since(user.id, month_start)
         message_limit = MONTHLY_MESSAGE_LIMIT if user.has_premium else FREE_TRIAL_MESSAGE_LIMIT
         if sent_this_month >= message_limit:
@@ -965,8 +971,30 @@ class CoachChatService:
             )
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
 
+        turn_time = datetime.now(timezone.utc)
+        user_message = self._chat.add(user.id, CoachChatRole.USER, message, created_at=turn_time)
+        await self._session.flush()
+        message_id = user_message.id
+        await self._session.commit()
+        try:
+            return await self._answer(user, user_message, settings)
+        except BaseException:
+            # No reply, no charge: the message leaves the quota (and the
+            # history) again, as if it had never been sent.
+            await self._session.rollback()
+            await self._session.execute(delete(CoachChatMessage).where(CoachChatMessage.id == message_id))
+            await self._session.commit()
+            raise
+
+    async def _answer(self, user: User, user_message: CoachChatMessage, settings: Settings) -> CoachChatMessageRead:
+        message = user_message.content
+        turn_time = user_message.created_at
         system_prompt = await self._build_system_prompt(user, user.coach_personality)
-        history = await self._chat.list_recent(user.id, HISTORY_REPLAY_TURNS)
+        history = [
+            entry
+            for entry in await self._chat.list_recent(user.id, HISTORY_REPLAY_TURNS + 1)
+            if entry.id != user_message.id
+        ][-HISTORY_REPLAY_TURNS:]
         api_messages = [{"role": entry.role.value, "content": entry.content} for entry in history]
         api_messages.append({"role": "user", "content": message})
 
@@ -1024,12 +1052,10 @@ class CoachChatService:
             zai_reply.tool_call[0] if zai_reply.tool_call else None,
         )
 
-        # Explicit, strictly-increasing timestamps for the two rows --
-        # they're inserted in the same transaction, and relying on the
-        # column's own wall-clock default for tie-breaking is not safe on
-        # a coarse-resolution system clock (see CoachChatRepository.add).
-        turn_time = datetime.now(timezone.utc)
-        self._chat.add(user.id, CoachChatRole.USER, message, created_at=turn_time)
+        # Explicit, strictly-increasing timestamp after the player's own row
+        # -- relying on the column's own wall-clock default for tie-breaking
+        # is not safe on a coarse-resolution system clock (see
+        # CoachChatRepository.add).
         assistant_message = self._chat.add(
             user.id,
             CoachChatRole.ASSISTANT,
