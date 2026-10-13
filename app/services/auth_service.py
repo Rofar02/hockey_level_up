@@ -179,9 +179,20 @@ class AuthService:
     async def confirm_password_reset(self, raw_token: str, new_password: str) -> None:
         user = await self._tokens.consume_token(raw_token, AuthTokenPurpose.PASSWORD_RESET)
         user.password_hash = await hash_password_async(new_password)
-        # Whoever knew the old password is signed out everywhere.
+        # Whoever knew the old password is signed out everywhere, and no
+        # other reset link sent earlier still works (А8).
         await self._end_all_sessions(user)
+        await self._tokens.spend_unused(user.id, AuthTokenPurpose.PASSWORD_RESET)
         await self._session.commit()
+        await self._notify_password_changed(user)
+
+    async def _notify_password_changed(self, user: User) -> None:
+        # After the commit and best-effort: the password is changed either
+        # way, a Resend outage must not turn that into an error.
+        try:
+            await self._email.send_password_changed_email(user)
+        except Exception:
+            logger.exception("Failed to send password changed email for user_id=%s", user.id)
 
     async def change_password(self, user: User, current_password: str, new_password: str) -> TokenPair:
         """Signs out every other device; this one gets a fresh pair."""
@@ -189,7 +200,10 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный текущий пароль")
         user.password_hash = await hash_password_async(new_password)
         await self._end_all_sessions(user)
-        return await self._start_session(user)
+        await self._tokens.spend_unused(user.id, AuthTokenPurpose.PASSWORD_RESET)
+        pair = await self._start_session(user)
+        await self._notify_password_changed(user)
+        return pair
 
     async def logout(self, refresh_token: str) -> None:
         """Ends this device's session. Quiet on a bad or expired token --

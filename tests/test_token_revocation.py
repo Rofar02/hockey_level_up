@@ -178,3 +178,57 @@ async def test_pre_step_8_tokens_stop_at_the_cutoff(db_session, monkeypatch) -> 
 async def test_access_token_of_another_version_is_refused(db_session) -> None:
     user = await _user(db_session)
     await _assert_401(get_current_user(create_access_token(str(user.id), version=5), db_session))
+
+
+def _record_password_changed_emails(monkeypatch, *, fail: bool = False) -> list:
+    from app.services.email_service import EmailService
+
+    sent: list = []
+
+    async def _fake(self, user):  # noqa: ANN001 -- mirrors bound method signature
+        if fail:
+            raise RuntimeError("Resend is down")
+        sent.append(user.id)
+
+    monkeypatch.setattr(EmailService, "send_password_changed_email", _fake)
+    return sent
+
+
+@pytest.mark.asyncio
+async def test_a_reset_spends_every_other_reset_link(db_session, monkeypatch) -> None:
+    """А8 (2026-10-13): two reset emails asked for, the first one used --
+    the second link is dead too, and the player is told by email."""
+    sent = _record_password_changed_emails(monkeypatch)
+    user = await _user(db_session)
+    tokens = AuthTokenService(db_session)
+    first = await tokens.create_token(user.id, AuthTokenPurpose.PASSWORD_RESET)
+    second = await tokens.create_token(user.id, AuthTokenPurpose.PASSWORD_RESET)
+
+    await AuthService(db_session).confirm_password_reset(first, "new-password-1")
+
+    with pytest.raises(HTTPException) as exc:
+        await AuthService(db_session).confirm_password_reset(second, "new-password-2")
+    assert exc.value.status_code == 410
+    assert sent == [user.id]
+
+
+@pytest.mark.asyncio
+async def test_a_password_change_spends_reset_links_and_emails(db_session, monkeypatch) -> None:
+    sent = _record_password_changed_emails(monkeypatch)
+    user = await _user(db_session)
+    pending = await AuthTokenService(db_session).create_token(user.id, AuthTokenPurpose.PASSWORD_RESET)
+
+    await AuthService(db_session).change_password(user, PASSWORD, "new-password-1")
+
+    with pytest.raises(HTTPException) as exc:
+        await AuthService(db_session).confirm_password_reset(pending, "new-password-2")
+    assert exc.value.status_code == 410
+    assert sent == [user.id]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_notification_does_not_fail_the_change(db_session, monkeypatch) -> None:
+    _record_password_changed_emails(monkeypatch, fail=True)
+    user = await _user(db_session)
+    pair = await AuthService(db_session).change_password(user, PASSWORD, "new-password-1")
+    assert await get_current_user(pair.access_token, db_session) == user
