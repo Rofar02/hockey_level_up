@@ -1,4 +1,16 @@
+import { useSyncExternalStore } from 'react'
 import { useOnline } from '../hooks/useNetworkStatus'
+import { getOldestShownAt, subscribeSavedDataAge } from '../utils/offlineData'
+
+function formatShownAt(storedAt: number): string {
+  const shown = new Date(storedAt)
+  const time = shown.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  const today = new Date()
+  if (shown.toDateString() === today.toDateString()) {
+    return time
+  }
+  return `${shown.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}, ${time}`
+}
 
 // "Нет связи" pill at the top of every screen while the server can't be
 // reached (Б0, 2026-10-13). Doesn't block anything: the app keeps working on
@@ -6,6 +18,8 @@ import { useOnline } from '../hooks/useNetworkStatus'
 // (NeedsNetworkHint).
 export function OfflineBanner() {
   const online = useOnline()
+  // Б1: when saved answers are on screen, how old the oldest one is.
+  const shownAt = useSyncExternalStore(subscribeSavedDataAge, getOldestShownAt, () => null)
   if (online) {
     return null
   }
@@ -18,6 +32,7 @@ export function OfflineBanner() {
       <div className="flex items-center gap-2 rounded-full border border-accent-persimmon/40 bg-dark-card/95 px-3 py-1.5 text-xs font-medium text-text-primary shadow-lg backdrop-blur">
         <i className="ti ti-wifi-off text-sm text-accent-persimmon" aria-hidden="true" />
         Нет связи
+        {shownAt !== null && <span className="text-text-secondary">· данные от {formatShownAt(shownAt)}</span>}
       </div>
     </div>
   )

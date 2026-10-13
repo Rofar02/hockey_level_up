@@ -1,4 +1,4 @@
-import { apiGet, apiPostAuth, apiPutAuth } from './client'
+import { apiGet, apiPostAuth, apiPutAuth, readWithOfflineCopy } from './client'
 import type {
   IceFocusRead,
   TrainingDiaryEntryIn,
@@ -31,6 +31,9 @@ export function listDiaryEntries(accessToken: string): Promise<TrainingDiaryEntr
 
 // POST, not GET (review 12.10): the focus as shown to the player -- the
 // server pins it for the day when it's the ice day itself.
+// Kept for offline use like the GETs (Б1): ice prep is read at the rink.
 export function getIceFocus(trainingSessionId: string, accessToken: string): Promise<IceFocusRead | null> {
-  return apiPostAuth<IceFocusRead | null>(`/training-sessions/${trainingSessionId}/focus`, {}, accessToken)
+  return readWithOfflineCopy(`focus:${trainingSessionId}`, () =>
+    apiPostAuth<IceFocusRead | null>(`/training-sessions/${trainingSessionId}/focus`, {}, accessToken),
+  )
 }

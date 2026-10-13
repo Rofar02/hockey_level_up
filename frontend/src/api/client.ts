@@ -7,7 +7,9 @@ import {
   TOKENS_REFRESHED_EVENT,
 } from './tokenStorage'
 
-import { isNetworkError, markOffline, markOnline } from '../utils/networkStatus'
+import { isNetworkError, isOnline, markOffline, markOnline } from '../utils/networkStatus'
+import { getOfflineUser, isOfflinePath, noteSavedDataShown } from '../utils/offlineData'
+import { readSaved, writeSaved } from '../utils/offlineStore'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -216,10 +218,14 @@ function fetchAndStore<T>(path: string, accessToken: string): Promise<T> {
     return pending as Promise<T>
   }
   const generation = cacheGeneration
+  const userId = getOfflineUser()
   const promise = request<T>(path, 'GET', { accessToken })
     .then((data) => {
       if (generation === cacheGeneration) {
         getCache.set(path, { data, storedAt: Date.now() })
+      }
+      if (userId !== null && userId === getOfflineUser() && isOfflinePath(path)) {
+        void writeSaved(userId, path, data)
       }
       return data
     })
@@ -244,7 +250,80 @@ async function cachedGet<T>(path: string, accessToken: string): Promise<T> {
     }
     return entry.data as T
   }
-  return fetchAndStore<T>(path, accessToken)
+  return withOfflineFallback(path, fetchAndStore<T>(path, accessToken))
+}
+
+// -- offline fallback (Б1, 2026-10-13) --
+// For the screens a player needs at the rink (utils/offlineData.ts), the
+// last good answer is kept in IndexedDB. It is shown when there is no
+// connection, when the request fails at the network/server level, or when
+// the network hangs for longer than SAVED_AFTER_MS -- the live request
+// carries on in the background and refreshes both caches when it lands.
+const SAVED_AFTER_MS = 4000
+
+function canFallBack(err: unknown): boolean {
+  return isNetworkError(err) || (err instanceof ApiError && (err.status >= 500 || err.status === 429))
+}
+
+// For a read the server serves as POST (the ice focus): its answer is kept
+// under `key` and shown offline the same way.
+export function readWithOfflineCopy<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const userId = getOfflineUser()
+  const live = load().then((data) => {
+    if (userId !== null && userId === getOfflineUser()) {
+      void writeSaved(userId, key, data)
+    }
+    return data
+  })
+  return userId === null ? live : withSaved(userId, key, live)
+}
+
+function withOfflineFallback<T>(path: string, live: Promise<T>): Promise<T> {
+  const userId = getOfflineUser()
+  if (userId === null || !isOfflinePath(path)) {
+    return live
+  }
+  return withSaved(userId, path, live)
+}
+
+function withSaved<T>(userId: string, path: string, live: Promise<T>): Promise<T> {
+  const saved = readSaved(userId, path)
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const useSaved = async (): Promise<boolean> => {
+      const entry = await saved
+      if (settled || entry === null) {
+        return false
+      }
+      settled = true
+      noteSavedDataShown(entry.storedAt)
+      resolve(entry.data as T)
+      return true
+    }
+    const timer = setTimeout(() => void useSaved(), isOnline() ? SAVED_AFTER_MS : 0)
+    live.then(
+      (data) => {
+        clearTimeout(timer)
+        if (!settled) {
+          settled = true
+          resolve(data)
+        }
+      },
+      async (err: unknown) => {
+        clearTimeout(timer)
+        if (settled) {
+          return
+        }
+        if (canFallBack(err) && (await useSaved())) {
+          return
+        }
+        if (!settled) {
+          settled = true
+          reject(err)
+        }
+      },
+    )
+  })
 }
 
 // Warms the cache for screens the player hasn't opened yet (used after login

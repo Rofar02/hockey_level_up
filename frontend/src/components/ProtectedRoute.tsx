@@ -6,6 +6,7 @@ import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
 import { warmApiCache } from '../api/client'
+import { warmOfflineData } from '../utils/offlineWarm'
 import { prefetchPages } from '../utils/prefetchPages'
 import { recordRoute } from '../utils/routeHistory'
 
@@ -42,7 +43,8 @@ const WARM_PATHS = [
 ]
 
 export function ProtectedRoute() {
-  const { isAuthenticated, hasAssessment, isInitializing, accessToken } = useAuth()
+  const { isAuthenticated, hasAssessment, isInitializing, accessToken, user } = useAuth()
+  const timeZone = user?.timezone
   // The training diary is a full-screen notebook (2026-09-21) -- no
   // BottomNav and no space reserved for it, so nothing competes with the
   // text box. Matched here (not inside the page) because BottomNav lives in
@@ -66,8 +68,10 @@ export function ProtectedRoute() {
     const timer = window.setTimeout(() => {
       prefetchPages()
       warmApiCache(WARM_PATHS, accessToken)
+      void warmOfflineData(accessToken, timeZone)
     }, 1500)
     return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, accessToken])
 
   // Hold off on any redirect while a reload is still trying to restore the

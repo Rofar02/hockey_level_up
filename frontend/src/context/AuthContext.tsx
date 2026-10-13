@@ -18,7 +18,16 @@ import type { TokensRefreshedDetail } from '../api/tokenStorage'
 import type { UserRead } from '../types/user'
 import { dropLocalPushSubscription, resyncPushSubscription } from '../push'
 import { AuthContext } from './authContext'
+import { setOfflineUser } from '../utils/offlineData'
+import { clearSaved } from '../utils/offlineStore'
 import type { AuthContextValue } from './authContext'
+
+// Signed out (or the server ended the session): nothing of this player's
+// stays on the device for the next one to see.
+function forgetOfflineData() {
+  setOfflineUser(null)
+  void clearSaved()
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
@@ -51,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedAccessToken = getStoredAccessToken() ?? nextAccessToken
     persistTokens(storedAccessToken, getStoredRefreshToken() ?? nextRefreshToken)
     persistSessionSnapshot({ user: currentUser, hasAssessment: status.has_assessment })
+    setOfflineUser(currentUser.id)
     needsRevalidation.current = false
     setAccessToken(storedAccessToken)
     setUser(currentUser)
@@ -69,11 +79,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedAccessToken === null || storedRefreshToken === null) {
       return
     }
+    // Saved screens (Б1) are keyed by player -- known from the snapshot
+    // even before the server answers.
+    setOfflineUser(getSessionSnapshot()?.user.id ?? null)
     try {
       await applySession(storedAccessToken, storedRefreshToken)
     } catch (err) {
       if (isAuthRejection(err)) {
         needsRevalidation.current = false
+        forgetOfflineData()
         clearStoredTokens()
         setAccessToken(null)
         setUser(null)
@@ -142,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })()
     needsRevalidation.current = false
     clearApiCache()
+    forgetOfflineData()
     clearStoredTokens()
     setAccessToken(null)
     setUser(null)
@@ -163,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     function handleSessionExpired() {
       needsRevalidation.current = false
+      forgetOfflineData()
       setAccessToken(null)
       setUser(null)
       setHasAssessment(null)

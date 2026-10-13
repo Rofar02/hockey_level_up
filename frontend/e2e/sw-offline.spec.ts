@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { createUser, loginAs } from './helpers'
+import { api, createUser, dayPlan, declareWeek, localNow, loginAs, shot } from './helpers'
 
 // Б0 (2026-10-13): the installed app opens with no connection at all. Needs
 // a production build with the service worker, served same-origin:
@@ -53,4 +53,67 @@ test('the worker never caches the API or version.json', async ({ page }) => {
   })
   expect(cached).toContain('/index.html')
   expect(cached.filter((path) => path.startsWith('/api/') || path.startsWith('/media/') || path.startsWith('/version.json'))).toEqual([])
+})
+
+test('Б1: the week and the workout opened online show offline after a restart', async ({ page, context }) => {
+  const me = await createUser('offdata', 43, 'forward')
+  const today = localNow().date
+  await declareWeek(me, today)
+  const plan = await dayPlan(me, today)
+  const full = await api<{ training_session: { blocks: { exercise: { name: string } }[] } | null }>(
+    'GET',
+    `/schedule/day-plans/${plan.id}`,
+    { token: me.token },
+  )
+  const firstExercise = full.training_session?.blocks[0]?.exercise.name
+  expect(firstExercise).toBeTruthy()
+
+  await loginAs(page, me)
+  await page.goto('/')
+  await expect(page.getByRole('navigation', NAV)).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await page.goto(`/training/${plan.id}`)
+  await expect(page.getByText(firstExercise!).first()).toBeVisible()
+
+  await context.setOffline(true)
+  await page.reload()
+  await expect(page.getByText(firstExercise!).first()).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: /Нет связи.*данные от/ })).toBeVisible()
+
+  // Home (today + the week) too, without having been opened since the restart.
+  await page.goto('/')
+  await expect(page.getByRole('navigation', NAV)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Начать тренировку' })).toBeVisible()
+  await shot(page, 'offline-home')
+  await context.setOffline(false)
+})
+
+test('Б1: sign-out leaves no saved data behind', async ({ page }) => {
+  const me = await createUser('offclear', 44, 'forward')
+  await declareWeek(me, localNow().date)
+  await loginAs(page, me)
+  await page.goto('/')
+  await expect(page.getByRole('navigation', NAV)).toBeVisible()
+  const savedCount = () =>
+    page.evaluate(
+      () =>
+        new Promise<number>((resolve) => {
+          const open = indexedDB.open('icelevel-offline')
+          open.onsuccess = () => {
+            const db = open.result
+            if (!db.objectStoreNames.contains('responses')) {
+              resolve(0)
+              return
+            }
+            const count = db.transaction('responses').objectStore('responses').count()
+            count.onsuccess = () => resolve(count.result)
+          }
+          open.onerror = () => resolve(-1)
+        }),
+    )
+  await expect.poll(savedCount, { timeout: 15_000 }).toBeGreaterThan(0)
+  await page.goto('/settings/account')
+  await page.getByRole('button', { name: 'Выйти из аккаунта' }).click()
+  await expect(page).toHaveURL(/\/login/)
+  await expect.poll(savedCount).toBe(0)
 })
