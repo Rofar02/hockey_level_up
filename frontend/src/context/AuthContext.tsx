@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as assessmentApi from '../api/assessment'
 import * as authApi from '../api/auth'
-import { ApiError, clearApiCache } from '../api/client'
+import { clearApiCache } from '../api/client'
 import {
   clearStoredTokens,
   getStoredAccessToken,
   getStoredRefreshToken,
+  getSessionSnapshot,
+  isAuthRejection,
+  persistSessionSnapshot,
   persistTokens,
   SESSION_EXPIRED_EVENT,
   TOKENS_REFRESHED_EVENT,
@@ -28,52 +31,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // the restore even had a chance to run.
   const [isInitializing, setIsInitializing] = useState(true)
 
+  // True while the app runs on the saved snapshot because the server could
+  // not be reached at start -- the next "online" / return to the app checks
+  // the session for real.
+  const needsRevalidation = useRef(false)
+
   // Fetches the user + assessment status for a token pair and, only once
-  // both succeed, persists the pair and commits it to state -- so a failed
-  // restore attempt never leaves half-applied state.
+  // both succeed, commits it to state. The pair is stored first: if a 401
+  // inside makes client.ts refresh it, the rotated pair it writes is the one
+  // kept -- never overwritten with the already-spent one passed in here.
   const applySession = useCallback(async (nextAccessToken: string, nextRefreshToken: string) => {
     // Another account's cached answers must never show for this one.
     clearApiCache()
+    persistTokens(nextAccessToken, nextRefreshToken)
     const [currentUser, status] = await Promise.all([
       authApi.getCurrentUser(nextAccessToken),
       assessmentApi.getStatus(nextAccessToken),
     ])
-    persistTokens(nextAccessToken, nextRefreshToken)
-    setAccessToken(nextAccessToken)
+    const storedAccessToken = getStoredAccessToken() ?? nextAccessToken
+    persistTokens(storedAccessToken, getStoredRefreshToken() ?? nextRefreshToken)
+    persistSessionSnapshot({ user: currentUser, hasAssessment: status.has_assessment })
+    needsRevalidation.current = false
+    setAccessToken(storedAccessToken)
     setUser(currentUser)
     setHasAssessment(status.has_assessment)
   }, [])
 
+  // Re-checks the stored session. Tokens go only when the server itself
+  // rejects them (401/403 after client.ts's own refresh attempt); no signal,
+  // a 5xx or a 429 keep the player in, on the last snapshot (А1, 2026-10-13).
+  const revalidateSession = useCallback(async () => {
+    const storedAccessToken = getStoredAccessToken()
+    const storedRefreshToken = getStoredRefreshToken()
+    if (storedAccessToken === null || storedRefreshToken === null) {
+      return
+    }
+    try {
+      await applySession(storedAccessToken, storedRefreshToken)
+    } catch (err) {
+      if (isAuthRejection(err)) {
+        needsRevalidation.current = false
+        clearStoredTokens()
+        setAccessToken(null)
+        setUser(null)
+        setHasAssessment(null)
+        return
+      }
+      needsRevalidation.current = true
+      const snapshot = getSessionSnapshot()
+      if (snapshot !== null) {
+        setAccessToken(getStoredAccessToken() ?? storedAccessToken)
+        setUser((current) => current ?? snapshot.user)
+        setHasAssessment((current) => current ?? snapshot.hasAssessment)
+      }
+    }
+  }, [applySession])
+
   useEffect(() => {
     let cancelled = false
 
-    async function restoreSession() {
-      const storedAccessToken = getStoredAccessToken()
-      const storedRefreshToken = getStoredRefreshToken()
-      if (storedAccessToken === null || storedRefreshToken === null) {
-        return
-      }
-
-      try {
-        await applySession(storedAccessToken, storedRefreshToken)
-        return
-      } catch (err) {
-        if (!(err instanceof ApiError) || err.status !== 401) {
-          clearStoredTokens()
-          return
-        }
-      }
-
-      // Access token was rejected -- one refresh attempt before giving up.
-      try {
-        const tokens = await authApi.refresh(storedRefreshToken)
-        await applySession(tokens.access_token, tokens.refresh_token)
-      } catch {
-        clearStoredTokens()
-      }
-    }
-
-    restoreSession().finally(() => {
+    revalidateSession().finally(() => {
       if (!cancelled) {
         setIsInitializing(false)
       }
@@ -82,7 +99,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [applySession])
+  }, [revalidateSession])
+
+  useEffect(() => {
+    function retry() {
+      if (needsRevalidation.current && navigator.onLine !== false) {
+        void revalidateSession()
+      }
+    }
+    function onVisibility() {
+      if (document.visibilityState === 'visible') {
+        retry()
+      }
+    }
+    window.addEventListener('online', retry)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('online', retry)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [revalidateSession])
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -99,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Best-effort: the tokens are forgotten here either way.
       })
     }
+    needsRevalidation.current = false
     clearApiCache()
     clearStoredTokens()
     setAccessToken(null)
@@ -120,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     function handleSessionExpired() {
+      needsRevalidation.current = false
       setAccessToken(null)
       setUser(null)
       setHasAssessment(null)
@@ -151,10 +189,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const markAssessmentComplete = useCallback(() => {
     setHasAssessment(true)
+    const snapshot = getSessionSnapshot()
+    if (snapshot !== null) {
+      persistSessionSnapshot({ ...snapshot, hasAssessment: true })
+    }
   }, [])
 
   const updateUser = useCallback((nextUser: UserRead) => {
     setUser(nextUser)
+    const snapshot = getSessionSnapshot()
+    persistSessionSnapshot({ user: nextUser, hasAssessment: snapshot?.hasAssessment ?? true })
   }, [])
 
   const value = useMemo<AuthContextValue>(

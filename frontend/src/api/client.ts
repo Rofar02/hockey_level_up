@@ -1,6 +1,7 @@
 import {
   clearStoredTokens,
   getStoredRefreshToken,
+  isAuthRejection,
   persistTokens,
   SESSION_EXPIRED_EVENT,
   TOKENS_REFRESHED_EVENT,
@@ -124,8 +125,13 @@ async function refreshAccessToken(): Promise<string> {
   try {
     return await refreshInFlight
   } catch (err) {
-    clearStoredTokens()
-    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
+    // Only the server's own "no" ends the session (А1, 2026-10-13). No
+    // signal, a 5xx or nginx's 429 leave the tokens alone -- the next
+    // request (or the next app start) tries again.
+    if (isAuthRejection(err)) {
+      clearStoredTokens()
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
+    }
     throw err
   }
 }
@@ -239,13 +245,21 @@ async function request<T>(path: string, method: string, options: RequestOptions 
   let response = await fetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, options.accessToken))
 
   if (response.status === 401 && isAuthedRequest) {
+    let freshAccessToken: string | null = null
     try {
-      const freshAccessToken = await refreshAccessToken()
+      freshAccessToken = await refreshAccessToken()
+    } catch (err) {
+      // Refresh rejected (or no refresh token left) -- fall through and let
+      // the original 401 produce the usual ApiError below;
+      // SESSION_EXPIRED_EVENT has already been dispatched. Any other failure
+      // (offline, 5xx, 429) is what the caller sees instead, so nobody
+      // mistakes a dropped connection for an expired session.
+      if (!isAuthRejection(err)) {
+        throw err
+      }
+    }
+    if (freshAccessToken !== null) {
       response = await fetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, freshAccessToken))
-    } catch {
-      // Refresh failed (or there was no refresh token left) -- fall through
-      // and let the original 401 response produce the usual ApiError below.
-      // SESSION_EXPIRED_EVENT has already been dispatched by refreshAccessToken.
     }
   }
 
