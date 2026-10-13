@@ -108,7 +108,7 @@ class SessionBlockService:
         # real, never trusted from a frontend-only guard.
         if block.phase not in (TrainingPhase.WARMUP, TrainingPhase.COOLDOWN):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="only warmup/cooldown blocks can be skipped",
             )
 

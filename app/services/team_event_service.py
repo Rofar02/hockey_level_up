@@ -170,10 +170,10 @@ class TeamEventService:
         """The captain enters the final score of a played game (2026-10-09)."""
         event = await self._require_captain_and_event(user, team_id, event_id)
         if event.event_type != TeamEventType.GAME:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Счёт бывает только у игры")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Счёт бывает только у игры")
         self._require_scheduled(event)
         if (our is None) != (opponent is None):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Нужны оба числа счёта")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Нужны оба числа счёта")
         if our is not None and event.starts_at > datetime.now(timezone.utc):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Игра ещё не началась")
         event.our_score = our
@@ -664,7 +664,7 @@ class TeamEventService:
         # moves (the unique constraint on (team_event_id, user_id) is what
         # enforces "at most one group at a time", not this check).
         if slot is not None and slot not in LINEUP_SLOTS:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown slot")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Unknown slot")
         placed = await self._events.upsert_lineup_slot(event.id, group.id, target_user_id)
         if slot is not None and slot != "G":
             # One player per spot in a line: whoever held it stays in the

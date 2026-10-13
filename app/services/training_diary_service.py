@@ -212,7 +212,7 @@ class TrainingDiaryService:
             missing = report.game_result is None or report.self_rating is None
         if missing:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Ответьте на вопросы отчёта или отметьте «Не был»",
             )
 
