@@ -15,6 +15,12 @@ class RefreshRequest(BaseModel):
     refresh_token: str = Field(repr=False)
 
 
+class LogoutRequest(RefreshRequest):
+    # This device's Web Push endpoint, when it has one (А10): a signed-out
+    # phone stops getting the player's notifications.
+    push_endpoint: str | None = Field(default=None, max_length=2048, repr=False)
+
+
 class DetailResponse(BaseModel):
     """Generic {"detail": "..."} body -- used by every verify-email/
     password-reset endpoint below, none of which need to return more than a

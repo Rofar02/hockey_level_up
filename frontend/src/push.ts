@@ -123,3 +123,22 @@ export async function resyncPushSubscription(accessToken: string): Promise<void>
     await pushApi.deletePushSubscription(oldEndpoint, accessToken).catch(() => undefined)
   }
 }
+
+// On sign-out (А10, 2026-10-13): this browser stops receiving the player's
+// pushes -- the server row goes with the logout call, the browser's own
+// subscription here, so whoever signs in next on this phone starts clean
+// and Settings doesn't show notifications as on when the server has none.
+// Returns the endpoint for the logout call. Never registers a worker.
+export async function dropLocalPushSubscription(): Promise<string | null> {
+  if (!isPushSupported()) {
+    return null
+  }
+  const registration = await navigator.serviceWorker.getRegistration()
+  const subscription = registration ? await registration.pushManager.getSubscription() : null
+  if (subscription === null) {
+    return null
+  }
+  const endpoint = subscription.endpoint
+  await subscription.unsubscribe().catch(() => false)
+  return endpoint
+}

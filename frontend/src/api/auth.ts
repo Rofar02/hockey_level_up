@@ -52,9 +52,10 @@ export function confirmEmailVerification(token: string): Promise<DetailResponse>
   return apiPost<DetailResponse>('/auth/verify-email/confirm', { token })
 }
 
-// Ends this device's session on the server; the caller forgets the tokens.
-export function logout(refreshToken: string): Promise<void> {
-  return apiPost<void>('/auth/logout', { refresh_token: refreshToken })
+// Ends this device's session on the server (and its push subscription,
+// when there is one); the caller forgets the tokens.
+export function logout(refreshToken: string, pushEndpoint: string | null = null): Promise<void> {
+  return apiPost<void>('/auth/logout', { refresh_token: refreshToken, push_endpoint: pushEndpoint })
 }
 
 // «Выйти на всех устройствах» -- this device included.

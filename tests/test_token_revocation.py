@@ -232,3 +232,45 @@ async def test_a_failed_notification_does_not_fail_the_change(db_session, monkey
     user = await _user(db_session)
     pair = await AuthService(db_session).change_password(user, PASSWORD, "new-password-1")
     assert await get_current_user(pair.access_token, db_session) == user
+
+
+async def _subscribe(db_session, user: User, endpoint: str) -> None:
+    from app.models.push_subscription import PushSubscription
+
+    db_session.add(
+        PushSubscription(user_id=user.id, endpoint=endpoint, p256dh_key="p", auth_key="a", user_agent=None)
+    )
+    await db_session.flush()
+
+
+async def _endpoints(db_session, user: User) -> set[str]:
+    from app.models.push_subscription import PushSubscription
+
+    rows = await db_session.scalars(select(PushSubscription.endpoint).where(PushSubscription.user_id == user.id))
+    return set(rows)
+
+
+@pytest.mark.asyncio
+async def test_logout_drops_only_this_devices_push(db_session) -> None:
+    """А10 (2026-10-13): a signed-out phone stops getting the player's
+    pushes; the laptop still gets them."""
+    user = await _user(db_session)
+    await _subscribe(db_session, user, "https://push.example/phone")
+    await _subscribe(db_session, user, "https://push.example/laptop")
+    service = AuthService(db_session)
+    phone = await service.login(user.username, PASSWORD)
+
+    await service.logout(phone.refresh_token, "https://push.example/phone")
+
+    assert await _endpoints(db_session, user) == {"https://push.example/laptop"}
+
+
+@pytest.mark.asyncio
+async def test_logout_all_drops_every_push(db_session) -> None:
+    user = await _user(db_session)
+    await _subscribe(db_session, user, "https://push.example/phone")
+    await _subscribe(db_session, user, "https://push.example/laptop")
+
+    await AuthService(db_session).logout_all(user)
+
+    assert await _endpoints(db_session, user) == set()

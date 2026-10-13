@@ -16,7 +16,7 @@ import {
 } from '../api/tokenStorage'
 import type { TokensRefreshedDetail } from '../api/tokenStorage'
 import type { UserRead } from '../types/user'
-import { resyncPushSubscription } from '../push'
+import { dropLocalPushSubscription, resyncPushSubscription } from '../push'
 import { AuthContext } from './authContext'
 import type { AuthContextValue } from './authContext'
 
@@ -130,11 +130,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     const refreshToken = getStoredRefreshToken()
-    if (refreshToken !== null) {
-      authApi.logout(refreshToken).catch(() => {
-        // Best-effort: the tokens are forgotten here either way.
-      })
-    }
+    // Best-effort: the tokens are forgotten here either way.
+    void (async () => {
+      const pushEndpoint = await dropLocalPushSubscription().catch(() => null)
+      if (refreshToken !== null) {
+        await authApi.logout(refreshToken, pushEndpoint).catch(() => undefined)
+      }
+    })()
     needsRevalidation.current = false
     clearApiCache()
     clearStoredTokens()

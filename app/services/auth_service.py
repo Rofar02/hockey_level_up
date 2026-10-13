@@ -20,6 +20,7 @@ from app.core.security import (
     verify_password_async,
 )
 from app.models.auth_token import AuthTokenPurpose
+from app.models.push_subscription import PushSubscription
 from app.models.refresh_session import RefreshSession
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -205,9 +206,10 @@ class AuthService:
         await self._notify_password_changed(user)
         return pair
 
-    async def logout(self, refresh_token: str) -> None:
-        """Ends this device's session. Quiet on a bad or expired token --
-        the client forgets its tokens either way."""
+    async def logout(self, refresh_token: str, push_endpoint: str | None = None) -> None:
+        """Ends this device's session and its push subscription (А10). Quiet
+        on a bad or expired token -- the client forgets its tokens either
+        way."""
         try:
             claims = decode_claims(refresh_token, TokenType.REFRESH)
             session_id = uuid.UUID(str(claims.get("sid")))
@@ -217,12 +219,20 @@ class AuthService:
         await self._session.execute(
             delete(RefreshSession).where(RefreshSession.id == session_id, RefreshSession.user_id == user_id)
         )
+        if push_endpoint:
+            await self._session.execute(
+                delete(PushSubscription).where(
+                    PushSubscription.user_id == user_id, PushSubscription.endpoint == push_endpoint
+                )
+            )
         await self._session.commit()
 
     async def logout_all(self, user: User) -> None:
         """«Выйти на всех устройствах»: every token issued so far, access
-        ones included, stops working."""
+        ones included, stops working -- and no device keeps getting the
+        player's pushes (А10)."""
         await self._end_all_sessions(user)
+        await self._session.execute(delete(PushSubscription).where(PushSubscription.user_id == user.id))
         await self._session.commit()
 
     async def _end_all_sessions(self, user: User) -> None:
