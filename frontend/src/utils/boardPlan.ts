@@ -60,3 +60,16 @@ export function boardSummaryText(sections: TeamEventDrillSectionRead[]): string 
   }
   return parts.join(' · ')
 }
+
+// "Пас в крюк, Скорость" -> up to 3 cues of up to 20 characters (the
+// server's limits), the rest dropped.
+export const MAX_DRILL_KEYWORDS = 3
+export const MAX_DRILL_KEYWORD_LENGTH = 20
+
+export function parseKeywords(value: string): string[] {
+  return value
+    .split(',')
+    .map((part) => part.trim().slice(0, MAX_DRILL_KEYWORD_LENGTH).trim())
+    .filter((part) => part !== '')
+    .slice(0, MAX_DRILL_KEYWORDS)
+}

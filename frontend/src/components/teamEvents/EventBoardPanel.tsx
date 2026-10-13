@@ -18,7 +18,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useDrillTemplates } from '../../hooks/useDrillTemplates'
 import { DRILL_SECTION_PRESETS } from '../../types/teamEvent'
 import type { DrillTemplateRead, TeamEventDrillRead, TeamEventDrillSectionRead, TeamEventRead } from '../../types/teamEvent'
-import { boardStats, formatMinutes, pluralRu, totalMinutes } from '../../utils/boardPlan'
+import { MAX_DRILL_KEYWORDS, boardStats, formatMinutes, parseKeywords, pluralRu, totalMinutes } from '../../utils/boardPlan'
 
 interface EventBoardPanelProps {
   teamId: string
@@ -32,6 +32,7 @@ interface DrillFormValues {
   title: string
   description: string
   minutes: string
+  keywords: string
 }
 
 // What the drill sheet is showing: a new drill for a section, or an
@@ -141,6 +142,7 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
       title: values.title.trim(),
       description: values.description.trim() || null,
       duration_minutes: parseMinutes(values.minutes),
+      keywords: parseKeywords(values.keywords),
     }
     if (drillSheet?.mode === 'edit') {
       const drillId = drillSheet.drillId
@@ -644,6 +646,7 @@ function DrillSheetModal({
     title: drill?.title ?? '',
     description: drill?.description ?? '',
     minutes: drill?.duration_minutes?.toString() ?? '',
+    keywords: (drill?.keywords ?? []).join(', '),
   })
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
@@ -760,6 +763,19 @@ function DrillSheetModal({
               />
             </div>
           )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <TextField
+            label="Ключевые слова (через запятую)"
+            value={values.keywords}
+            onChange={(e) => setValues({ ...values, keywords: e.target.value })}
+            placeholder="Пас в крюк, Скорость, Голова поднята"
+            maxLength={70}
+          />
+          <p className="text-xs text-text-secondary">
+            До {MAX_DRILL_KEYWORDS}, коротко — игроки увидят их под названием в плане.
+          </p>
         </div>
 
         {drill !== null && <SchemeBlock drill={drill} onDraw={onDrawDiagram} />}

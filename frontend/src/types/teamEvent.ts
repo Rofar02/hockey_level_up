@@ -75,6 +75,8 @@ export interface TeamEventDrillRead {
   description: string | null
   duration_minutes: number | null
   diagram: DrillDiagram | null
+  // Up to 3 short cues under the title in the players' reel (2026-10-13).
+  keywords?: string[]
 }
 
 // A named block of the board -- the coach names it freely; these are just
@@ -126,6 +128,7 @@ export interface TeamEventDrillCreatePayload {
   duration_minutes?: number | null
   // From a coach's template: the scheme lands with the drill in one write.
   diagram?: DrillDiagram | null
+  keywords?: string[] | null
 }
 
 // A coach's own saved drill -- follows them across teams; a board gets a
@@ -153,6 +156,7 @@ export interface TeamEventDrillUpdatePayload {
   title: string
   description?: string | null
   duration_minutes?: number | null
+  keywords?: string[] | null
 }
 
 export interface TeamEventAttendanceSetPayload {

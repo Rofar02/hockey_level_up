@@ -198,3 +198,15 @@
     animation: none;
   }
 }
+
+/* The plan reel's section card between drills (TrainingReel, 2026-10-13). */
+@keyframes reel-splash {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

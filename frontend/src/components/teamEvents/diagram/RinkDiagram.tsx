@@ -40,6 +40,9 @@ interface RinkDiagramProps {
   // Tokens stand where the focused frame begins (after the earlier frames'
   // moves) and ride their arrows while it plays. Off = tokens stay put.
   moveTokens?: boolean
+  // A part of the rink to show instead of all of it (the reel zooms to
+  // where the drill happens, see diagramViewBox). Rink units.
+  viewBox?: string
 }
 
 const RED_LINE = '#C94A3A'
@@ -66,6 +69,7 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
     laterFrames = 'hide',
     playKey = null,
     moveTokens = false,
+    viewBox,
   },
   ref,
 ) {
@@ -82,7 +86,7 @@ export const RinkDiagram = forwardRef<SVGSVGElement, RinkDiagramProps>(function 
   return (
     <svg
       ref={ref}
-      viewBox={`0 0 ${RINK_WIDTH} ${RINK_HEIGHT}`}
+      viewBox={viewBox ?? `0 0 ${RINK_WIDTH} ${RINK_HEIGHT}`}
       className={`block select-none ${interactive ? 'touch-none' : ''} ${className}`}
       role="img"
       aria-label="Схема упражнения на площадке"

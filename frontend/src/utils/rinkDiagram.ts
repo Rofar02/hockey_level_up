@@ -493,3 +493,47 @@ export function lastMoveBefore(plan: PlaybackPlan, tokenId: string, frame: numbe
   }
   return last
 }
+
+// The part of the rink a drill actually uses -- every token and arrow point
+// plus a margin, widened to `aspect` (width / height) so it fills its box,
+// kept inside the rink. The reel (TrainingReel) shows this instead of the
+// whole rink, so the tokens come out big on a phone.
+export function diagramViewBox(diagram: DrillDiagram, aspect: number, margin = 24): string {
+  const points: { x: number; y: number }[] = [
+    ...diagram.tokens.map((token) => toRink(token)),
+    ...diagram.arrows.flatMap((arrow) => [arrow.start, ...(arrow.via ?? []), arrow.end].map((point) => toRink(point))),
+  ]
+  if (points.length === 0) {
+    return `0 0 ${RINK_WIDTH} ${RINK_HEIGHT}`
+  }
+  let minX = Math.min(...points.map((p) => p.x)) - margin
+  let maxX = Math.max(...points.map((p) => p.x)) + margin
+  let minY = Math.min(...points.map((p) => p.y)) - margin
+  let maxY = Math.max(...points.map((p) => p.y)) + margin
+  // Never narrower than 5/8 of the rink -- a single token
+  // blown up to the whole box reads as nothing.
+  const minWidth = RINK_WIDTH / 1.6
+  if (maxX - minX < minWidth) {
+    const grow = (minWidth - (maxX - minX)) / 2
+    minX -= grow
+    maxX += grow
+  }
+  let width = maxX - minX
+  let height = maxY - minY
+  if (width / height < aspect) {
+    const grow = height * aspect - width
+    minX -= grow / 2
+    width += grow
+  } else {
+    const grow = width / aspect - height
+    minY -= grow / 2
+    height += grow
+  }
+  // Inside the rink where possible (a box bigger than the rink is centred).
+  const fit = (start: number, size: number, limit: number) =>
+    size >= limit ? (limit - size) / 2 : Math.min(Math.max(start, 0), limit - size)
+  minX = fit(minX, width, RINK_WIDTH)
+  minY = fit(minY, height, RINK_HEIGHT)
+  const round = (value: number) => Math.round(value * 10) / 10
+  return `${round(minX)} ${round(minY)} ${round(width)} ${round(height)}`
+}

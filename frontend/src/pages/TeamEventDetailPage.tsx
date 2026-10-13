@@ -10,6 +10,7 @@ import { Modal } from '../components/ui/Modal'
 import { TabButton } from '../components/ui/TabButton'
 import { TextField } from '../components/ui/TextField'
 import { EventBoardPanel } from '../components/teamEvents/EventBoardPanel'
+import { TrainingReel } from '../components/teamEvents/TrainingReel'
 import { EventAttendancePanel } from '../components/teamEvents/EventAttendancePanel'
 import { GameScoreBlock } from '../components/teamEvents/GameScoreBlock'
 import { JointTrainingBlock } from '../components/teamEvents/JointTrainingBlock'
@@ -30,8 +31,24 @@ export function TeamEventDetailPage() {
   // ?tab=board|attendance|lineup -- e.g. the team page's "Ближайшее" card
   // links straight to the board. (No diary tab: after a team training
   // players and the coach use their ordinary personal diary.)
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
+  // ?reel=1 (the push about a published plan): the plan reel opens at once.
+  const isReelOpen = searchParams.get('reel') === '1'
+  function setReelOpen(open: boolean) {
+    setSearchParams(
+      (params) => {
+        const next = new URLSearchParams(params)
+        if (open) {
+          next.set('reel', '1')
+        } else {
+          next.delete('reel')
+        }
+        return next
+      },
+      { replace: !open },
+    )
+  }
 
   const [team, setTeam] = useState<TeamRead | null>(null)
   const [event, setEvent] = useState<TeamEventRead | null>(null)
@@ -154,6 +171,14 @@ export function TeamEventDetailPage() {
     )
   }
 
+  // В (2026-10-13): a published plan with at least one drill can be watched
+  // as a reel -- what the team sees, the captain too.
+  const hasPlan =
+    event !== null &&
+    event.event_type === 'training' &&
+    event.board_status === 'published' &&
+    (event.sections ?? []).some((section) => section.drills.length > 0)
+
   // A joint training: only the host team's captain runs it -- a guest
   // captain sees it like a player (and can take the team out in its block).
   const isHostCaptain = team !== null && event !== null && team.is_captain && event.team_id === teamId
@@ -183,6 +208,14 @@ export function TeamEventDetailPage() {
                 </div>
               </div>
               <GameScoreBlock teamId={teamId!} event={event} isCaptain={isHostCaptain} onEventChange={setEvent} />
+              {hasPlan && (
+                <Button type="button" className="w-full" onClick={() => setReelOpen(true)}>
+                  <span className="flex items-center justify-center gap-2">
+                    <i className="ti ti-player-play" aria-hidden="true" />
+                    Смотреть план
+                  </span>
+                </Button>
+              )}
               {isHostCaptain && (
                 <div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">
                   <Button type="button" variant="neutral" className="!px-3 !py-1.5 !text-xs" onClick={openReschedule}>
@@ -270,6 +303,10 @@ export function TeamEventDetailPage() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {isReelOpen && hasPlan && team !== null && (
+        <TrainingReel teamId={teamId!} teamName={team.name} event={event} onClose={() => setReelOpen(false)} />
       )}
     </div>
   )

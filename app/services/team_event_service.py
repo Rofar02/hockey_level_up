@@ -196,14 +196,14 @@ class TeamEventService:
                 status_code=status.HTTP_409_CONFLICT, detail="Event is already cancelled"
             )
 
-    async def _push_team(self, team_id: uuid.UUID, title: str, body: str) -> None:
+    async def _push_team(self, team_id: uuid.UUID, title: str, body: str, url: str | None = None) -> None:
         members = await self._teams.list_members(team_id)
         for member in members:
             result = await self._session.execute(
                 select(PushSubscription).where(PushSubscription.user_id == member.id)
             )
             for subscription in result.scalars().all():
-                await send_push(self._session, subscription, title, body)
+                await send_push(self._session, subscription, title, body, url)
         # send_push flushes (not commits) a dead-subscription delete on a
         # 410 -- persist that here, same as the scheduler ticks below.
         await self._session.commit()
@@ -430,7 +430,13 @@ class TeamEventService:
         await self._session.refresh(event)
         if not already_published:
             for event_team_id in await event_team_ids(self._session, event):
-                await self._push_team(event_team_id, "План тренировки готов", "Доска тренировки опубликована")
+                # 2026-10-13 (В): a tap opens the plan reel straight away.
+                await self._push_team(
+                    event_team_id,
+                    "План тренировки готов",
+                    "Тренер выложил план — посмотри упражнения",
+                    f"/teams/{event_team_id}/events/{event.id}?reel=1",
+                )
         sections = await self._visible_sections(event, viewer_is_captain=True)
         return self._to_event_read(event, sections, viewer_is_captain=True)
 
