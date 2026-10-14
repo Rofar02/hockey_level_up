@@ -45,7 +45,7 @@ def _make_exercise(category: ExerciseCategory) -> Exercise:
 
 
 @pytest.mark.asyncio
-async def test_patch_partial_success_skips_started_day_but_applies_the_rest(db_session) -> None:
+async def test_patch_partial_success_skips_started_day_but_applies_the_rest(db_session, monkeypatch) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
@@ -56,6 +56,11 @@ async def test_patch_partial_success_skips_started_day_but_applies_the_rest(db_s
 
     monday = utc_today() - timedelta(days=utc_today().weekday())
     tuesday = monday + timedelta(days=1)
+    # The player's "today" is this Monday whatever day the suite runs on --
+    # otherwise Tuesday is past (or started) from Tuesday on.
+    from app.services import schedule_service
+
+    monkeypatch.setattr(schedule_service, "user_today", lambda _user: monday)
 
     monday_exercise = _make_exercise(ExerciseCategory.ON_ICE)
     tuesday_exercise = _make_exercise(ExerciseCategory.ON_ICE)
@@ -121,9 +126,7 @@ async def test_patch_partial_success_skips_started_day_but_applies_the_rest(db_s
     # Exactly one conflict, for Monday, with a human-readable reason.
     assert len(result.conflicts) == 1
     assert result.conflicts[0].date == monday
-    # Which wording depends on the weekday the suite runs on: Monday is
-    # "started" on a Monday and "past" on any later day.
-    assert result.conflicts[0].detail in ("Этот день уже начат, нельзя изменить", "Прошедший день нельзя изменить")
+    assert result.conflicts[0].detail == "Этот день уже начат, нельзя изменить"
 
     day_by_date = {day.date: day for day in result.weekly_plan.day_plans}
 

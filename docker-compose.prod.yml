@@ -114,6 +114,9 @@ services:
       # Stated here, not only in .env (А5): the production-only safety checks
       # in app/core/config.py must never depend on a line someone can delete.
       ENVIRONMENT: production
+      # Migrations never talk to RabbitMQ, but those checks read every URL
+      # -- without this the default guest:guest one fails them.
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
     depends_on:
       postgres:
         condition: service_healthy

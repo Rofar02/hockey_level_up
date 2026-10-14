@@ -10,6 +10,10 @@ a race); the player is deleted at the end, cascading everything they wrote.
 - cut off halfway and sent again -> nothing doubled, nothing lost;
 - a set done at 23:50 and sent at 00:10 -> it's yesterday's, the streak holds;
 - an action for a day that was rebuilt -> a clear 404, the rest goes through.
+
+Each player's day is built right here from exercises of its own, so the
+tests don't depend on what the database's catalog holds (an empty CI
+database has none).
 """
 import asyncio
 import uuid
@@ -34,11 +38,20 @@ from app.models.idempotency_key import IdempotencyKey
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import TrainingStreak
-from app.models.schedule import SessionBlock
+from app.models.exercise import (
+    Exercise,
+    ExerciseCategory,
+    ExerciseTargetStat,
+    ExerciseType,
+    TargetStat,
+    TrainingPhase,
+)
+from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.set_completion import SetCompletion
 from app.models.user import User
 
 TZ = "Europe/Moscow"
+EXERCISE_PREFIX = "queue-test "
 
 
 @asynccontextmanager
@@ -62,6 +75,7 @@ async def real_db():
     finally:
         try:
             await _delete_players(factory, created)
+            await _delete_exercises(factory, created)
         finally:
             await engine.dispose()
             await app_engine.dispose()
@@ -85,6 +99,12 @@ async def _delete_players(factory, created: list[uuid.UUID]) -> None:
             if attempt == 4:
                 raise
             await asyncio.sleep(0.5)
+
+
+async def _delete_exercises(factory, created: list[uuid.UUID]) -> None:
+    async with factory() as session:
+        await session.execute(delete(Exercise).where(Exercise.name.like(f"{EXERCISE_PREFIX}%")))
+        await session.commit()
 
 
 async def _player(factory, created) -> tuple[User, httpx.AsyncClient]:
@@ -115,18 +135,42 @@ def _today() -> date:
     return datetime.now(ZoneInfo(TZ)).date()
 
 
-async def _plan_today(client: httpx.AsyncClient) -> dict:
-    today = _today()
-    monday = today - timedelta(days=today.weekday())
-    days = [
-        {"date": (monday + timedelta(days=i)).isoformat(), "session_type": "off_ice" if monday + timedelta(days=i) == today else "rest"}
-        for i in range(7)
-    ]
-    response = await client.post("/schedule/weekly", json={"days": days})
-    assert response.status_code == 201, response.text
-    plan = (await client.get(f"/schedule/day-plan?date={today.isoformat()}")).json()
-    full = (await client.get(f"/schedule/day-plans/{plan['id']}")).json()
-    assert full["training_session"]["blocks"], "an off-ice day comes with exercises"
+async def _plan_day(factory, user: User, client: httpx.AsyncClient, day: date | None = None) -> dict:
+    """An off-ice day (today by default) of four exercises the test makes
+    itself -- one tracks weight, one is timed."""
+    day = day or _today()
+    blocks = []
+    async with factory() as session:
+        for order, (kind, weight) in enumerate(
+            [(ExerciseType.SETS_REPS, False), (ExerciseType.SETS_REPS, True), (ExerciseType.DURATION, False), (ExerciseType.SETS_REPS, False)]
+        ):
+            exercise = Exercise(
+                id=uuid.uuid4(),
+                name=f"{EXERCISE_PREFIX}{uuid.uuid4().hex[:8]}",
+                category=ExerciseCategory.OFF_ICE,
+                phase=TrainingPhase.WARMUP if order == 0 else TrainingPhase.MAIN,
+                difficulty_level=1,
+                exercise_type=kind,
+                rep_range_min=None if kind == ExerciseType.DURATION else 8,
+                rep_range_max=None if kind == ExerciseType.DURATION else 12,
+                target_duration_seconds=30 if kind == ExerciseType.DURATION else None,
+                tracks_weight=weight,
+            )
+            session.add(exercise)
+            session.add(ExerciseTargetStat(exercise_id=exercise.id, target_stat=TargetStat.STRENGTH, order=0))
+            blocks.append(SessionBlock(id=uuid.uuid4(), phase=exercise.phase, exercise_id=exercise.id, order=order))
+        plan = DayPlan(
+            id=uuid.uuid4(),
+            date=day,
+            session_type=DaySessionType.OFF_ICE,
+            training_session=TrainingSession(id=uuid.uuid4(), blocks=blocks),
+        )
+        session.add(
+            WeeklyPlan(id=uuid.uuid4(), user_id=user.id, week_start_date=day - timedelta(days=day.weekday()), day_plans=[plan])
+        )
+        await session.commit()
+    full = (await client.get(f"/schedule/day-plans/{plan.id}")).json()
+    assert len(full["training_session"]["blocks"]) == 4, full
     return full
 
 
@@ -140,7 +184,7 @@ def _queue_for(day: dict) -> list[dict]:
         body = {"exercise_id": exercise["id"], "training_session_id": session_id, "set_number": 1, "reps_completed": 10}
         if exercise.get("tracks_weight"):
             body["weight_kg"] = 10
-        if exercise.get("tracks_duration"):
+        if exercise.get("exercise_type") == "duration":
             body = {**body, "reps_completed": None, "duration_seconds_completed": 30}
         actions.append({"key": str(uuid.uuid4()), "method": "POST", "path": "/set-completions", "body": body})
         actions.append(
@@ -190,7 +234,7 @@ async def test_the_same_queue_three_times_in_parallel_then_in_a_row(real_db) -> 
     factory, created = real_db
     user, client = await _player(factory, created)
     async with _closing(client):
-        day = await _plan_today(client)
+        day = await _plan_day(factory, user, client)
         actions = _queue_for(day)
         blocks = len(day["training_session"]["blocks"])
 
@@ -217,7 +261,7 @@ async def test_a_repeat_gets_the_first_answer_back(real_db) -> None:
     factory, created = real_db
     user, client = await _player(factory, created)
     async with _closing(client):
-        day = await _plan_today(client)
+        day = await _plan_day(factory, user, client)
         action = _queue_for(day)[0]
         first = await _send(client, action)
         second = await _send(client, action)
@@ -243,7 +287,7 @@ async def test_cut_off_halfway_then_sent_again(real_db) -> None:
     factory, created = real_db
     user, client = await _player(factory, created)
     async with _closing(client):
-        day = await _plan_today(client)
+        day = await _plan_day(factory, user, client)
         actions = _queue_for(day)
         blocks = len(day["training_session"]["blocks"])
         half = len(actions) // 2
@@ -260,7 +304,7 @@ async def test_a_set_at_23_50_sent_at_00_10_counts_for_yesterday(real_db) -> Non
     factory, created = real_db
     user, client = await _player(factory, created)
     async with _closing(client):
-        day = await _plan_today(client)
+        day = await _plan_day(factory, user, client)
         block = day["training_session"]["blocks"][0]
         # 23:50 the evening before, in the player's zone -- within 48 h.
         local_yesterday = _today() - timedelta(days=1)
@@ -292,7 +336,7 @@ async def test_the_streak_follows_the_day_the_work_was_done(real_db, monkeypatch
     user, client = await _player(factory, created)
     yesterday = _today() - timedelta(days=1)
     async with _closing(client):
-        day = await _plan_today(client)
+        day = await _plan_day(factory, user, client)
     block_id = day["training_session"]["blocks"][0]["id"]
     async with factory() as session:
         session.add(
@@ -327,7 +371,7 @@ async def test_an_action_for_a_rebuilt_day_fails_clearly_the_rest_goes_through(r
     factory, created = real_db
     user, client = await _player(factory, created)
     async with _closing(client):
-        day = await _plan_today(client)
+        day = await _plan_day(factory, user, client)
         actions = _queue_for(day)
         gone = {"key": str(uuid.uuid4()), "method": "POST", "path": f"/session-blocks/{uuid.uuid4()}/complete", "body": {}}
         codes = await _send_all(client, [actions[0], gone, *actions[1:]])
