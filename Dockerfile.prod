@@ -2,7 +2,7 @@
 # the installed venv, not poetry/build tooling. Companion to the dev
 # `Dockerfile` (which keeps --reload + bind-mounts); this one is what
 # docker-compose.prod.yml builds.
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -20,7 +20,7 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry install --only main --no-root
 
 
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
