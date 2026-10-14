@@ -58,7 +58,7 @@ export function ProtectedRoute() {
   const isCoachChat = useMatch('/coach') !== null
   const isFullScreenRoute = isDiary || isCoachChat
   // Recent screens, attached to feedback messages (utils/routeHistory).
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   useEffect(() => recordRoute(pathname), [pathname])
   // Once logged in, quietly fetch the other pages' code (utils/prefetchPages)
   // and the main tabs' data (api/client's GET cache), so a first visit to a
@@ -90,7 +90,9 @@ export function ProtectedRoute() {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    // Review 14.10 (23): a push link (the plan's ?reel=1, an event, a
+    // friend) opened while signed out leads back to itself after the login.
+    return <Navigate to="/login" replace state={{ from: `${pathname}${search}` }} />
   }
 
   if (hasAssessment === false) {

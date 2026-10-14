@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FormError } from '../components/ui/FormError'
@@ -15,6 +15,10 @@ export function LoginPage() {
   const { login } = useAuth()
   const online = useOnline()
   const navigate = useNavigate()
+  // Where the player was headed when the app sent them here (ProtectedRoute)
+  // -- an in-app path only.
+  const from = (useLocation().state as { from?: unknown } | null)?.from
+  const returnTo = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -27,7 +31,7 @@ export function LoginPage() {
     setIsSubmitting(true)
     try {
       await login(username, password)
-      navigate('/', { replace: true })
+      navigate(returnTo, { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось войти. Попробуйте ещё раз.')
     } finally {

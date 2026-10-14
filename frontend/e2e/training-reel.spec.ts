@@ -47,13 +47,13 @@ test.beforeAll(async () => {
   await api('POST', `${base}/board/publish`, { token: setup.captain.token })
 })
 
-const reel = (page: Page) => page.getByRole('heading', { name: 'ПЛАН ТРЕНИРОВКИ' })
+const reel = (page: Page) => page.getByRole('dialog', { name: 'План тренировки' })
 
 test('the push link opens the reel: scheme plays, swipe through, «Иду» at the end', async ({ page }) => {
   await loginAs(page, setup.player)
   await page.goto(`/teams/${setup.teamId}/events/${eventId}?reel=1`)
   await expect(reel(page)).toBeVisible()
-  await expect(page.getByText('2 упражнения · 20 мин')).toBeVisible()
+  await expect(reel(page).getByText('2 упражнения · 20 мин')).toBeVisible()
   await expect(page.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
   await expect(page.getByText('Пас в крюк  /  Скорость')).toBeVisible()
   // Plays by itself: the whole scheme, then frame by frame.
@@ -89,7 +89,7 @@ test('the push link opens the reel: scheme plays, swipe through, «Иду» at t
   await page.getByRole('button', { name: 'Закрыть', exact: true }).click()
   await expect(reel(page)).toBeHidden()
   await expect(page).not.toHaveURL(/reel=1/)
-  await page.getByRole('button', { name: 'Смотреть план' }).click()
+  await page.getByRole('button', { name: 'Смотреть план' }).first().click()
   await expect(reel(page)).toBeVisible()
 })
 
@@ -119,5 +119,117 @@ test('opened once online, the reel shows offline too (needs the production build
   await expect(reel(page)).toBeVisible()
   await expect(page.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
   await expect(page.getByText('ТАКТ 1 / 2')).toBeVisible({ timeout: 5000 })
+  await context.setOffline(false)
+})
+
+// Review 14.10 (17): a real finger -- touch events through CDP, the way a
+// phone sends them. A horizontal swipe turns the page; a vertical drag
+// doesn't.
+test('a finger swipe turns the page, a vertical drag does not', async ({ page }) => {
+  await loginAs(page, setup.player)
+  await page.goto(`/teams/${setup.teamId}/events/${eventId}?reel=1`)
+  await expect(page.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
+  const zone = (await page.getByTestId('reel-swipe-zone').boundingBox())!
+  const cdp = await page.context().newCDPSession(page)
+  async function drag(from: { x: number; y: number }, to: { x: number; y: number }) {
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] })
+    for (let step = 1; step <= 6; step++) {
+      const x = from.x + ((to.x - from.x) * step) / 6
+      const y = from.y + ((to.y - from.y) * step) / 6
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y }] })
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  }
+  const midY = zone.y + zone.height / 2
+  await drag({ x: zone.x + zone.width / 2, y: zone.y + 40 }, { x: zone.x + zone.width / 2, y: zone.y + zone.height - 40 })
+  await expect(page.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
+  await drag({ x: zone.x + zone.width - 20, y: midY }, { x: zone.x + 20, y: midY })
+  await expect(page.getByText('УПРАЖНЕНИЕ 2 / 2')).toBeVisible()
+  await drag({ x: zone.x + 60, y: midY }, { x: zone.x + zone.width - 20, y: midY })
+  await expect(page.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
+})
+
+// Review 14.10 (20): a modal dialog -- focus on «Закрыть», arrows turn the
+// page, Escape closes the description first and then the reel, focus comes
+// back to what opened it.
+test('keyboard: focus, arrows, Escape', async ({ page }) => {
+  await loginAs(page, setup.player)
+  await page.goto(`/teams/${setup.teamId}/events/${eventId}`)
+  const open = page.getByRole('button', { name: 'Смотреть план' }).first()
+  await open.click()
+  const reel = page.getByRole('dialog', { name: 'План тренировки' })
+  await expect(reel.getByRole('button', { name: 'Закрыть', exact: true })).toBeFocused()
+  expect(await page.evaluate(() => document.getElementById('root')?.inert)).toBe(true)
+  await page.keyboard.press('ArrowRight')
+  await expect(reel.getByText('УПРАЖНЕНИЕ 2 / 2')).toBeVisible()
+  await page.keyboard.press('ArrowLeft')
+  await expect(reel.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
+
+  await page.keyboard.press('Escape')
+  await expect(reel).toBeHidden()
+  expect(await page.evaluate(() => document.getElementById('root')?.inert)).toBe(false)
+  await expect(open).toBeFocused()
+})
+
+// Review 14.10 (22): opened inside the app, the reel is a step in the
+// history -- Android's «Назад» closes it and stays on the page.
+test('«Назад» closes a reel opened in the app', async ({ page }) => {
+  await loginAs(page, setup.player)
+  await page.goto(`/teams/${setup.teamId}/events/${eventId}`)
+  await page.getByRole('button', { name: 'Смотреть план' }).first().click()
+  await expect(reel(page)).toBeVisible()
+  await expect(page).toHaveURL(/reel=1/)
+  await page.goBack()
+  await expect(reel(page)).toBeHidden()
+  await expect(page).toHaveURL(new RegExp(`/events/${eventId}$`))
+})
+
+// Review 14.10 (23): the push opened with nobody signed in -- after the
+// login the player lands on the plan, not the home screen.
+test('a push link opened signed out leads back to the plan after the login', async ({ page }) => {
+  await page.goto(`/teams/${setup.teamId}/events/${eventId}?reel=1`)
+  await expect(page).toHaveURL(/\/login/)
+  await page.getByLabel('Email').fill(setup.player.email)
+  await page.getByLabel('Пароль').fill('E2ePass123!')
+  await page.getByRole('button', { name: 'Войти' }).click()
+  await expect(page).toHaveURL(new RegExp(`/events/${eventId}\\?reel=1`))
+  await expect(reel(page)).toBeVisible()
+})
+
+// The captain watches a draft as the players will («Как видит игрок»).
+test('the captain previews an unpublished plan as the reel', async ({ page }) => {
+  const draft = await api<{ id: string }>('POST', `/teams/${setup.teamId}/events`, {
+    token: setup.captain.token,
+    body: { event_type: 'training', starts_at: localIso(addDays(localNow().date, 2), 12) },
+  })
+  const base = `/teams/${setup.teamId}/events/${draft.id}`
+  const section = await api<{ id: string }>('POST', `${base}/sections`, { token: setup.captain.token, body: { name: 'Разминка' } })
+  await api('POST', `${base}/drills`, {
+    token: setup.captain.token,
+    body: { section_id: section.id, title: 'Черновое упражнение', diagram: SCHEME },
+  })
+  await loginAs(page, setup.captain)
+  await page.goto(`${base}?tab=board`)
+  await page.getByRole('button', { name: 'Как видит игрок' }).click()
+  await expect(page.getByRole('dialog', { name: 'План тренировки' }).getByText('ЧЕРНОВОЕ УПРАЖНЕНИЕ', { exact: false }).or(page.getByText('Черновое упражнение')).first()).toBeVisible()
+})
+
+// Review 14.10 (21): offline with no roster saved -- «Иду» is there, greyed,
+// with the reason, instead of missing.
+test('offline end screen: «Иду» waits for the connection (needs the production build)', async ({ page, context }) => {
+  test.skip(process.env.E2E_PREVIEW !== '1', 'needs a production build (see sw-offline.spec.ts)')
+  // The captain: the player already said «Иду» in the first test.
+  await loginAs(page, setup.captain)
+  await page.goto(`/teams/${setup.teamId}/events/${eventId}?reel=1`)
+  await expect(reel(page)).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await page.waitForTimeout(1500)
+  await context.setOffline(true)
+  await page.reload()
+  await page.getByRole('tab', { name: /Упражнение 2:/ }).click()
+  await page.getByRole('button', { name: 'Следующее упражнение' }).click()
+  await expect(page.getByRole('heading', { name: 'УВИДИМСЯ НА ЛЬДУ' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Иду' })).toBeDisabled()
+  await expect(page.getByText('Нужна связь')).toBeVisible()
   await context.setOffline(false)
 })

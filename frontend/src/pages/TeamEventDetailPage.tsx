@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_CLASS } from '../components/ui/cardStyle'
@@ -34,8 +34,19 @@ export function TeamEventDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
   // ?reel=1 (the push about a published plan): the plan reel opens at once.
+  // Opened from inside the app (here, the home card, the week) it's a step
+  // in the history -- Android's «Назад» closes it, and so does ✕ (review
+  // 14.10, 22). Opened straight from a push there's nothing to go back to:
+  // ✕ just drops ?reel and stays on the event.
   const isReelOpen = searchParams.get('reel') === '1'
+  const location = useLocation()
+  const navigate = useNavigate()
+  const reelOpenedInApp = (location.state as { reelInApp?: boolean } | null)?.reelInApp === true
   function setReelOpen(open: boolean) {
+    if (!open && reelOpenedInApp) {
+      navigate(-1)
+      return
+    }
     setSearchParams(
       (params) => {
         const next = new URLSearchParams(params)
@@ -46,7 +57,7 @@ export function TeamEventDetailPage() {
         }
         return next
       },
-      { replace: !open },
+      { replace: !open, state: open ? { reelInApp: true } : null },
     )
   }
 
@@ -171,17 +182,19 @@ export function TeamEventDetailPage() {
     )
   }
 
-  // В (2026-10-13): a published plan with at least one drill can be watched
-  // as a reel -- what the team sees, the captain too.
-  const hasPlan =
-    event !== null &&
-    event.event_type === 'training' &&
-    event.board_status === 'published' &&
-    (event.sections ?? []).some((section) => section.drills.length > 0)
-
   // A joint training: only the host team's captain runs it -- a guest
   // captain sees it like a player (and can take the team out in its block).
   const isHostCaptain = team !== null && event !== null && team.is_captain && event.team_id === teamId
+
+  // В (2026-10-13): a published plan with at least one drill can be watched
+  // as a reel -- what the team sees, the captain too; the captain also
+  // before publishing («Как видит игрок»).
+  const hasDrills =
+    event !== null &&
+    event.event_type === 'training' &&
+    (event.sections ?? []).some((section) => section.drills.length > 0)
+  const hasPlan = hasDrills && event?.board_status === 'published'
+  const canWatchPlan = hasPlan || (hasDrills && isHostCaptain)
 
   return (
     <div className="relative min-h-svh overflow-hidden">
@@ -256,6 +269,7 @@ export function TeamEventDetailPage() {
                 event={event}
                 isCaptain={isHostCaptain}
                 onEventChange={setEvent}
+                onOpenReel={() => setReelOpen(true)}
               />
             )}
             {activeTab === 'attendance' && (
@@ -305,7 +319,7 @@ export function TeamEventDetailPage() {
         </Modal>
       )}
 
-      {isReelOpen && hasPlan && team !== null && (
+      {isReelOpen && canWatchPlan && team !== null && event !== null && (
         <TrainingReel teamId={teamId!} teamName={team.name} event={event} onClose={() => setReelOpen(false)} />
       )}
     </div>

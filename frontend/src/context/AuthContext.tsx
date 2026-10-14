@@ -269,7 +269,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Review 14.10 (6): signed out, or into another account, in another tab --
   // this one follows instead of mixing two players' data.
   const currentUserId = useRef<string | null>(null)
-  currentUserId.current = user?.id ?? null
+  useEffect(() => {
+    currentUserId.current = user?.id ?? null
+  }, [user])
   useEffect(() => {
     function onStorage(event: StorageEvent) {
       if (event.storageArea !== localStorage) {

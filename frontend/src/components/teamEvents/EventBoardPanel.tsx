@@ -8,7 +8,7 @@ import { FormError } from '../ui/FormError'
 import { Modal } from '../ui/Modal'
 import { SelectField } from '../ui/SelectField'
 import { TextField } from '../ui/TextField'
-import { BoardPlanModal, BoardPlanView } from './BoardPlanView'
+import { PlanCover } from './PlanCover'
 import { DrillTemplatePicker } from './DrillTemplatePicker'
 import { DiagramEditor } from './diagram/DiagramEditor'
 import { RinkDiagram } from './diagram/RinkDiagram'
@@ -18,13 +18,25 @@ import { useAuth } from '../../hooks/useAuth'
 import { useDrillTemplates } from '../../hooks/useDrillTemplates'
 import { DRILL_SECTION_PRESETS } from '../../types/teamEvent'
 import type { DrillTemplateRead, TeamEventDrillRead, TeamEventDrillSectionRead, TeamEventRead } from '../../types/teamEvent'
-import { MAX_DRILL_KEYWORDS, boardStats, formatMinutes, parseKeywords, pluralRu, totalMinutes } from '../../utils/boardPlan'
+import {
+  MAX_DRILL_KEYWORDS,
+  MAX_DRILL_KEYWORD_LENGTH,
+  boardStats,
+  formatMinutes,
+  keywordsWereTrimmed,
+  parseKeywords,
+  pluralRu,
+  totalMinutes,
+} from '../../utils/boardPlan'
 
 interface EventBoardPanelProps {
   teamId: string
   event: TeamEventRead
   isCaptain: boolean
   onEventChange: (event: TeamEventRead) => void
+  // Opens the plan as the players watch it (TrainingReel) -- the player's
+  // «Смотреть план», the captain's «Как видит игрок».
+  onOpenReel: () => void
 }
 
 interface DrillFormValues {
@@ -61,12 +73,11 @@ function findDrill(sections: TeamEventDrillSectionRead[], drillId: string): Foun
   return null
 }
 
-export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: EventBoardPanelProps) {
+export function EventBoardPanel({ teamId, event, isCaptain, onEventChange, onOpenReel }: EventBoardPanelProps) {
   const { accessToken } = useAuth()
   const [actionError, setActionError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
-  const [isPreview, setIsPreview] = useState(false)
   const [drillSheet, setDrillSheet] = useState<DrillSheet>(null)
   const [sectionMenuId, setSectionMenuId] = useState<string | null>(null)
   const [diagramDrillId, setDiagramDrillId] = useState<string | null>(null)
@@ -124,7 +135,7 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
         />
       )
     }
-    return <BoardPlanView sections={event.sections} />
+    return <PlanCover sections={event.sections} onOpen={onOpenReel} />
   }
 
   const sections = event.sections ?? []
@@ -176,16 +187,11 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
         sections={sections}
         isPublishing={isPublishing}
         onPublish={handlePublish}
-        onOpenPreview={() => setIsPreview(true)}
+        onOpenPreview={onOpenReel}
       />
 
       <FormError message={actionError} />
 
-      {isPreview && (
-        // The same modal the player opens from the home card -- an honest
-        // preview, with the scheme right at the top of a tapped drill.
-        <BoardPlanModal sections={sections} onClose={() => setIsPreview(false)} />
-      )}
 
       <>
           {sections.length === 0 ? (
@@ -229,6 +235,7 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
                   description: template.description,
                   duration_minutes: template.duration_minutes,
                   diagram: template.diagram,
+                  keywords: template.keywords ?? [],
                 },
                 token,
               ),
@@ -247,6 +254,7 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
                 description: values.description.trim() || null,
                 duration_minutes: parseMinutes(values.minutes),
                 diagram: editing.drill.diagram,
+                keywords: parseKeywords(values.keywords),
               },
               accessToken,
             )
@@ -773,9 +781,16 @@ function DrillSheetModal({
             placeholder="Пас в крюк, Скорость, Голова поднята"
             maxLength={70}
           />
-          <p className="text-xs text-text-secondary">
-            До {MAX_DRILL_KEYWORDS}, коротко — игроки увидят их под названием в плане.
-          </p>
+          {keywordsWereTrimmed(values.keywords) ? (
+            <p className="text-xs text-[#FFCF5C]">
+              Сохранятся только {MAX_DRILL_KEYWORDS} по {MAX_DRILL_KEYWORD_LENGTH} символов:{' '}
+              {parseKeywords(values.keywords).join(' / ')}
+            </p>
+          ) : (
+            <p className="text-xs text-text-secondary">
+              До {MAX_DRILL_KEYWORDS}, коротко — игроки увидят их под названием в плане.
+            </p>
+          )}
         </div>
 
         {drill !== null && <SchemeBlock drill={drill} onDraw={onDrawDiagram} />}

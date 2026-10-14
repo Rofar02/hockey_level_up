@@ -139,6 +139,7 @@ export interface DrillTemplateRead {
   description: string | null
   duration_minutes: number | null
   diagram: DrillDiagram | null
+  keywords?: string[]
   created_at: string
   updated_at: string
 }
@@ -148,6 +149,7 @@ export interface DrillTemplateCreatePayload {
   description?: string | null
   duration_minutes?: number | null
   diagram?: DrillDiagram | null
+  keywords?: string[] | null
 }
 
 // A different section_id moves the drill to the end of that section.

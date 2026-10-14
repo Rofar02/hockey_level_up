@@ -337,14 +337,13 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await expect(header.getByText('25', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Опубликовать для команды' }).click()
   await expect(page.getByText('Опубликован — команда видит план')).toBeVisible()
-  // "Как видит игрок" is the player's own plan modal: tapping a drill
-  // shows its scheme right away, not somewhere below the fold.
+  // "Как видит игрок" is exactly what the players get: the reel.
   await page.getByRole('button', { name: 'Как видит игрок' }).click()
   const preview = page.getByRole('dialog', { name: 'План тренировки' })
-  await preview.getByRole('button', { name: /2 в 1 через центр/ }).click()
-  await expect(preview.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeInViewport()
+  await expect(preview.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
   await shot(page, '06-board-published-preview')
-  await preview.getByRole('button', { name: 'Закрыть' }).click()
+  await preview.getByRole('button', { name: 'Закрыть', exact: true }).click()
+  await expect(preview).toBeHidden()
   await shot(page, '07-board-editor')
   await expectNoHorizontalOverflow(page)
 
@@ -381,41 +380,20 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await shot(page, '09-home-team-card')
   await expectNoHorizontalOverflow(page)
 
-  // "Смотреть план" opens the reel (2026-10-13); the list is "Списком".
-  await page.getByRole('button', { name: 'Списком' }).click()
-  const modal = page.getByRole('dialog', { name: 'План тренировки' })
-  await expect(modal.getByText('Разминка')).toBeVisible()
-  // The scheme is visible right in the list, before opening the drill.
-  const schemeRow = modal.getByRole('button', { name: /2 в 1 через центр/ })
-  await expect(schemeRow.getByTestId('scheme-thumbnail')).toBeVisible()
-  await expect(schemeRow.getByText('схема')).toBeVisible()
-  await expect(modal.getByRole('button', { name: /Катание по кругам/ }).getByTestId('scheme-thumbnail')).toHaveCount(0)
-  await shot(page, '10a-plan-modal-list')
-  await schemeRow.click()
-  await expect(modal.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeVisible()
-  // Frames: "Всё" at rest; a frame shows only what happens then; ▶ plays
-  // them through and comes back to the whole scheme.
-  const frames = modal.getByRole('group', { name: 'Кадры' })
-  await expect(frames.getByRole('button', { name: 'Всё' })).toHaveAttribute('aria-pressed', 'true')
-  const player = modal.locator('g[data-token="own"] circle').first()
-  const restX = Number(await player.getAttribute('cx'))
-  await frames.getByRole('button', { name: 'Кадр 2', exact: true }).click()
-  await expect(modal.locator('g[data-frame-state="current"]')).toHaveCount(1)
-  // Frame 2 begins after frame 1's skate: the player stands at its end.
-  expect(Number(await player.getAttribute('cx'))).not.toBeCloseTo(restX, 0)
-  await shot(page, '10b-plan-drill-frame-2')
-  await modal.getByRole('button', { name: 'Проиграть' }).click()
-  await expect(modal.getByRole('button', { name: 'Пауза' })).toBeVisible()
-  await expect(modal.getByRole('button', { name: 'Проиграть' })).toBeVisible({ timeout: 15_000 })
-  await expect(frames.getByRole('button', { name: 'Всё' })).toHaveAttribute('aria-pressed', 'true')
-  await shot(page, '10-plan-modal-drill-scheme')
+  // "Смотреть план": the reel (2026-10-14) -- the drill without a scheme as a
+  // card, the one with a scheme playing by itself. «Назад» comes home.
+  await page.getByRole('button', { name: 'Смотреть план' }).click()
+  const reel = page.getByRole('dialog', { name: 'План тренировки' })
+  await expect(reel.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
+  await shot(page, '10a-plan-reel-first')
+  await reel.getByRole('button', { name: 'Следующее упражнение' }).click()
+  await expect(reel.getByText('УПРАЖНЕНИЕ 2 / 2')).toBeVisible()
+  await expect(reel.getByText(/ТАКТ 1 \//)).toBeVisible({ timeout: 6000 })
+  await shot(page, '10-plan-reel-scheme')
   await expectNoHorizontalOverflow(page)
-  await modal.getByRole('button', { name: 'Весь план' }).click()
-  await expect(modal.getByRole('button', { name: /Катание по кругам/ })).toBeVisible()
-  await modal.getByRole('button', { name: 'Закрыть' }).click()
-  // Let the modal finish closing (it restores the page's scroll) before
-  // tapping the tab bar -- tapping mid-close occasionally went nowhere.
-  await expect(modal).toBeHidden()
+  await page.goBack()
+  await expect(reel).toBeHidden()
+  await expect(page.getByText('Командная тренировка')).toBeVisible()
 
   // The week screen shows the team day and the same plan.
   await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'План', exact: true }).click()
@@ -428,10 +406,13 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await page.getByRole('button', { name: 'План тренировки' }).click()
   const weekModal = page.getByRole('dialog', { name: /командная тренировка/ })
   await expect(weekModal.getByRole('button', { name: 'Разминка до выхода на лёд' })).toBeVisible()
-  await weekModal.getByRole('button', { name: /2 в 1 через центр/ }).click()
-  await expect(weekModal.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeInViewport()
-  await shot(page, '13-week-team-plan-drill')
-  await weekModal.getByRole('button', { name: 'Весь план' }).click()
+  await expect(weekModal.getByRole('region', { name: 'План тренировки' })).toBeVisible()
+  await shot(page, '13-week-team-plan-cover')
+  await weekModal.getByRole('button', { name: 'Смотреть план' }).click()
+  await expect(page.getByRole('dialog', { name: 'План тренировки' }).getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
+  await page.goBack()
+  await expect(page).toHaveURL(/\/schedule\/new$/)
+  await page.getByRole('button', { name: 'План тренировки' }).click()
   await weekModal.getByRole('button', { name: 'Разминка до выхода на лёд' }).click()
   await expect(page.getByRole('dialog', { name: /— Лёд/ })).toBeVisible()
 })

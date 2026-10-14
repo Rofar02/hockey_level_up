@@ -20,7 +20,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column('team_event_drills', sa.Column('keywords', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
+    # Added 2026-10-14 before this migration ever reached production.
+    op.add_column('drill_templates', sa.Column('keywords', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
 
 
 def downgrade() -> None:
+    op.drop_column('drill_templates', 'keywords')
     op.drop_column('team_event_drills', 'keywords')

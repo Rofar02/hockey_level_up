@@ -518,6 +518,18 @@ export function diagramViewBox(diagram: DrillDiagram, aspect: number, margin = 2
     minX -= grow
     maxX += grow
   }
+  // Review 14.10 (19): a token right at the boards keeps its whole circle --
+  // the box may reach past the rink by a token's radius and a little air.
+  const tokenPad = TOKEN_RADIUS.own + 4
+  const contentMinX = Math.min(...points.map((p) => p.x))
+  const contentMaxX = Math.max(...points.map((p) => p.x))
+  const contentMinY = Math.min(...points.map((p) => p.y))
+  const contentMaxY = Math.max(...points.map((p) => p.y))
+  const padX = contentMinX < tokenPad || contentMaxX > RINK_WIDTH - tokenPad ? tokenPad : 0
+  const padY = contentMinY < tokenPad || contentMaxY > RINK_HEIGHT - tokenPad ? tokenPad : 0
+  const fullWidth = RINK_WIDTH + 2 * padX
+  const fullHeight = RINK_HEIGHT + 2 * padY
+
   let width = maxX - minX
   let height = maxY - minY
   if (width / height < aspect) {
@@ -529,11 +541,24 @@ export function diagramViewBox(diagram: DrillDiagram, aspect: number, margin = 2
     minY -= grow / 2
     height += grow
   }
-  // Inside the rink where possible (a box bigger than the rink is centred).
-  const fit = (start: number, size: number, limit: number) =>
-    size >= limit ? (limit - size) / 2 : Math.min(Math.max(start, 0), limit - size)
-  minX = fit(minX, width, RINK_WIDTH)
-  minY = fit(minY, height, RINK_HEIGHT)
+  // Review 14.10 (18): wider than the rink -- the rink's whole width fills
+  // the box instead (the drill's zone at full width, never ice-blue margins
+  // beside the boards); taller than the rink too -- the whole rink.
+  if (width > fullWidth) {
+    const centreY = minY + height / 2
+    width = fullWidth
+    height = width / aspect
+    minX = -padX
+    minY = centreY - height / 2
+  }
+  if (height > fullHeight) {
+    return `${-padX} ${-padY} ${fullWidth} ${fullHeight}`
+  }
+  // Inside the rink (plus the boards' padding) where possible.
+  const fit = (start: number, size: number, limit: number, pad: number) =>
+    size >= limit + 2 * pad ? (limit - size) / 2 : Math.min(Math.max(start, -pad), limit + pad - size)
+  minX = fit(minX, width, RINK_WIDTH, padX)
+  minY = fit(minY, height, RINK_HEIGHT, padY)
   const round = (value: number) => Math.round(value * 10) / 10
   return `${round(minX)} ${round(minY)} ${round(width)} ${round(height)}`
 }

@@ -343,9 +343,12 @@ class TeamEventService:
         description: str | None,
         duration_minutes: int | None,
         keywords: list[str] | None = None,
+        *,
+        update_keywords: bool = True,
     ) -> TeamEventDrillRead:
         """A different section_id moves the drill to the end of that
-        section, closing the gap it left in the old one."""
+        section, closing the gap it left in the old one. update_keywords
+        False (the field wasn't sent) keeps the drill's keywords."""
         event = await self._require_captain_and_training_event(user, team_id, event_id)
         drill = await self._get_drill_or_404(drill_id, event.id)
         if section_id != drill.section_id:
@@ -358,7 +361,8 @@ class TeamEventService:
         drill.title = title
         drill.description = description
         drill.duration_minutes = duration_minutes
-        drill.keywords = keywords or None
+        if update_keywords:
+            drill.keywords = keywords or None
         await self._session.commit()
         await self._session.refresh(drill)
         return self._to_drill_read(drill)

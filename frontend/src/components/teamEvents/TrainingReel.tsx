@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject, type TouchEvent as ReactTouchEvent } from 'react'
 import * as teamEventsApi from '../../api/teamEvents'
 import { useAuth } from '../../hooks/useAuth'
 import { useOnline } from '../../hooks/useNetworkStatus'
@@ -13,22 +13,28 @@ import { RinkDiagram } from './diagram/RinkDiagram'
 // просмотр командной тренировки"): one drill per screen, its scheme playing
 // by itself -- the whole scheme, then frame by frame, a short pause, again --
 // zoomed to where the drill happens. Swipe or arrows for the next one; the
-// last screen says when and asks «Иду». Opened from the event («Смотреть
-// план»), from the push about a published plan (?reel=1) and from the home
-// screen's team day card. Works offline from the saved event (Б1).
+// last screen says when and asks «Иду». What a player sees of the plan: the
+// event page's plan, the push about a published plan (?reel=1), the home
+// screen's team day card and the captain's «Как видит игрок». Works offline
+// from the saved event (Б1).
+//
+// Review 14.10: a modal dialog (focus inside, the app underneath inert,
+// Escape closes, ←/→ turn the page); swipes only on the drill itself, with
+// vertical scrolling left to the browser; the scheme fits the box it's
+// actually given.
 
 interface ReelDrill {
   drill: TeamEventDrillRead
   sectionName: string
 }
 
-// Box the scheme is drawn into (width / height) -- the crop is widened to it.
-const SCHEME_ASPECT = 1.2
 const HOLD_BEATS = 2
 const SWIPE_MIN_PX = 50
 const SECTION_SPLASH_MS = 900
 const SEGMENTS_FIT = 6
 const WEEKDAYS = ['ВС', 'ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ']
+// Between the cues under the title -- never broken onto a line of its own.
+const KEYWORD_SEPARATOR = '\u00a0/\u00a0'
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(
@@ -44,6 +50,30 @@ function usePrefersReducedMotion(): boolean {
     return () => query.removeEventListener('change', onChange)
   }, [])
   return reduced
+}
+
+// While a modal is up: focus goes to `initial`, the app underneath (#root)
+// is inert -- no tabbing or screen-reader wandering behind it -- and focus
+// returns to where it was once the modal closes.
+function useModalFocus(initial: RefObject<HTMLElement | null>, enabled = true) {
+  useEffect(() => {
+    if (!enabled) {
+      return
+    }
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const root = document.getElementById('root')
+    const wasInert = root?.inert ?? false
+    if (root) {
+      root.inert = true
+    }
+    initial.current?.focus()
+    return () => {
+      if (root) {
+        root.inert = wasInert
+      }
+      before?.focus?.()
+    }
+  }, [initial, enabled])
 }
 
 function headerDate(startsAt: Date): string {
@@ -75,11 +105,14 @@ export function TrainingReel({
     [event.sections],
   )
   const reducedMotion = usePrefersReducedMotion()
+  const online = useOnline()
   const [index, setIndex] = useState(0)
   const [splash, setSplash] = useState<string | null>(null)
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false)
   const atEnd = index >= drills.length
   const current = atEnd ? null : drills[index]
+  const closeButton = useRef<HTMLButtonElement>(null)
+  useModalFocus(closeButton)
 
   const startsAt = new Date(event.starts_at)
   const minutes = totalMinutes(drills.map((item) => item.drill))
@@ -106,37 +139,95 @@ export function TrainingReel({
     return () => clearTimeout(timer)
   }, [splash, reducedMotion])
 
-  // Swipe left/right anywhere on the drill.
+  // Escape closes (the description first), ←/→ turn the page.
+  const keys = useRef({ go, onClose, index, isDescriptionOpen })
+  useEffect(() => {
+    keys.current = { go, onClose, index, isDescriptionOpen }
+  })
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const { go: turn, onClose: close, index: at, isDescriptionOpen: sheetOpen } = keys.current
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        if (sheetOpen) {
+          setIsDescriptionOpen(false)
+        } else {
+          close()
+        }
+      } else if (!sheetOpen && e.key === 'ArrowRight') {
+        e.preventDefault()
+        turn(at + 1)
+      } else if (!sheetOpen && e.key === 'ArrowLeft') {
+        e.preventDefault()
+        turn(at - 1)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Swipe left/right on the drill (not the header, not the segments). The
+  // zone is touch-action: pan-y, so a vertical drag still scrolls a long
+  // card while a horizontal one stays ours; a cancelled gesture (the system
+  // took it over) is forgotten.
+  // A finger is read from touch events: the browser may cancel the pointer
+  // stream mid-gesture (pointercancel) while touchend still arrives. The
+  // mouse (desktop) goes through pointer events.
   const swipeStart = useRef<{ x: number; y: number } | null>(null)
-  function onPointerDown(e: ReactPointerEvent) {
-    swipeStart.current = { x: e.clientX, y: e.clientY }
-  }
-  function onPointerUp(e: ReactPointerEvent) {
+  function swipeEnd(x: number, y: number) {
     const start = swipeStart.current
     swipeStart.current = null
     if (start === null) {
       return
     }
-    const dx = e.clientX - start.x
-    const dy = e.clientY - start.y
+    const dx = x - start.x
+    const dy = y - start.y
     if (Math.abs(dx) >= SWIPE_MIN_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
       go(index + (dx < 0 ? 1 : -1))
     }
+  }
+  function onPointerDown(e: ReactPointerEvent) {
+    if (e.pointerType !== 'touch') {
+      swipeStart.current = { x: e.clientX, y: e.clientY }
+    }
+  }
+  function onPointerUp(e: ReactPointerEvent) {
+    if (e.pointerType !== 'touch') {
+      swipeEnd(e.clientX, e.clientY)
+    }
+  }
+  function onTouchStart(e: ReactTouchEvent) {
+    const touch = e.touches[0]
+    swipeStart.current = e.touches.length === 1 && touch ? { x: touch.clientX, y: touch.clientY } : null
+  }
+  function onTouchEnd(e: ReactTouchEvent) {
+    const touch = e.changedTouches[0]
+    if (touch) {
+      swipeEnd(touch.clientX, touch.clientY)
+    }
+  }
+  function onSwipeCancel() {
+    swipeStart.current = null
   }
 
   return (
     <FullScreenOverlay className="flex flex-col bg-[#0B111C] text-[#F5F7FA]">
       <div
-        className="mx-auto flex h-full w-full max-w-md flex-col gap-3 px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-[calc(0.75rem+env(safe-area-inset-top,0px))]"
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
+        role="dialog"
+        aria-modal="true"
+        aria-label="План тренировки"
+        className={`mx-auto flex h-full w-full max-w-md flex-col gap-3 px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] ${
+          // The «Нет связи» pill sits at the very top -- the header goes below it.
+          online ? 'pt-[calc(0.75rem+env(safe-area-inset-top,0px))]' : 'pt-[calc(3.25rem+env(safe-area-inset-top,0px))]'
+        }`}
       >
         <div className="flex h-11 items-center justify-between">
           <button
+            ref={closeButton}
             type="button"
             aria-label="Закрыть"
             onClick={onClose}
-            className="-ml-2 flex h-11 w-11 items-center justify-center text-[#8A94A6]"
+            className="-ml-2 flex h-11 w-11 items-center justify-center rounded-full text-[#8A94A6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-ice"
           >
             <i className="ti ti-x text-2xl" aria-hidden="true" />
           </button>
@@ -155,20 +246,30 @@ export function TrainingReel({
           </p>
         </div>
 
-        {current !== null ? (
-          <DrillScreen
-            key={current.drill.id}
-            item={current}
-            number={index + 1}
-            total={drills.length}
-            reducedMotion={reducedMotion}
-            onPrev={() => go(index - 1)}
-            onNext={() => go(index + 1)}
-            onOpenDescription={() => setIsDescriptionOpen(true)}
-          />
-        ) : (
-          <EndScreen teamId={teamId} event={event} startsAt={startsAt} onRestart={() => go(0)} />
-        )}
+        <div
+          data-testid="reel-swipe-zone"
+          className="flex min-h-0 flex-1 touch-pan-y flex-col"
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onSwipeCancel}
+        >
+          {current !== null ? (
+            <DrillScreen
+              key={current.drill.id}
+              item={current}
+              number={index + 1}
+              total={drills.length}
+              reducedMotion={reducedMotion}
+              onPrev={() => go(index - 1)}
+              onNext={() => go(index + 1)}
+              onOpenDescription={() => setIsDescriptionOpen(true)}
+            />
+          ) : (
+            <EndScreen teamId={teamId} event={event} startsAt={startsAt} onRestart={() => go(0)} />
+          )}
+        </div>
 
         {drills.length > 0 && <Segments drills={drills} index={index} onPick={go} />}
       </div>
@@ -228,9 +329,10 @@ function DrillScreen({
       {hasScheme ? (
         <SchemePlayer drill={drill} reducedMotion={reducedMotion} />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto rounded-2xl border border-white/10 bg-[#141C2B] p-5">
-          <p className="font-display text-xl font-semibold uppercase tracking-wide">{drill.title}</p>
-          <p className="whitespace-pre-line text-sm leading-relaxed text-[#C9D1DC]">
+        // No scheme: the description fills the box -- the title is right
+        // below it already, not repeated here.
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#141C2B] p-5">
+          <p className="whitespace-pre-line text-[15px] leading-relaxed text-[#C9D1DC]">
             {drill.description ?? 'Тренер не добавил описание — подробности на льду.'}
           </p>
         </div>
@@ -259,30 +361,64 @@ function DrillScreen({
             <i className="ti ti-chevron-right text-xl" aria-hidden="true" />
           </button>
         </div>
-        <button
-          type="button"
-          onClick={onOpenDescription}
-          disabled={drill.description === null}
-          aria-label={drill.description !== null ? `${drill.title} — описание` : undefined}
-          className="font-display text-[25px] font-bold uppercase leading-tight tracking-wide disabled:cursor-default"
-        >
-          {drill.title}
-        </button>
+        {hasScheme && drill.description !== null ? (
+          <button
+            type="button"
+            onClick={onOpenDescription}
+            aria-label={`${drill.title} — описание`}
+            className="line-clamp-2 font-display text-[25px] font-bold uppercase leading-tight tracking-wide"
+          >
+            {drill.title}
+          </button>
+        ) : (
+          <h2 className="line-clamp-2 font-display text-[25px] font-bold uppercase leading-tight tracking-wide">
+            {drill.title}
+          </h2>
+        )}
         {keywords.length > 0 && (
-          <p className="text-xs uppercase tracking-[0.1em] text-[#9AA6B8]">{keywords.join('  /  ')}</p>
+          <p className="text-xs uppercase tracking-[0.1em] text-[#9AA6B8]">{keywords.join(KEYWORD_SEPARATOR)}</p>
         )}
       </div>
     </div>
   )
 }
 
+// The box's real width / height, kept up to date -- the scheme's crop is
+// fitted to it, not to a guess.
+function useBoxAspect(ref: RefObject<HTMLElement | null>, fallback: number): number {
+  const [aspect, setAspect] = useState(fallback)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (element === null) {
+      return
+    }
+    const measure = () => {
+      const { width, height } = element.getBoundingClientRect()
+      if (width > 0 && height > 0) {
+        setAspect(Math.round((width / height) * 100) / 100)
+      }
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') {
+      return
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [ref])
+  return aspect
+}
+
 // The scheme playing on a loop: the whole of it, each frame in turn (the
 // players ride their arrows), a pause on the last, again. A tap pauses or
-// resumes; with reduced motion nothing moves until ▶ is tapped.
+// resumes; with reduced motion nothing moves until ▶ is tapped. A scheme
+// without arrows has nothing to play -- just the picture.
 function SchemePlayer({ drill, reducedMotion }: { drill: TeamEventDrillRead; reducedMotion: boolean }) {
   const diagram = drill.diagram!
+  const box = useRef<HTMLDivElement>(null)
+  const aspect = useBoxAspect(box, 1.2)
   const frames = useMemo(() => diagramFrames(diagram), [diagram])
-  const viewBox = useMemo(() => diagramViewBox(diagram, SCHEME_ASPECT), [diagram])
+  const viewBox = useMemo(() => diagramViewBox(diagram, aspect), [diagram, aspect])
   const [playing, setPlaying] = useState(!reducedMotion && frames.length > 0)
   // Position in the loop: 0 = whole scheme, 1..k = frame k, then the hold.
   const [beat, setBeat] = useState(0)
@@ -313,32 +449,38 @@ function SchemePlayer({ drill, reducedMotion }: { drill: TeamEventDrillRead; red
   const playKey = playing && beat >= 1 && beat <= steps ? loop * 100 + beat : null
   const label = frame === null ? 'ВСЯ СХЕМА' : `ТАКТ ${(frameIndex ?? 0) + 1} / ${steps}`
 
-  function toggle() {
-    if (steps === 0) {
-      return
-    }
-    setPlaying((value) => !value)
-  }
+  const picture = (
+    <RinkDiagram
+      diagram={diagram}
+      viewBox={viewBox}
+      frame={frame}
+      playKey={playKey}
+      moveTokens
+      className={`h-full w-full transition-opacity duration-500 ${
+        playing && frame === null && steps > 0 ? 'opacity-60' : 'opacity-100'
+      }`}
+    />
+  )
 
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-[#E9F4FA] shadow-[0_0_0_1px_rgba(215,239,255,0.25),0_18px_40px_-18px_rgba(0,0,0,0.8)]">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-label={playing ? 'Пауза' : 'Воспроизвести схему'}
-        className="absolute inset-0 flex h-full w-full items-center justify-center"
-      >
-        <RinkDiagram
-          diagram={diagram}
-          viewBox={viewBox}
-          frame={frame}
-          playKey={playKey}
-          moveTokens
-          className={`h-full w-full transition-opacity duration-500 ${
-            playing && frame === null && steps > 0 ? 'opacity-60' : 'opacity-100'
-          }`}
-        />
-      </button>
+    <div
+      ref={box}
+      className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-[#E9F4FA] shadow-[0_0_0_1px_rgba(215,239,255,0.25),0_18px_40px_-18px_rgba(0,0,0,0.8)]"
+    >
+      {steps > 0 ? (
+        <button
+          type="button"
+          onClick={() => setPlaying((value) => !value)}
+          aria-label={playing ? 'Пауза' : 'Воспроизвести схему'}
+          className="absolute inset-0 flex h-full w-full items-center justify-center"
+        >
+          {picture}
+        </button>
+      ) : (
+        <div role="img" aria-label={`Схема: ${drill.title}`} className="absolute inset-0 flex items-center justify-center">
+          {picture}
+        </div>
+      )}
       {steps > 0 && (
         <div className="pointer-events-none absolute bottom-2.5 left-2.5 flex items-center gap-2 rounded-full bg-[#0B111C]/80 px-2.5 py-1.5">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="#D7EFFF" aria-hidden="true">
@@ -416,6 +558,7 @@ function EndScreen({
   const { accessToken, user } = useAuth()
   const online = useOnline()
   const [roster, setRoster] = useState<TeamEventAttendanceRosterRead | null>(null)
+  const [markedGoing, setMarkedGoing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -435,12 +578,13 @@ function EndScreen({
     return () => {
       cancelled = true
     }
-  }, [accessToken, teamId, event.id])
+  }, [accessToken, teamId, event.id, online])
 
-  const going = roster?.going.length ?? null
+  const imGoing = markedGoing || roster?.going.some((member) => member.user_id === user?.id) === true
+  const goingCount = roster === null ? null : roster.going.length + (markedGoing && !roster.going.some((m) => m.user_id === user?.id) ? 1 : 0)
   const total = roster === null ? null : roster.going.length + roster.not_going.length + roster.unmarked.length
-  const imGoing = roster?.going.some((member) => member.user_id === user?.id) === true
-  const canMark = roster !== null && !roster.is_locked && !imGoing
+  // No roster yet (offline, never loaded): «Иду» shows, greyed, with why.
+  const canMark = !imGoing && (roster === null || !roster.is_locked)
 
   async function markGoing() {
     if (accessToken === null) {
@@ -450,12 +594,19 @@ function EndScreen({
     setError(null)
     try {
       await teamEventsApi.setMyAttendance(teamId, event.id, { status: 'going' }, accessToken)
-      setRoster(await teamEventsApi.getAttendanceRoster(teamId, event.id, accessToken))
     } catch {
       setError('Не получилось отметиться. Попробуйте ещё раз.')
-    } finally {
       setIsSaving(false)
+      return
     }
+    // Marked: shown at once. The fresh roster (the count) is a bonus -- its
+    // failure is no failure to mark.
+    setMarkedGoing(true)
+    setIsSaving(false)
+    teamEventsApi
+      .getAttendanceRoster(teamId, event.id, accessToken)
+      .then(setRoster)
+      .catch(() => undefined)
   }
 
   const day = startsAt.toLocaleDateString('ru-RU', { weekday: 'long' })
@@ -467,10 +618,10 @@ function EndScreen({
       <h2 className="font-display text-[30px] font-bold leading-tight tracking-wide">УВИДИМСЯ НА ЛЬДУ</h2>
       <p className="text-[15px] leading-relaxed text-[#9AA6B8]">
         {day.charAt(0).toUpperCase() + day.slice(1)}, {time}
-        {going !== null && total !== null && (
+        {goingCount !== null && total !== null && (
           <>
             <br />
-            Идут {going} из {total}
+            Идут {goingCount} из {total}
           </>
         )}
       </p>
@@ -480,7 +631,7 @@ function EndScreen({
           <button
             type="button"
             onClick={() => void markGoing()}
-            disabled={isSaving || !online}
+            disabled={isSaving || !online || roster === null}
             className="mt-2 h-[54px] w-full rounded-[14px] bg-accent-persimmon text-base font-semibold text-[#111827] disabled:opacity-50"
           >
             {isSaving ? 'Отмечаем...' : 'Иду'}
@@ -501,6 +652,15 @@ function EndScreen({
 }
 
 function DescriptionSheet({ drill, onClose }: { drill: TeamEventDrillRead; onClose: () => void }) {
+  const closeButton = useRef<HTMLButtonElement>(null)
+  // Focus into the sheet and back to the title when it closes; Escape is
+  // handled by the reel (it closes this first).
+  useEffect(() => {
+    const before = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    closeButton.current?.focus()
+    return () => before?.focus?.()
+  }, [])
+
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/50" onClick={onClose}>
       <div
@@ -513,10 +673,11 @@ function DescriptionSheet({ drill, onClose }: { drill: TeamEventDrillRead; onClo
         <div className="flex items-start justify-between gap-3">
           <h3 className="font-display text-xl font-semibold uppercase tracking-wide">{drill.title}</h3>
           <button
+            ref={closeButton}
             type="button"
             onClick={onClose}
             aria-label="Закрыть описание"
-            className="-mr-2 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center text-[#8A94A6]"
+            className="-mr-2 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#8A94A6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-ice"
           >
             <i className="ti ti-x text-xl" aria-hidden="true" />
           </button>

@@ -66,10 +66,33 @@ export function boardSummaryText(sections: TeamEventDrillSectionRead[]): string 
 export const MAX_DRILL_KEYWORDS = 3
 export const MAX_DRILL_KEYWORD_LENGTH = 20
 
+// Same cleaning as the server (review 14.10, 24): invisible characters go,
+// line breaks and runs of spaces become one space, repeats (any case) once.
+// oxlint-disable-next-line no-control-regex -- control characters are exactly what goes
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/g
+
+function keywordParts(value: string): string[] {
+  const seen = new Set<string>()
+  const parts: string[] = []
+  for (const raw of value.split(',')) {
+    const word = raw.replace(/\s+/g, ' ').replace(INVISIBLE, '').trim()
+    if (word !== '' && !seen.has(word.toLowerCase())) {
+      seen.add(word.toLowerCase())
+      parts.push(word)
+    }
+  }
+  return parts
+}
+
 export function parseKeywords(value: string): string[] {
-  return value
-    .split(',')
-    .map((part) => part.trim().slice(0, MAX_DRILL_KEYWORD_LENGTH).trim())
-    .filter((part) => part !== '')
+  return keywordParts(value)
+    .map((part) => part.slice(0, MAX_DRILL_KEYWORD_LENGTH).trim())
     .slice(0, MAX_DRILL_KEYWORDS)
+}
+
+// Whether parseKeywords had to cut something (a 4th cue, a long one) -- the
+// editor says so instead of quietly saving less than was typed.
+export function keywordsWereTrimmed(value: string): boolean {
+  const parts = keywordParts(value)
+  return parts.length > MAX_DRILL_KEYWORDS || parts.some((part) => part.length > MAX_DRILL_KEYWORD_LENGTH)
 }
