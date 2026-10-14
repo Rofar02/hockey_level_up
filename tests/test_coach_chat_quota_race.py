@@ -94,3 +94,55 @@ async def test_a_failed_reply_does_not_eat_the_quota(db_session, monkeypatch) ->
         await CoachChatService(db_session).send_message(user, "вопрос")
     count = await db_session.scalar(select(func.count()).where(CoachChatMessage.user_id == user_id))
     assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_a_message_left_without_a_reply_is_purged(db_session) -> None:
+    """Review 14.10 (7): a message whose request died mid-answer stops
+    counting once the retention pass runs; answered ones and fresh ones stay."""
+    from datetime import timedelta
+
+    from app.services.event_retention import purge_unanswered_coach_messages
+
+    user = _user()
+    db_session.add(user)
+    await db_session.flush()
+    now = datetime.now(timezone.utc)
+    hour_ago = now - timedelta(hours=1)
+    db_session.add_all(
+        [
+            CoachChatMessage(user_id=user.id, role=CoachChatRole.USER, content="answered", created_at=hour_ago),
+            CoachChatMessage(user_id=user.id, role=CoachChatRole.ASSISTANT, content="reply", created_at=hour_ago),
+            CoachChatMessage(user_id=user.id, role=CoachChatRole.USER, content="orphan", created_at=now - timedelta(minutes=30)),
+            CoachChatMessage(user_id=user.id, role=CoachChatRole.USER, content="in flight", created_at=now),
+        ]
+    )
+    await db_session.flush()
+    await purge_unanswered_coach_messages(db_session, now)
+    left = set(await db_session.scalars(select(CoachChatMessage.content).where(CoachChatMessage.user_id == user.id)))
+    assert left == {"answered", "reply", "in flight"}
+
+
+@pytest.mark.asyncio
+async def test_a_send_cancelled_mid_answer_leaves_no_message(db_session, monkeypatch) -> None:
+    """Review 14.10 (7): the player closes the app while the coach thinks --
+    the request is cancelled, and the cleanup still runs."""
+    user = _user()
+    user_id = user.id
+    db_session.add(user)
+    await db_session.flush()
+
+    async def _thinking(*_args, **_kwargs):
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(coach_chat_service, "_call_zai", _thinking)
+    monkeypatch.setattr(coach_chat_service, "get_settings", lambda: Settings(zai_api_key="test-key"))
+
+    # The way Starlette cancels a request whose client went away: an anyio
+    # cancel scope, which keeps cancelling every await inside it.
+    import anyio
+
+    with anyio.move_on_after(0.5):
+        await CoachChatService(db_session).send_message(user, "вопрос")
+    count = await db_session.scalar(select(func.count()).where(CoachChatMessage.user_id == user_id))
+    assert count == 0

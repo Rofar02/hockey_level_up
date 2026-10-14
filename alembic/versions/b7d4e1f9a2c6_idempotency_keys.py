@@ -25,6 +25,8 @@ def upgrade() -> None:
         sa.Column('user_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('key', sa.String(length=64), nullable=False),
         sa.Column('endpoint', sa.String(length=255), nullable=False),
+        # Added 2026-10-14 before this migration ever reached production.
+        sa.Column('request_hash', sa.String(length=64), nullable=True),
         sa.Column('status_code', sa.Integer(), nullable=True),
         sa.Column('response_json', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),

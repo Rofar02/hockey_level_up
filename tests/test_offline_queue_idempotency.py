@@ -303,11 +303,12 @@ async def test_cut_off_halfway_then_sent_again(real_db) -> None:
 async def test_a_set_at_23_50_sent_at_00_10_counts_for_yesterday(real_db) -> None:
     factory, created = real_db
     user, client = await _player(factory, created)
+    local_yesterday = _today() - timedelta(days=1)
     async with _closing(client):
-        day = await _plan_day(factory, user, client)
+        # Yesterday's workout, finished at 23:50 in the player's zone and
+        # sent today -- within 48 h.
+        day = await _plan_day(factory, user, client, local_yesterday)
         block = day["training_session"]["blocks"][0]
-        # 23:50 the evening before, in the player's zone -- within 48 h.
-        local_yesterday = _today() - timedelta(days=1)
         performed = datetime.combine(local_yesterday, datetime.min.time(), ZoneInfo(TZ)) + timedelta(hours=23, minutes=50)
         response = await client.post(
             f"/session-blocks/{block['id']}/complete",
@@ -381,6 +382,30 @@ async def test_an_action_for_a_rebuilt_day_fails_clearly_the_rest_goes_through(r
         assert await _counts(factory, user, day) == (blocks, blocks, blocks)
 
 
+@pytest.mark.asyncio
+async def test_todays_workout_cannot_be_dated_yesterday(real_db) -> None:
+    """Review 14.10 (13): today's set sent with yesterday's time counts
+    from 00:00 today -- no back-filling a missed day."""
+    factory, created = real_db
+    user, client = await _player(factory, created)
+    async with _closing(client):
+        day = await _plan_day(factory, user, client)
+        block = day["training_session"]["blocks"][0]
+        yesterday_evening = datetime.combine(_today(), datetime.min.time(), ZoneInfo(TZ)) - timedelta(hours=2)
+        response = await client.post(f"/session-blocks/{block['id']}/complete", json={"performed_at": yesterday_evening.isoformat()})
+        assert response.status_code == 200, response.text
+        completed = datetime.fromisoformat(response.json()["completed_at"])
+        assert completed == datetime.combine(_today(), datetime.min.time(), ZoneInfo(TZ))
+    async with factory() as session:
+        event = await session.scalar(
+            select(OutboxEvent).where(
+                OutboxEvent.event_type == "block_completed",
+                OutboxEvent.payload["session_block_id"].astext == block["id"],
+            )
+        )
+    assert event.payload["activity_date"] == _today().isoformat()
+
+
 def test_performed_at_is_trusted_only_within_reason() -> None:
     now = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)
     assert effective_performed_at(None, now) == now
@@ -388,3 +413,111 @@ def test_performed_at_is_trusted_only_within_reason() -> None:
     assert effective_performed_at(now + timedelta(minutes=3), now) == now  # clock a bit ahead: capped
     assert effective_performed_at(now + timedelta(hours=1), now) == now  # the future: server time
     assert effective_performed_at(now - timedelta(hours=49), now) == now  # too old: server time
+
+
+@pytest.mark.asyncio
+async def _slow_down_completion(monkeypatch) -> None:
+    """Widens the window between "is it done yet?" and the commit, so the
+    parallel requests really overlap (without it the first one is usually
+    through before the others get going, and a missing lock goes unseen)."""
+    from app.repositories.exercise_repository import ExerciseRepository
+
+    original = ExerciseRepository.list_target_stats
+
+    async def slow(self, exercise_id):
+        await asyncio.sleep(0.3)
+        return await original(self, exercise_id)
+
+    monkeypatch.setattr(ExerciseRepository, "list_target_stats", slow)
+
+
+@pytest.mark.asyncio
+async def test_six_parallel_completes_credit_once(real_db, monkeypatch) -> None:
+    """Review 14.10 (11): six completes of one block at once, each with its
+    own key (two devices, a resend racing its original) -- one completion,
+    one block_completed event, so XP once."""
+    factory, created = real_db
+    user, client = await _player(factory, created)
+    await _slow_down_completion(monkeypatch)
+    async with _closing(client):
+        day = await _plan_day(factory, user, client)
+        block_id = day["training_session"]["blocks"][1]["id"]
+        responses = await asyncio.gather(
+            *(
+                client.post(f"/session-blocks/{block_id}/complete", json={}, headers={"Idempotency-Key": str(uuid.uuid4())})
+                for _ in range(6)
+            )
+        )
+        assert [r.status_code for r in responses] == [200] * 6, [r.text for r in responses]
+        assert len({r.json()["completed_at"] for r in responses}) == 1
+    async with factory() as session:
+        events = await session.scalar(
+            select(func.count())
+            .select_from(OutboxEvent)
+            .where(OutboxEvent.event_type == "block_completed", OutboxEvent.payload["session_block_id"].astext == block_id)
+        )
+    assert events == 1
+
+
+@pytest.mark.asyncio
+async def test_the_last_two_blocks_at_once_finish_the_training_once(real_db, monkeypatch) -> None:
+    factory, created = real_db
+    user, client = await _player(factory, created)
+    await _slow_down_completion(monkeypatch)
+    async with _closing(client):
+        day = await _plan_day(factory, user, client)
+        blocks = day["training_session"]["blocks"]
+        for block in blocks[:2]:
+            assert (await client.post(f"/session-blocks/{block['id']}/complete", json={})).status_code == 200
+        responses = await asyncio.gather(
+            *(client.post(f"/session-blocks/{block['id']}/complete", json={}) for block in blocks[2:])
+        )
+        assert [r.status_code for r in responses] == [200, 200]
+    async with factory() as session:
+        finished = await session.scalar(
+            select(func.count())
+            .select_from(OutboxEvent)
+            .where(
+                OutboxEvent.event_type == "training_completed",
+                OutboxEvent.payload["training_session_id"].astext == day["training_session"]["id"],
+            )
+        )
+    assert finished == 1
+
+
+@pytest.mark.asyncio
+async def test_the_same_key_with_another_body_is_refused(real_db) -> None:
+    """Review 14.10 (15): a key reused for a different set is the client's
+    bug -- 422, not the first set's answer."""
+    factory, created = real_db
+    user, client = await _player(factory, created)
+    async with _closing(client):
+        day = await _plan_day(factory, user, client)
+        action = _queue_for(day)[0]
+        assert (await _send(client, action)).status_code == 201
+        changed = {**action, "body": {**action["body"], "reps_completed": 12}}
+        assert (await _send(client, changed)).status_code == 422
+        assert (await _send(client, action)).status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_a_key_left_without_its_answer_rereads_the_resource(real_db) -> None:
+    """The process died after the commit, before the answer was stored: the
+    repeat gets the block as it is now, not a bare "already applied"."""
+    factory, created = real_db
+    user, client = await _player(factory, created)
+    async with _closing(client):
+        day = await _plan_day(factory, user, client)
+        block_id = day["training_session"]["blocks"][1]["id"]
+        key = str(uuid.uuid4())
+        first = await client.post(f"/session-blocks/{block_id}/complete", json={}, headers={"Idempotency-Key": key})
+        assert first.status_code == 200
+        async with factory() as session:
+            row = await session.scalar(select(IdempotencyKey).where(IdempotencyKey.key == key))
+            row.status_code = None
+            row.response_json = None
+            await session.commit()
+        again = await client.post(f"/session-blocks/{block_id}/complete", json={}, headers={"Idempotency-Key": key})
+        assert again.status_code == 200
+        assert again.json()["id"] == block_id
+        assert again.json()["completed_at"] == first.json()["completed_at"]

@@ -50,3 +50,49 @@ test('a refresh token the server rejects does log out', async ({ page }) => {
   await expect(page).toHaveURL(/\/login/)
   expect(await page.evaluate(() => localStorage.getItem('hlu_refresh_token'))).toBeNull()
 })
+
+test('a server that hangs at start opens the app on the snapshot within seconds', async ({ page }) => {
+  // Review 14.10 (3): one bar of signal -- the check never answers in time.
+  const me = await createUser('slow', 34, 'forward')
+  await loginAs(page, me)
+  await page.goto('/')
+  await expect(page.getByRole('navigation', NAV)).toBeVisible()
+
+  // No saved answers to fall back on (wiped, or the first start after an
+  // update) -- only the session snapshot is left.
+  await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        const request = indexedDB.deleteDatabase('icelevel-offline')
+        request.onsuccess = request.onerror = request.onblocked = () => resolve(null)
+      }),
+  )
+  await page.route(`${API_URL}/**`, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 15_000))
+    await route.continue().catch(() => undefined)
+  })
+  const started = Date.now()
+  await page.reload()
+  // 4 s for the check plus the page's own load; the hung server takes 15.
+  await expect(page.getByRole('navigation', NAV)).toBeVisible({ timeout: 11_000 })
+  expect(Date.now() - started).toBeLessThan(11_000)
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.unroute(`${API_URL}/**`)
+})
+
+test('signing out in another tab signs this one out too', async ({ page, context }) => {
+  // Review 14.10 (6).
+  const me = await createUser('twotabs', 35, 'forward')
+  await loginAs(page, me)
+  await page.goto('/')
+  await expect(page.getByRole('navigation', NAV)).toBeVisible()
+  const other = await context.newPage()
+  await other.goto('/')
+  await expect(other.getByRole('navigation', NAV)).toBeVisible()
+  await other.evaluate(() => {
+    localStorage.removeItem('hlu_access_token')
+    localStorage.removeItem('hlu_refresh_token')
+  })
+  await expect(page).toHaveURL(/\/login/)
+  await other.close()
+})

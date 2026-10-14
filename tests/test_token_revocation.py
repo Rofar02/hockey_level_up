@@ -40,18 +40,21 @@ async def _assert_401(coro) -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_used_refresh_token_dies_after_the_grace(db_session, monkeypatch) -> None:
+async def test_a_used_refresh_token_dies_once_its_successor_is_used(db_session) -> None:
     user = await _user(db_session)
     service = AuthService(db_session)
     first = await service.login(user.username, PASSWORD)
 
     second = await service.refresh(first.refresh_token)
-    # A repeat right away (two tabs, a retry) still works ...
+    # The answer got lost: the same token again -- however much later, as
+    # long as the new one was never used -- still works ...
     again = await service.refresh(first.refresh_token)
     assert again.refresh_token != first.refresh_token
+    await service.refresh(first.refresh_token)
 
-    # ... later on it is a stolen copy: the device's session ends.
-    monkeypatch.setattr(auth_service, "REFRESH_REUSE_GRACE", timedelta(seconds=-1))
+    # ... once the device has used the new one, the old one is a stolen
+    # copy: the device's session ends.
+    await service.refresh(second.refresh_token)
     await _assert_401(service.refresh(first.refresh_token))
     await _assert_401(service.refresh(second.refresh_token))
 
@@ -273,4 +276,41 @@ async def test_logout_all_drops_every_push(db_session) -> None:
 
     await AuthService(db_session).logout_all(user)
 
+    assert await _endpoints(db_session, user) == set()
+
+
+async def _subscribe(db_session, user, endpoint: str) -> None:
+    from app.models.push_subscription import PushSubscription
+
+    db_session.add(PushSubscription(user_id=user.id, endpoint=endpoint, p256dh_key="k", auth_key="a"))
+    await db_session.flush()
+
+
+async def _endpoints(db_session, user) -> set[str]:
+    from sqlalchemy import select
+
+    from app.models.push_subscription import PushSubscription
+
+    rows = await db_session.scalars(select(PushSubscription.endpoint).where(PushSubscription.user_id == user.id))
+    return set(rows)
+
+
+@pytest.mark.asyncio
+async def test_password_change_keeps_only_this_devices_pushes(db_session) -> None:
+    user = await _user(db_session)
+    for endpoint in ("https://push/phone", "https://push/laptop"):
+        await _subscribe(db_session, user, endpoint)
+    await AuthService(db_session).change_password(user, PASSWORD, "new-password-1", "https://push/phone")
+    assert await _endpoints(db_session, user) == {"https://push/phone"}
+
+
+@pytest.mark.asyncio
+async def test_password_reset_drops_every_push_subscription(db_session) -> None:
+    from app.models.auth_token import AuthTokenPurpose
+    from app.services.auth_token_service import AuthTokenService
+
+    user = await _user(db_session)
+    await _subscribe(db_session, user, "https://push/phone")
+    raw = await AuthTokenService(db_session).create_token(user.id, AuthTokenPurpose.PASSWORD_RESET)
+    await AuthService(db_session).confirm_password_reset(raw, "new-password-1")
     assert await _endpoints(db_session, user) == set()

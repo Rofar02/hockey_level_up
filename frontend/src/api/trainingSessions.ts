@@ -1,6 +1,6 @@
 import { apiGet } from './client'
 import type { ExerciseSetsRead, SetCompletionSummary } from '../types/setCompletion'
-import { isQueueEnabled, pendingSets, whenQueueLoaded } from '../utils/writeQueue'
+import { pendingSets, whenQueueLoaded } from '../utils/writeQueue'
 
 export async function getExerciseSets(
   trainingSessionId: string,
@@ -8,11 +8,8 @@ export async function getExerciseSets(
   accessToken: string,
 ): Promise<ExerciseSetsRead> {
   const path = `/training-sessions/${trainingSessionId}/exercises/${exerciseId}/sets`
-  if (!isQueueEnabled()) {
-    return apiGet<ExerciseSetsRead>(path, accessToken)
-  }
   // Б2: sets logged while their write still waits in the offline queue
-  // count as logged -- and without signal (nothing saved either) the queue
+  // (even with the flag since switched off) count as logged -- and without signal (nothing saved either) the queue
   // alone is what's known.
   await whenQueueLoaded()
   let fromServer: ExerciseSetsRead = { sets: [], feedback: null }

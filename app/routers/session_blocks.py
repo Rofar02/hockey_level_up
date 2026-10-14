@@ -36,6 +36,8 @@ async def complete_session_block(
         status.HTTP_200_OK,
         SessionBlockRead,
         lambda: SessionBlockService(session).complete_block(block_id, current_user, performed_at),
+        body=body,
+        reread=lambda: SessionBlockService(session).read_block(block_id, current_user),
     )
 
 
@@ -59,6 +61,8 @@ async def skip_session_block(
         status.HTTP_200_OK,
         SessionBlockRead,
         lambda: SessionBlockService(session).skip_block(block_id, current_user, performed_at),
+        body=body,
+        reread=lambda: SessionBlockService(session).read_block(block_id, current_user),
     )
 
 

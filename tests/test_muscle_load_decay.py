@@ -6,9 +6,12 @@ instance and a `now`, no DB needed, same shape as test_stat_decay.py.
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from app.core.muscle_load import (
     GRACE_PERIOD_HOURS,
     HALF_LIFE_HOURS,
+    decayed_gain,
     get_effective_muscle_load,
     get_idle_hours,
     is_decay_active,
@@ -62,3 +65,12 @@ def test_approaches_zero_with_no_explicit_floor() -> None:
 def test_get_idle_hours_matches_the_constructed_gap() -> None:
     load = _load(idle_hours=36.0)
     assert abs(get_idle_hours(load, NOW) - 36.0) < 1e-9
+
+
+def test_a_late_synced_gain_is_decayed_from_when_the_work_was_done() -> None:
+    """Review 14.10 (16): a workout done 36 h ago and synced now has already
+    lost what 24 h of decay (past the 12 h grace) takes -- a quarter left."""
+    now = datetime(2026, 10, 14, 12, 0, tzinfo=timezone.utc)
+    assert decayed_gain(4.0, now - timedelta(hours=2), now) == 4.0
+    assert decayed_gain(4.0, now - timedelta(hours=36), now) == pytest.approx(1.0)
+    assert decayed_gain(4.0, now + timedelta(minutes=3), now) == 4.0

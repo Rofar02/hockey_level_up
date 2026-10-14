@@ -62,6 +62,10 @@ async def save_diary_entry(
         )
         return TrainingDiaryEntryRead.model_validate(entry)
 
+    async def _current() -> TrainingDiaryEntryRead:
+        entry = await TrainingDiaryService(session).get_entry(current_user, session_id)
+        return TrainingDiaryEntryRead.model_validate(entry)
+
     return await run_idempotent(
         session,
         current_user,
@@ -70,6 +74,8 @@ async def save_diary_entry(
         status.HTTP_200_OK,
         TrainingDiaryEntryRead,
         _save,
+        body=body,
+        reread=_current,
     )
 
 

@@ -12,8 +12,8 @@ class RefreshSession(Base):
     """One signed-in device (step 8, security, 2). Its refresh token carries
     the row id ("sid") and the current jti; each /auth/refresh swaps in a
     new jti, so a used refresh token stops working. The previous jti stays
-    good for REFRESH_REUSE_GRACE -- two tabs or a retried request on a bad
-    network may send the same token twice -- and any older one ends the
+    good until the new one is used -- two tabs or a retried request on a bad
+    network may send the same token again -- and any older one ends the
     session (a stolen token was used). Signing out of this device deletes
     the row; signing out everywhere deletes them all and bumps
     users.token_version."""

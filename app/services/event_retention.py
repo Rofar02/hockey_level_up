@@ -19,11 +19,13 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.session import AsyncSessionLocal
 from app.core.idempotency import RETENTION_DAYS as IDEMPOTENCY_RETENTION_DAYS
+from app.models.coach_chat import CoachChatMessage, CoachChatRole
 from app.models.idempotency_key import IdempotencyKey
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
@@ -61,20 +63,49 @@ async def purge_old_idempotency_keys(session: AsyncSession, now_utc: datetime) -
     return result.rowcount
 
 
+# A player's message with no reply after this long never got one: the
+# request died mid-answer (process killed, cancelled before the cleanup ran).
+# It must not keep counting against the monthly quota (review 14.10, 7).
+UNANSWERED_COACH_MESSAGE_AFTER = timedelta(minutes=10)
+
+
+async def purge_unanswered_coach_messages(session: AsyncSession, now_utc: datetime) -> int:
+    reply = aliased(CoachChatMessage)
+    answered = (
+        select(reply.id)
+        .where(
+            reply.user_id == CoachChatMessage.user_id,
+            reply.role == CoachChatRole.ASSISTANT,
+            reply.created_at >= CoachChatMessage.created_at,
+        )
+        .exists()
+    )
+    result = await session.execute(
+        delete(CoachChatMessage).where(
+            CoachChatMessage.role == CoachChatRole.USER,
+            CoachChatMessage.created_at < now_utc - UNANSWERED_COACH_MESSAGE_AFTER,
+            ~answered,
+        )
+    )
+    return result.rowcount
+
+
 async def _retention_tick() -> None:
     now_utc = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as session, session.begin():
         outbox_deleted, processed_deleted = await purge_old_events(session, now_utc)
         sessions_deleted = await purge_expired_sessions(session, now_utc)
         keys_deleted = await purge_old_idempotency_keys(session, now_utc)
+        unanswered_deleted = await purge_unanswered_coach_messages(session, now_utc)
     logger.info(
         "Event retention: deleted %s outbox_events, %s processed_events older than %s days, "
-        "%s expired refresh sessions, %s idempotency keys",
+        "%s expired refresh sessions, %s idempotency keys, %s unanswered coach messages",
         outbox_deleted,
         processed_deleted,
         RETENTION_DAYS,
         sessions_deleted,
         keys_deleted,
+        unanswered_deleted,
     )
 
 

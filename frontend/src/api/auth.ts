@@ -63,15 +63,17 @@ export function logoutAll(accessToken: string): Promise<void> {
   return apiPostAuth<void>('/auth/logout-all', {}, accessToken)
 }
 
-// Other devices are signed out; this one continues on the returned pair.
+// Other devices are signed out and lose their push subscriptions; this one
+// continues on the returned pair and keeps its own (`pushEndpoint`).
 export function changePassword(
   currentPassword: string,
   newPassword: string,
   accessToken: string,
+  pushEndpoint: string | null = null,
 ): Promise<TokenPair> {
   return apiPostAuth<TokenPair>(
     '/auth/change-password',
-    { current_password: currentPassword, new_password: newPassword },
+    { current_password: currentPassword, new_password: newPassword, push_endpoint: pushEndpoint },
     accessToken,
   )
 }

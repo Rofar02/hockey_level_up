@@ -6,7 +6,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
-from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, MAX_INTENSITY, get_effective_muscle_load
+from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, MAX_INTENSITY, decayed_gain, get_effective_muscle_load
 from app.db.session import AsyncSessionLocal
 from app.events.idempotency import try_claim
 from app.events.registry import register_handler
@@ -230,6 +230,10 @@ async def muscle_load_consumer(payload: dict, event_id: uuid.UUID) -> None:
 
         now = datetime.now(timezone.utc)
         base_gain = difficulty_level * GAIN_PER_DIFFICULTY_LEVEL
+        # When the work was done (the offline queue may send it much later);
+        # events from before 2026-10-14 carry no performed_at.
+        if payload.get("performed_at"):
+            base_gain = decayed_gain(base_gain, datetime.fromisoformat(payload["performed_at"]), now)
 
         # Sorted for the same lock-ordering-deadlock reason stat_consumer's
         # stat_types sort exists: two concurrent block_completed events for

@@ -79,7 +79,9 @@ async def change_password(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Other devices are signed out; this one continues on the returned pair."""
-    return await AuthService(session).change_password(current_user, body.current_password, body.new_password)
+    return await AuthService(session).change_password(
+        current_user, body.current_password, body.new_password, body.push_endpoint
+    )
 
 
 @router.get("/me", response_model=UserRead)

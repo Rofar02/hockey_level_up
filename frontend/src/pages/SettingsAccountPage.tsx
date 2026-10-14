@@ -11,6 +11,9 @@ import * as authApi from '../api/auth'
 import * as usersApi from '../api/users'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { pendingCount, sendQueueNow } from '../utils/writeQueue'
+import { getActivePushSubscription } from '../push'
+import { pluralRu } from '../utils/boardPlan'
 
 export function SettingsAccountPage() {
   const { user, accessToken, logout, adoptTokens } = useAuth()
@@ -32,6 +35,12 @@ export function SettingsAccountPage() {
   const [logoutAllError, setLogoutAllError] = useState<string | null>(null)
   const [isLoggingOutAll, setIsLoggingOutAll] = useState(false)
 
+  // Б2 review 14.10 (12): workout actions still waiting to be sent -- asked
+  // about before signing out, since signing out drops them.
+  const [unsentOnLogout, setUnsentOnLogout] = useState<number | null>(null)
+  const [isSendingQueue, setIsSendingQueue] = useState(false)
+  const [sendQueueFailed, setSendQueueFailed] = useState(false)
+
   function openPasswordModal() {
     setCurrentPassword('')
     setNewPassword('')
@@ -47,7 +56,8 @@ export function SettingsAccountPage() {
     setPasswordError(null)
     setIsChangingPassword(true)
     try {
-      const tokens = await authApi.changePassword(currentPassword, newPassword, accessToken)
+      const subscription = await getActivePushSubscription().catch(() => null)
+      const tokens = await authApi.changePassword(currentPassword, newPassword, accessToken, subscription?.endpoint ?? null)
       adoptTokens(tokens.access_token, tokens.refresh_token)
       setShowPasswordModal(false)
       setPasswordChanged(true)
@@ -78,9 +88,32 @@ export function SettingsAccountPage() {
     }
   }
 
-  function handleLogout() {
+  function signOut() {
     logout()
     navigate('/login', { replace: true })
+  }
+
+  function handleLogout() {
+    const unsent = pendingCount()
+    if (unsent > 0) {
+      setSendQueueFailed(false)
+      setUnsentOnLogout(unsent)
+      return
+    }
+    signOut()
+  }
+
+  async function sendThenSignOut() {
+    setIsSendingQueue(true)
+    setSendQueueFailed(false)
+    const allSent = await sendQueueNow()
+    setIsSendingQueue(false)
+    if (allSent) {
+      signOut()
+      return
+    }
+    setUnsentOnLogout(pendingCount())
+    setSendQueueFailed(true)
   }
 
   function openDeleteModal() {
@@ -243,6 +276,28 @@ export function SettingsAccountPage() {
                 disabled={isLoggingOutAll}
               >
                 Отмена
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {unsentOnLogout !== null && (
+        <Modal title="Не всё отправлено" onClose={() => setUnsentOnLogout(null)}>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-text-secondary">
+              {unsentOnLogout} {pluralRu(unsentOnLogout, ['действие', 'действия', 'действий'])} с тренировки ещё
+              не {unsentOnLogout === 1 ? 'отправлено' : 'отправлены'} на сервер. Если выйти сейчас, они пропадут.
+            </p>
+            {sendQueueFailed && (
+              <FormError message="Не получилось отправить — проверь связь и попробуй ещё раз." />
+            )}
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button onClick={() => void sendThenSignOut()} isLoading={isSendingQueue}>
+                Отправить и выйти
+              </Button>
+              <Button type="button" variant="neutral" onClick={signOut} disabled={isSendingQueue}>
+                Выйти без них
               </Button>
             </div>
           </div>

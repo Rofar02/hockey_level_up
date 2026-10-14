@@ -40,6 +40,10 @@ async def save_set(
             duration_seconds_completed=body.duration_seconds_completed,
             performed_at=body.performed_at,
         ),
+        body=body,
+        reread=lambda: SetCompletionService(session).get_set(
+            current_user, body.exercise_id, body.training_session_id, body.set_number
+        ),
     )
 
 
@@ -58,6 +62,15 @@ async def save_feedback(
         status.HTTP_200_OK,
         SetCompletionRead,
         lambda: SetCompletionService(session).save_feedback(
+            user=current_user,
+            exercise_id=body.exercise_id,
+            training_session_id=body.training_session_id,
+            feedback=body.feedback,
+        ),
+        body=body,
+        # Setting the same feedback again changes nothing -- the save itself
+        # is the re-read.
+        reread=lambda: SetCompletionService(session).save_feedback(
             user=current_user,
             exercise_id=body.exercise_id,
             training_session_id=body.training_session_id,

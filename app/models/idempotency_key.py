@@ -33,6 +33,9 @@ class IdempotencyKey(Base):
     # "POST /session-blocks/{id}/complete" with the real id -- the same key on
     # another request is the client's bug, refused rather than replayed.
     endpoint: Mapped[str] = mapped_column(String(255), nullable=False)
+    # sha256 of the request body (review 14.10, 15): the same key with
+    # another body is refused, not answered with the first one's response.
+    request_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_json: Mapped[Any] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

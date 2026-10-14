@@ -5,9 +5,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.training_day import effective_performed_at, local_date, require_day_started
+from app.core.training_day import day_start, effective_performed_at, local_date, require_day_started
 from app.models.exercise import TrainingPhase
-from app.models.schedule import SessionBlock
+from app.models.schedule import SessionBlock, TrainingSession
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
 from app.repositories.outbox_repository import OutboxRepository
@@ -61,13 +61,16 @@ class SessionBlockService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Session block not found"
             )
         require_day_started(block.session.day_plan.date, user)
+        await self._lock_resolution(block)
 
         if block.completed_at is not None:
             # Б2: done already (a resend from the offline queue, a second
             # device) -- the same answer again, nothing credited twice.
             return await self._read(block)
 
-        block.completed_at = effective_performed_at(performed_at)
+        block.completed_at = effective_performed_at(
+            performed_at, not_before=day_start(block.session.day_plan.date, user)
+        )
         target_stats = await self._exercises.list_target_stats(block.exercise_id)
         # Outbox pattern: the event row is written in the same transaction as
         # completed_at, instead of publishing to RabbitMQ directly here. That
@@ -88,6 +91,8 @@ class SessionBlockService:
                 # Б2: the player's day the work was done on -- the streak
                 # counts it, not the day the queue finally got through.
                 "activity_date": local_date(block.completed_at, user).isoformat(),
+                # The muscle map decays the gain from this moment (review 14.10, 16).
+                "performed_at": block.completed_at.isoformat(),
             },
         )
         await self._maybe_publish_training_completed(block, user)
@@ -105,6 +110,24 @@ class SessionBlockService:
             ).escalate_ceiling_variant_for_week(user, block.exercise)
         await self._session.commit()
         return await self._read(block, ceiling_escalations)
+
+    async def read_block(self, block_id: uuid.UUID, user: User) -> SessionBlockRead:
+        block = await self._schedule.get_session_block_with_owner(block_id)
+        if block is None or block.session.day_plan.weekly_plan.user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session block not found")
+        return await self._read(block)
+
+    async def _lock_resolution(self, block: SessionBlock) -> None:
+        """Review 14.10 (11): one block resolution at a time per training.
+        Locks the training's row, then re-reads this block's state -- a
+        parallel complete (two devices, a resend racing its original) waits
+        here and then sees the block done, so XP is credited once; and the
+        last two blocks resolved at once can't both miss "training
+        completed" (each would count the other as still open)."""
+        await self._session.execute(
+            select(TrainingSession.id).where(TrainingSession.id == block.session_id).with_for_update()
+        )
+        await self._session.refresh(block, ["completed_at", "skipped_at"])
 
     async def skip_block(
         self, block_id: uuid.UUID, user: User, performed_at: datetime | None = None
@@ -125,10 +148,13 @@ class SessionBlockService:
                 detail="only warmup/cooldown blocks can be skipped",
             )
 
+        await self._lock_resolution(block)
         if block.completed_at is not None or block.skipped_at is not None:
             return await self._read(block)
 
-        block.skipped_at = effective_performed_at(performed_at)
+        block.skipped_at = effective_performed_at(
+            performed_at, not_before=day_start(block.session.day_plan.date, user)
+        )
         # Deliberately no BLOCK_COMPLETED_EVENT outbox row here -- a skip
         # earns no stat/XP/muscle-load gain, that's the whole point. It still
         # resolves the block for session/streak-completion purposes though,

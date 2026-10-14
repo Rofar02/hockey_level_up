@@ -49,6 +49,9 @@ class PasswordResetConfirm(BaseModel):
 class PasswordChange(BaseModel):
     current_password: str = Field(min_length=1, max_length=128, repr=False)
     new_password: str = Field(min_length=8, max_length=128, repr=False)
+    # This device's Web Push endpoint (review 14.10, 5): it keeps getting
+    # notifications, every other device's subscription goes.
+    push_endpoint: str | None = Field(default=None, max_length=2048, repr=False)
 
 
 class EmailVerifyConfirm(BaseModel):

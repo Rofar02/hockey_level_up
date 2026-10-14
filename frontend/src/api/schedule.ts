@@ -1,5 +1,5 @@
 import { apiGet, apiPatchAuth, apiPostAuth } from './client'
-import { isQueueEnabled, pendingBlockResolution, whenQueueLoaded } from '../utils/writeQueue'
+import { pendingBlockResolution, whenQueueLoaded } from '../utils/writeQueue'
 import type {
   DayPlanRead,
   ScheduleFeaturesRead,
@@ -42,7 +42,7 @@ export async function getDayPlanById(dayPlanId: string, accessToken: string): Pr
 // offline queue show as done -- a workout reopened without signal (from
 // saved data) picks up where the player left off.
 async function withQueuedResolutions(plan: DayPlanRead): Promise<DayPlanRead> {
-  if (!isQueueEnabled() || plan.training_session == null) {
+  if (plan.training_session == null) {
     return plan
   }
   await whenQueueLoaded()

@@ -38,14 +38,21 @@ EXTRA_DENYLIST = [
 # still ride inside a string -- an exception message, a breadcrumb, a URL --
 # so every string in the event is also run through these before it leaves.
 _JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*")
-_KEY_VALUE_RE = re.compile(
-    r"(?i)((?:[a-z_]*password|[a-z_]*token|secret|api_key|p256dh|auth_key)['\"]?\s*[=:]\s*['\"]?)([^'\"&\s,;)}]+)"
+_SECRET_KEY = r"(?:[a-z_]*password|[a-z_]*token|secret|api_key|p256dh|auth_key)"
+# Review 14.10 (9): a quoted value is filtered up to its closing quote -- a
+# password with spaces in it must not leak its second half. pydantic's
+# "input_value='...'" in validation errors carries the raw input of any
+# field (a password among them), so it always goes.
+_QUOTED_VALUE_RE = re.compile(
+    r"(?i)((?:" + _SECRET_KEY + r"['\"]?\s*[=:]|input_value\s*=)\s*)(['\"])((?:\\.|(?!\2).)*)\2"
 )
+_KEY_VALUE_RE = re.compile(r"(?i)((?:" + _SECRET_KEY + r"['\"]?\s*[=:]|input_value\s*=)\s*)([^'\"&\s,;)}][^&\s,;)}]*)")
 FILTERED = "[Filtered]"
 
 
 def scrub_text(text: str) -> str:
     text = _JWT_RE.sub(FILTERED, text)
+    text = _QUOTED_VALUE_RE.sub(lambda match: match.group(1) + match.group(2) + FILTERED + match.group(2), text)
     return _KEY_VALUE_RE.sub(lambda match: match.group(1) + FILTERED, text)
 
 

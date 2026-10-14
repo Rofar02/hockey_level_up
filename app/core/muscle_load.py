@@ -74,6 +74,16 @@ def is_decay_active(idle_hours: float) -> bool:
     return idle_hours > GRACE_PERIOD_HOURS
 
 
+def decayed_gain(gain: float, done_at: datetime, now: datetime) -> float:
+    """A gain earned at `done_at`, as it stands at `now` (review 14.10, 16):
+    a workout synced from the offline queue a day later must not land as if
+    it were done this minute."""
+    idle_hours = max(0.0, (now - done_at).total_seconds() / 3600)
+    if not is_decay_active(idle_hours):
+        return gain
+    return gain * (0.5 ** ((idle_hours - GRACE_PERIOD_HOURS) / HALF_LIFE_HOURS))
+
+
 def get_effective_muscle_load(load: UserMuscleLoad, now: datetime) -> float:
     idle_hours = get_idle_hours(load, now)
     if not is_decay_active(idle_hours):

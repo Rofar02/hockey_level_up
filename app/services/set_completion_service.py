@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.training_day import require_day_started
 from app.models.exercise import Exercise
-from app.core.training_day import effective_performed_at
+from app.core.training_day import day_start, effective_performed_at
 from app.models.set_completion import SetCompletion, SetFeedback
 from app.models.user import User
 from app.repositories.exercise_repository import ExerciseRepository
@@ -63,6 +63,8 @@ class SetCompletionService:
         performed_at: datetime | None = None,
     ) -> SetCompletion:
         exercise = await self._get_owned_exercise_in_session(user, training_session_id, exercise_id)
+        training_session = await self._schedule.get_training_session_with_owner(training_session_id)
+        not_before = day_start(training_session.day_plan.date, user)
 
         if exercise.tracks_weight and (weight_kg is None or weight_kg <= 0):
             raise HTTPException(
@@ -120,7 +122,7 @@ class SetCompletionService:
                 duration_seconds_completed=duration_seconds_completed,
                 suggested_weight_kg=suggested_weight_kg,
                 was_weight_adjusted_manually=was_adjusted,
-                completed_at=effective_performed_at(performed_at),
+                completed_at=effective_performed_at(performed_at, not_before=not_before),
             )
             await self._sets.save(set_completion)
 
@@ -132,6 +134,15 @@ class SetCompletionService:
     ) -> list[SetCompletion]:
         await self._get_owned_exercise_in_session(user, training_session_id, exercise_id, for_write=False)
         return await self._sets.list_for_session_exercise(training_session_id, exercise_id)
+
+    async def get_set(
+        self, user: User, exercise_id: uuid.UUID, training_session_id: uuid.UUID, set_number: int
+    ) -> SetCompletion:
+        await self._get_owned_exercise_in_session(user, training_session_id, exercise_id, for_write=False)
+        found = await self._sets.get_by_session_exercise_set(training_session_id, exercise_id, set_number)
+        if found is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Set not found")
+        return found
 
     async def save_feedback(
         self,

@@ -53,6 +53,21 @@ def test_scrub_text_hides_jwts_and_key_values() -> None:
     assert "x=1" in scrubbed
 
 
+def test_quoted_secrets_are_filtered_to_the_closing_quote() -> None:
+    """Review 14.10 (9): a password with spaces, and pydantic's input_value."""
+    text = (
+        "password='correct horse battery' next=1 "
+        '{"new_password": "two words", "ok": "yes"} '
+        "1 validation error: String should have at least 8 characters [input_value='my pass 1', input_type=str]"
+    )
+    scrubbed = scrub_text(text)
+    for secret in ("correct", "horse", "battery", "two words", "words", "my pass 1"):
+        assert secret not in scrubbed, scrubbed
+    assert "next=1" in scrubbed
+    assert '"ok": "yes"' in scrubbed
+    assert "input_type=str" in scrubbed
+
+
 def test_secret_fields_stay_out_of_repr() -> None:
     change = PasswordChange(current_password=OLD_PASSWORD, new_password=NEW_PASSWORD)
     assert OLD_PASSWORD not in repr(change) and NEW_PASSWORD not in repr(change)

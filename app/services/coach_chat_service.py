@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import anyio
 from fastapi import HTTPException, status
 from openai import APIError, AsyncOpenAI
 from sqlalchemy import delete, func, select
@@ -980,10 +981,16 @@ class CoachChatService:
             return await self._answer(user, user_message, settings)
         except BaseException:
             # No reply, no charge: the message leaves the quota (and the
-            # history) again, as if it had never been sent.
-            await self._session.rollback()
-            await self._session.execute(delete(CoachChatMessage).where(CoachChatMessage.id == message_id))
-            await self._session.commit()
+            # history) again, as if it had never been sent. Shielded (review
+            # 14.10, 7): when the player closes the app mid-answer the request
+            # is cancelled, and an unshielded await here would be cancelled
+            # too, leaving the message behind. What still slips through (a
+            # killed process) the daily retention pass removes
+            # (purge_unanswered_coach_messages).
+            with anyio.CancelScope(shield=True):
+                await self._session.rollback()
+                await self._session.execute(delete(CoachChatMessage).where(CoachChatMessage.id == message_id))
+                await self._session.commit()
             raise
 
     async def _answer(self, user: User, user_message: CoachChatMessage, settings: Settings) -> CoachChatMessageRead:

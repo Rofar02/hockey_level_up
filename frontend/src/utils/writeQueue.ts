@@ -4,7 +4,8 @@
 // the queue sends in order, one at a time, each with its own
 // Idempotency-Key, so a resend after a lost answer is never applied twice
 // (app/core/idempotency.py). Behind the server's `offline_queue` feature
-// flag; off, every write goes straight to the API as before.
+// flag; off, new writes go straight to the API as before -- but whatever is
+// already queued is still sent (a flag switched off must not strand it).
 //
 // Sending: at app start, on "online", on return to the app, after each new
 // action. A network error, a 5xx, a 429 (or an expired session) stops the
@@ -51,6 +52,9 @@ const LOCK_NAME = 'icelevel-write-queue'
 // screen goes ahead on its optimistic copy.
 const ONLINE_WAIT_MS = 6000
 const RETRY_DELAYS_MS = [3000, 10_000, 30_000, 60_000]
+// Older than this, an action isn't sent at all -- the server would not trust
+// its time any more (performed_at, -48 h) and the day has long moved on.
+export const MAX_ACTION_AGE_MS = 48 * 60 * 60 * 1000
 
 // -- feature flag (remembered: an offline start has to know it too) --
 
@@ -71,9 +75,6 @@ export function setQueueEnabled(enabled: boolean): void {
     }
   } catch {
     // Storage blocked: the queue just stays off.
-  }
-  if (enabled) {
-    void flushQueue()
   }
 }
 
@@ -134,6 +135,13 @@ async function deleteOne(store: string, key: string): Promise<void> {
 
 let actions: QueuedAction[] = []
 let failed: FailedAction[] = []
+// Actions IndexedDB refused to store (private mode, full disk): they live
+// only here, so a reload from storage must not drop them.
+const memoryOnly = new Set<string>()
+// Bumped on every action this tab adds -- an add that lands while a reload
+// is reading storage is kept rather than overwritten by the older read.
+let addGeneration = 0
+const addedAt = new Map<string, number>()
 const listeners = new Set<() => void>()
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(LOCK_NAME) : null
 let loaded: Promise<void> | null = null
@@ -146,9 +154,14 @@ function emit() {
 }
 
 async function reload(): Promise<void> {
+  const readStartedAt = addGeneration
   try {
     const [nextActions, nextFailed] = await Promise.all([readAll<QueuedAction>(ACTIONS), readAll<FailedAction>(FAILED)])
-    actions = nextActions.sort((a, b) => a.createdAt - b.createdAt)
+    const stored = new Set(nextActions.map((item) => item.key))
+    const keep = actions.filter(
+      (item) => !stored.has(item.key) && (memoryOnly.has(item.key) || (addedAt.get(item.key) ?? 0) > readStartedAt),
+    )
+    actions = [...nextActions, ...keep].sort((a, b) => a.createdAt - b.createdAt)
     failed = nextFailed.sort((a, b) => a.at - b.at)
   } catch {
     // Storage unavailable: the queue is whatever this tab holds in memory.
@@ -280,12 +293,15 @@ export async function enqueueWrite<T>(write: QueuedWrite<T>): Promise<T> {
     label: write.label,
     createdAt: Date.now(),
   }
+  addGeneration += 1
+  addedAt.set(action.key, addGeneration)
   actions = [...actions, action]
   changed()
   try {
     await writeOne(ACTIONS, action)
   } catch {
     // Not persisted (private mode): still sent from memory while the app runs.
+    memoryOnly.add(action.key)
   }
 
   const outcome = new Promise<Outcome>((resolve) => {
@@ -335,8 +351,18 @@ function isRetryable(err: unknown): boolean {
 
 async function removeAction(key: string) {
   actions = actions.filter((item) => item.key !== key)
+  memoryOnly.delete(key)
+  addedAt.delete(key)
   changed()
   await deleteOne(ACTIONS, key).catch(() => undefined)
+}
+
+async function keepAsFailed(action: QueuedAction, detail: string) {
+  await removeAction(action.key)
+  const notice: FailedAction = { key: action.key, userId: action.userId, label: action.label, detail, at: Date.now() }
+  failed = [...failed, notice]
+  changed()
+  await writeOne(FAILED, notice).catch(() => undefined)
 }
 
 async function drain(): Promise<void> {
@@ -348,6 +374,10 @@ async function drain(): Promise<void> {
     const next = actions.find((item) => item.userId === userId)
     if (next === undefined || userId === null || accessToken === null) {
       return
+    }
+    if (Date.now() - next.createdAt > MAX_ACTION_AGE_MS) {
+      await keepAsFailed(next, 'Пролежало без связи больше двух суток — не отправлено')
+      continue
     }
     try {
       const data = await apiSendQueued<unknown>(next.method, next.path, next.body, accessToken, next.key)
@@ -364,39 +394,77 @@ async function drain(): Promise<void> {
         return
       }
       const error = err as ApiError
-      await removeAction(next.key)
       const waiter = waiters.get(next.key)
       if (waiter !== undefined) {
+        await removeAction(next.key)
         waiter({ kind: 'rejected', error })
       } else {
-        const notice: FailedAction = { key: next.key, userId: next.userId, label: next.label, detail: error.message, at: Date.now() }
-        failed = [...failed, notice]
-        changed()
-        await writeOne(FAILED, notice).catch(() => undefined)
+        await keepAsFailed(next, error.message)
       }
     }
   }
 }
 
+// Asked to send while a run is going: that run may have already looked for
+// the next action -- go round once more when it ends.
+let dirty = false
+
+// Sends whatever is queued, flag or not: the flag only decides whether new
+// writes are queued (see the api wrappers).
 export async function flushQueue(): Promise<void> {
-  if (flushing || !isQueueEnabled()) {
+  if (flushing) {
+    dirty = true
     return
   }
   flushing = true
   try {
     await whenQueueLoaded()
-    const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
-    if (locks?.request) {
-      await locks.request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
-        if (lock !== null) {
-          await drain()
-        }
-      })
-    } else {
-      await drain()
-    }
+    do {
+      dirty = false
+      const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
+      if (locks?.request) {
+        await locks.request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
+          if (lock !== null) {
+            await drain()
+          }
+        })
+      } else {
+        await drain()
+      }
+    } while (dirty && retryTimer === null)
   } finally {
     flushing = false
+  }
+}
+
+// -- signing out --
+
+// Tries to send this player's queue right now; true when nothing is left.
+export async function sendQueueNow(): Promise<boolean> {
+  retryStep = 0
+  if (retryTimer !== null) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  await flushQueue()
+  return pendingCount() === 0
+}
+
+// Signing out on purpose: this player's unsent actions and notices go -- the
+// next person on this phone must never send them under their own account.
+export async function discardQueue(userId: string): Promise<void> {
+  await whenQueueLoaded()
+  const dropActions = actions.filter((item) => item.userId === userId)
+  const dropFailed = failed.filter((item) => item.userId === userId)
+  actions = actions.filter((item) => item.userId !== userId)
+  failed = failed.filter((item) => item.userId !== userId)
+  changed()
+  for (const item of dropActions) {
+    memoryOnly.delete(item.key)
+    await deleteOne(ACTIONS, item.key).catch(() => undefined)
+  }
+  for (const item of dropFailed) {
+    await deleteOne(FAILED, item.key).catch(() => undefined)
   }
 }
 
