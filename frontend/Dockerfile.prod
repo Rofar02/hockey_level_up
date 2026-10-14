@@ -2,7 +2,7 @@
 # then serve it from a plain nginx, not the Vite dev server the dev
 # `Dockerfile` runs. This container never talks to the internet directly;
 # the edge nginx (deploy/nginx/app.conf) proxies to it internally.
-FROM node:20-alpine AS build
+FROM node:25-alpine AS build
 
 WORKDIR /app
 COPY package.json package-lock.json ./
