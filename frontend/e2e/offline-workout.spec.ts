@@ -89,3 +89,52 @@ test('a whole workout offline, synced once the connection is back', async ({ pag
     .toBeGreaterThan(before.xp)
   await expect.poll(() => page.evaluate(() => localStorage.getItem('icelevel.offlineQueue'))).toBe('1')
 })
+
+// Review 14.10 (10, 12): the flag switched off later never strands what's
+// already queued, and signing out asks about it first.
+test('a queued action is still sent with the flag off; sign-out asks first', async ({ page, context }) => {
+  const me = await createUser('offqueue', 48, 'forward')
+  const today = localNow().date
+  await declareWeek(me, today)
+  const plan = await dayPlan(me, today)
+
+  await loginAs(page, me)
+  await page.goto('/')
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('icelevel.offlineQueue')), { timeout: 15_000 })
+    .toBe('1')
+  await page.goto(`/training/${plan.id}`)
+  await expect(page.getByRole('button', { name: 'Начать тренировку' })).toBeVisible()
+
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Начать тренировку' }).click()
+  const collapse = page.getByRole('button', { name: 'Свернуть плеер' })
+  if (await collapse.isVisible().catch(() => false)) {
+    await collapse.click()
+  }
+  await page.locator('[role="checkbox"][aria-checked="false"]:not([disabled])').first().click()
+  await expect(page.getByRole('status').filter({ hasText: /ждут отправки/ })).toBeVisible()
+
+  // The server turns the queue off from now on.
+  await page.route('**/schedule/features', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ offline_queue: false }) }),
+  )
+
+  await page.goto('/settings/account')
+  await page.getByRole('button', { name: 'Выйти из аккаунта' }).click()
+  const ask = page.getByRole('dialog', { name: 'Не всё отправлено' })
+  await expect(ask).toBeVisible()
+  await ask.getByRole('button', { name: 'Отправить и выйти' }).click()
+  await expect(ask.getByText(/Не получилось отправить/)).toBeVisible()
+
+  await context.setOffline(false)
+  await page.evaluate(() => {
+    localStorage.removeItem('icelevel.offlineQueue')
+    window.dispatchEvent(new Event('online'))
+  })
+  await ask.getByRole('button', { name: 'Отправить и выйти' }).click()
+  await expect(page).toHaveURL(/\/login/, { timeout: 20_000 })
+  const day = await api<Day>('GET', `/schedule/day-plans/${plan.id}`, { token: me.token })
+  expect(day.training_session.blocks.filter((b) => b.completed_at !== null || b.skipped_at !== null).length).toBeGreaterThan(0)
+})

@@ -322,7 +322,6 @@ export async function enqueueWrite<T>(write: QueuedWrite<T>): Promise<T> {
 
 // -- sending --
 
-let flushing = false
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 let retryStep = 0
 
@@ -411,42 +410,58 @@ let dirty = false
 
 // Sends whatever is queued, flag or not: the flag only decides whether new
 // writes are queued (see the api wrappers).
-export async function flushQueue(): Promise<void> {
-  if (flushing) {
+// The run in progress -- a second caller waits for it (and makes it go
+// round once more) instead of returning before anything was sent.
+let currentFlush: Promise<void> | null = null
+
+export function flushQueue(): Promise<void> {
+  if (currentFlush !== null) {
     dirty = true
-    return
+    return currentFlush
   }
-  flushing = true
-  try {
-    await whenQueueLoaded()
-    do {
-      dirty = false
-      const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
-      if (locks?.request) {
-        await locks.request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
-          if (lock !== null) {
-            await drain()
-          }
-        })
-      } else {
-        await drain()
-      }
-    } while (dirty && retryTimer === null)
-  } finally {
-    flushing = false
+  currentFlush = (async () => {
+    try {
+      await whenQueueLoaded()
+      do {
+        dirty = false
+        const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
+        if (locks?.request) {
+          await locks.request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
+            if (lock !== null) {
+              await drain()
+            }
+          })
+        } else {
+          await drain()
+        }
+      } while (dirty && retryTimer === null)
+    } finally {
+      currentFlush = null
+    }
+  })()
+  return currentFlush
+}
+
+function cancelRetry() {
+  retryStep = 0
+  if (retryTimer !== null) {
+    clearTimeout(retryTimer)
+    retryTimer = null
   }
 }
 
 // -- signing out --
 
 // Tries to send this player's queue right now; true when nothing is left.
+// A run already going (it may have started while still offline and given
+// up) is waited for, then one fresh run goes.
 export async function sendQueueNow(): Promise<boolean> {
-  retryStep = 0
-  if (retryTimer !== null) {
-    clearTimeout(retryTimer)
-    retryTimer = null
-  }
+  cancelRetry()
   await flushQueue()
+  if (pendingCount() > 0) {
+    cancelRetry()
+    await flushQueue()
+  }
   return pendingCount() === 0
 }
 

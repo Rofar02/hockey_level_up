@@ -976,8 +976,10 @@ class CoachChatService:
         user_message = self._chat.add(user.id, CoachChatRole.USER, message, created_at=turn_time)
         await self._session.flush()
         message_id = user_message.id
-        await self._session.commit()
         try:
+            # Inside the try: a cancel landing on this very commit is cleaned
+            # up too (it may or may not have gone through).
+            await self._session.commit()
             return await self._answer(user, user_message, settings)
         except BaseException:
             # No reply, no charge: the message leaves the quota (and the
