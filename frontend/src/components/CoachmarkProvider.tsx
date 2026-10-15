@@ -76,12 +76,33 @@ export function CoachmarkProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const contextValue = useMemo(
-    () => ({ registerStep, unregisterStep, setSuppressed }),
-    [registerStep, unregisterStep, setSuppressed],
+  const dismissHints = useCallback(
+    (hintIds: readonly string[]) => {
+      setSeenIds((previous) => new Set([...(previous ?? []), ...hintIds]))
+      if (accessToken !== null) {
+        for (const hintId of hintIds) {
+          // Best-effort, same as handleAdvance below.
+          usersApi.markCoachmarkSeen(hintId, accessToken).catch(() => {})
+        }
+      }
+    },
+    [accessToken],
   )
 
-  const unseenSteps = seenIds !== null ? steps.filter((step) => !seenIds.has(step.hintId)) : []
+  const contextValue = useMemo(
+    () => ({ registerStep, unregisterStep, setSuppressed, dismissHints }),
+    [registerStep, unregisterStep, setSuppressed, dismissHints],
+  )
+
+  // A hint on the nav bar goes after the page's own (15.10): it covers the
+  // nav, so while it's up the tabs can't be tapped -- the page's hints keep
+  // the nav usable.
+  const unseenSteps =
+    seenIds !== null
+      ? steps
+          .filter((step) => !seenIds.has(step.hintId))
+          .sort((a, b) => Number(isInNav(a.element)) - Number(isInNav(b.element)))
+      : []
   const activeStep = suppressedBy.size === 0 ? (unseenSteps[0] ?? null) : null
 
   async function handleAdvance() {
@@ -147,6 +168,10 @@ function usableRect(target: HTMLElement): DOMRect | null {
   return rect.width > 0 && rect.height > 0 ? rect : null
 }
 
+function isInNav(element: HTMLElement): boolean {
+  return element.closest('[data-app-bottom-nav]') !== null
+}
+
 function bottomNavHeightNow(): number {
   const nav = document.querySelector<HTMLElement>('[data-app-bottom-nav]')
   if (nav === null || nav.dataset.navState === 'hidden') {
@@ -180,12 +205,17 @@ function CoachmarkOverlay({
   // above the target, images, the week arriving) moves the target long
   // after the first half-second. Every layout change also brings the target
   // back into view if it slid out.
+  // A tab of the nav itself (15.10): the overlay covers the nav too, with
+  // the spotlight on the tab -- otherwise the target sat outside the overlay
+  // and the card floated in the middle, pointing at nothing.
+  const onNav = isInNav(target)
+
   useLayoutEffect(() => {
     let frame = 0
     function measure() {
       setLayout({
         rect: usableRect(target),
-        bottomNavHeight: bottomNavHeightNow(),
+        bottomNavHeight: onNav ? 0 : bottomNavHeightNow(),
         viewportHeight: window.innerHeight,
       })
     }
@@ -199,7 +229,7 @@ function CoachmarkOverlay({
         return
       }
       const bandTop = TOP_BOTTOM_SAFE_MARGIN
-      const bandBottom = window.innerHeight - bottomNavHeightNow() - TOP_BOTTOM_SAFE_MARGIN
+      const bandBottom = window.innerHeight - (onNav ? 0 : bottomNavHeightNow()) - TOP_BOTTOM_SAFE_MARGIN
       if (rect.top >= bandTop && rect.bottom <= bandBottom) {
         return
       }
@@ -241,7 +271,7 @@ function CoachmarkOverlay({
       window.visualViewport?.removeEventListener('resize', scheduleMeasure)
       window.removeEventListener('scroll', scheduleMeasure, true)
     }
-  }, [target])
+  }, [target, onNav])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {

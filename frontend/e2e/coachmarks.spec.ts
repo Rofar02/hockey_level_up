@@ -38,7 +38,9 @@ test('new player: no hint over the planner, the home hint shows and closes', asy
   await page.goto('/')
   await expectHintOnScreen(page)
 
-  // The nav stays usable while a hint is up.
+  // The nav stays usable while a page's hint is up (the nav's own hint
+  // comes last, see below).
+  await expect(page.getByRole('dialog', { name: 'Подсказка' })).not.toContainText('Команда, друзья')
   const nav = page.locator('[data-app-bottom-nav]')
   const navLink = nav.getByRole('link').first()
   const linkBox = await navLink.boundingBox()
@@ -106,5 +108,54 @@ test('a hint follows its target when the page above it grows', async ({ page }) 
     expect(spot.height).toBeLessThan(viewport.height)
     expect(spot.y).toBeGreaterThanOrEqual(0)
     expect(spot.y + spot.height).toBeLessThanOrEqual(viewport.height)
+  }
+})
+
+const TEAM_HINT = 'Команда, друзья, совместные тренировки и рейтинги'
+
+// 15.10: the «Команда» hint is on the tab itself, only on the home screen.
+test('the team-tab hint points at the tab and stays on the home screen', async ({ page }) => {
+  const player = await createUser('player', 11, 'forward', { hintsSeen: false })
+  for (const hintId of ['home-skill-milestones', 'schedule-week-day-tap', 'profile-stat-unlocks']) {
+    await api('POST', `/users/me/coachmarks-seen/${hintId}`, { token: player.token })
+  }
+  await loginAs(page, player)
+  await page.goto('/profile')
+  await page.waitForTimeout(1200)
+  await expect(page.locator('[data-coachmark-overlay]')).toHaveCount(0)
+
+  await page.goto('/')
+  const card = page.getByRole('dialog', { name: 'Подсказка' })
+  await expect(card).toContainText(TEAM_HINT)
+  const tab = page.locator('[data-app-bottom-nav]').getByRole('link', { name: /Команда/ })
+  const spot = page.locator('[data-coachmark-overlay] > div[aria-hidden="true"]')
+  await expect
+    .poll(async () => {
+      const [tabBox, spotBox, cardBox] = await Promise.all([tab.boundingBox(), spot.boundingBox(), card.boundingBox()])
+      if (tabBox === null || spotBox === null || cardBox === null) {
+        return false
+      }
+      const around =
+        spotBox.x <= tabBox.x && spotBox.y <= tabBox.y &&
+        spotBox.x + spotBox.width >= tabBox.x + tabBox.width && spotBox.y + spotBox.height >= tabBox.y + tabBox.height
+      return around && cardBox.y + cardBox.height <= tabBox.y
+    })
+    .toBe(true)
+  await card.getByRole('button', { name: /Далее|Понятно/ }).click()
+  await expect(page.locator('[data-coachmark-overlay]')).toHaveCount(0)
+})
+
+// 15.10: «Пропустить» on the welcome screen turns off the whole first-day tour.
+test('skipping the welcome screen skips the first-day hints', async ({ page }) => {
+  const player = await createUser('player', 12, 'forward', { hintsSeen: false, tourSeen: false })
+  await loginAs(page, player)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Пропустить' }).click()
+  await page.waitForTimeout(1500)
+  await expect(page.locator('[data-coachmark-overlay]')).toHaveCount(0)
+  for (const path of ['/profile', '/schedule/new', '/']) {
+    await page.goto(path)
+    await page.waitForTimeout(1200)
+    await expect(page.locator('[data-coachmark-overlay]')).toHaveCount(0)
   }
 })

@@ -47,8 +47,9 @@ export async function createUser(
   role: string,
   jersey: number,
   position: 'forward' | 'defense' | 'goalie',
-  // false: the first-day hints stay unseen, as for a real new player.
-  { hintsSeen = true }: { hintsSeen?: boolean } = {},
+  // false: the first-day hints (and, with tourSeen, the welcome screen) stay
+  // unseen, as for a real new player.
+  { hintsSeen = true, tourSeen = true }: { hintsSeen?: boolean; tourSeen?: boolean } = {},
 ): Promise<TestUser> {
   const email = `e2e_${role}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}@example.com`
   await api('POST', '/auth/register', {
@@ -69,7 +70,9 @@ export async function createUser(
   const token = tokens.access_token
   await api('PATCH', '/users/me', { token, body: { timezone: TZ } })
   await api('POST', '/assessment/start-from-scratch', { token })
-  await api('POST', '/users/me/onboarding-tour-seen', { token })
+  if (tourSeen) {
+    await api('POST', '/users/me/onboarding-tour-seen', { token })
+  }
   await api('POST', '/users/me/coach-personality-intro-seen', { token })
   if (hintsSeen) {
     for (const hintId of HINT_IDS) {

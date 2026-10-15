@@ -228,7 +228,9 @@ function TabLink({ tab, attentionCount = 0 }: { tab: Tab; attentionCount?: numbe
   const { pathname } = useLocation()
   const isActive = isTabActive(tab, pathname)
   // One-time pointer for players who knew the old "Ещё" menu (and a fine
-  // first hint for new ones): where its items went.
+  // first hint for new ones): where its items went. Only on the home screen
+  // (15.10): the nav is on every page, and the hint followed the player
+  // from screen to screen until it was closed.
   const teamHintRef = useCoachmarkStep(
     'nav-team-tab',
     'Команда, друзья, совместные тренировки и рейтинги — здесь. Дневник, справочник и инвентарь — в профиле.',
@@ -236,7 +238,7 @@ function TabLink({ tab, attentionCount = 0 }: { tab: Tab; attentionCount?: numbe
   )
   return (
     <Link
-      ref={tab.attention === 'team' ? teamHintRef : undefined}
+      ref={tab.attention === 'team' && pathname === '/' ? teamHintRef : undefined}
       to={tab.to}
       aria-label={attentionCount > 0 ? `${tab.label}: новых — ${attentionCount}` : undefined}
       aria-current={isActive ? 'page' : undefined}

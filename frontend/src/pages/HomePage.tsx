@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { OnboardingTour } from '../components/OnboardingTour'
 import { SkillDetailModal } from '../components/SkillDetailModal'
@@ -28,6 +28,7 @@ import * as trainingBlockApi from '../api/trainingBlock'
 import * as usersApi from '../api/users'
 import { useAuth } from '../hooks/useAuth'
 import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
+import { CoachmarkContext, FIRST_DAY_HINTS } from '../context/coachmarkContext'
 import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import { TARGET_STAT_DESCRIPTIONS, TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
@@ -194,6 +195,7 @@ export function HomePage() {
   // strands the user behind the tour; worst case it just shows again next
   // launch.
   const [tourDismissed, setTourDismissed] = useState(false)
+  const coachmarks = useContext(CoachmarkContext)
 
   const [trainingBlock, setTrainingBlock] = useState<TrainingBlockRead | null>(null)
   const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlanRead | null>(null)
@@ -350,6 +352,9 @@ export function HomePage() {
   function handleTourSkip() {
     setTourDismissed(true)
     void persistTourSeen()
+    // «Пропустить» means no tour at all (15.10) -- the first-day hints
+    // too, not one more dimmed screen on every page after it.
+    coachmarks?.dismissHints(FIRST_DAY_HINTS)
   }
 
   function handleTourComplete() {
