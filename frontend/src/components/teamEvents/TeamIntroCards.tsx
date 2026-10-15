@@ -123,7 +123,7 @@ export function TeamCaptainSetupCard({ teamId, memberCount }: { teamId: string; 
     { title: 'Пригласите игроков', hint: 'Отправьте код команды выше в общий чат', done: memberCount > 1, to: null },
     { title: 'Задайте расписание льда', hint: 'Один раз — повторяется каждую неделю', done: state.templates, to: `/teams/${teamId}/ice-schedule-templates` },
     { title: 'Соберите план тренировки', hint: 'Разделы и минуты — и опубликуйте', done: state.board, to: `/teams/${teamId}/events` },
-    { title: 'Нарисуйте схему упражнения', hint: 'Игроки, катание, пасы, броски — по кадрам', done: state.diagram, to: `/teams/${teamId}/events` },
+    { title: 'Нарисуйте схему упражнения', hint: 'Игроки, катание, пасы, броски — по тактам', done: state.diagram, to: `/teams/${teamId}/events` },
   ]
   if (steps.every((step) => step.done)) {
     return null

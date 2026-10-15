@@ -130,7 +130,7 @@ export function PlayerSheet({
             <p className="text-[15px] font-semibold">Игрок скрыл профиль</p>
             <p className="max-w-[280px] text-[13px] leading-relaxed text-text-secondary">
               Его карточку видят только друзья и сокомандники. Добавить его можно по ссылке или коду, которые он сам
-              тебе отправит.
+              вам отправит.
             </p>
           </div>
         )}

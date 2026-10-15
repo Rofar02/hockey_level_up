@@ -289,7 +289,7 @@ class ScheduleService:
         built exactly like any other (owner's call, 2026-10-10) -- but
         beside a game without heavy legs (review 12.10, 10). The main day
         takes the other half of the day."""
-        main_day.time_of_day = "evening" if extra_time == "morning" else "morning"
+        main_day.time_of_day = await self._main_time_of_day(main_day, user, extra_time)
         extra = DayPlan(
             date=main_day.date, session_type=DaySessionType.OFF_ICE, is_extra=True, time_of_day=extra_time
         )
@@ -342,7 +342,7 @@ class ScheduleService:
             return
         if extra is not None:
             extra.time_of_day = extra_time
-            main_day.time_of_day = "evening" if extra_time == "morning" else "morning"
+            main_day.time_of_day = await self._main_time_of_day(main_day, user, extra_time)
             return
         if block_phase is None:
             return
@@ -703,6 +703,12 @@ class ScheduleService:
                 # Beside the team's game: the same gym day without heavy legs
                 # (review 12.10, 10); a started one stays as it is.
                 await self._retype_day(user, weekly_plan, extra, DaySessionType.OFF_ICE, light_legs=True)
+        else:
+            # 15.10: a double day that already existed (or an event moved to
+            # another hour) -- the team's ice is labelled by its real start
+            # time; the gym keeps the half the player picked.
+            if any(d.date == event_date and d.is_extra for d in weekly_plan.day_plans):
+                day_plan.time_of_day = self._half_of_day(event, user)
         if day_plan.session_type != target:
             await self._retype_day(user, weekly_plan, day_plan, target)
         await self._session.flush()
@@ -711,6 +717,22 @@ class ScheduleService:
     @staticmethod
     def _gym_kept_beside(session_type: DaySessionType) -> bool:
         return session_type == DaySessionType.OFF_ICE and get_settings().double_days_enabled
+
+    async def _main_time_of_day(self, main_day: DayPlan, user: User, extra_time: str) -> str:
+        """«Утро / вечер» of a double day's ice or game: the team's real
+        start time when the day is a team event (15.10 -- «+ зал утром»
+        beside a 7:00 team ice used to label the ice «вечер»), otherwise the
+        other half from the gym."""
+        if main_day.team_event_id is not None:
+            event = await self._session.get(TeamEvent, main_day.team_event_id)
+            if event is not None:
+                return self._half_of_day(event, user)
+        return "evening" if extra_time == "morning" else "morning"
+
+    @staticmethod
+    def _half_of_day(event: TeamEvent, user: User) -> str:
+        local_hour = event.starts_at.astimezone(ZoneInfo(user.timezone or "UTC")).hour
+        return "morning" if local_hour < 14 else "evening"
 
     @staticmethod
     def _gym_time_beside(event: TeamEvent, user: User) -> str:

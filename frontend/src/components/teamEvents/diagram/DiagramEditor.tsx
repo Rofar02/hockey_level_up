@@ -459,7 +459,7 @@ export function DiagramEditor({
     // An empty rink saves nothing a player could see -- say so instead of
     // silently closing (clearing an existing scheme is still allowed).
     if (isEmptyDiagram(diagram) && initial === null) {
-      setSaveError('Схема пустая — добавь хотя бы одну фишку кнопкой «Свой» внизу.')
+      setSaveError('Схема пустая — добавьте хотя бы одну фишку кнопкой «Свой» внизу.')
       return
     }
     setIsSaving(true)
@@ -468,7 +468,7 @@ export function DiagramEditor({
       await onSave(isEmptyDiagram(diagram) ? null : diagram)
       onClose()
     } catch {
-      setSaveError('Не удалось сохранить схему. Попробуй ещё раз.')
+      setSaveError('Не удалось сохранить схему. Попробуйте ещё раз.')
     } finally {
       setIsSaving(false)
     }
@@ -564,9 +564,9 @@ export function DiagramEditor({
         {isEmptyDiagram(diagram) && (
           <div className="pointer-events-none absolute inset-x-8 top-1/2 flex -translate-y-1/2 flex-col items-center gap-2 rounded-2xl bg-[#0B0F14]/85 p-4 text-center backdrop-blur">
             <i className="ti ti-hand-finger text-2xl text-accent-ice" aria-hidden="true" />
-            <p className="text-sm font-medium text-[#F5F7FA]">Добавь игрока кнопкой «Свой» внизу</p>
+            <p className="text-sm font-medium text-[#F5F7FA]">Добавьте игрока кнопкой «Свой» внизу</p>
             <p className="text-xs text-[#8A94A6]">
-              Потом тяни фишку по катку и рисуй от неё стрелки — пальцем по траектории.
+              Потом тяните фишку по катку и рисуйте от неё стрелки — пальцем по траектории.
             </p>
           </div>
         )}
@@ -680,14 +680,14 @@ function StepControl({ step, onChange }: { step: number; onChange: (delta: -1 | 
   return (
     <div
       role="group"
-      aria-label="Кадр стрелки"
+      aria-label="Такт стрелки"
       className="flex h-11 items-center gap-0.5 rounded-xl bg-white/5 px-1 text-[#C9D1DC]"
     >
       <button
         type="button"
         onClick={() => onChange(-1)}
         disabled={step <= 1}
-        aria-label="Кадр раньше"
+        aria-label="Такт раньше"
         className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/10 disabled:opacity-30"
       >
         <i className="ti ti-minus" aria-hidden="true" />
@@ -696,13 +696,13 @@ function StepControl({ step, onChange }: { step: number; onChange: (delta: -1 | 
         <span className="font-display text-base font-bold text-[#F5F7FA]" data-testid="arrow-step">
           {step}
         </span>
-        <span className="text-[9px]">кадр</span>
+        <span className="text-[9px]">такт</span>
       </span>
       <button
         type="button"
         onClick={() => onChange(1)}
         disabled={step >= MAX_ARROW_STEP}
-        aria-label="Кадр позже"
+        aria-label="Такт позже"
         className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-white/10 disabled:opacity-30"
       >
         <i className="ti ti-plus" aria-hidden="true" />
@@ -746,14 +746,14 @@ function FrameStrip({
           )}
         </svg>
       </button>
-      <span className="text-[11px] font-medium uppercase tracking-wide text-[#8A94A6]">Кадр</span>
-      <div role="group" aria-label="Кадры" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-[#8A94A6]">Такт</span>
+      <div role="group" aria-label="Такты" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {frames.map((value) => (
           <button
             key={value}
             type="button"
             onClick={() => onPick(value)}
-            aria-label={`Кадр ${value}`}
+            aria-label={`Такт ${value}`}
             aria-pressed={value === current}
             className={`flex h-9 min-w-9 shrink-0 items-center justify-center rounded-full px-2 text-sm font-semibold transition-colors ${
               value === current ? 'bg-accent-ice text-[#0B0F14]' : 'bg-white/5 text-[#C9D1DC] hover:bg-white/10'
@@ -765,12 +765,12 @@ function FrameStrip({
         <button
           type="button"
           onClick={onAdd}
-          aria-label="Новый кадр"
+          aria-label="Новый такт"
           disabled={frames[frames.length - 1] >= MAX_ARROW_STEP}
           className="flex h-9 shrink-0 items-center justify-center gap-1 rounded-full border border-dashed border-white/20 px-3 text-sm text-accent-ice transition-colors hover:bg-accent-ice/10 disabled:opacity-40"
         >
           <i className="ti ti-plus" aria-hidden="true" />
-          кадр
+          такт
         </button>
       </div>
     </div>

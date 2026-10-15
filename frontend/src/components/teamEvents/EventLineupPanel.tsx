@@ -155,7 +155,7 @@ export function EventLineupPanel({ teamId, event, isCaptain }: EventLineupPanelP
       <EmptyState
         icon="ti-users-group"
         title="Тренер ещё собирает состав"
-        hint="Как только состав будет опубликован, ты увидишь свою группу."
+        hint="Как только состав будет опубликован, вы увидите свою группу."
       />
     )
   }
@@ -173,7 +173,7 @@ export function EventLineupPanel({ teamId, event, isCaptain }: EventLineupPanelP
               lineup.lineup_status === 'published' ? 'bg-accent-ice/15 text-accent-ice' : 'bg-white/10 text-[#8A94A6]'
             }`}
           >
-            {lineup.lineup_status === 'published' ? 'Состав опубликован' : 'Черновик -- видно только тебе'}
+            {lineup.lineup_status === 'published' ? 'Состав опубликован' : 'Черновик — видно только вам'}
           </span>
           {lineup.lineup_status !== 'published' && (
             <Button type="button" onClick={handlePublish} isLoading={isPublishing} className="!px-3 !py-1.5 !text-xs">

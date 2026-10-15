@@ -75,7 +75,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
 
   await expect(page).toHaveURL(new RegExp(`/events/${eventId}\\?tab=board`))
   await expect(page.getByRole('heading', { name: 'План тренировки' })).toBeVisible()
-  await expect(page.getByText('Собери тренировку из разделов')).toBeVisible()
+  await expect(page.getByText('Соберите тренировку из разделов')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Опубликовать для команды' })).toBeDisabled()
   await shot(page, '02-board-empty')
   await expectNoHorizontalOverflow(page)
@@ -102,7 +102,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await plays.getByRole('button', { name: 'Добавить упражнение' }).click()
   // Empty title: the button still reacts and says what's missing.
   await page.getByRole('dialog').getByRole('button', { name: 'Добавить и нарисовать схему' }).click()
-  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Сначала напиши название упражнения')
+  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Сначала напишите название упражнения')
   await expect(page.getByRole('dialog').getByLabel('Название')).toBeFocused()
   await page.getByRole('dialog').getByLabel('Название').fill('2 в 1 через центр')
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveCount(0)
@@ -118,7 +118,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await editor.getByRole('button', { name: 'Пропустить' }).click()
   await expect(editor.getByText('Расставьте игроков')).toBeHidden()
   // Empty rink: a hint, and "Сохранить" explains instead of closing.
-  await expect(editor.getByText('Добавь игрока кнопкой «Свой» внизу')).toBeVisible()
+  await expect(editor.getByText('Добавьте игрока кнопкой «Свой» внизу')).toBeVisible()
   await editor.getByRole('button', { name: 'Сохранить' }).click()
   await expect(editor.getByText(/Схема пустая/)).toBeVisible()
   await expect(editor).toBeVisible()
@@ -204,14 +204,14 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   // Кадры: the chain went into frames 1..5 on its own (each arrow
   // continues the last). The shot is selected -- move it to frame 3, the
   // same moment as the skate; the frame strip follows it.
-  const frameChips = editor.getByRole('group', { name: 'Кадры' }).getByRole('button', { name: /^Кадр \d+$/ })
+  const frameChips = editor.getByRole('group', { name: 'Такты' }).getByRole('button', { name: /^Такт \d+$/ })
   await expect(frameChips).toHaveCount(5)
   await expect(editor.getByTestId('arrow-step')).toHaveText('5')
-  await editor.getByRole('button', { name: 'Кадр раньше' }).click()
-  await editor.getByRole('button', { name: 'Кадр раньше' }).click()
+  await editor.getByRole('button', { name: 'Такт раньше' }).click()
+  await editor.getByRole('button', { name: 'Такт раньше' }).click()
   await expect(editor.getByTestId('arrow-step')).toHaveText('3')
   await expect(frameChips).toHaveCount(4)
-  await expect(editor.getByRole('button', { name: 'Кадр 3', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Такт 3', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(editor.locator('g[data-frame-state="current"]')).toHaveCount(2)
   await shot(page, '04a-diagram-frames')
 
@@ -228,14 +228,14 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
       )
       .toBeLessThan(10)
   }
-  await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 1', exact: true }).click()
   await standsAt(0.3, 0.75)
   await expect(editor.locator('g[data-ghost]')).toHaveCount(0)
   // "Дальше отсюда" on the selected player jumps to the frame after his
   // last move: he stands at its end, a faint copy marks where he started.
   await editor.locator('g[data-token="own"]').click()
   await editor.getByRole('button', { name: 'Дальше отсюда' }).click()
-  await expect(editor.getByRole('button', { name: 'Кадр 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Такт 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await standsAt(0.35, 0.37)
   await expect(editor.locator('g[data-ghost="own"]')).toHaveCount(1)
   await expect(editor.getByRole('button', { name: 'Дальше отсюда' })).toHaveCount(0)
@@ -246,13 +246,13 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   const onward = rink.at(0.2, 0.3)
   await page.mouse.click(onward.x, onward.y)
   await expect(editor.getByTestId('arrow-step')).toHaveText('2')
-  await editor.getByRole('button', { name: 'Кадр 3', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 3', exact: true }).click()
   await standsAt(0.2, 0.3)
   await editor.getByRole('button', { name: 'Отменить' }).click()
 
   // Dragging him in frame 2 moves the end of frame 1's skate (he skates
   // there instead), and the pass chained from that end follows. Undone.
-  await editor.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 2', exact: true }).click()
   await standsAt(0.35, 0.37)
   const grabbed = await editor.locator('g[data-token="own"] circle[r="10"]').boundingBox()
   const dropAt = rink.at(0.25, 0.45)
@@ -262,22 +262,22 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await page.mouse.up()
   const draggedTo = { x: Number(await forward.getAttribute('cx')), y: Number(await forward.getAttribute('cy')) }
   expect(Math.hypot(draggedTo.x - 0.35 * 200, draggedTo.y - 0.37 * 360), 'moved off the old end').toBeGreaterThan(20)
-  await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 1', exact: true }).click()
   await standsAt(0.3, 0.75)
   // Frame 1's skate now ends exactly where he was dropped.
   const skatePath = (await editor.locator('g[data-frame="1"] path').first().getAttribute('d')) ?? ''
   const [endX, endY] = skatePath.trim().split(/\s+/).slice(-2).map(Number)
   expect(Math.hypot(endX - draggedTo.x, endY - draggedTo.y)).toBeLessThan(0.5)
   await editor.getByRole('button', { name: 'Отменить' }).click()
-  await editor.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 2', exact: true }).click()
   await standsAt(0.35, 0.37)
 
   // ▶ in the editor plays the frames through and comes back to frame 2.
   await editor.getByRole('button', { name: 'Проиграть схему' }).click()
   await expect(editor.getByRole('button', { name: 'Остановить' })).toBeVisible()
-  await expect(editor.getByRole('button', { name: 'Кадр 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Такт 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(editor.getByRole('button', { name: 'Проиграть схему' })).toBeVisible({ timeout: 15_000 })
-  await expect(editor.getByRole('button', { name: 'Кадр 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Такт 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
 
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Соперник' }).click()
@@ -363,7 +363,7 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await loginAs(page, setup.player)
   await page.goto(`/teams/${setup.teamId}/events/${eventId}?tab=attendance`)
   await page.getByRole('button', { name: 'Отметиться' }).click()
-  await page.getByText('Буду', { exact: true }).click()
+  await page.getByText('Иду', { exact: true }).click()
   await page.getByRole('button', { name: 'Сохранить' }).click()
   await expect(page.getByRole('button', { name: 'Изменить' })).toBeVisible()
 

@@ -54,7 +54,7 @@ const FIELD_LABELS: Record<string, string> = {
   age: 'Возраст',
   height: 'Рост',
   weight: 'Вес',
-  hockey_since_year: 'С какого года играешь',
+  hockey_since_year: 'С какого года играете',
   name: 'Название',
   code: 'Код',
 }

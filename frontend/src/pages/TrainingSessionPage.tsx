@@ -1013,7 +1013,7 @@ export function TrainingSessionPage() {
             // skip is already universal (skipped_at/handleSkip below). This
             // just tells the player the whole thing is optional so it
             // doesn't read as a full mandatory workout before a game.
-            <p className="text-sm text-text-secondary">Необязательная активация — выбери, что подходит</p>
+            <p className="text-sm text-text-secondary">Необязательная активация — выберите, что подходит</p>
           )}
       </div>
 

@@ -82,7 +82,7 @@ class TrainingPartyService:
         if await self._has_completed_training(creator.id, payload.target_date):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="В этот день у вас уже есть завершённая тренировка -- совместную создать нельзя",
+                detail="В этот день у вас уже есть завершённая тренировка — совместную создать нельзя",
             )
         friend_ids = {friend_id for friend_id in payload.friend_ids if friend_id != creator.id}
         if not friend_ids:
@@ -178,7 +178,7 @@ class TrainingPartyService:
             if await self._has_completed_training(user.id, party.target_date):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="В этот день у вас уже есть завершённая тренировка -- присоединиться нельзя",
+                    detail="В этот день у вас уже есть завершённая тренировка — присоединиться нельзя",
                 )
             member.status = TrainingPartyMemberStatus.JOINED
             member.joined_at = datetime.now(timezone.utc)
@@ -221,7 +221,7 @@ class TrainingPartyService:
         if party.created_by == user.id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Создатель не может выйти -- отмените тренировку вместо этого",
+                detail="Создатель не может выйти — отмените тренировку",
             )
         await self._parties.delete_member(member)
         await self._session.commit()

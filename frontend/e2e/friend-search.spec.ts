@@ -25,7 +25,7 @@ test('a player is found by name, opens as a card and gets a request', async ({ p
   await page.getByRole('button', { name: 'Добавить' }).first().click()
   const search = page.getByPlaceholder('Имя или фамилия игрока')
   await search.fill('И')
-  await expect(page.getByText('Напиши хотя бы 2 буквы')).toBeVisible()
+  await expect(page.getByText('Напишите хотя бы 2 буквы')).toBeVisible()
   await search.fill(`Иван ${surname.slice(0, 9)}`)
   const row = page.getByRole('button', { name: `Открыть карточку: Иван ${surname}` })
   await expect(row).toBeVisible()
@@ -50,7 +50,7 @@ test('an invite link opened logged out sends the request after login', async ({ 
   const { friend_code: code } = await api<{ friend_code: string }>('GET', '/auth/me', { token: inviter.token })
 
   await page.goto(`/f/${code}`)
-  await expect(page.getByText('Игрок Тестовый зовёт тебя в друзья')).toBeVisible()
+  await expect(page.getByText('Игрок Тестовый зовёт вас в друзья')).toBeVisible()
   await expect(page.getByText('ОБЩИЙ')).toBeVisible()
   await expectNoHorizontalOverflow(page)
   await shot(page, 'friend-invite-link')
@@ -78,5 +78,5 @@ test('the name-search switch hides and shows the player', async ({ page }) => {
 
   await page.goto('/friends')
   await page.getByRole('button', { name: 'Добавить' }).first().click()
-  await expect(page.getByText('Тебя самого сейчас не найти по имени')).toBeVisible()
+  await expect(page.getByText('Вас самих сейчас не найти по имени')).toBeVisible()
 })

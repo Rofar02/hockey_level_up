@@ -63,7 +63,7 @@ export function NextEventCard({ teamId, isCaptain }: { teamId: string; isCaptain
       {events !== null && next === undefined && (
         <div className="relative flex flex-col gap-3">
           <p className="text-sm text-[#8A94A6]">
-            {isCaptain ? 'Ничего не запланировано. Создай тренировку — и составь к ней план.' : 'Тренер пока ничего не запланировал.'}
+            {isCaptain ? 'Ничего не запланировано. Создайте тренировку — и составьте к ней план.' : 'Тренер пока ничего не запланировал.'}
           </p>
           {isCaptain && (
             <Button onClick={() => navigate(eventsPath)} className="w-full">

@@ -625,7 +625,7 @@ function EndScreen({
           </>
         )}
       </p>
-      {imGoing && <p className="text-sm text-accent-ice">Ты отметился: иду</p>}
+      {imGoing && <p className="text-sm text-accent-ice">Вы отметились: иду</p>}
       {canMark && (
         <>
           <button

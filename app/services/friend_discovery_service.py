@@ -42,7 +42,7 @@ def _check_search_rate(user_id: uuid.UUID, now: float | None = None) -> None:
     if len(window) >= SEARCHES_PER_WINDOW:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Ты много искал — передохни пару минут и попробуй снова",
+            detail="Слишком много поисков подряд — подождите пару минут и попробуйте снова",
         )
     window.append(now)
 

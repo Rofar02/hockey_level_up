@@ -65,7 +65,7 @@ export function SettingsPrivacyPage() {
                 Меня можно найти по имени
               </span>
               <span className="text-[13px] leading-snug text-text-secondary">
-                {findable ? 'Другие игроки увидят тебя в поиске друзей' : 'Сейчас тебя не видно в поиске'}
+                {findable ? 'Другие игроки увидят вас в поиске друзей' : 'Сейчас вас не видно в поиске'}
               </span>
             </div>
             <button
@@ -109,7 +109,7 @@ export function SettingsPrivacyPage() {
           <div className="flex gap-2.5 rounded-xl bg-dark-card p-3.5 text-[13px] leading-relaxed text-text-secondary">
             <i className="ti ti-shield mt-0.5 text-base" aria-hidden="true" />
             <p>
-              Игроков младше 18 по умолчанию не найти по имени. Сокомандники всё равно видят тебя в списке команды, а
+              Игроков младше 18 по умолчанию не найти по имени. Сокомандники всё равно видят вас в списке команды, а
               остальным можно отправить свою ссылку из раздела «Друзья».
             </p>
           </div>

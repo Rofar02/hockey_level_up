@@ -243,7 +243,7 @@ function LineupSummary({
   if (groups === null) {
     content = <span className="text-[#8A94A6]">Состав ещё не опубликован</span>
   } else if (group === null) {
-    content = <span className="text-[#8A94A6]">Тебя пока нет в составе</span>
+    content = <span className="text-[#8A94A6]">Вас пока нет в составе</span>
   } else {
     content = (
       <span className="flex items-center gap-2">

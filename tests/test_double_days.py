@@ -170,6 +170,9 @@ async def test_adding_the_extra_gym_leaves_the_day_itself_alone(db_session, buil
     assert monday.team_event_id == team_event_id
     extras = [d for d in result.weekly_plan.day_plans if d.is_extra]
     assert [(d.date, d.time_of_day) for d in extras] == [(MONDAY, "evening")]
+    # 15.10: the team ice is at 19:00 -- labelled «вечер» by its real time,
+    # not «утро» as the other half from the gym the player put in the evening.
+    assert monday.time_of_day == "evening"
 
 
 @pytest.mark.asyncio

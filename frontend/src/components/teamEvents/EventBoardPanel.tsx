@@ -131,7 +131,7 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange, onOpe
         <EmptyState
           icon="ti-clipboard-off"
           title="Тренер ещё готовит план"
-          hint="Как только план будет опубликован, ты увидишь все упражнения."
+          hint="Как только план будет опубликован, вы увидите все упражнения."
         />
       )
     }
@@ -404,7 +404,7 @@ function BoardHeader({
         )}
       </div>
       {!isPublished && stats.drills === 0 && (
-        <p className="relative -mt-2 text-xs text-[#8A94A6]">Добавь хотя бы одно упражнение, чтобы опубликовать.</p>
+        <p className="relative -mt-2 text-xs text-[#8A94A6]">Добавьте хотя бы одно упражнение, чтобы опубликовать.</p>
       )}
     </section>
   )
@@ -417,9 +417,9 @@ function StartCard({ busy, onAdd }: { busy: boolean; onAdd: (name: string) => Pr
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-ice/10">
           <i className="ti ti-layout-list text-2xl text-accent-ice" aria-hidden="true" />
         </span>
-        <h3 className="text-base font-semibold text-[#F5F7FA]">Собери тренировку из разделов</h3>
+        <h3 className="text-base font-semibold text-[#F5F7FA]">Соберите тренировку из разделов</h3>
         <p className="max-w-xs text-sm text-[#8A94A6]">
-          Выбери первый раздел — например, разминку. Упражнения и схемы добавляются внутрь раздела.
+          Выберите первый раздел — например, разминку. Упражнения и схемы добавляются внутрь раздела.
         </p>
       </div>
       <SectionPresetPicker existingNames={[]} busy={busy} onAdd={onAdd} />
@@ -600,7 +600,7 @@ function DrillCard({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-sm font-medium text-[#F5F7FA]">{drill.title}</span>
-          <span className="truncate text-xs text-[#8A94A6]">{meta || 'Нажми, чтобы добавить описание и минуты'}</span>
+          <span className="truncate text-xs text-[#8A94A6]">{meta || 'Нажмите, чтобы добавить описание и минуты'}</span>
         </span>
       </button>
       <button
@@ -684,7 +684,7 @@ function DrillSheetModal({
       return
     }
     if (values.title.trim() === '') {
-      setTitleError('Сначала напиши название упражнения')
+      setTitleError('Сначала напишите название упражнения')
       document.getElementById(titleId)?.focus()
       return
     }
@@ -863,7 +863,7 @@ function SchemeBlock({ drill, onDraw }: { drill: TeamEventDrillRead; onDraw: () 
           {drill.diagram !== null ? 'Схема на площадке' : 'Нарисовать схему'}
         </span>
         <span className="text-xs text-[#8A94A6]">
-          {drill.diagram !== null ? 'Нажми, чтобы изменить' : 'Игроки, стрелки паса и ката'}
+          {drill.diagram !== null ? 'Нажмите, чтобы изменить' : 'Игроки, стрелки паса и ката'}
         </span>
       </span>
       <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />

@@ -80,7 +80,7 @@ export function TeamInvitePage() {
                   <i className="ti ti-shield text-5xl" aria-hidden="true" />
                 )}
               </span>
-              <p className="text-sm text-text-secondary">Тебя зовут в команду</p>
+              <p className="text-sm text-text-secondary">Вас зовут в команду</p>
               <h1 className="text-balance font-display text-3xl font-bold uppercase tracking-wide">{team.name}</h1>
               <p className="text-sm text-text-secondary">
                 Капитан {team.captain_first_name} {team.captain_last_name} · {team.member_count} участн.
@@ -90,7 +90,7 @@ export function TeamInvitePage() {
             <ul className="flex w-full flex-col gap-2 rounded-2xl bg-dark-card p-4 text-[13px] leading-relaxed text-text-secondary">
               <li className="flex gap-2.5">
                 <i className="ti ti-calendar-event mt-0.5 text-accent-ice" aria-hidden="true" />
-                Тренировки и игры команды встают в твой план сами
+                Тренировки и игры команды встают в ваш план сами
               </li>
               <li className="flex gap-2.5">
                 <i className="ti ti-chalkboard mt-0.5 text-accent-ice" aria-hidden="true" />
@@ -120,7 +120,7 @@ export function TeamInvitePage() {
                       Отправить заявку
                     </Button>
                     <p className="text-center text-xs leading-relaxed text-text-secondary">
-                      Капитан получит заявку и примет тебя в команду.
+                      Капитан получит заявку и примет вас в команду.
                     </p>
                     <FormError message={sendError} />
                   </>

@@ -66,7 +66,7 @@ test('the captain invites a player by name and the player joins from the hub', a
   const playerPage = await playerContext.newPage()
   await loginAs(playerPage, player)
   await playerPage.goto('/team')
-  await expect(playerPage.getByText(`Тренер Тестовый зовёт тебя в «${teamName}»`)).toBeVisible()
+  await expect(playerPage.getByText(`Тренер Тестовый зовёт вас в «${teamName}»`)).toBeVisible()
   await shot(playerPage, 'team-invite-card')
   await playerPage.getByRole('button', { name: 'Вступить' }).click()
   await expect(playerPage).toHaveURL(new RegExp(`/teams/${team.id}`))

@@ -313,7 +313,7 @@ export function RecordsSection({ records, days }: { records: AnalyticsRecordRead
       <Eyebrow>Рекорды за {days} дней</Eyebrow>
       {records.length === 0 ? (
         <p className={`${CARD} p-4 text-sm text-[#8A94A6]`}>
-          Новых рекордов пока нет. Рекорд засчитывается, когда подход лучше твоего прошлого лучшего в этом упражнении.
+          Новых рекордов пока нет. Рекорд засчитывается, когда подход лучше вашего прошлого лучшего в этом упражнении.
         </p>
       ) : (
         <ul className={`${CARD} px-3.5 py-1`}>
@@ -403,7 +403,7 @@ export function RegularitySection({ regularity }: { regularity: AnalyticsOvervie
 
         {regularity.most_skipped.length > 0 && (
           <p className="border-t border-white/5 pt-3 text-xs leading-relaxed text-[#AEB7C6]">
-            Чаще всего пропускаешь{' '}
+            Чаще всего пропускаете{' '}
             {regularity.most_skipped.map((item, index) => (
               <span key={item.exercise_name}>
                 {index > 0 && ' и '}
@@ -442,7 +442,7 @@ export function LoadSection({ load }: { load: AnalyticsOverviewRead['load'] }) {
       <Eyebrow>Нагрузка и самочувствие</Eyebrow>
       <div className={`${CARD} flex flex-col gap-3 p-4`}>
         {empty ? (
-          <p className="text-sm text-[#8A94A6]">Отмечай подходы на тренировке — здесь появится нагрузка по неделям.</p>
+          <p className="text-sm text-[#8A94A6]">Отмечайте подходы на тренировке — здесь появится нагрузка по неделям.</p>
         ) : (
           <>
             <div className="grid grid-cols-4 items-end gap-3" role="list" aria-label="Нагрузка по неделям">

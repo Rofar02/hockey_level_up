@@ -177,12 +177,12 @@ class TeamInvitationService:
         if invitation is None or invitation.user_id != user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Приглашение не найдено")
         if invitation.status != TeamInvitationStatus.PENDING:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Ты уже ответил на это приглашение")
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Вы уже ответили на это приглашение")
         if accept:
             if await self._teams.get_membership_for_user(user.id) is not None:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Ты уже в команде — сначала выйди из неё",
+                    detail="Вы уже в команде — сначала выйдите из неё",
                 )
             await self._teams.create_membership(invitation.team_id, user.id)
             invitation.status = TeamInvitationStatus.ACCEPTED

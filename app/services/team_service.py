@@ -224,7 +224,7 @@ class TeamService:
         if team.owner_id == user.id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Captain can't leave -- disband the team instead",
+                detail="Капитан не может выйти — передайте капитанство или распустите команду",
             )
         await self._teams.delete_membership(membership)
         await self._session.commit()
@@ -240,7 +240,7 @@ class TeamService:
         if target_user_id == team.owner_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Captain can't kick themselves -- transfer captaincy or disband instead",
+                detail="Капитан не может исключить себя — передайте капитанство или распустите команду",
             )
         membership = await self._teams.get_membership(team_id, target_user_id)
         if membership is None:

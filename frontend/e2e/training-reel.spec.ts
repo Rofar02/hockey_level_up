@@ -79,7 +79,7 @@ test('the push link opens the reel: scheme plays, swipe through, «Иду» at t
   await expect(page.getByRole('heading', { name: 'УВИДИМСЯ НА ЛЬДУ' })).toBeVisible()
   await expect(page.getByText(/Идут 0 из 2/)).toBeVisible()
   await page.getByRole('button', { name: 'Иду' }).click()
-  await expect(page.getByText('Ты отметился: иду')).toBeVisible()
+  await expect(page.getByText('Вы отметились: иду')).toBeVisible()
   await expect(page.getByText(/Идут 1 из 2/)).toBeVisible()
   await shot(page, 'reel-end')
 

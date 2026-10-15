@@ -33,7 +33,7 @@ const BENEFITS: { icon: string; title: string; text: string }[] = [
   },
   {
     icon: 'ti-brain',
-    title: 'Тренер тебя помнит',
+    title: 'Тренер вас помнит',
     text: 'Травмы, цели, турниры — не нужно повторять каждый раз.',
   },
   {
@@ -110,7 +110,7 @@ export function PremiumPage() {
             Играй на уровень выше
           </h2>
           <p className="text-[15px] leading-relaxed text-text-secondary">
-            Личный тренер, который помнит тебя, разбор каждой недели и аналитика роста.
+            Личный тренер, который помнит вас, разбор каждой недели и аналитика роста.
           </p>
         </div>
 

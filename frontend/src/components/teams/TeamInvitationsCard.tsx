@@ -73,7 +73,7 @@ export function TeamInvitationsCard({ onJoined }: { onJoined: (teamId: string) =
             </span>
             <span className="flex min-w-0 flex-col gap-0.5">
               <span className="text-[15px] font-semibold">
-                {invitation.invited_by_first_name} {invitation.invited_by_last_name} зовёт тебя в «{invitation.team_name}»
+                {invitation.invited_by_first_name} {invitation.invited_by_last_name} зовёт вас в «{invitation.team_name}»
               </span>
               <span className="text-xs text-text-secondary">{invitation.member_count} участн.</span>
             </span>

@@ -404,9 +404,11 @@ export function TeamDetailPage() {
                 </span>
               </div>
               <span className="relative text-xs text-[#8A94A6]">
-                Сумма XP {teamScore.sum_xp} × бонус за активность{' '}
-                {(teamScore.activity_bonus * 100).toFixed(1)}% (
-                {teamScore.avg_trainings_per_member_per_week.toFixed(1)} трен./нед на чел.)
+                {/* 15.10: in words, not the raw formula ("Сумма XP … × бонус …%"). */}
+                Опыт игроков — {teamScore.sum_xp.toLocaleString('ru-RU')} XP. В среднем{' '}
+                {teamScore.avg_trainings_per_member_per_week.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}{' '}
+                трен. в неделю на игрока
+                {teamScore.activity_bonus > 0 ? ` — это +${Math.round(teamScore.activity_bonus * 100)}% к рейтингу.` : '.'}
               </span>
               {teamScore.league_place != null && teamScore.league_team_count != null && (
                 <span className="relative text-xs font-medium text-[#F5F7FA]">

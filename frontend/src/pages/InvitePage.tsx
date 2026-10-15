@@ -81,8 +81,8 @@ export function InvitePage() {
           <>
             <h1 className="text-balance text-center text-xl font-semibold">
               {isOwnLink
-                ? 'Это твоя ссылка — отправь её другу'
-                : `${inviter.first_name} ${inviter.last_name} зовёт тебя в друзья`}
+                ? 'Это ваша ссылка — отправьте её другу'
+                : `${inviter.first_name} ${inviter.last_name} зовёт вас в друзья`}
             </h1>
             <div className="w-full max-w-[340px]">
               <PublicPlayerCard profile={inviter} />

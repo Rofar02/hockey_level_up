@@ -141,6 +141,9 @@ interface DayRow {
   // Double day (step 6): a separate gym training on this ice/game day.
   extraGym: ExtraGymTime | null
   extraDay: DayPlanRead | null
+  // The ice / game's own half of a double day (the team's real start time
+  // when it's a team event -- 15.10), null on a single day.
+  timeOfDay: string | null
 }
 
 const EXTRA_CAPABLE: DaySessionType[] = ['on_ice', 'game']
@@ -175,6 +178,7 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     replacedSessionType: day.replaced_session_type ?? null,
     extraGym: extras.get(day.date)?.time_of_day ?? null,
     extraDay: extras.get(day.date) ?? null,
+    timeOfDay: day.time_of_day ?? null,
   }))
 }
 
@@ -189,6 +193,7 @@ function rowsForWeek(dates: Date[]): DayRow[] {
     replacedSessionType: null,
     extraGym: null,
     extraDay: null,
+    timeOfDay: null,
   }))
 }
 
@@ -621,7 +626,7 @@ export function NewSchedulePage() {
                 const extraStatus = extra !== null ? completionStatusFromBlocks(extra.training_session?.blocks) : null
                 const mainSlot = (
                   <DaySlot
-                    label={extra !== null ? (extra.time_of_day === 'morning' ? 'вечер' : 'утро') : null}
+                    label={extra !== null ? ((row.timeOfDay ?? (extra.time_of_day === 'morning' ? 'evening' : 'morning')) === 'morning' ? 'утро' : 'вечер') : null}
                     icon={mainIcon}
                     colorClass={SESSION_TYPE_COLORS[row.sessionType]}
                     title={mainTitle}

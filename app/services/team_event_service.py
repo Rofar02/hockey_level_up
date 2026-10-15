@@ -579,7 +579,7 @@ class TeamEventService:
         if self._is_attendance_locked(event):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Attendance is locked -- the 2h deadline has passed",
+                detail="Явка закрыта — до события меньше 2 часов",
             )
 
     @staticmethod

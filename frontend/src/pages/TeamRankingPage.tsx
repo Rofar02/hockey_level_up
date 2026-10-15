@@ -73,8 +73,9 @@ export function TeamRankingPage() {
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm font-medium text-[#F5F7FA]">{team.team_name}</span>
                   <span className="text-xs text-[#8A94A6]">
-                    {team.member_count} участников · {team.avg_trainings_per_member_per_week.toFixed(1)}{' '}
-                    трен./нед на чел.
+                    {team.member_count} участн. ·{' '}
+                    {team.avg_trainings_per_member_per_week.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} трен. в
+                    неделю на игрока
                   </span>
                 </div>
                 <span className="shrink-0 font-display text-sm font-bold text-accent-ice">

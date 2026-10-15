@@ -51,7 +51,7 @@ export function MiniPlayerCard({ player, isMe }: { player: TeamEventLineupPlayer
       </div>
       {isMe && (
         <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-accent-persimmon px-1.5 py-px font-display text-[10px] font-bold text-dark-bg">
-          ТЫ
+          ВЫ
         </span>
       )}
     </div>

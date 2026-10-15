@@ -1,4 +1,4 @@
-"""Pushes for friend requests (2026-10-08): "X хочет добавить тебя в друзья"
+"""Pushes for friend requests (2026-10-08): "X хочет добавить вас в друзья"
 to the receiver, "X принял заявку" back to the sender. Through the outbox,
 so the request itself never waits on a push service and a restart doesn't
 lose one.
@@ -51,7 +51,7 @@ async def push_friend_request_sent(payload: dict, event_id: uuid.UUID) -> None:
                 session,
                 request.receiver_id,
                 "Заявка в друзья",
-                f"{_name(sender)} хочет добавить тебя в друзья",
+                f"{_name(sender)} хочет добавить вас в друзья",
                 "/friends",
             )
         await session.commit()

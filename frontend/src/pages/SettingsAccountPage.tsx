@@ -318,7 +318,7 @@ export function SettingsAccountPage() {
               не {unsentOnLogout === 1 ? 'отправлено' : 'отправлены'} на сервер. Если выйти сейчас, они пропадут.
             </p>
             {sendQueueFailed && (
-              <FormError message="Не получилось отправить — проверь связь и попробуй ещё раз." />
+              <FormError message="Не получилось отправить — проверьте связь и попробуйте ещё раз." />
             )}
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button onClick={() => void sendThenSignOut()} isLoading={isSendingQueue}>

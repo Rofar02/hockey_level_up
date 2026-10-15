@@ -47,8 +47,8 @@ export function TeamInviteBlock({ team }: { team: TeamRead }) {
         <h2 className="font-display text-base font-semibold uppercase tracking-wide">Позвать в команду</h2>
         <p className="text-[13px] leading-relaxed text-text-secondary">
           {team.is_captain
-            ? `Это приглашение в «${team.name}», не в друзья. По ссылке игрок отправит заявку — ты её примешь. А через «Пригласить в команду» позовёшь конкретного игрока: он окажется в команде, как только согласится.`
-            : `Это приглашение в «${team.name}», не в друзья. Отправь ссылку — капитану придёт заявка на вступление.`}
+            ? `Это приглашение в «${team.name}», не в друзья. По ссылке игрок отправит заявку — вы её примете. А через «Пригласить в команду» позовёте конкретного игрока: он окажется в команде, как только согласится.`
+            : `Это приглашение в «${team.name}», не в друзья. Отправьте ссылку — капитану придёт заявка на вступление.`}
         </p>
       </div>
       <div className="flex items-center justify-between gap-2 rounded-lg bg-dark-bg py-1 pl-3 pr-1 text-sm">
@@ -172,14 +172,14 @@ function InvitePlayersSheet({ team, onClose }: { team: TeamRead; onClose: () => 
         </label>
         <p className="px-1 text-xs text-text-secondary">
           {!searching
-            ? 'Твои друзья'
+            ? 'Ваши друзья'
             : isFullName(query)
               ? 'Среди всех, кто разрешил себя находить'
-              : 'Среди твоих знакомых — для любого игрока напиши имя и фамилию'}
+              : 'Среди ваших знакомых — для любого игрока напишите имя и фамилию'}
         </p>
         <FormError message={loadError ?? actionError} />
         {searching && !searchable && (
-          <p className="px-1 text-sm text-text-secondary">Напиши хотя бы 2 буквы</p>
+          <p className="px-1 text-sm text-text-secondary">Напишите хотя бы 2 буквы</p>
         )}
         {rows === null && loadError === null && (!searching || searchable) && (
           <p className="px-1 text-sm text-text-secondary">Загрузка...</p>
@@ -187,8 +187,8 @@ function InvitePlayersSheet({ team, onClose }: { team: TeamRead; onClose: () => 
         {rows !== null && rows.length === 0 && (
           <p className="px-1 text-sm leading-relaxed text-text-secondary">
             {searching
-              ? 'Никого не нашли. Возможно, игрок скрыт из поиска — отправь ему ссылку на команду.'
-              : 'Друзей пока нет. Найди игрока по имени или отправь ссылку на команду.'}
+              ? 'Никого не нашли. Возможно, игрок скрыт из поиска — отправьте ему ссылку на команду.'
+              : 'Друзей пока нет. Найдите игрока по имени или отправьте ссылку на команду.'}
           </p>
         )}
         {rows !== null &&

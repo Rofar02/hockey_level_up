@@ -51,7 +51,7 @@ export function SettingsCoachMemoryPage() {
       await coachChatApi.deleteCoachMemoryFact(factId, accessToken)
       setFacts((current) => (current ?? []).filter((fact) => fact.id !== factId))
     } catch {
-      setError('Не удалось удалить заметку. Попробуй ещё раз.')
+      setError('Не удалось удалить заметку. Попробуйте ещё раз.')
     } finally {
       setBusyId(null)
     }
@@ -68,7 +68,7 @@ export function SettingsCoachMemoryPage() {
       setFacts([])
       setIsConfirmingForget(false)
     } catch {
-      setError('Не удалось очистить заметки. Попробуй ещё раз.')
+      setError('Не удалось очистить заметки. Попробуйте ещё раз.')
     } finally {
       setIsForgetting(false)
     }
@@ -82,8 +82,8 @@ export function SettingsCoachMemoryPage() {
           <BackLink />
           <h1 className="text-xl font-semibold">Что помнит тренер</h1>
           <p className="text-sm leading-relaxed text-text-secondary">
-            Тренер ведёт короткие заметки о тебе из прошлых разговоров: цели, график, инвентарь, что нравится и что
-            нет. Так ему не нужно переспрашивать. Удали всё, что не хочешь, чтобы он помнил.
+            Тренер ведёт короткие заметки о вас из прошлых разговоров: цели, график, инвентарь, что нравится и что
+            нет. Так ему не нужно переспрашивать. Удалите всё, что не хотите, чтобы он помнил.
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export function SettingsCoachMemoryPage() {
 
             {isConfirmingForget ? (
               <div className={`flex flex-col gap-3 p-4 ${CARD_CLASS}`}>
-                <p className="text-sm">Тренер забудет всё, что знает о тебе из прошлых разговоров. Точно?</p>
+                <p className="text-sm">Тренер забудет всё, что знает о вас из прошлых разговоров. Точно?</p>
                 <div className="flex gap-2">
                   <Button type="button" className="flex-1" isLoading={isForgetting} onClick={() => void handleForgetAll()}>
                     Забыть всё

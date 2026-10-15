@@ -240,7 +240,7 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
         </label>
         {user !== null && !user.findable_by_name && (
           <p className="flex items-center gap-2 px-1 text-xs text-text-secondary">
-            Тебя самого сейчас не найти по имени ·
+            Вас самих сейчас не найти по имени ·
             <Link to="/settings/privacy" className="font-medium text-accent-ice">
               Изменить
             </Link>
@@ -252,7 +252,7 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
 
       {searching ? (
         <div className="flex flex-col gap-2">
-          {!searchable && <p className="px-1 text-sm text-text-secondary">Напиши хотя бы 2 буквы</p>}
+          {!searchable && <p className="px-1 text-sm text-text-secondary">Напишите хотя бы 2 буквы</p>}
           {searchable && searchError !== null && <FormError message={searchError} />}
           {searchable && searchError === null && results === null && (
             <p className="px-1 text-sm text-text-secondary">Ищем...</p>
@@ -261,8 +261,8 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
             <>
               <p className="px-1 text-xs leading-relaxed text-text-secondary">
                 {isFullName(query)
-                  ? 'Ищем среди всех, кто разрешил себя находить. Нажми на игрока — откроется его карточка.'
-                  : 'Ищем среди твоих знакомых: друзья, команда, друзья друзей. Чтобы найти любого — напиши имя и фамилию.'}
+                  ? 'Ищем среди всех, кто разрешил себя находить. Нажмите на игрока — откроется его карточка.'
+                  : 'Ищем среди ваших знакомых: друзья, команда, друзья друзей. Чтобы найти любого — напишите имя и фамилию.'}
               </p>
               {exact.map((player) => row(player, metaLine(player, true)))}
               {similar.length > 0 && (
@@ -284,7 +284,7 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
           {teammates !== null && teammates.length > 0 && (
             <section className="flex flex-col gap-2">
               <h2 className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-                Из твоей команды{teamTitle !== null ? ` · ${teamTitle}` : ''}
+                Из вашей команды{teamTitle !== null ? ` · ${teamTitle}` : ''}
               </h2>
               {visibleTeammates.map((player) => row(player, metaLine(player, false)))}
               {!showAllTeammates && teammates.length > TEAMMATES_SHOWN && (
@@ -312,7 +312,7 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
             <div className="flex flex-col gap-1">
               <h2 className="font-display text-base font-semibold uppercase tracking-wide">Ссылка для друга</h2>
               <p className="text-[13px] leading-relaxed text-text-secondary">
-                Отправь её в мессенджер. Друг откроет — и тебе придёт его заявка в друзья, даже если он только что
+                Отправьте её в мессенджер. Друг откроет — и вам придёт его заявка в друзья, даже если он только что
                 зарегистрировался.
               </p>
             </div>
@@ -339,7 +339,7 @@ export function AddFriendsTab({ onFriendsChanged }: { onFriendsChanged: () => Pr
           <section className="flex flex-col gap-2.5">
             <h2 className="text-xs font-medium uppercase tracking-wide text-text-secondary">Или по коду</h2>
             <p className="text-sm text-text-secondary">
-              Твой код: <span className="font-mono text-text-primary">{user?.friend_code ?? '—'}</span>
+              Ваш код: <span className="font-mono text-text-primary">{user?.friend_code ?? '—'}</span>
             </p>
             <form onSubmit={sendByCode} className="flex gap-2">
               <label className="flex min-w-0 flex-1">
@@ -386,8 +386,8 @@ function NothingFound({ fullName, onShareLink }: { fullName: boolean; onShareLin
       <p className="text-[15px] font-semibold">Никого не нашли</p>
       <p className="max-w-[290px] text-[13px] leading-relaxed text-text-secondary">
         {fullName
-          ? 'Возможно, он скрыт из поиска или ещё не в IceLevel. Отправь ему ссылку — заявка придёт сама.'
-          : 'Среди знакомых таких нет. Напиши имя и фамилию, чтобы искать среди всех, или отправь ссылку.'}
+          ? 'Возможно, он скрыт из поиска или ещё не в IceLevel. Отправьте ему ссылку — заявка придёт сама.'
+          : 'Среди знакомых таких нет. Напишите имя и фамилию, чтобы искать среди всех, или отправьте ссылку.'}
       </p>
       <Button type="button" onClick={onShareLink}>
         Поделиться ссылкой
