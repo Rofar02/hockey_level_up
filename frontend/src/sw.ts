@@ -22,7 +22,11 @@ const NAVIGATION_TIMEOUT_MS = 3000
 const ASSETS_CACHE = 'icelevel-assets'
 const NEVER_HANDLED = [/^\/api\//, /^\/media\//, /^\/version\.json/]
 
-precacheAndRoute(self.__WB_MANIFEST)
+// directoryIndex '' (15.10): by default the precache also answers "/" with
+// its index.html -- cache first, so the start page of the installed app
+// stayed on the old build after a deploy while every other address went
+// network first. Now "/" is a navigation like any other (below).
+precacheAndRoute(self.__WB_MANIFEST, { directoryIndex: '' })
 cleanupOutdatedCaches()
 
 function delay(ms: number): Promise<'timeout'> {

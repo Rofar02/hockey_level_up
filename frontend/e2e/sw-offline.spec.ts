@@ -35,6 +35,26 @@ test('opened online once, the app starts offline: logged in, "Нет связи"
   await expect(page.getByRole('status').filter({ hasText: 'Нет связи' })).toBeHidden({ timeout: 20_000 })
 })
 
+test('online, "/" comes from the server, not the precached build', async ({ page, context }) => {
+  const me = await createUser('swroot', 44, 'forward')
+  await loginAs(page, me)
+  await page.goto('/')
+  await expect(page.getByRole('navigation', NAV)).toBeVisible()
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  // "Build B" is on the server now (context.route also sees the worker's
+  // own requests in Chromium).
+  await context.route(
+    (url) => url.pathname === '/' || url.pathname === '/profile',
+    (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>B</title><p id="build-b">build B</p>' }),
+  )
+  for (const path of ['/', '/profile']) {
+    await page.goto(path)
+    await expect(page.locator('#build-b')).toBeVisible()
+  }
+  await context.unrouteAll()
+})
+
 test('the worker never caches the API or version.json', async ({ page }) => {
   const me = await createUser('swcache', 42, 'forward')
   await loginAs(page, me)
