@@ -247,12 +247,16 @@ async def test_patch_weekly_plan_with_explicit_week_start_date_404s_when_absent(
 
 
 @pytest.mark.asyncio
-async def test_patch_weekly_plan_without_param_matches_patch_current(db_session) -> None:
+async def test_patch_weekly_plan_without_param_matches_patch_current(db_session, monkeypatch) -> None:
     user = _make_user()
     db_session.add(user)
     await db_session.flush()
 
     this_monday = _monday_of(utc_today())
+    # «Today» pinned to this Monday: the patched Wednesday must not be a past
+    # day (from Thursday on it was -- «Прошедший день нельзя изменить» -- and
+    # the test failed every second half of the week).
+    monkeypatch.setattr("app.services.schedule_service.user_today", lambda _user: this_monday)
     await _make_weekly_plan(db_session, user, this_monday, block_number=1)
     target_date = this_monday + timedelta(days=2)
 

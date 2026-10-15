@@ -109,10 +109,13 @@ test('a queued action is still sent with the flag off; sign-out asks first', asy
 
   await context.setOffline(true)
   await page.getByRole('button', { name: 'Начать тренировку' }).click()
+  // The player opens full screen on start -- wait for it, then collapse it
+  // (an instant isVisible() check raced the opening and left it covering
+  // the list).
   const collapse = page.getByRole('button', { name: 'Свернуть плеер' })
-  if (await collapse.isVisible().catch(() => false)) {
-    await collapse.click()
-  }
+  await expect(collapse).toBeVisible()
+  await collapse.click()
+  await expect(collapse).toHaveCount(0)
   await page.locator('[role="checkbox"][aria-checked="false"]:not([disabled])').first().click()
   await expect(page.getByRole('status').filter({ hasText: /ждут отправки/ })).toBeVisible()
 
@@ -156,10 +159,13 @@ test('«Выйти на всех устройствах» asks about unsent acti
 
   await context.setOffline(true)
   await page.getByRole('button', { name: 'Начать тренировку' }).click()
+  // The player opens full screen on start -- wait for it, then collapse it
+  // (an instant isVisible() check raced the opening and left it covering
+  // the list).
   const collapse = page.getByRole('button', { name: 'Свернуть плеер' })
-  if (await collapse.isVisible().catch(() => false)) {
-    await collapse.click()
-  }
+  await expect(collapse).toBeVisible()
+  await collapse.click()
+  await expect(collapse).toHaveCount(0)
   await page.locator('[role="checkbox"][aria-checked="false"]:not([disabled])').first().click()
   await expect(page.getByRole('status').filter({ hasText: /ждут отправки/ })).toBeVisible()
 
