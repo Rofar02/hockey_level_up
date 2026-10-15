@@ -9,7 +9,7 @@ import { subscribeNetworkStatus, isOnline } from './networkStatus'
 // Sign-in state itself (/auth/me) has its own snapshot (tokenStorage.ts).
 const OFFLINE_PATHS: RegExp[] = [
   /^\/schedule\/(weekly\/current|weekly\?week_start_date=|day-plan\?date=|day-plans\/[^/?]+$|features$)/,
-  /^\/training-block\/current$/,
+  /^\/training-block\/current(\?optional=1)?$/,
   /^\/training-sessions\/[^/]+\/(diary|exercises\/[^/]+\/sets)$/,
   /^\/exercises\/[^/]+\/(history|suggested-weight|suggested-reps|suggested-duration|target-stats|muscle-groups|equipment-items)/,
   /^\/users\/me\/(day-report\?|pending-reports$|stats$|streak$|season$|muscle-loads$|equipment-items$|restrictions$|skill-preferences$|coachmarks-seen$|rest-done-phrase$|weekly-review$|team-attention$|coach-attention$)/,

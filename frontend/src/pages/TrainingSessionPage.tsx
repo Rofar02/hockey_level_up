@@ -437,7 +437,7 @@ export function TrainingSessionPage() {
       .getWeeklyPlan(toIsoDate(monday), accessToken)
       .then((plan) => {
         if (!cancelled) {
-          setSibling(plan.day_plans.find((other) => other.date === day.date && other.id !== day.id) ?? null)
+          setSibling(plan?.day_plans.find((other) => other.date === day.date && other.id !== day.id) ?? null)
         }
       })
       .catch(() => {

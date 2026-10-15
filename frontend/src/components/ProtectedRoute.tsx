@@ -11,6 +11,7 @@ import { setQueueEnabled } from '../utils/writeQueue'
 import { getScheduleFeatures } from '../api/schedule'
 import { prefetchPages } from '../utils/prefetchPages'
 import { recordRoute } from '../utils/routeHistory'
+import { CURRENT_BLOCK_PATH } from '../api/trainingBlock'
 
 // A layout route (rendered once via App.tsx's <Route element={<ProtectedRoute />}>
 // wrapping every protected page as a child route, matched through <Outlet/>)
@@ -34,7 +35,7 @@ const WARM_PATHS = [
   '/users/me/stats',
   '/users/me/streak',
   '/skills',
-  '/training-block/current',
+  CURRENT_BLOCK_PATH,
   '/quests/status',
   '/teams/me',
   '/friends',
