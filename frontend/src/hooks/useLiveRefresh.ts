@@ -9,6 +9,19 @@ import { useEffect, useRef } from 'react'
 // - every `intervalMs` while it's visible (a fallback for phones without
 //   push).
 export const PUSH_EVENT = 'icelevel:push'
+// - right after the player answered something on the team side (accept /
+//   decline / approve / reject -- client.ts fires it after any successful
+//   write to /friends, /teams or /training-parties; 15.10 follow-up: the
+//   tab's count waited for the timer).
+export const ATTENTION_EVENT = 'icelevel:attention'
+
+const ATTENTION_PATH = /^\/(friends|teams|training-parties)(\/|$|\?)/
+
+export function notifyAfterWrite(path: string): void {
+  if (ATTENTION_PATH.test(path) && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(ATTENTION_EVENT))
+  }
+}
 
 export function useLiveRefresh(refresh: () => void, { enabled = true, intervalMs = 60_000 } = {}): void {
   const latest = useRef(refresh)
@@ -26,10 +39,12 @@ export function useLiveRefresh(refresh: () => void, { enabled = true, intervalMs
       }
     }
     window.addEventListener(PUSH_EVENT, run)
+    window.addEventListener(ATTENTION_EVENT, run)
     document.addEventListener('visibilitychange', run)
     const timer = window.setInterval(run, intervalMs)
     return () => {
       window.removeEventListener(PUSH_EVENT, run)
+      window.removeEventListener(ATTENTION_EVENT, run)
       document.removeEventListener('visibilitychange', run)
       window.clearInterval(timer)
     }

@@ -8,6 +8,7 @@ import {
 } from './tokenStorage'
 
 import { isNetworkError, isOnline, markOffline, markOnline } from '../utils/networkStatus'
+import { notifyAfterWrite } from '../hooks/useLiveRefresh'
 import { getOfflineUser, isOfflinePath, noteSavedDataShown } from '../utils/offlineData'
 import { readSaved, writeSaved } from '../utils/offlineStore'
 
@@ -422,6 +423,7 @@ async function request<T>(path: string, method: string, options: RequestOptions 
   const result = await handleResponse<T>(response)
   if (method !== 'GET') {
     clearApiCache()
+    notifyAfterWrite(path)
   }
   return result
 }

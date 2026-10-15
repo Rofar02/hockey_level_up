@@ -96,4 +96,9 @@ test('a new join request reaches an open captain page without a reload', async (
   await expect(page.getByText(`${surname} Антон`)).toBeVisible()
   await expect(nav.getByRole('link', { name: 'Команда: новых — 1' })).toBeVisible()
   await shot(page, 'team-request-live')
+
+  // Answered: the count goes at once, not on the next timer tick.
+  await page.getByRole('button', { name: 'Принять' }).click()
+  await expect(nav.getByRole('link', { name: 'Команда: новых — 1' })).toHaveCount(0, { timeout: 3_000 })
+  await expect(nav.getByRole('link', { name: 'Команда', exact: true })).toBeVisible()
 })
