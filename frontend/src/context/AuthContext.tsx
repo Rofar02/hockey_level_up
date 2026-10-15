@@ -216,6 +216,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     function handleSessionExpired() {
       needsRevalidation.current = false
+      // 15.10: a shared phone must not keep getting the previous player's
+      // pushes after their session ran out. The server can't be told (no
+      // valid token any more); its row dies on the next send (410 Gone).
+      void dropLocalPushSubscription().catch(() => null)
       forgetOfflineData()
       setAccessToken(null)
       setUser(null)
