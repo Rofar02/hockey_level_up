@@ -1216,9 +1216,10 @@ function StartedDayPhaseSection({
   onSelectExercise: (block: SessionBlockRead) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  // Skipped counts as resolved here too (media-player redesign, 2026-08-28)
-  // -- same reasoning as completionStatusFromBlocks above.
-  const doneCount = blocks.filter((block) => block.completed_at !== null || block.skipped_at !== null).length
+  // Done, not resolved: a skipped warm-up isn't counted as done (15.10), it
+  // is named next to the count.
+  const doneCount = blocks.filter((block) => block.completed_at !== null).length
+  const skippedCount = blocks.filter((block) => block.skipped_at !== null).length
 
   return (
     <div className={`overflow-hidden rounded-md ${CARD_BORDER} bg-dark-bg/40`}>
@@ -1231,6 +1232,7 @@ function StartedDayPhaseSection({
         <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{PHASE_LABELS[phase]}</p>
         <span className="ml-auto font-mono text-[11px] text-[#8A94A6]">
           {doneCount}/{blocks.length}
+          {skippedCount > 0 && `, пропущено ${skippedCount}`}
         </span>
         <i
           className={`ti ti-chevron-down text-xs text-[#8A94A6] transition-transform ${expanded ? 'rotate-180' : ''}`}

@@ -243,13 +243,20 @@ function TrainingCard({ training }: { training: DayReportTrainingRead }) {
           </div>
           {extra.length > 0 && (
             <p className="text-xs text-text-secondary">
-              Разминка и заминка: {extra.filter((exercise) => exercise.done || exercise.skipped).length} из {extra.length}
+              Разминка и заминка: {formatDoneOf(extra)}
             </p>
           )}
         </>
       )}
     </div>
   )
+}
+
+// A skipped warm-up isn't a done one (15.10): «8 из 9, 1 пропущено».
+function formatDoneOf(exercises: DayReportExerciseRead[]): string {
+  const done = exercises.filter((exercise) => exercise.done).length
+  const skipped = exercises.filter((exercise) => exercise.skipped).length
+  return `${done} из ${exercises.length}${skipped > 0 ? `, ${skipped} пропущено` : ''}`
 }
 
 function IceTile({ value, label }: { value: string; label: string }) {
