@@ -236,11 +236,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Once per signed-in player, not on every token refresh.
   const userId = user?.id ?? null
+  const wantsPush = user !== null && user.reminder_preference !== 'none'
   useEffect(() => {
     if (userId === null || accessToken === null) {
       return
     }
-    resyncPushSubscription(accessToken).catch(() => {
+    resyncPushSubscription(accessToken, wantsPush).catch(() => {
       // Best-effort: Settings still lets the player turn pushes on again.
     })
   }, [userId])

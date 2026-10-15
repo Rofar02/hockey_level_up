@@ -86,19 +86,25 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
 // subscription silently stops receiving pushes. On each sign-in the
 // browser's subscription is checked against the server key and, if it was
 // made with another one, replaced -- the player never has to notice.
-export async function resyncPushSubscription(accessToken: string): Promise<void> {
+//
+// 15.10 follow-up: signing out (or the session ending) drops this phone's
+// subscription. Signed in again, a player who had pushes on (`wantsPush`:
+// reminder_preference isn't 'none' -- turning them off in Settings sets it)
+// and whose browser still allows notifications is subscribed again without
+// a question; before, pushes stayed off until they found the switch.
+export async function resyncPushSubscription(accessToken: string, wantsPush: boolean): Promise<void> {
   if (!isPushSupported() || Notification.permission !== 'granted') {
     return
   }
   const existing = await getActivePushSubscription()
-  if (existing === null) {
+  if (existing === null && !wantsPush) {
     return
   }
   const { public_key: vapidPublicKey } = await pushApi.getVapidPublicKey(accessToken)
-  if (sameKey(existing, vapidPublicKey)) {
+  if (existing !== null && sameKey(existing, vapidPublicKey)) {
     return
   }
-  const oldEndpoint = existing.endpoint
+  const oldEndpoint = existing?.endpoint ?? null
   const subscription = await subscribeToPush(vapidPublicKey)
   const json = subscription.toJSON()
   if (json.endpoint === undefined || json.keys === undefined) {
@@ -108,7 +114,7 @@ export async function resyncPushSubscription(accessToken: string): Promise<void>
     { endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth } },
     accessToken,
   )
-  if (oldEndpoint !== json.endpoint) {
+  if (oldEndpoint !== null && oldEndpoint !== json.endpoint) {
     await pushApi.deletePushSubscription(oldEndpoint, accessToken).catch(() => undefined)
   }
 }
