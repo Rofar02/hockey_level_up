@@ -13,5 +13,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src/sw.ts"]
+  "include": ["src/sw.ts", "src/sw-safe.ts"]
 }

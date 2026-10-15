@@ -1,10 +1,12 @@
+import { readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { api, createUser, dayPlan, declareWeek, localNow, loginAs, shot } from './helpers'
 
 // Б0 (2026-10-13): the installed app opens with no connection at all. Needs
 // a production build with the service worker, served same-origin:
 //   VITE_API_BASE_URL=/api npx vite build && npx vite preview --port 4173
-//   E2E_BASE_URL=http://localhost:4173 E2E_PREVIEW=1 npx playwright test sw-offline
+//   E2E_BASE_URL=http://localhost:4173 E2E_PREVIEW=1 E2E_DIST=$PWD/dist npx playwright test sw-offline
 test.skip(process.env.E2E_PREVIEW !== '1', 'needs a production build (see above)')
 
 const NAV = { name: 'Основная навигация' }
@@ -136,4 +138,51 @@ test('Б1: sign-out leaves no saved data behind', async ({ page }) => {
   await page.getByRole('button', { name: 'Выйти из аккаунта' }).click()
   await expect(page).toHaveURL(/\/login/)
   await expect.poll(savedCount).toBe(0)
+})
+
+test('the emergency worker (sw-safe.js over sw.js) clears every cache and keeps the registration', async ({
+  page,
+}) => {
+  // Swaps the file in the served build, exactly what docs/deploy.md does on
+  // the server -- needs E2E_DIST pointing at the folder `vite preview` serves.
+  test.skip(process.env.E2E_DIST === undefined, 'set E2E_DIST to the served dist/ folder')
+  const dist = process.env.E2E_DIST!
+  const me = await createUser('swsafe', 45, 'forward')
+  await loginAs(page, me)
+  await page.goto('/')
+  await expect(page.getByRole('navigation', NAV)).toBeVisible()
+  await page.waitForFunction(async () => {
+    const registration = await navigator.serviceWorker.ready
+    return registration.active !== null && navigator.serviceWorker.controller !== null && (await caches.keys()).length > 0
+  })
+
+  const swPath = join(dist, 'sw.js')
+  const original = readFileSync(swPath)
+  const safe = readFileSync(join(dist, 'sw-safe.js'), 'utf8')
+  expect(safe).toContain('skipWaiting')
+  expect(safe).not.toMatch(/addEventListener\(['"]fetch/)
+  try {
+    writeFileSync(swPath, safe)
+    await page.evaluate(async () => {
+      const registration = await navigator.serviceWorker.ready
+      await registration.update()
+    })
+    // Usually it takes over the open tab at once; at the latest when the
+    // app is opened again.
+    const reopened = await page.context().newPage()
+    await page.close()
+    await reopened.goto('/')
+    await expect
+      .poll(async () => reopened.evaluate(async () => (await caches.keys()).length).catch(() => -1), { timeout: 20_000 })
+      .toBe(0)
+    await expect(reopened.getByRole('navigation', NAV)).toBeVisible()
+    // No fetch handler: a reload is a plain network load and caches nothing.
+    await reopened.reload()
+    await expect(reopened.getByRole('navigation', NAV)).toBeVisible()
+    expect(await reopened.evaluate(async () => (await caches.keys()).length)).toBe(0)
+    const registered = await reopened.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)
+    expect(registered).toBe(1)
+  } finally {
+    writeFileSync(swPath, original)
+  }
 })
