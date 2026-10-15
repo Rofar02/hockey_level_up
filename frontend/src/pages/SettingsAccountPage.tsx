@@ -40,6 +40,9 @@ export function SettingsAccountPage() {
   const [unsentOnLogout, setUnsentOnLogout] = useState<number | null>(null)
   const [isSendingQueue, setIsSendingQueue] = useState(false)
   const [sendQueueFailed, setSendQueueFailed] = useState(false)
+  // Which sign-out the «Не всё отправлено» question is about (15.10: «Выйти
+  // на всех устройствах» used to drop the unsent actions without asking).
+  const [unsentFor, setUnsentFor] = useState<'here' | 'everywhere'>('here')
 
   function openPasswordModal() {
     setCurrentPassword('')
@@ -70,7 +73,19 @@ export function SettingsAccountPage() {
     }
   }
 
-  async function handleLogoutAll() {
+  function handleLogoutAll() {
+    const unsent = pendingCount()
+    if (unsent > 0) {
+      setShowLogoutAllModal(false)
+      setSendQueueFailed(false)
+      setUnsentFor('everywhere')
+      setUnsentOnLogout(unsent)
+      return
+    }
+    void performLogoutAll()
+  }
+
+  async function performLogoutAll() {
     if (accessToken === null) {
       return
     }
@@ -85,6 +100,9 @@ export function SettingsAccountPage() {
         err instanceof ApiError ? err.message : 'Не удалось выйти на всех устройствах. Попробуйте ещё раз.',
       )
       setIsLoggingOutAll(false)
+      // Came here from the unsent question: back to the dialog that shows it.
+      setUnsentOnLogout(null)
+      setShowLogoutAllModal(true)
     }
   }
 
@@ -93,10 +111,20 @@ export function SettingsAccountPage() {
     navigate('/login', { replace: true })
   }
 
+  // After the unsent question: the sign-out the player asked for.
+  function finishSignOut() {
+    if (unsentFor === 'everywhere') {
+      void performLogoutAll()
+      return
+    }
+    signOut()
+  }
+
   function handleLogout() {
     const unsent = pendingCount()
     if (unsent > 0) {
       setSendQueueFailed(false)
+      setUnsentFor('here')
       setUnsentOnLogout(unsent)
       return
     }
@@ -109,7 +137,7 @@ export function SettingsAccountPage() {
     const allSent = await sendQueueNow()
     setIsSendingQueue(false)
     if (allSent) {
-      signOut()
+      finishSignOut()
       return
     }
     setUnsentOnLogout(pendingCount())
@@ -296,7 +324,13 @@ export function SettingsAccountPage() {
               <Button onClick={() => void sendThenSignOut()} isLoading={isSendingQueue}>
                 Отправить и выйти
               </Button>
-              <Button type="button" variant="neutral" onClick={signOut} disabled={isSendingQueue}>
+              <Button
+                type="button"
+                variant="neutral"
+                onClick={finishSignOut}
+                disabled={isSendingQueue}
+                isLoading={isLoggingOutAll}
+              >
                 Выйти без них
               </Button>
             </div>

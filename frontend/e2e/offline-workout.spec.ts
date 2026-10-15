@@ -138,3 +138,46 @@ test('a queued action is still sent with the flag off; sign-out asks first', asy
   const day = await api<Day>('GET', `/schedule/day-plans/${plan.id}`, { token: me.token })
   expect(day.training_session.blocks.filter((b) => b.completed_at !== null || b.skipped_at !== null).length).toBeGreaterThan(0)
 })
+
+test('«Выйти на всех устройствах» asks about unsent actions too, sends them first', async ({ page, context }) => {
+  const me = await createUser('offall', 49, 'forward')
+  const today = localNow().date
+  await declareWeek(me, today)
+  const plan = await dayPlan(me, today)
+
+  await loginAs(page, me)
+  await page.goto('/')
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('icelevel.offlineQueue')), { timeout: 15_000 })
+    .toBe('1')
+  await page.goto(`/training/${plan.id}`)
+  await expect(page.getByRole('button', { name: 'Начать тренировку' })).toBeVisible()
+
+  await context.setOffline(true)
+  await page.getByRole('button', { name: 'Начать тренировку' }).click()
+  const collapse = page.getByRole('button', { name: 'Свернуть плеер' })
+  if (await collapse.isVisible().catch(() => false)) {
+    await collapse.click()
+  }
+  await page.locator('[role="checkbox"][aria-checked="false"]:not([disabled])').first().click()
+  await expect(page.getByRole('status').filter({ hasText: /ждут отправки/ })).toBeVisible()
+
+  await page.goto('/settings/account')
+  await page.getByRole('button', { name: 'Выйти на всех устройствах' }).click()
+  await page.getByRole('dialog', { name: 'Выйти на всех устройствах?' }).getByRole('button', { name: 'Выйти везде' }).click()
+  const ask = page.getByRole('dialog', { name: 'Не всё отправлено' })
+  await expect(ask).toBeVisible()
+
+  await context.setOffline(false)
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await ask.getByRole('button', { name: 'Отправить и выйти' }).click()
+  await expect(page).toHaveURL(/\/login/, { timeout: 20_000 })
+  // Signed out everywhere: the test's own tokens are dead too -- a new login.
+  const fresh = await api<{ access_token: string }>('POST', '/auth/login', {
+    form: { username: me.email, password: 'E2ePass123!' },
+  })
+  const day = await api<Day>('GET', `/schedule/day-plans/${plan.id}`, { token: fresh.access_token })
+  expect(day.training_session.blocks.filter((b) => b.completed_at !== null || b.skipped_at !== null).length).toBeGreaterThan(0)
+  await expect(api('POST', '/auth/refresh', { body: { refresh_token: me.refreshToken } })).rejects.toThrow(/401/)
+})
