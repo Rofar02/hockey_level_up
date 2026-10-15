@@ -90,6 +90,12 @@ export function parseKeywords(value: string): string[] {
     .slice(0, MAX_DRILL_KEYWORDS)
 }
 
+// How many cues were typed (after cleaning) -- the editor's hint tells a
+// 4th one apart from a too-long one.
+export function keywordCount(value: string): number {
+  return keywordParts(value).length
+}
+
 // Whether parseKeywords had to cut something (a 4th cue, a long one) -- the
 // editor says so instead of quietly saving less than was typed.
 export function keywordsWereTrimmed(value: string): boolean {

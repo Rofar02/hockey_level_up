@@ -23,6 +23,7 @@ import {
   MAX_DRILL_KEYWORD_LENGTH,
   boardStats,
   formatMinutes,
+  keywordCount,
   keywordsWereTrimmed,
   parseKeywords,
   pluralRu,
@@ -782,9 +783,11 @@ function DrillSheetModal({
             maxLength={70}
           />
           {keywordsWereTrimmed(values.keywords) ? (
-            <p className="text-xs text-[#FFCF5C]">
-              Сохранятся только {MAX_DRILL_KEYWORDS} по {MAX_DRILL_KEYWORD_LENGTH} символов:{' '}
-              {parseKeywords(values.keywords).join(' / ')}
+            <p className="text-xs text-[#FFCF5C]" role="status">
+              {keywordCount(values.keywords) > MAX_DRILL_KEYWORDS
+                ? `Больше ${MAX_DRILL_KEYWORDS} не поместится — лишнее отрежется.`
+                : `Слово длиннее ${MAX_DRILL_KEYWORD_LENGTH} символов обрежется.`}{' '}
+              Игроки увидят: {parseKeywords(values.keywords).join(' / ')}
             </p>
           ) : (
             <p className="text-xs text-text-secondary">

@@ -233,3 +233,34 @@ test('offline end screen: «Иду» waits for the connection (needs the product
   await expect(page.getByText('Нужна связь')).toBeVisible()
   await context.setOffline(false)
 })
+
+// 15.10: a drill with a scheme shows the coach's description too -- the
+// title (with its «i») opens it; a 4th keyword in the editor says it's cut.
+test('scheme drill: the title opens the description; a 4th keyword is flagged', async ({ page }) => {
+  const draft = await api<{ id: string }>('POST', `/teams/${setup.teamId}/events`, {
+    token: setup.captain.token,
+    body: { event_type: 'training', starts_at: localIso(addDays(localNow().date, 3), 12) },
+  })
+  const base = `/teams/${setup.teamId}/events/${draft.id}`
+  const section = await api<{ id: string }>('POST', `${base}/sections`, { token: setup.captain.token, body: { name: 'Разминка' } })
+  await api('POST', `${base}/drills`, {
+    token: setup.captain.token,
+    body: { section_id: section.id, title: 'Выход из зоны', description: 'Защитник отдаёт в борт, центр открывается.', diagram: SCHEME },
+  })
+  await loginAs(page, setup.captain)
+  await page.goto(`${base}?tab=board`)
+  await page.getByRole('button', { name: 'Как видит игрок' }).click()
+  await page.getByRole('button', { name: 'Выход из зоны — описание' }).click()
+  const sheet = page.getByRole('button', { name: 'Закрыть описание' }).locator('xpath=ancestor::*[@aria-label="Выход из зоны"][1]')
+  await expect(sheet.getByText('Защитник отдаёт в борт, центр открывается.')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+
+  await page.goto(`${base}?tab=board`)
+  await page.getByRole('region', { name: 'Раздел Разминка' }).getByRole('button', { name: 'Упражнение Выход из зоны' }).click()
+  const field = page.getByRole('dialog').getByLabel('Ключевые слова (через запятую)')
+  await field.fill('Пас, Скорость, Голова')
+  await expect(page.getByText('До 3, коротко — игроки увидят их под названием в плане.')).toBeVisible()
+  await field.fill('Пас, Скорость, Голова, Борт')
+  await expect(page.getByText('Больше 3 не поместится — лишнее отрежется. Игроки увидят: Пас / Скорость / Голова')).toBeVisible()
+})

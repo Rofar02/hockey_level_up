@@ -366,9 +366,11 @@ function DrillScreen({
             type="button"
             onClick={onOpenDescription}
             aria-label={`${drill.title} — описание`}
-            className="line-clamp-2 font-display text-[25px] font-bold uppercase leading-tight tracking-wide"
+            className="line-clamp-2 text-left font-display text-[25px] font-bold uppercase leading-tight tracking-wide"
           >
             {drill.title}
+            {/* 15.10: says the title opens the coach's description. */}
+            <i className="ti ti-info-circle ml-2 align-[0.1em] text-lg text-accent-ice" aria-hidden="true" />
           </button>
         ) : (
           <h2 className="line-clamp-2 font-display text-[25px] font-bold uppercase leading-tight tracking-wide">
