@@ -3,6 +3,8 @@
 // module at /dev-sw.js. Push (src/push.ts) and updates (appUpdate.ts) both
 // go through here.
 
+import { PUSH_EVENT } from '../hooks/useLiveRefresh'
+
 const SW_URL = import.meta.env.DEV ? '/dev-sw.js?dev-sw' : '/sw.js'
 const SW_OPTIONS: RegistrationOptions = { scope: '/', type: import.meta.env.DEV ? 'module' : 'classic' }
 
@@ -16,10 +18,27 @@ export function isServiceWorkerSupported(): boolean {
 
 // register() is idempotent: the browser reuses the existing registration
 // when the script hasn't changed, and starts an update when it has.
+let pushForwarding = false
+
+// sw.ts posts {type: 'push'} to open tabs when a push arrives; screens hear
+// it as a window event (hooks/useLiveRefresh.ts).
+function forwardPushMessages(): void {
+  if (pushForwarding) {
+    return
+  }
+  pushForwarding = true
+  navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
+    if (event.data && event.data.type === 'push') {
+      window.dispatchEvent(new CustomEvent(PUSH_EVENT, { detail: { url: event.data.url } }))
+    }
+  })
+}
+
 export async function registerAppServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!isServiceWorkerSupported()) {
     return null
   }
+  forwardPushMessages()
   try {
     return await navigator.serviceWorker.register(SW_URL, SW_OPTIONS)
   } catch {

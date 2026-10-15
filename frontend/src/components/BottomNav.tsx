@@ -5,6 +5,7 @@ import * as coachChatApi from '../api/coachChat'
 import * as usersApi from '../api/users'
 import { useAuth } from '../hooks/useAuth'
 import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
+import { useLiveRefresh } from '../hooks/useLiveRefresh'
 import type { CoachAttentionReason } from '../types/coachChat'
 
 interface Tab {
@@ -209,7 +210,7 @@ export function BottomNav() {
   )
 }
 
-function NavCapsule({ teamAttention }: { teamAttention: boolean }) {
+function NavCapsule({ teamAttention }: { teamAttention: number }) {
   return (
     <div className="pointer-events-auto mx-auto flex h-16 max-w-md items-center rounded-full border border-white/15 bg-[#121820]/55 px-1.5 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.65)] backdrop-blur-3xl backdrop-saturate-150">
       {LEFT_TABS.map((tab) => (
@@ -217,13 +218,13 @@ function NavCapsule({ teamAttention }: { teamAttention: boolean }) {
       ))}
       <CoachButton />
       {RIGHT_TABS.map((tab) => (
-        <TabLink key={tab.to} tab={tab} hasAttention={tab.attention === 'team' && teamAttention} />
+        <TabLink key={tab.to} tab={tab} attentionCount={tab.attention === 'team' ? teamAttention : 0} />
       ))}
     </div>
   )
 }
 
-function TabLink({ tab, hasAttention = false }: { tab: Tab; hasAttention?: boolean }) {
+function TabLink({ tab, attentionCount = 0 }: { tab: Tab; attentionCount?: number }) {
   const { pathname } = useLocation()
   const isActive = isTabActive(tab, pathname)
   // One-time pointer for players who knew the old "Ещё" menu (and a fine
@@ -237,7 +238,7 @@ function TabLink({ tab, hasAttention = false }: { tab: Tab; hasAttention?: boole
     <Link
       ref={tab.attention === 'team' ? teamHintRef : undefined}
       to={tab.to}
-      aria-label={hasAttention ? `${tab.label}: есть новое` : undefined}
+      aria-label={attentionCount > 0 ? `${tab.label}: новых — ${attentionCount}` : undefined}
       aria-current={isActive ? 'page' : undefined}
       className={`group flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
         isActive ? 'text-accent-ice' : 'text-text-secondary hover:text-text-primary'
@@ -249,8 +250,13 @@ function TabLink({ tab, hasAttention = false }: { tab: Tab; hasAttention?: boole
         }`}
       >
         <i className={`ti ${tab.icon} text-xl`} aria-hidden="true" />
-        {hasAttention && (
-          <span className="absolute right-2.5 top-0.5 h-2 w-2 rounded-full border-2 border-[#121820] bg-accent-persimmon box-content" />
+        {attentionCount > 0 && (
+          <span
+            data-attention-count={attentionCount}
+            className="absolute -top-1 right-0.5 box-content flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-[#121820] bg-accent-persimmon px-1 text-[10px] font-bold leading-none text-white"
+          >
+            {attentionCount > 9 ? '9+' : attentionCount}
+          </span>
         )}
       </span>
       <span className="truncate">{tab.label}</span>
@@ -286,34 +292,37 @@ function useCoachAttention(): CoachAttentionReason | null {
   return reason
 }
 
-// Same re-check-on-navigation approach as the coach glow below: the dot
-// goes out as soon as the player has dealt with whatever was waiting.
-function useTeamAttention(): boolean {
+// Same re-check-on-navigation approach as the coach glow below: the count
+// goes out as soon as the player has dealt with whatever was waiting --
+// and comes up without a navigation when a push arrives, the app returns
+// to the foreground or a minute passes (useLiveRefresh; 15.10: a captain
+// only saw a new join request after a reload).
+function useTeamAttention(): number {
   const { accessToken } = useAuth()
   const { pathname } = useLocation()
-  const [hasAttention, setHasAttention] = useState(false)
+  const [count, setCount] = useState(0)
+  const [liveTick, setLiveTick] = useState(0)
+  useLiveRefresh(() => setLiveTick((tick) => tick + 1), { enabled: accessToken !== null })
   useEffect(() => {
     if (accessToken === null) {
       return
     }
     let cancelled = false
     usersApi
-      .getTeamAttention(accessToken)
+      .getTeamAttention(accessToken, { live: liveTick > 0 })
       .then((result) => {
         if (!cancelled) {
-          setHasAttention(
-            result.friend_requests + result.party_invites + result.team_join_requests + result.team_invitations > 0,
-          )
+          setCount(result.friend_requests + result.party_invites + result.team_join_requests + result.team_invitations)
         }
       })
       .catch(() => {
-        // Best-effort: no dot is the safe default.
+        // Best-effort: no badge is the safe default.
       })
     return () => {
       cancelled = true
     }
-  }, [accessToken, pathname])
-  return hasAttention
+  }, [accessToken, pathname, liveTick])
+  return count
 }
 
 const ATTENTION_LABELS: Record<CoachAttentionReason, string> = {

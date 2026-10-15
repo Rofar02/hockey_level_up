@@ -1,6 +1,7 @@
 import {
   apiDeleteAuthWithBody,
   apiGet,
+  apiGetLive,
   apiPatchAuth,
   apiPostAuth,
   apiPostMultipartAuth,
@@ -127,6 +128,6 @@ export function replaceMyEquipmentItems(
   )
 }
 
-export function getTeamAttention(accessToken: string): Promise<TeamAttentionRead> {
-  return apiGet<TeamAttentionRead>('/users/me/team-attention', accessToken)
+export function getTeamAttention(accessToken: string, { live = false }: { live?: boolean } = {}): Promise<TeamAttentionRead> {
+  return (live ? apiGetLive : apiGet)<TeamAttentionRead>('/users/me/team-attention', accessToken)
 }

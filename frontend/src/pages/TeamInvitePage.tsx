@@ -117,15 +117,18 @@ export function TeamInvitePage() {
                   <>
                     <NeedsNetworkHint className="justify-center" />
                     <Button type="button" onClick={() => void join()} isLoading={isSending} disabled={!online} className="w-full">
-                      Вступить в команду
+                      Отправить заявку
                     </Button>
+                    <p className="text-center text-xs leading-relaxed text-text-secondary">
+                      Капитан получит заявку и примет тебя в команду.
+                    </p>
                     <FormError message={sendError} />
                   </>
                 )
               ) : (
                 <>
                   <Button type="button" onClick={() => goWithAccount('/register')} className="w-full">
-                    Создать аккаунт и вступить
+                    Создать аккаунт и подать заявку
                   </Button>
                   <Button type="button" variant="neutral" onClick={() => goWithAccount('/login')} className="w-full">
                     У меня есть аккаунт — войти

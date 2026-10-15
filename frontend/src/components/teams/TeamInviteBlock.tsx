@@ -26,7 +26,7 @@ export function TeamInviteBlock({ team }: { team: TeamRead }) {
     setState(null)
     if (typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title: team.name, text: `Вступай в «${team.name}» в IceLevel`, url: link })
+        await navigator.share({ title: team.name, text: `Заявка в «${team.name}» в IceLevel`, url: link })
         return
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
@@ -47,7 +47,7 @@ export function TeamInviteBlock({ team }: { team: TeamRead }) {
         <h2 className="font-display text-base font-semibold uppercase tracking-wide">Позвать в команду</h2>
         <p className="text-[13px] leading-relaxed text-text-secondary">
           {team.is_captain
-            ? `Это приглашение в «${team.name}», не в друзья. Отправь ссылку в чат команды или пригласи конкретного игрока — он сможет сразу вступить.`
+            ? `Это приглашение в «${team.name}», не в друзья. По ссылке игрок отправит заявку — ты её примешь. А через «Пригласить в команду» позовёшь конкретного игрока: он окажется в команде, как только согласится.`
             : `Это приглашение в «${team.name}», не в друзья. Отправь ссылку — капитану придёт заявка на вступление.`}
         </p>
       </div>

@@ -19,6 +19,7 @@ import { TabButton } from '../components/ui/TabButton'
 import * as teamsApi from '../api/teams'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useLiveRefresh } from '../hooks/useLiveRefresh'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 import type { TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamScoreRead } from '../types/team'
 import { POSITION_LABELS } from '../types/user'
@@ -119,6 +120,24 @@ export function TeamDetailPage() {
       cancelled = true
     }
   }, [accessToken, teamId])
+
+  // A new join request shows up while the captain has the page open (a push,
+  // back to the foreground, or every 30 s) -- 15.10: it used to need a reload.
+  const isCaptain = team?.is_captain === true
+  useLiveRefresh(
+    () => {
+      if (accessToken === null || teamId === undefined) {
+        return
+      }
+      teamsApi
+        .listTeamJoinRequests(teamId, accessToken, { live: true })
+        .then(setPendingRequests)
+        .catch(() => {
+          // Best-effort: the list on screen stays as it was.
+        })
+    },
+    { enabled: isCaptain, intervalMs: 30_000 },
+  )
 
   async function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]

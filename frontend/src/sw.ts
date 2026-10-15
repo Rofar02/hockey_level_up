@@ -95,12 +95,20 @@ self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {}
   const title = data.title || 'IceLevel'
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body,
-      icon: '/favicon.png',
-      // Optional in-app path to open on tap (e.g. /admin/feedback).
-      data: { url: data.url },
-    }),
+    Promise.all([
+      self.registration.showNotification(title, {
+        body: data.body,
+        icon: '/favicon.png',
+        // Optional in-app path to open on tap (e.g. /admin/feedback).
+        data: { url: data.url },
+      }),
+      // An open app re-checks its counters and lists right away
+      // (hooks/useLiveRefresh.ts) -- a captain sees the new join request
+      // without reloading.
+      self.clients
+        .matchAll({ type: 'window' })
+        .then((windows) => windows.forEach((client) => client.postMessage({ type: 'push', url: data.url }))),
+    ]),
   )
 })
 

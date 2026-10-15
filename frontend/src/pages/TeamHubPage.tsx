@@ -15,6 +15,7 @@ import * as teamsApi from '../api/teams'
 import * as usersApi from '../api/users'
 import { API_BASE_URL } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useLiveRefresh } from '../hooks/useLiveRefresh'
 import type { ActivityFeedEntryRead } from '../types/friendActivity'
 import type { LeaderboardMeRead } from '../types/leaderboard'
 import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
@@ -95,6 +96,20 @@ export function TeamHubPage() {
       cancelled = true
     }
   }, [accessToken])
+
+  // The «Заявки в команду: N» line follows new requests without a reload.
+  useLiveRefresh(
+    () => {
+      if (accessToken === null) {
+        return
+      }
+      usersApi
+        .getTeamAttention(accessToken, { live: true })
+        .then(setAttention)
+        .catch(() => {})
+    },
+    { enabled: accessToken !== null, intervalMs: 30_000 },
+  )
 
   useEffect(() => {
     if (accessToken === null || selectedTeamId === null) {

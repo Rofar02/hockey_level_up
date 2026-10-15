@@ -60,11 +60,16 @@ self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {}
   const title = data.title || 'IceLevel'
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body,
-      icon: '/favicon.png',
-      data: { url: data.url },
-    }),
+    Promise.all([
+      self.registration.showNotification(title, {
+        body: data.body,
+        icon: '/favicon.png',
+        data: { url: data.url },
+      }),
+      self.clients
+        .matchAll({ type: 'window' })
+        .then((windows) => windows.forEach((client) => client.postMessage({ type: 'push', url: data.url }))),
+    ]),
   )
 })
 

@@ -376,6 +376,14 @@ export function apiGet<T>(path: string, accessToken: string): Promise<T> {
   return cachedGet<T>(path, accessToken)
 }
 
+// Always asks the server (the answer still refreshes the cache) -- for a
+// re-check that must see what changed since the last look (useLiveRefresh),
+// where the cache's "show the old answer, refresh in the background" would
+// show the change only one check late.
+export function apiGetLive<T>(path: string, accessToken: string): Promise<T> {
+  return isCacheable(path) ? fetchAndStore<T>(path, accessToken) : request<T>(path, 'GET', { accessToken })
+}
+
 // Unauthenticated GET -- only for endpoints that don't need a logged-in
 // session at all (e.g. GET /auth/verify-email/confirm, reached from an
 // emailed link that may be opened in a browser with no session).

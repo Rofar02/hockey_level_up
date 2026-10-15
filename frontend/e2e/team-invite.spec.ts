@@ -74,3 +74,26 @@ test('the captain invites a player by name and the player joins from the hub', a
   const mine = await api<{ id: string }[]>('GET', '/teams/me', { token: player.token })
   expect(mine.map((item) => item.id)).toContain(team.id)
 })
+
+test('a new join request reaches an open captain page without a reload', async ({ page }) => {
+  const captain = await createUser('captain', 1, 'defense')
+  const asker = await createUser('asker', 31, 'forward')
+  const surname = randomSurname()
+  await api('PATCH', '/users/me', { token: asker.token, body: { first_name: 'Антон', last_name: surname } })
+  const team = await api<{ id: string; invite_code: string }>('POST', '/teams', {
+    token: captain.token,
+    body: { name: `E2E Рыси ${Math.random().toString(36).slice(2, 6)}` },
+  })
+
+  await loginAs(page, captain)
+  await page.goto(`/teams/${team.id}?tab=requests`)
+  await expect(page.getByText('Нет заявок на вступление')).toBeVisible()
+  const nav = page.getByRole('navigation', { name: 'Основная навигация' })
+
+  await api('POST', '/teams/join', { token: asker.token, body: { code: team.invite_code } })
+  // What a push (or coming back to the app) does: the open page re-checks.
+  await page.evaluate(() => window.dispatchEvent(new Event('icelevel:push')))
+  await expect(page.getByText(`${surname} Антон`)).toBeVisible()
+  await expect(nav.getByRole('link', { name: 'Команда: новых — 1' })).toBeVisible()
+  await shot(page, 'team-request-live')
+})
