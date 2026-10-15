@@ -4,6 +4,7 @@
 // go through here.
 
 import { PUSH_EVENT } from '../hooks/useLiveRefresh'
+import { reportClientEvent } from './clientEvents'
 
 const SW_URL = import.meta.env.DEV ? '/dev-sw.js?dev-sw' : '/sw.js'
 const SW_OPTIONS: RegistrationOptions = { scope: '/', type: import.meta.env.DEV ? 'module' : 'classic' }
@@ -41,9 +42,13 @@ export async function registerAppServiceWorker(): Promise<ServiceWorkerRegistrat
   forwardPushMessages()
   try {
     return await navigator.serviceWorker.register(SW_URL, SW_OPTIONS)
-  } catch {
+  } catch (err) {
     // Best-effort (e.g. blocked on a plain-HTTP LAN IP) -- the app works
-    // without it, only offline start and push are lost.
+    // without it, only offline start and push are lost. On https that's a
+    // real problem worth knowing about (15.10).
+    if (window.isSecureContext && !import.meta.env.DEV) {
+      reportClientEvent('sw_register_failed', err instanceof Error ? `${err.name}: ${err.message}` : String(err))
+    }
     return null
   }
 }

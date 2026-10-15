@@ -14,6 +14,7 @@ from app.routers import (
     admin_users,
     assessment,
     auth,
+    client_events,
     drill_templates,
     exercises,
     feedback,
@@ -84,6 +85,7 @@ app.include_router(drill_templates.router)
 app.include_router(friends.router)
 app.include_router(training_parties.router)
 app.include_router(quests.router)
+app.include_router(client_events.router)
 
 # Mounted at the shared parent of avatar_upload_dir and
 # reference_article_image_upload_dir, so "/static/avatars/..." and

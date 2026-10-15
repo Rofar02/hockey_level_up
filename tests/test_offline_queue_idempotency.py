@@ -16,6 +16,7 @@ tests don't depend on what the database's catalog holds (an empty CI
 database has none).
 """
 import asyncio
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
@@ -486,9 +487,10 @@ async def test_the_last_two_blocks_at_once_finish_the_training_once(real_db, mon
 
 
 @pytest.mark.asyncio
-async def test_the_same_key_with_another_body_is_refused(real_db) -> None:
+async def test_the_same_key_with_another_body_is_refused(real_db, caplog) -> None:
     """Review 14.10 (15): a key reused for a different set is the client's
-    bug -- 422, not the first set's answer."""
+    bug -- 422, not the first set's answer, and a warning in the log (15.10)."""
+    caplog.set_level(logging.WARNING, logger="app.core.idempotency")
     factory, created = real_db
     user, client = await _player(factory, created)
     async with _closing(client):
@@ -498,6 +500,7 @@ async def test_the_same_key_with_another_body_is_refused(real_db) -> None:
         changed = {**action, "body": {**action["body"], "reps_completed": 12}}
         assert (await _send(client, changed)).status_code == 422
         assert (await _send(client, action)).status_code == 201
+    assert any("Idempotency-Key reused" in record.getMessage() for record in caplog.records)
 
 
 @pytest.mark.asyncio

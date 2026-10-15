@@ -29,6 +29,7 @@ with it, and each consumer marks the event processed (app/events/idempotency.py)
 import asyncio
 import hashlib
 import json
+import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -42,6 +43,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.idempotency_key import IdempotencyKey
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 RETENTION_DAYS = 7
 # How long a repeat waits for the first request's stored answer.
@@ -84,6 +87,16 @@ async def _replay(
     reread: Callable[[], Awaitable[Any]] | None,
 ) -> Any:
     if row.endpoint != endpoint or (row.request_hash is not None and row.request_hash != request_hash):
+        # 15.10: a client bug (the queue reusing a key) -- never the player's
+        # doing, so it must be visible somewhere other than their phone.
+        logger.warning(
+            "Idempotency-Key reused with another request: user=%s key=%s stored=%s now=%s same_endpoint=%s",
+            user_id,
+            key,
+            row.endpoint,
+            endpoint,
+            row.endpoint == endpoint,
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Idempotency-Key already used for another request",

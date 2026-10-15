@@ -20,6 +20,7 @@ import { ApiError, apiSendQueued } from '../api/client'
 import { getStoredAccessToken } from '../api/tokenStorage'
 import { isNetworkError, isOnline } from './networkStatus'
 import { getOfflineUser } from './offlineData'
+import { reportClientEvent } from './clientEvents'
 
 export interface QueuedAction {
   key: string
@@ -357,6 +358,8 @@ async function removeAction(key: string) {
 }
 
 async function keepAsFailed(action: QueuedAction, detail: string) {
+  // 15.10: an action the player did that never reached the server.
+  reportClientEvent('queue_action_failed', `${action.label}: ${detail}`)
   await removeAction(action.key)
   const notice: FailedAction = { key: action.key, userId: action.userId, label: action.label, detail, at: Date.now() }
   failed = [...failed, notice]
