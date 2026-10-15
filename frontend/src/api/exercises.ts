@@ -37,11 +37,15 @@ export function getExerciseHistory(
   return apiGet<ExerciseHistoryRead>(`/exercises/${exerciseId}/history${query}`, accessToken)
 }
 
+// excludeSessionId: the workout in progress -- its own sets don't move the
+// target (the same number for every set of today's workout).
 export function getSuggestedReps(
   exerciseId: string,
   accessToken: string,
+  excludeSessionId?: string,
 ): Promise<SuggestedRepsRead> {
-  return apiGet<SuggestedRepsRead>(`/exercises/${exerciseId}/suggested-reps`, accessToken)
+  const query = excludeSessionId !== undefined ? `?exclude_session_id=${excludeSessionId}` : ''
+  return apiGet<SuggestedRepsRead>(`/exercises/${exerciseId}/suggested-reps${query}`, accessToken)
 }
 
 export function getSuggestedDuration(

@@ -216,9 +216,10 @@ async def get_suggested_reps(
     exercise_id: uuid.UUID,
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
+    exclude_session_id: uuid.UUID | None = None,
 ):
     exercise = await ExerciseService(session).get_exercise(exercise_id)
-    suggested = await RepsSuggestionService(session).suggest_reps(current_user, exercise)
+    suggested = await RepsSuggestionService(session).suggest_reps(current_user, exercise, exclude_session_id)
     return SuggestedRepsRead(suggested_reps=suggested)
 
 

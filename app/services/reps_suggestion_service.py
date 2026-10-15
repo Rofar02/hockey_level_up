@@ -68,7 +68,13 @@ class RepsSuggestionService:
         self._sets = SetCompletionRepository(session)
         self._blocks = TrainingBlockRepository(session)
 
-    async def suggest_reps(self, user: User, exercise: Exercise) -> int | None:
+    async def suggest_reps(
+        self, user: User, exercise: Exercise, exclude_session_id: uuid.UUID | None = None
+    ) -> int | None:
+        """`exclude_session_id`: the workout in progress. Its own sets don't
+        count (15.10): the target is set from the previous workout and holds
+        for every set of this one -- it used to climb +2 after each easy set
+        (8 -> 10 -> 12) because the set just logged became "the last one"."""
         if not _has_rep_range(exercise):
             return None
 
@@ -78,7 +84,7 @@ class RepsSuggestionService:
             # SetCompletion lookups entirely (Phase: П.2).
             return exercise.rep_range_min
 
-        last_set = await self._sets.get_last_for_user_exercise(user.id, exercise.id)
+        last_set = await self._sets.get_last_for_user_exercise(user.id, exercise.id, exclude_session_id)
         if last_set is None:
             return exercise.rep_range_min
 

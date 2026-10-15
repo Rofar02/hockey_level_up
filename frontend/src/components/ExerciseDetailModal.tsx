@@ -854,7 +854,7 @@ function SetLogger({
 
     if (hasRepRange) {
       exercisesApi
-        .getSuggestedReps(exercise.id, accessToken)
+        .getSuggestedReps(exercise.id, accessToken, trainingSessionId)
         .then((result) => {
           if (cancelled) {
             return
@@ -1129,28 +1129,14 @@ function SetLogger({
         return
       }
 
-      // Next set's stepper starts at the fresh suggestion once it loads
-      // (repsValue/weightValue are already back to null above) --
-      // suggestions personalize per-set (RepsSuggestionService/
-      // WeightSuggestionService), not just once per exercise. No
-      // suggestion at all (no body weight on file): the weight just used,
-      // not back to 0 (found 2026-10-10).
+      // Next set's stepper starts at the fresh weight suggestion
+      // (repsValue/weightValue are already back to null above) -- the
+      // weight personalizes per set (WeightSuggestionService). The reps
+      // target does not (15.10): it's set from the previous workout and
+      // stays the same for every set of this one, so suggestedReps is left
+      // as it is. No weight suggestion at all (no body weight on file): the
+      // weight just used, not back to 0 (found 2026-10-10).
       setSuggestedWeightKg(result.suggested_weight_kg ?? weight)
-
-      if (hasRepRange) {
-        setIsLoadingRepsSuggestion(true)
-        exercisesApi
-          .getSuggestedReps(exercise.id, accessToken)
-          .then((repsResult) => {
-            setSuggestedReps(repsResult.suggested_reps)
-          })
-          .catch(() => {
-            setSuggestedReps(null)
-          })
-          .finally(() => {
-            setIsLoadingRepsSuggestion(false)
-          })
-      }
 
       // targetSetNumber is the set just saved (captured before this async
       // call started) -- if it's the last one, tick the exercise off
