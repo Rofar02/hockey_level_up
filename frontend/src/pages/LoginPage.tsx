@@ -10,6 +10,7 @@ import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useOnline } from '../hooks/useNetworkStatus'
 import { NeedsNetworkHint } from '../components/OfflineBanner'
+import { firstInvalidMessage } from '../utils/formValidation'
 
 export function LoginPage() {
   const { login } = useAuth()
@@ -25,9 +26,14 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    const invalid = firstInvalidMessage(event.currentTarget)
+    if (invalid !== null) {
+      setError(invalid)
+      return
+    }
     setIsSubmitting(true)
     try {
       await login(username, password)
@@ -53,7 +59,7 @@ export function LoginPage() {
           <ShieldIcon />
           Вход
         </h1>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
           <TextField
             label="Email"
             name="username"

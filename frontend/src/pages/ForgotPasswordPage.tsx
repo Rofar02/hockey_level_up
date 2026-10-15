@@ -8,6 +8,7 @@ import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { TextField } from '../components/ui/TextField'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
+import { firstInvalidMessage } from '../utils/formValidation'
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -19,8 +20,13 @@ export function ForgotPasswordPage() {
   // surface, not something to hide behind the generic message.
   const [resultMessage, setResultMessage] = useState<string | null>(null)
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const invalid = firstInvalidMessage(event.currentTarget)
+    if (invalid !== null) {
+      setError(invalid)
+      return
+    }
     setError(null)
     setResultMessage(null)
     setIsSubmitting(true)
@@ -53,7 +59,7 @@ export function ForgotPasswordPage() {
           Введите email — если аккаунт с таким адресом есть, мы отправим ссылку для сброса пароля.
         </p>
         {resultMessage === null ? (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
             <TextField
               label="Email"
               name="email"

@@ -4,6 +4,7 @@ import * as authApi from '../../api/auth'
 import { Button } from '../../components/ui/Button'
 import { FormError } from '../../components/ui/FormError'
 import { TextField } from '../../components/ui/TextField'
+import { firstInvalidMessage } from '../../utils/formValidation'
 
 // Step 1/3 of registration. Wrapped in its own <form> (submit-boundary =
 // "Далее") purely so the existing HTML5 required/minLength constraints on
@@ -35,9 +36,14 @@ export function AccountStep({
   const [isChecking, setIsChecking] = useState(false)
   const [emailError, setEmailError] = useState<string | null>(null)
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setEmailError(null)
+    const invalid = firstInvalidMessage(event.currentTarget)
+    if (invalid !== null) {
+      setEmailError(invalid)
+      return
+    }
     setIsChecking(true)
     try {
       const result = await authApi.checkEmailAvailability(email)
@@ -54,7 +60,7 @@ export function AccountStep({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Аккаунт</h2>
       <TextField
         label="Email"
@@ -79,7 +85,11 @@ export function AccountStep({
         minLength={8}
         maxLength={128}
         required
+        aria-describedby="password-hint"
       />
+      <p id="password-hint" className="-mt-2 text-xs text-text-secondary">
+        Минимум 8 символов
+      </p>
       <Button type="submit" disabled={isChecking} className="self-end">
         {isChecking ? 'Проверяем...' : 'Далее'}
       </Button>

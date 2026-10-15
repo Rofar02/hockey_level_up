@@ -1,8 +1,11 @@
+import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Button } from '../../components/ui/Button'
+import { FormError } from '../../components/ui/FormError'
 import { SelectField } from '../../components/ui/SelectField'
 import { TextField } from '../../components/ui/TextField'
 import { POSITIONS, POSITION_LABELS } from '../../types/user'
+import { firstInvalidMessage } from '../../utils/formValidation'
 
 // Step 2/3. Jersey number's actual integer/range check still happens once,
 // at final submit in RegisterPage (same as before this split) -- this step
@@ -31,13 +34,19 @@ export function PlayerStep({
   onNext: () => void
   onBack: () => void
 }) {
-  function handleSubmit(event: FormEvent) {
+  const [error, setError] = useState<string | null>(null)
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    onNext()
+    const invalid = firstInvalidMessage(event.currentTarget)
+    setError(invalid)
+    if (invalid === null) {
+      onNext()
+    }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Игрок</h2>
       <div className="grid grid-cols-2 gap-4">
         <TextField
@@ -78,6 +87,7 @@ export function PlayerStep({
         onChange={(event) => setPosition(event.target.value)}
         options={POSITIONS.map((value) => ({ value, label: POSITION_LABELS[value] }))}
       />
+      <FormError message={error} />
       <div className="flex items-center justify-between">
         <Button type="button" variant="neutral" onClick={onBack}>
           Назад

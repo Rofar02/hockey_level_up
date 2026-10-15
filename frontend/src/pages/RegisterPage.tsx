@@ -11,6 +11,7 @@ import { AccountStep } from './register/AccountStep'
 import { PhysicalStep } from './register/PhysicalStep'
 import { PlayerStep } from './register/PlayerStep'
 import type { Position } from '../types/user'
+import { firstInvalidMessage } from '../utils/formValidation'
 
 const STEP_LABELS = ['Аккаунт', 'Игрок', 'Физические данные']
 const TOTAL_STEPS = STEP_LABELS.length
@@ -52,9 +53,14 @@ export function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    const invalid = firstInvalidMessage(event.currentTarget)
+    if (invalid !== null) {
+      setError(invalid)
+      return
+    }
     if (!isOnline()) {
       setError('Нужна связь: регистрация работает только онлайн.')
       return

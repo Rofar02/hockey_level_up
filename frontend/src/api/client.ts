@@ -33,6 +33,66 @@ interface FastApiValidationError {
   loc: (string | number)[]
   msg: string
   type: string
+  ctx?: Record<string, unknown>
+}
+
+// 15.10: pydantic's own messages are English ("String should have at least
+// 8 characters") and went straight into the form. The common ones in
+// Russian, with the field's name; a message our validators already wrote in
+// Russian is kept as it is.
+const FIELD_LABELS: Record<string, string> = {
+  email: 'Email',
+  username: 'Email',
+  password: 'Пароль',
+  new_password: 'Новый пароль',
+  current_password: 'Текущий пароль',
+  first_name: 'Имя',
+  last_name: 'Фамилия',
+  patronymic: 'Отчество',
+  jersey_number: 'Номер',
+  birth_date: 'Дата рождения',
+  age: 'Возраст',
+  height: 'Рост',
+  weight: 'Вес',
+  hockey_since_year: 'С какого года играешь',
+  name: 'Название',
+  code: 'Код',
+}
+
+function validationErrorText(error: FastApiValidationError): string {
+  const key = String(error.loc[error.loc.length - 1] ?? '')
+  const field = FIELD_LABELS[key] ?? 'Поле'
+  const ctx = error.ctx ?? {}
+  const msg = error.msg.replace(/^Value error, /, '')
+  if (/[А-Яа-яЁё]/.test(msg)) {
+    return msg
+  }
+  switch (error.type) {
+    case 'missing':
+      return `${field}: заполните поле`
+    case 'string_too_short':
+      return ctx.min_length === 1 ? `${field}: заполните поле` : `${field}: минимум ${String(ctx.min_length)} символов`
+    case 'string_too_long':
+      return `${field}: не больше ${String(ctx.max_length)} символов`
+    case 'greater_than_equal':
+    case 'greater_than':
+      return `${field}: не меньше ${String(ctx.ge ?? ctx.gt)}`
+    case 'less_than_equal':
+    case 'less_than':
+      return `${field}: не больше ${String(ctx.le ?? ctx.lt)}`
+    case 'int_parsing':
+    case 'float_parsing':
+    case 'int_type':
+    case 'float_type':
+      return `${field}: нужно число`
+    case 'date_parsing':
+    case 'date_from_datetime_parsing':
+      return `${field}: проверьте дату`
+  }
+  if (key === 'email' || /email/i.test(msg)) {
+    return 'Проверьте email: в нём должны быть @ и домен, например name@mail.ru'
+  }
+  return `Проверьте поле «${field}»`
 }
 
 export class ApiError extends Error {
@@ -73,9 +133,7 @@ function extractErrorMessage(body: unknown, status: number): string {
       return detail
     }
     if (Array.isArray(detail)) {
-      return (detail as FastApiValidationError[])
-        .map((error) => error.msg)
-        .join('; ')
+      return [...new Set((detail as FastApiValidationError[]).map(validationErrorText))].join('; ')
     }
   }
   return fallbackErrorMessage(status)

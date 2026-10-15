@@ -81,11 +81,11 @@ class AuthService:
         if not user_in.privacy_consent:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Privacy policy consent is required",
+                detail="Нужно согласие с политикой обработки персональных данных",
             )
         if await self._users.get_by_email(user_in.email):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+                status_code=status.HTTP_409_CONFLICT, detail="Этот email уже зарегистрирован — попробуйте войти"
             )
 
         username = await self._generate_username(user_in.email)
@@ -258,7 +258,7 @@ class AuthService:
                 return candidate
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not generate a unique username",
+            detail="Не удалось создать аккаунт. Попробуйте ещё раз.",
         )
 
     async def _generate_friend_code(self) -> str:
@@ -268,7 +268,7 @@ class AuthService:
                 return candidate
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not generate a unique friend code",
+            detail="Не удалось создать аккаунт. Попробуйте ещё раз.",
         )
 
     async def authenticate(self, identifier: str, password: str) -> User:
@@ -283,7 +283,7 @@ class AuthService:
         if user is None or not await verify_password_async(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username/email or password",
+                detail="Неверный email или пароль",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return user
