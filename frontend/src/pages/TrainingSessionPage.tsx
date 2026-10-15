@@ -25,6 +25,7 @@ import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as skillsApi from '../api/skills'
 import * as trainingBlockApi from '../api/trainingBlock'
 import * as trainingSessionsApi from '../api/trainingSessions'
+import type { SessionRewardsRead } from '../types/setCompletion'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { formatElapsed, useSessionClock } from '../hooks/useSessionClock'
@@ -1540,6 +1541,7 @@ export function TrainingSessionPage() {
           escalations={sessionComplete.escalations}
           levelBeforeSession={levelBeforeSession}
           accessToken={accessToken}
+          trainingSessionId={trainingSessionId}
           // ON_ICE/GAME only: the one diary entry per such session is written
           // on TrainingDiaryPage, offered right here so the player doesn't
           // have to find it again from the home screen afterwards. Not on a
@@ -1897,7 +1899,8 @@ function ExerciseRow({
 // confidence instead of trusting a single fetch -- stops early once the
 // streak shows today's activity, which only happens after its event has
 // actually been consumed.
-const SERVER_STATE_POLL_DELAYS_MS = [1600, 1200, 1200]
+// The last two only if the stat gains aren't credited yet (15.10).
+const SERVER_STATE_POLL_DELAYS_MS = [1600, 1200, 1200, 2000, 3000]
 
 const STATS_INTRO_KEY = 'stats-intro-seen'
 
@@ -1907,6 +1910,7 @@ function SessionCompleteModal({
   escalations,
   levelBeforeSession,
   accessToken,
+  trainingSessionId,
   diaryDayPlanId,
   diaryKind,
 }: {
@@ -1915,6 +1919,7 @@ function SessionCompleteModal({
   escalations: CeilingEscalationRead[]
   levelBeforeSession: number | null
   accessToken: string
+  trainingSessionId: string | null
   // Set (to the day plan's id) only for ON_ICE/GAME, null otherwise --
   // drives the report button below ("Отчёт после льда" / "Как сыграли?").
   diaryDayPlanId: string | null
@@ -1926,6 +1931,10 @@ function SessionCompleteModal({
   const [freshLevel, setFreshLevel] = useState<number | null>(null)
   const [isLoadingServerState, setIsLoadingServerState] = useState(true)
   const [serverStateError, setServerStateError] = useState<string | null>(null)
+  // 15.10: what the server really credited -- diminishing returns and the
+  // skill bonus make it differ from the estimate above, and the day report
+  // shows the credited numbers. Until they're in, the estimate is shown «≈».
+  const [credited, setCredited] = useState<SessionRewardsRead | null>(null)
   // Same reasoning as Modal.tsx's own -- this covers the whole page too.
   useSuppressCoachmarks(true)
   // Б2: finished offline -- the server hasn't seen the workout yet, so XP,
@@ -1941,15 +1950,19 @@ function SessionCompleteModal({
     const todayIso = toIsoDate(new Date())
 
     async function pollServerState() {
-      for (const delayMs of SERVER_STATE_POLL_DELAYS_MS) {
+      let rewardsIn = trainingSessionId === null
+      for (const [attempt, delayMs] of SERVER_STATE_POLL_DELAYS_MS.entries()) {
         await new Promise((resolve) => setTimeout(resolve, delayMs))
         if (cancelled) {
           return
         }
         try {
-          const [streakResult, userResult] = await Promise.all([
+          const [streakResult, userResult, rewards] = await Promise.all([
             progressApi.getMyStreak(accessToken),
             authApi.getCurrentUser(accessToken),
+            rewardsIn || trainingSessionId === null
+              ? Promise.resolve(null)
+              : trainingSessionsApi.getSessionRewards(trainingSessionId, accessToken).catch(() => null),
           ])
           if (cancelled) {
             return
@@ -1957,8 +1970,16 @@ function SessionCompleteModal({
           setStreak(streakResult)
           setFreshLevel(userResult.level)
           setServerStateError(null)
-          if (streakResult.last_activity_date === todayIso) {
+          if (rewards !== null && rewards.credited) {
+            setCredited(rewards)
+            rewardsIn = true
+          }
+          const streakIn = streakResult.last_activity_date === todayIso
+          if (streakIn && (rewardsIn || attempt >= 2)) {
             break
+          }
+          if (streakIn) {
+            setIsLoadingServerState(false)
           }
         } catch (err) {
           if (!cancelled) {
@@ -1977,7 +1998,7 @@ function SessionCompleteModal({
     return () => {
       cancelled = true
     }
-  }, [accessToken, synced])
+  }, [accessToken, synced, trainingSessionId])
 
   // 2026-10-08: the first finished workout explains the stats once (per
   // device -- a convenience, not something to sync).
@@ -2011,15 +2032,20 @@ function SessionCompleteModal({
           <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
             Прирост характеристик
           </p>
-          {Object.entries(statTotals).map(([stat, value]) => (
+          {(credited !== null
+            ? credited.stats.map(({ stat, gain }) => [stat, gain] as const)
+            : Object.entries(statTotals)
+          ).map(([stat, value]) => (
             <div key={stat} className="flex items-center justify-between text-sm">
               <span className="text-text-primary">{TARGET_STAT_LABELS[stat as TargetStat]}</span>
-              <span className="font-mono text-accent-ice">+{formatStatGain(value)}</span>
+              <span className="font-mono text-accent-ice" title={credited === null ? 'Примерно — считается' : undefined}>
+                {credited === null ? '≈' : ''}+{formatStatGain(value)}
+              </span>
             </div>
           ))}
           <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-2 text-sm">
             <span className="text-text-secondary">XP за тренировку</span>
-            <span className="font-mono text-text-primary">+{xpTotal}</span>
+            <span className="font-mono text-text-primary">+{credited?.xp ?? xpTotal}</span>
           </div>
           {!synced && (
             <p className="flex items-center gap-1.5 text-xs text-text-secondary">

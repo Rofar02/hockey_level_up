@@ -8,6 +8,7 @@ from app.core.idempotency import run_idempotent
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
+from app.schemas.day_report import SessionRewardsRead
 from app.schemas.set_completion import ExerciseSetsRead, SetCompletionSummary
 from app.schemas.training_diary import IceFocusRead, TrainingDiaryEntryIn, TrainingDiaryEntryRead
 from app.services.set_completion_service import SetCompletionService
@@ -97,3 +98,16 @@ async def show_ice_focus(
     """The focus as shown to the player: pinned for the day when it's the
     ice day itself (review 12.10, 11); GET only reads."""
     return await IceFocusService(session).focus_for_session(current_user, session_id, fix=True)
+
+
+@router.get("/{session_id}/rewards", response_model=SessionRewardsRead)
+async def get_session_rewards(
+    session_id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """The stats and XP the workout really credited (15.10) -- the finish
+    screen shows these, the same numbers as the day report."""
+    from app.services.day_report_service import DayReportService
+
+    return await DayReportService(session).session_rewards(current_user, session_id)

@@ -1,5 +1,5 @@
-import { apiGet } from './client'
-import type { ExerciseSetsRead, SetCompletionSummary } from '../types/setCompletion'
+import { apiGet, apiGetLive } from './client'
+import type { ExerciseSetsRead, SessionRewardsRead, SetCompletionSummary } from '../types/setCompletion'
 import { pendingSets, whenQueueLoaded } from '../utils/writeQueue'
 
 export async function getExerciseSets(
@@ -31,4 +31,11 @@ export async function getExerciseSets(
     })
   }
   return { ...fromServer, sets: [...bySet.values()].sort((a, b) => a.set_number - b.set_number) }
+}
+
+// What the workout really credited (15.10) -- the finish screen's numbers,
+// the same rows the day report reads. Never from the GET cache: it's polled
+// while the event pipeline catches up.
+export function getSessionRewards(trainingSessionId: string, accessToken: string): Promise<SessionRewardsRead> {
+  return apiGetLive<SessionRewardsRead>(`/training-sessions/${trainingSessionId}/rewards`, accessToken)
 }

@@ -20,8 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.ice_focus import FOCUS_BY_ID
+from app.events.handlers.block_completed import quest_reward_reason, xp_for_difficulty
 from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, ICE_SESSION_DOSE, MAX_INTENSITY
-from app.models.exercise import ExerciseMuscleGroup
+from app.models.exercise import ExerciseMuscleGroup, ExerciseTargetStat
 from app.models.progress import IceLoadCharge, StatHistory
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.set_completion import SetCompletion
@@ -35,6 +36,8 @@ from app.schemas.day_report import (
     DayReportSetRead,
     DayReportStatRead,
     DayReportTrainingRead,
+    SessionRewardsRead,
+    SessionStatGainRead,
 )
 from app.services.training_diary_service import diary_reward_reason
 
@@ -200,24 +203,48 @@ class DayReportService:
         """Each stat the day's own rewards moved (review 2026-10-11, 5.1): an
         ice report sent the next morning still counts for its day, another
         day's gym in between doesn't. Rows are picked by their reward reason
-        -- the day's diary reports, and the gym exercises completed within the
-        day (their reason names the exercise, not the session) -- and each
-        row's gain is its value minus the stat's previous value (0 before the
-        first ever), computed in SQL rather than loading the whole history."""
+        -- the day's diary reports, and the day's completed gym blocks (named
+        by the block since 15.10; an older row names only the exercise, so it
+        is also bounded by the day) -- and each row's gain is its value minus
+        the stat's previous value (0 before the first ever), computed in SQL
+        rather than loading the whole history."""
         sessions = [plan.training_session for plan in plans if plan.training_session is not None]
-        diary_reasons = [diary_reward_reason(session.id) for session in sessions]
-        gym_reasons = sorted(
-            {
-                f"quest_completed:{block.exercise_id}"
-                for session in sessions
-                for block in session.blocks
-                if block.completed_at is not None
-            }
-        )
+        done = [block for session in sessions for block in session.blocks if block.completed_at is not None]
         zone = _local_zone(user)
         start = datetime.combine(day, time.min, tzinfo=zone).astimezone(timezone.utc)
-        end = start + timedelta(days=1)
+        rows = await self._history(
+            user,
+            exact=[diary_reward_reason(session.id) for session in sessions]
+            + [quest_reward_reason(str(block.exercise_id), str(block.id)) for block in done],
+            within_day=sorted({quest_reward_reason(str(block.exercise_id)) for block in done}),
+            start=start,
+            end=start + timedelta(days=1),
+        )
+        before: dict[str, float] = {}
+        gains: dict[str, float] = defaultdict(float)
+        for stat, value, prior, _reason in rows:
+            key = str(stat)
+            before.setdefault(key, prior)
+            gains[key] += value - prior
+        result = [
+            # after - before is the gain rounded on its own -- the same
+            # «+N» the workout's finish screen showed (15.10).
+            DayReportStatRead(stat=stat, before=round(before[stat], 1), after=round(round(before[stat], 1) + round(gain, 1), 1))
+            for stat, gain in gains.items()
+            if abs(gain) >= 0.05
+        ]
+        return sorted(result, key=lambda item: item.before - item.after)
 
+    async def _history(
+        self,
+        user: User,
+        exact: list[str],
+        within_day: list[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+    ) -> list:
+        """(stat, value, previous value, reason) of the reward rows picked by
+        reason: `exact` at any time, `within_day` only between start and end."""
         previous = func.lag(StatHistory.value, 1, 0.0).over(
             partition_by=StatHistory.stat_type, order_by=(StatHistory.recorded_at, StatHistory.id)
         )
@@ -232,31 +259,64 @@ class DayReportService:
             .where(StatHistory.user_id == user.id)
             .subquery()
         )
-        rows = (
+        return (
             await self._session.execute(
-                select(history.c.stat_type, history.c.value, history.c.previous)
+                select(history.c.stat_type, history.c.value, history.c.previous, history.c.reason)
                 .where(
                     or_(
-                        history.c.reason.in_(diary_reasons or [""]),
+                        history.c.reason.in_(exact or [""]),
                         and_(
-                            history.c.reason.in_(gym_reasons or [""]),
+                            history.c.reason.in_(within_day),
                             history.c.recorded_at >= start,
                             history.c.recorded_at < end,
                         ),
                     )
+                    if within_day
+                    else history.c.reason.in_(exact or [""])
                 )
                 .order_by(history.c.recorded_at)
             )
         ).all()
-        before: dict[str, float] = {}
+
+    async def session_rewards(self, user: User, training_session_id: uuid.UUID) -> SessionRewardsRead:
+        """What a finished workout really credited (15.10): the finish screen
+        showed its own estimate (no diminishing returns, no skill bonus) and
+        the day report the real gains, so they disagreed. Both now read the
+        same StatHistory rows. `credited` stays false until every completed
+        block that carries stats has its row -- the event pipeline is still
+        working, the screen keeps its estimate meanwhile."""
+        session = await self._session.scalar(
+            select(TrainingSession)
+            .join(DayPlan, DayPlan.id == TrainingSession.day_plan_id)
+            .join(WeeklyPlan, WeeklyPlan.id == DayPlan.weekly_plan_id)
+            .where(TrainingSession.id == training_session_id, WeeklyPlan.user_id == user.id)
+            .options(selectinload(TrainingSession.blocks).selectinload(SessionBlock.exercise))
+        )
+        if session is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Тренировка не найдена")
+        done = [block for block in session.blocks if block.completed_at is not None]
+        reasons = {quest_reward_reason(str(block.exercise_id), str(block.id)): block for block in done}
+        rows = await self._history(user, exact=list(reasons))
         gains: dict[str, float] = defaultdict(float)
-        for stat, value, prior in rows:
-            key = str(stat)
-            before.setdefault(key, prior)
-            gains[key] += value - prior
-        result = [
-            DayReportStatRead(stat=stat, before=round(before[stat], 1), after=round(before[stat] + gain, 1))
-            for stat, gain in gains.items()
-            if abs(gain) >= 0.05
-        ]
-        return sorted(result, key=lambda item: item.before - item.after)
+        for stat, value, prior, _reason in rows:
+            gains[str(stat)] += value - prior
+        with_stats = set(
+            (
+                await self._session.scalars(
+                    select(ExerciseTargetStat.exercise_id).where(
+                        ExerciseTargetStat.exercise_id.in_([block.exercise_id for block in done] or [uuid.uuid4()])
+                    )
+                )
+            ).all()
+        )
+        credited_blocks = {reason for *_rest, reason in rows}
+        expected = {reason for reason, block in reasons.items() if block.exercise_id in with_stats}
+        return SessionRewardsRead(
+            stats=[
+                SessionStatGainRead(stat=stat, gain=round(gain, 2))
+                for stat, gain in sorted(gains.items(), key=lambda item: -item[1])
+                if gain > 0
+            ],
+            xp=sum(xp_for_difficulty(block.exercise.difficulty_level) for block in done),
+            credited=expected <= credited_blocks,
+        )

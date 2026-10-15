@@ -1,7 +1,7 @@
 """«Как прошёл день» (2026-10-10): a gym day's sets, weights and muscles, an
 ice day's report, one report for a double day."""
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
@@ -118,3 +118,65 @@ async def test_stats_follow_the_days_rewards_not_the_record_date(db_session) -> 
 
     assert stats["on_ice_skating"].before == 0 and stats["on_ice_skating"].after > 0
     assert stats["intellect"].before == 5.0 and stats["intellect"].after > 5.0  # the ice's own gain only
+
+
+@pytest.mark.asyncio
+async def test_finish_screen_rewards_are_the_day_reports(db_session) -> None:
+    """15.10: the workout's finish screen and the day report show the same
+    gains -- both read the rows the stat consumer wrote for the training's
+    blocks; a block another training of the same exercise credited isn't
+    counted, and `credited` waits for every block with stats."""
+    from app.events.handlers.block_completed import quest_reward_reason
+    from app.models.exercise import ExerciseTargetStat, TargetStat
+    from app.models.progress import StatHistory
+
+    user = _make_user()
+    db_session.add(user)
+    squat = Exercise(
+        id=uuid.uuid4(), name=f"dr squat {uuid.uuid4().hex[:6]}", category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=4,
+    )
+    db_session.add(squat)
+    await db_session.flush()
+    db_session.add(ExerciseTargetStat(exercise_id=squat.id, target_stat=TargetStat.STRENGTH, order=0))
+    today = utc_today()
+    now = datetime.now(timezone.utc)
+    first = SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=squat.id, order=0, completed_at=now)
+    second = SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=squat.id, order=1, completed_at=now)
+    gym = TrainingSession(id=uuid.uuid4(), blocks=[first, second])
+    db_session.add(
+        WeeklyPlan(
+            id=uuid.uuid4(), user_id=user.id, week_start_date=today,
+            day_plans=[DayPlan(id=uuid.uuid4(), date=today, session_type=DaySessionType.OFF_ICE, training_session=gym)],
+        )
+    )
+    await db_session.flush()
+    service = DayReportService(db_session)
+
+    db_session.add(StatHistory(user_id=user.id, stat_type=TargetStat.STRENGTH, value=1.7, reason=quest_reward_reason(str(squat.id), str(first.id))))
+    await db_session.flush()
+    halfway = await service.session_rewards(user, gym.id)
+    assert halfway.credited is False and halfway.xp == 80
+
+    db_session.add(
+        StatHistory(
+            user_id=user.id, stat_type=TargetStat.STRENGTH, value=3.3,
+            reason=quest_reward_reason(str(squat.id), str(second.id)), recorded_at=now + timedelta(seconds=1),
+        )
+    )
+    # Another training's block of the same exercise (a double day, a different block id).
+    db_session.add(
+        StatHistory(
+            user_id=user.id, stat_type=TargetStat.STRENGTH, value=4.0,
+            reason=quest_reward_reason(str(squat.id), str(uuid.uuid4())), recorded_at=now + timedelta(seconds=2),
+        )
+    )
+    await db_session.flush()
+
+    rewards = await service.session_rewards(user, gym.id)
+    report = await service.report(user, today)
+
+    assert rewards.credited is True
+    assert [(g.stat, g.gain) for g in rewards.stats] == [("strength", 3.3)]
+    day = {s.stat: s for s in report.stats}
+    assert day["strength"].after - day["strength"].before == pytest.approx(3.3)

@@ -72,3 +72,10 @@ export interface ExerciseHistorySession {
 export interface ExerciseHistoryRead {
   sessions: ExerciseHistorySession[]
 }
+
+export interface SessionRewardsRead {
+  stats: { stat: string; gain: number }[]
+  xp: number
+  // False while the event pipeline hasn't credited every completed block yet.
+  credited: boolean
+}

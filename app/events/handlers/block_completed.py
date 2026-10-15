@@ -61,6 +61,20 @@ XP_CONSUMER_HANDLER_NAME = "xp_consumer"
 MUSCLE_LOAD_CONSUMER_HANDLER_NAME = "muscle_load_consumer"
 
 
+def quest_reward_reason(exercise_id: str, session_block_id: str | None = None) -> str:
+    """StatHistory reason of a completed gym block. Since 15.10 it names the
+    block too, so a training's real gains can be read back exactly (the
+    workout's finish screen and the day report show the same numbers); an
+    event queued before that has no block id and keeps the old form."""
+    if session_block_id is None:
+        return f"quest_completed:{exercise_id}"
+    return f"quest_completed:{exercise_id}:{session_block_id}"
+
+
+def xp_for_difficulty(difficulty_level: int) -> int:
+    return difficulty_level * 10
+
+
 def xp_to_next_level(level: int) -> int:
     return round(100 * 1.2 ** (level - 1))
 
@@ -182,7 +196,7 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
                     user_id=user_id,
                     stat_type=stat_type,
                     value=new_value,
-                    reason=f"quest_completed:{exercise_id}",
+                    reason=quest_reward_reason(exercise_id, payload.get("session_block_id")),
                 )
             )
 
@@ -384,7 +398,7 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
 async def xp_consumer(payload: dict, event_id: uuid.UUID) -> None:
     user_id = uuid.UUID(payload["user_id"])
     difficulty_level = payload["difficulty_level"]
-    gain = difficulty_level * 10
+    gain = xp_for_difficulty(difficulty_level)
 
     async with AsyncSessionLocal() as session:
         if not await try_claim(session, event_id, XP_CONSUMER_HANDLER_NAME):
