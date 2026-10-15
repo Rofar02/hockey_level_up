@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '../../ui/Button'
 import { FormError } from '../../ui/FormError'
@@ -72,6 +72,8 @@ export function DiagramEditor({
   onClose: () => void
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const rinkAreaRef = useRef<HTMLDivElement>(null)
+  const paletteRef = useRef<HTMLDivElement>(null)
   const [diagram, setDiagram] = useState<DrillDiagram>(initial ?? emptyDiagram())
   // Frame ("кадр") being drawn: new arrows land in it, the other frames'
   // arrows are faded. Opens on the scheme's last frame.
@@ -183,9 +185,30 @@ export function DiagramEditor({
   }
 
   // New tokens land near the centre, nudged so they don't stack exactly.
+  // Where a new piece goes: the centre, or the nearest spot around it that
+  // no piece covers -- where they start or where the current frame has them
+  // (15.10 follow-up: the old fixed offsets stacked the 7th piece on the
+  // 1st, and any piece dragged there was covered).
   function freeSpot(): DiagramPoint {
-    const offset = (diagram.tokens.length % 6) * 0.05
-    return { x: clamp01(0.4 + offset), y: 0.5 }
+    const taken = diagram.tokens.flatMap((token) => [toRink(token), toRink(positionOf(token))])
+    const isFree = (point: DiagramPoint) => {
+      const at = toRink(point)
+      return taken.every((other) => Math.hypot(other.x - at.x, other.y - at.y) >= TOKEN_RADIUS.own * 2.4)
+    }
+    for (let ring = 0; ring <= 6; ring += 1) {
+      for (let row = -ring; row <= ring; row += 1) {
+        for (let column = -ring; column <= ring; column += 1) {
+          if (Math.max(Math.abs(row), Math.abs(column)) !== ring) {
+            continue
+          }
+          const point = { x: clamp01(0.5 + column * 0.13), y: clamp01(0.5 + row * 0.075) }
+          if (isFree(point)) {
+            return point
+          }
+        }
+      }
+    }
+    return { x: 0.5, y: 0.5 }
   }
 
   function addToken(token: Omit<DiagramToken, 'id' | 'x' | 'y'>) {
@@ -487,8 +510,31 @@ export function DiagramEditor({
   // would otherwise cover the selected player (it wraps to two rows on a
   // narrow phone and hides the whole bottom zone).
   const selectedArrow = selection?.type === 'arrow' ? diagram.arrows.find((arrow) => arrow.id === selection.id) : undefined
-  const focusY = (selectedToken !== null ? positionOf(selectedToken).y : undefined) ?? selectedArrow?.end.y ?? 0
-  const paletteAtTop = focusY > 0.55
+  const focus = selectedToken !== null ? positionOf(selectedToken) : (selectedArrow?.end ?? null)
+  const focusX = focus?.x ?? null
+  const focusY = focus?.y ?? null
+  // 15.10 follow-up: measured, not guessed from the rink fraction -- the
+  // bar wraps to two rows on a phone and the rink is letterboxed, so a
+  // player just above the middle could still end up under it. The bar goes
+  // to the edge where it doesn't cover the selected piece.
+  const [paletteAtTop, setPaletteAtTop] = useState(false)
+  useLayoutEffect(() => {
+    const svg = svgRef.current
+    const area = rinkAreaRef.current
+    const bar = paletteRef.current
+    const matrix = svg?.getScreenCTM() ?? null
+    if (svg === null || area === null || matrix === null || focusX === null || focusY === null) {
+      return
+    }
+    const rinkPoint = toRink({ x: focusX, y: focusY })
+    const screenY = new DOMPoint(rinkPoint.x, rinkPoint.y).matrixTransform(matrix).y
+    const reach = TOKEN_RADIUS.own * matrix.d + 6
+    const box = area.getBoundingClientRect()
+    const barHeight = bar?.getBoundingClientRect().height ?? 110
+    const coversAtBottom = screenY + reach > box.bottom - BAR_EDGE_GAP - barHeight
+    const coversAtTop = screenY - reach < box.top + BAR_EDGE_GAP + barHeight
+    setPaletteAtTop(coversAtBottom && (!coversAtTop || screenY > box.top + box.height / 2))
+  }, [focusX, focusY, selection])
 
   // Portaled to <body>: rendered in place it sits inside the page's own
   // stacking context and BottomNav (z-40, fixed) paints over its toolbar.
@@ -542,7 +588,7 @@ export function DiagramEditor({
       </div>
       <FormError message={saveError} />
 
-      <div className="relative flex min-h-0 flex-1 items-center justify-center p-3">
+      <div ref={rinkAreaRef} className="relative flex min-h-0 flex-1 items-center justify-center p-3">
         <RinkDiagram
           ref={svgRef}
           diagram={diagram}
@@ -573,7 +619,7 @@ export function DiagramEditor({
 
         {drawing === null && (
           selection !== null && (
-            <FloatingBar atTop={paletteAtTop}>
+            <FloatingBar atTop={paletteAtTop} barRef={paletteRef}>
               {canDrawFromSelection &&
                 ARROW_KINDS.map((kind) => (
                   <PaletteButton key={kind} label={DIAGRAM_ARROW_LABELS[kind]} onClick={() => startArrow(kind)}>
@@ -777,9 +823,20 @@ function FrameStrip({
   )
 }
 
-function FloatingBar({ atTop, children }: { atTop: boolean; children: ReactNode }) {
+// top-5 / bottom-5 below, in px -- the layout effect above measures against it.
+const BAR_EDGE_GAP = 20
+
+function FloatingBar({
+  atTop,
+  barRef,
+  children,
+}: {
+  atTop: boolean
+  barRef: RefObject<HTMLDivElement | null>
+  children: ReactNode
+}) {
   return (
-    <div className={`absolute ${atTop ? 'top-5' : 'bottom-5'} left-1/2 flex w-max max-w-[calc(100%-16px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-[#0B0F14]/90 p-2 backdrop-blur`}>
+    <div ref={barRef} data-palette={atTop ? 'top' : 'bottom'} className={`absolute ${atTop ? 'top-5' : 'bottom-5'} left-1/2 flex w-max max-w-[calc(100%-16px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-[#0B0F14]/90 p-2 backdrop-blur`}>
       {children}
     </div>
   )

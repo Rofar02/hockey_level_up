@@ -20,6 +20,7 @@ import * as teamsApi from '../api/teams'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useLiveRefresh } from '../hooks/useLiveRefresh'
+import { formatTeamScore } from '../utils/teamScore'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 import type { TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamScoreRead } from '../types/team'
 import { POSITION_LABELS } from '../types/user'
@@ -43,10 +44,6 @@ function teamLocationLine(team: TeamRead): string | null {
     (part): part is string => part !== null && part !== '',
   )
   return parts.length > 0 ? parts.join(' · ') : null
-}
-
-function formatTeamScore(value: number): string {
-  return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
 }
 
 export function TeamDetailPage() {

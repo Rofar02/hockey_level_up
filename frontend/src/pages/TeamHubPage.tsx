@@ -16,6 +16,7 @@ import * as usersApi from '../api/users'
 import { API_BASE_URL } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useLiveRefresh } from '../hooks/useLiveRefresh'
+import { formatTeamScore } from '../utils/teamScore'
 import type { ActivityFeedEntryRead } from '../types/friendActivity'
 import type { LeaderboardMeRead } from '../types/leaderboard'
 import { DAY_SESSION_TYPE_LABELS } from '../types/schedule'
@@ -201,7 +202,7 @@ export function TeamHubPage() {
                 </h1>
                 <span className="text-xs text-[#8A94A6]">
                   {teams.find((item) => item.id === selectedTeamId)?.member_count} участн.
-                  {score !== null && ` · рейтинг ${Math.round(score.team_score).toLocaleString('ru-RU')}`}
+                  {score !== null && ` · рейтинг ${formatTeamScore(score.team_score)}`}
                   {' · карточка ›'}
                 </span>
               </div>
@@ -247,7 +248,7 @@ export function TeamHubPage() {
               <HubTile
                 icon="ti-trophy"
                 label="Рейтинг команды"
-                hint={score !== null ? `${Math.round(score.team_score).toLocaleString('ru-RU')} XP` : undefined}
+                hint={score !== null ? formatTeamScore(score.team_score) : undefined}
                 to={teamPath}
               />
               <HubTile

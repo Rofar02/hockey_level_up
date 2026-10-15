@@ -126,7 +126,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await editor.getByPlaceholder('17').fill('17')
   await editor.getByRole('button', { name: 'Поставить на каток' }).click()
   const rink = await rinkBox(page)
-  const start = rink.at(0.4, 0.5)
+  const start = rink.at(0.5, 0.5)
   const dropped = rink.at(0.3, 0.75)
   await page.mouse.move(start.x, start.y)
   await page.mouse.down()
@@ -281,6 +281,31 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
 
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Соперник' }).click()
+  // 15.10 follow-up: new pieces never land on each other, and the arrow
+  // palette never covers the selected one.
+  const pieces = await editor
+    .locator('g[data-token="own"] > circle[r="10"], g[data-token="opponent"] > circle[r="9"]')
+    .evaluateAll((circles) =>
+      circles.map((circle) => {
+        const box = circle.getBoundingClientRect()
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2, r: box.width / 2 }
+      }),
+    )
+  expect(pieces).toHaveLength(3)
+  for (const [i, a] of pieces.entries()) {
+    for (const b of pieces.slice(i + 1)) {
+      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(a.r + b.r)
+    }
+  }
+  const palette = await editor.locator('[data-palette]').boundingBox()
+  const selected = pieces[pieces.length - 1]
+  expect(palette).not.toBeNull()
+  if (palette !== null) {
+    const overlaps =
+      selected.x + selected.r > palette.x && selected.x - selected.r < palette.x + palette.width &&
+      selected.y + selected.r > palette.y && selected.y - selected.r < palette.y + palette.height
+    expect(overlaps).toBe(false)
+  }
   await editor.getByRole('button', { name: 'Отменить' }).click()
   await shot(page, '04-diagram-editor')
   await expectNoHorizontalOverflow(page)

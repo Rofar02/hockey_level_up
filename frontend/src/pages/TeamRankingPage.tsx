@@ -9,10 +9,7 @@ import * as teamsApi from '../api/teams'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import type { TeamScoreRead } from '../types/team'
-
-function formatScore(value: number): string {
-  return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
-}
+import { formatTeamScore } from '../utils/teamScore'
 
 export function TeamRankingPage() {
   const navigate = useNavigate()
@@ -79,7 +76,7 @@ export function TeamRankingPage() {
                   </span>
                 </div>
                 <span className="shrink-0 font-display text-sm font-bold text-accent-ice">
-                  {formatScore(team.team_score)}
+                  {formatTeamScore(team.team_score)}
                 </span>
               </button>
             ))}
