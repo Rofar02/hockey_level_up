@@ -43,7 +43,13 @@ export async function api<T = unknown>(
 
 const HINT_IDS = ['home-skill-milestones', 'schedule-week-day-tap', 'profile-stat-unlocks', 'nav-team-tab']
 
-export async function createUser(role: string, jersey: number, position: 'forward' | 'defense' | 'goalie'): Promise<TestUser> {
+export async function createUser(
+  role: string,
+  jersey: number,
+  position: 'forward' | 'defense' | 'goalie',
+  // false: the first-day hints stay unseen, as for a real new player.
+  { hintsSeen = true }: { hintsSeen?: boolean } = {},
+): Promise<TestUser> {
   const email = `e2e_${role}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}@example.com`
   await api('POST', '/auth/register', {
     body: {
@@ -65,8 +71,10 @@ export async function createUser(role: string, jersey: number, position: 'forwar
   await api('POST', '/assessment/start-from-scratch', { token })
   await api('POST', '/users/me/onboarding-tour-seen', { token })
   await api('POST', '/users/me/coach-personality-intro-seen', { token })
-  for (const hintId of HINT_IDS) {
-    await api('POST', `/users/me/coachmarks-seen/${hintId}`, { token })
+  if (hintsSeen) {
+    for (const hintId of HINT_IDS) {
+      await api('POST', `/users/me/coachmarks-seen/${hintId}`, { token })
+    }
   }
   const me = await api<{ id: string }>('GET', '/auth/me', { token })
   return { id: me.id, email, token, refreshToken: tokens.refresh_token }

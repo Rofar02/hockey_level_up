@@ -15,6 +15,7 @@ import * as scheduleApi from '../api/schedule'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
+import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import type { ExerciseRead } from '../types/exercise'
 import {
   DAY_SESSION_TYPE_LABELS,
@@ -229,6 +230,10 @@ export function NewSchedulePage() {
   // in edit mode is every changed day, since edit mode only exists for an
   // already-generated week. Holds the exact rows to submit if confirmed.
   const [pendingRegeneration, setPendingRegeneration] = useState<DayRow[] | null>(null)
+  // No hint while the player is choosing the week's days (a new week or an
+  // edit): the first hints of a new account used to land right on top of
+  // the planner (15.10). They show once the week is there to look at.
+  useSuppressCoachmarks(weekStatus !== 'view' || editSnapshot !== null)
   // A started day expands inline (not a modal) to list its exercises --
   // accordion, one day at a time. Not-started days keep using
   // previewIsoDate/DayPreviewModal instead; the two are mutually exclusive
