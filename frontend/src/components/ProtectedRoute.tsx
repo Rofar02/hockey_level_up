@@ -6,6 +6,7 @@ import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
 import { warmApiCache } from '../api/client'
+import { MY_LEADERBOARD_PATH } from '../api/leaderboard'
 import { warmOfflineData } from '../utils/offlineWarm'
 import { setQueueEnabled } from '../utils/writeQueue'
 import { getScheduleFeatures } from '../api/schedule'
@@ -39,7 +40,7 @@ const WARM_PATHS = [
   '/quests/status',
   '/teams/me',
   '/friends',
-  '/leaderboard/me',
+  MY_LEADERBOARD_PATH,
   '/users/me/equipment-items',
   '/exercises/equipment-requirements',
   '/users/me/restrictions',

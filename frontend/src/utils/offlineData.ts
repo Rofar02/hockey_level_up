@@ -14,7 +14,7 @@ const OFFLINE_PATHS: RegExp[] = [
   /^\/exercises\/[^/]+\/(history|suggested-weight|suggested-reps|suggested-duration|target-stats|muscle-groups|equipment-items)/,
   /^\/users\/me\/(day-report\?|pending-reports$|stats$|streak$|season$|muscle-loads$|equipment-items$|restrictions$|skill-preferences$|coachmarks-seen$|rest-done-phrase$|weekly-review$|team-attention$|coach-attention$)/,
   /^\/users\/[^/]+\/profile$/,
-  /^\/(quests\/status|quests\/coach-tasks|leaderboard\/me|skills)$/,
+  /^\/(quests\/status|quests\/coach-tasks|leaderboard\/me(\?optional=1)?|skills)$/,
   /^\/teams\/me$/,
   /^\/teams\/[^/]+(\/card|\/events|\/events\/[^/]+(\/attendance|\/lineup|\/readiness)?|\/lineup\/current)?$/,
 ]

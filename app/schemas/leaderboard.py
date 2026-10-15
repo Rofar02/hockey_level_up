@@ -17,5 +17,9 @@ class LeaderboardEntryRead(BaseModel):
 
 
 class LeaderboardMeRead(BaseModel):
-    rank: int
-    rating_excess: float
+    # Both null for a player not in the rating yet (no birth date) -- only
+    # with `optional=1`, see get_my_leaderboard_position (15.10).
+    rank: int | None
+    rating_excess: float | None
+    # What to do to get in, shown instead of the rank.
+    hint: str | None = None

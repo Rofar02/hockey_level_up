@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
+from app.routers.optional import OptionalFlag
 from app.schemas.leaderboard import LeaderboardEntryRead, LeaderboardMeRead
 from app.services.leaderboard_service import LeaderboardService
 
@@ -25,5 +26,8 @@ async def get_leaderboard(
 async def get_my_leaderboard_position(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
+    optional: OptionalFlag = False,
 ):
-    return await LeaderboardService(session).get_my_rank(current_user)
+    """With `optional=1` a player without a birth date gets 200 with an
+    empty rank and the hint instead of a 400 (15.10)."""
+    return await LeaderboardService(session).get_my_rank(current_user, optional)

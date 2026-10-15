@@ -338,7 +338,7 @@ export function TeamHubPage() {
           <HubTile
             icon="ti-trophy"
             label="Рейтинг игроков"
-            hint={leaderboardMe !== null ? `Вы ${leaderboardMe.rank}-й` : undefined}
+            hint={leaderboardMe !== null && leaderboardMe.rank !== null ? `Вы ${leaderboardMe.rank}-й` : undefined}
             to="/leaderboard"
           />
         </div>

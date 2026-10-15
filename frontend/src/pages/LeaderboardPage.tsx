@@ -92,7 +92,9 @@ export function LeaderboardPage() {
   // /leaderboard is capped at a page size -- if the current user's rank
   // falls outside it, /leaderboard/me still has their rank+rating, so pin a
   // separate row for them instead of just leaving them out.
-  const pinnedMe = myIndex === -1 ? me : null
+  const pinnedMe = myIndex === -1 && me !== null && me.rank !== null && me.rating_excess !== null
+    ? { rank: me.rank, rating_excess: me.rating_excess }
+    : null
 
   return (
     <div className="relative min-h-svh overflow-hidden">
@@ -162,6 +164,17 @@ export function LeaderboardPage() {
       )}
 
       <FormError message={meError} />
+      {me !== null && me.hint !== null && (
+        <button
+          type="button"
+          onClick={() => navigate('/settings/profile')}
+          className="flex items-center gap-2 rounded-md border border-white/10 bg-dark-card px-4 py-3 text-left text-sm text-text-secondary"
+        >
+          <i className="ti ti-cake text-accent-ice" aria-hidden="true" />
+          <span className="flex-1">{me.hint}</span>
+          <i className="ti ti-chevron-right" aria-hidden="true" />
+        </button>
+      )}
       </div>
       {opened !== null && (
         <PlayerSheet

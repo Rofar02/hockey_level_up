@@ -11,6 +11,9 @@ from app.schemas.leaderboard import LeaderboardEntryRead, LeaderboardMeRead
 from app.services.progress_service import ProgressService
 
 
+NO_BIRTH_DATE_HINT = "Чтобы попасть в рейтинг, укажите дату рождения в настройках профиля"
+
+
 class LeaderboardService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -47,12 +50,14 @@ class LeaderboardService:
         ranked = await self._ranked_users(user_ids=[user.id, *friend_ids])
         return [self._to_entry(candidate, rating_excess) for candidate, rating_excess in ranked]
 
-    async def get_my_rank(self, user: User) -> LeaderboardMeRead:
+    async def get_my_rank(self, user: User, optional: bool = False) -> LeaderboardMeRead:
         if user.age is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Чтобы попасть в рейтинг, укажите дату рождения в настройках профиля",
-            )
+            # `optional` (15.10): not being rated yet is a normal state, not
+            # a red 400 in the console on every visit; without the flag the
+            # old 400, which installed older builds handle.
+            if optional:
+                return LeaderboardMeRead(rank=None, rating_excess=None, hint=NO_BIRTH_DATE_HINT)
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=NO_BIRTH_DATE_HINT)
         ranked = await self._ranked_users()
         for rank, (candidate, rating_excess) in enumerate(ranked, start=1):
             if candidate.id == user.id:

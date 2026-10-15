@@ -12,6 +12,8 @@ export interface LeaderboardEntryRead {
 }
 
 export interface LeaderboardMeRead {
-  rank: number
-  rating_excess: number
+  // null: not in the rating yet (no birth date) -- `hint` says what to do.
+  rank: number | null
+  rating_excess: number | null
+  hint: string | null
 }
