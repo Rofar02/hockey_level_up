@@ -25,6 +25,7 @@ static/team-logos/
 # deploy/nginx/bootstrap.conf and deploy/nginx/app.conf -- see
 # docs/deploy.md. Not a template, shouldn't be committed.
 deploy/nginx/active.conf
+deploy/nginx/active.conf.prev
 .env.prod
 
 # Self-hosted exercise clips -- large binaries, shipped to the server separately

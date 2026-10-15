@@ -320,9 +320,14 @@ cd /opt/icelevel
 ./deploy/deploy.sh
 ```
 
-Делает `git pull --ff-only` + `docker compose up -d --build` + подчищает
-старые образы + сразу показывает хвост логов backend (чтобы упавшая
-миграция была видна сразу, а не через час).
+Делает `git pull --ff-only` + `docker compose up -d --build`; если
+`deploy/nginx/app.conf` изменился — копирует его в `active.conf`,
+проверяет `nginx -t` (при ошибке возвращает прежний `active.conf`, старый
+конфиг продолжает работать); перезапускает nginx; прогоняет смок-проверку
+заголовков (см. §12) и пишет `!!! deploy finished WITH PROBLEMS`, если
+что-то не так; подчищает старые образы и сразу показывает хвост логов
+backend (чтобы упавшая миграция была видна сразу, а не через час).
+Домен для смок-проверки — `SMOKE_HOST` (по умолчанию `icelevel.ru`).
 
 ### 11.1. Видео упражнений (ролики и обложки)
 
@@ -374,6 +379,10 @@ cd /opt/icelevel
   `frontend/nginx-spa.conf`.
 - `curl -I https://icelevel.ru/api/docs` → должен быть `404` (закрыто в
   `deploy/nginx/app.conf`).
+- Кэш для телефонов (это же `deploy.sh` проверяет сам):
+  `curl -I https://icelevel.ru/sw.js` → `Cache-Control: no-cache`;
+  любой `/assets/…js` из `index.html` → `Cache-Control: public, immutable`;
+  `curl https://icelevel.ru/version.json` → JSON `{"build":"…"}`, не HTML.
 - Со своей машины: `nmap <IP сервера>` — снаружи должны быть видны только
   22/80/443, не 5432/5672/15672/8080 (последний — GlitchTip, раздел 13,
   `127.0.0.1:8080` в docker-compose.prod.yml не публикуется наружу).
