@@ -421,7 +421,16 @@ async def test_system_prompt_carries_real_user_context(db_session, monkeypatch) 
         )
     )
 
-    # Recent StatHistory with a reason.
+    # Recent StatHistory with a reason -- a gym block's, in the 15.10 form
+    # (exercise and block ids); the coach reads the exercise's name (16.10).
+    exercise_name = f"Присед кубковый {uuid.uuid4().hex[:6]}"
+    exercise = Exercise(
+        id=uuid.uuid4(), name=exercise_name, category=ExerciseCategory.OFF_ICE,
+        phase=TrainingPhase.MAIN, difficulty_level=3,
+    )
+    db_session.add(exercise)
+    await db_session.flush()
+    block_id = uuid.uuid4()
     db_session.add(
         StatHistory(
             id=uuid.uuid4(),
@@ -429,7 +438,7 @@ async def test_system_prompt_carries_real_user_context(db_session, monkeypatch) 
             stat_type=TargetStat.STRENGTH,
             value=55.5,
             recorded_at=now,
-            reason="quest_completed",
+            reason=f"quest_completed:{exercise.id}:{block_id}",
         )
     )
     await db_session.flush()
@@ -447,7 +456,8 @@ async def test_system_prompt_carries_real_user_context(db_session, monkeypatch) 
     assert "лучший за всё время: 10 дн." in prompt  # longest streak (season memory)
     assert "интенсификация" in prompt  # periodization phase label
     assert "блок 1" in prompt  # block number (season memory)
-    assert "quest_completed" in prompt  # StatHistory reason
+    assert f"({exercise_name})" in prompt  # StatHistory reason, as the exercise's name
+    assert "quest_completed" not in prompt and str(block_id) not in prompt
     # Guardrails must always be present.
     assert "врачу" in prompt
     assert "диагноз" in prompt.lower()

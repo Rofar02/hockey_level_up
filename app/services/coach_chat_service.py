@@ -51,7 +51,7 @@ from app.models.coach_chat_proposed_action import (
     CoachActionType,
     CoachChatProposedAction,
 )
-from app.models.exercise import MovementPattern, MuscleGroup, TargetStat, TrainingPhase
+from app.models.exercise import Exercise, MovementPattern, MuscleGroup, TargetStat, TrainingPhase
 from app.models.progress import StatHistory, UserStat
 from app.models.schedule import BlockPhase, DayPlan, DaySessionType, TrainingSession, WeeklyPlan
 from app.models.set_completion import SetCompletion
@@ -444,13 +444,40 @@ def _format_analytics_summary_section(summary: AnalyticsSummaryRead, days: int) 
     return "; ".join(parts) + "."
 
 
-def _format_history_section(entries: list[StatHistory]) -> str:
+QUEST_REASON_PREFIX = "quest_completed:"
+
+
+def _quest_exercise_id(reason: str) -> uuid.UUID | None:
+    """The exercise of a gym block's reward reason -- quest_completed:{exercise}
+    or, since 15.10, quest_completed:{exercise}:{block}."""
+    if not reason.startswith(QUEST_REASON_PREFIX):
+        return None
+    try:
+        return uuid.UUID(reason[len(QUEST_REASON_PREFIX):].split(":", 1)[0])
+    except ValueError:
+        return None
+
+
+def _describe_reason(reason: str, exercise_names: dict[uuid.UUID, str]) -> str:
+    """What the coach reads instead of the raw reason (16.10): ids mean
+    nothing to it, and the block id that came with 15.10 even less."""
+    exercise_id = _quest_exercise_id(reason)
+    if exercise_id is not None:
+        return exercise_names.get(exercise_id, "упражнение")
+    if reason.startswith("diary:"):
+        return "отчёт после льда/игры"
+    if reason == "decay":
+        return "спад без тренировок"
+    return reason
+
+
+def _format_history_section(entries: list[StatHistory], exercise_names: dict[uuid.UUID, str]) -> str:
     if not entries:
         return "Последние изменения характеристик: нет записей."
     parts = [
         f"{entry.recorded_at.date().isoformat()} "
         f"{STAT_LABELS.get(entry.stat_type, entry.stat_type.value)} -> {entry.value:.1f} "
-        f"({entry.reason})"
+        f"({_describe_reason(entry.reason, exercise_names)})"
         for entry in entries
     ]
     return "Последние изменения характеристик: " + "; ".join(parts) + "."
@@ -1344,7 +1371,15 @@ class CoachChatService:
             phase_section = _format_phase_section(None, 0, sessions_to_advance_phase(None, user.season_period), None, False)
 
         recent_history = await self._progress.list_recent_history(user.id, RECENT_HISTORY_COUNT)
-        history_section = _format_history_section(recent_history)
+        exercise_ids = {
+            exercise_id for entry in recent_history if (exercise_id := _quest_exercise_id(entry.reason)) is not None
+        }
+        exercise_names = (
+            dict((await self._session.execute(select(Exercise.id, Exercise.name).where(Exercise.id.in_(exercise_ids)))).all())
+            if exercise_ids
+            else {}
+        )
+        history_section = _format_history_section(recent_history, exercise_names)
 
         active_restrictions, resolved_restrictions = await self._restrictions.list_for_coach_prompt(
             user, RESOLVED_RESTRICTIONS_IN_PROMPT
