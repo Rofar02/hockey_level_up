@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.exercise import Exercise, ExerciseCategory, ExerciseMuscleGroup, MuscleGroup, TrainingPhase
+from app.models.outbox import OutboxEvent
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.set_completion import SetCompletion
 from app.models.training_diary import IceEffort
@@ -151,6 +152,15 @@ async def test_finish_screen_rewards_are_the_day_reports(db_session) -> None:
         )
     )
     await db_session.flush()
+    # What block completion queued: the stats each block carried then (16.10).
+    for block in (first, second):
+        db_session.add(
+            OutboxEvent(
+                event_type="block_completed",
+                payload={"session_block_id": str(block.id), "exercise_id": str(squat.id), "target_stats": ["strength"]},
+            )
+        )
+    await db_session.flush()
     service = DayReportService(db_session)
 
     db_session.add(StatHistory(user_id=user.id, stat_type=TargetStat.STRENGTH, value=1.7, reason=quest_reward_reason(str(squat.id), str(first.id))))
@@ -181,6 +191,21 @@ async def test_finish_screen_rewards_are_the_day_reports(db_session) -> None:
     day = {s.stat: s for s in report.stats}
     assert day["strength"].after - day["strength"].before == pytest.approx(3.3)
     assert day["strength"].gain == 3.3
+
+    # The exercise was untagged when a third block was done (its event carried
+    # no stats, nothing was credited) and tagged later: still credited.
+    third = SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=squat.id, order=2, completed_at=now)
+    gym.blocks.append(third)
+    db_session.add(
+        OutboxEvent(
+            event_type="block_completed",
+            payload={"session_block_id": str(third.id), "exercise_id": str(squat.id), "target_stats": []},
+        )
+    )
+    # A fourth whose event the retention pass already removed.
+    gym.blocks.append(SessionBlock(id=uuid.uuid4(), phase=TrainingPhase.MAIN, exercise_id=squat.id, order=3, completed_at=now))
+    await db_session.flush()
+    assert (await service.session_rewards(user, gym.id)).credited is True
 
 
 def test_shown_gain_is_rounded_once_and_tiny_ones_hidden():

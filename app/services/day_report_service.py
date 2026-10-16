@@ -20,9 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.ice_focus import FOCUS_BY_ID
-from app.events.handlers.block_completed import quest_reward_reason, xp_for_difficulty
+from app.events.handlers.block_completed import EVENT_TYPE as BLOCK_COMPLETED_EVENT, quest_reward_reason, xp_for_difficulty
 from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, ICE_SESSION_DOSE, MAX_INTENSITY
-from app.models.exercise import ExerciseMuscleGroup, ExerciseTargetStat
+from app.models.exercise import ExerciseMuscleGroup
+from app.models.outbox import OutboxEvent
 from app.models.progress import IceLoadCharge, StatHistory
 from app.models.schedule import DayPlan, DaySessionType, SessionBlock, TrainingSession, WeeklyPlan
 from app.models.set_completion import SetCompletion
@@ -293,7 +294,11 @@ class DayReportService:
         the day report the real gains, so they disagreed. Both now read the
         same StatHistory rows. `credited` stays false until every completed
         block that carries stats has its row -- the event pipeline is still
-        working, the screen keeps its estimate meanwhile."""
+        working, the screen keeps its estimate meanwhile. «Carries stats» is
+        what its block_completed event carried (16.10), not the exercise's
+        stats now: an admin retagging it later doesn't hold `credited` back
+        forever. An event the retention pass already removed was processed
+        long ago -- nothing left to wait for."""
         session = await self._session.scalar(
             select(TrainingSession)
             .join(DayPlan, DayPlan.id == TrainingSession.day_plan_id)
@@ -309,17 +314,17 @@ class DayReportService:
         gains: dict[str, float] = defaultdict(float)
         for stat, value, prior, _reason in rows:
             gains[str(stat)] += value - prior
-        with_stats = set(
-            (
-                await self._session.scalars(
-                    select(ExerciseTargetStat.exercise_id).where(
-                        ExerciseTargetStat.exercise_id.in_([block.exercise_id for block in done] or [uuid.uuid4()])
-                    )
+        events = (
+            await self._session.scalars(
+                select(OutboxEvent.payload).where(
+                    OutboxEvent.event_type == BLOCK_COMPLETED_EVENT,
+                    OutboxEvent.payload["session_block_id"].astext.in_([str(block.id) for block in done] or [""]),
                 )
-            ).all()
-        )
+            )
+        ).all()
+        with_stats = {payload["session_block_id"] for payload in events if payload.get("target_stats")}
         credited_blocks = {reason for *_rest, reason in rows}
-        expected = {reason for reason, block in reasons.items() if block.exercise_id in with_stats}
+        expected = {reason for reason, block in reasons.items() if str(block.id) in with_stats}
         return SessionRewardsRead(
             stats=[
                 SessionStatGainRead(stat=stat, gain=shown)
