@@ -46,9 +46,11 @@ NOISE_PREFIXES = (
     "safari-extension:",
     "safari-web-extension:",
     "ms-browser-extension:",
-    "about",
-    "data",
+    "about:",
+    "data:",
 )
+# CSP reports name a blocked data:/about: resource by the bare scheme.
+NOISE_BLOCKED_SCHEMES = ("about", "data")
 NOISE_MARKERS = ("chrome-extension://", "moz-extension://", "safari-extension://", "safari-web-extension://")
 
 
@@ -164,7 +166,9 @@ async def report_csp_violation(request: Request) -> None:
         blocked = report.get("blocked-uri") or report.get("blockedURL")
         page = report.get("document-uri") or report.get("documentURL")
         source = report.get("source-file") or report.get("sourceFile")
-        if is_noise(str(blocked) if blocked else None, str(source) if source else None):
+        if str(blocked or "").strip().lower() in NOISE_BLOCKED_SCHEMES or is_noise(
+            str(blocked) if blocked else None, str(source) if source else None
+        ):
             continue
         _warn(
             "csp-violation",

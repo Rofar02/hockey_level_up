@@ -101,6 +101,24 @@ async def test_extension_and_browser_noise_is_dropped(caplog):
 
 
 @pytest.mark.asyncio
+async def test_real_errors_starting_like_a_noise_scheme_are_logged(caplog):
+    """«about»/«data» are noise only as a scheme (about:, data:, or a CSP
+    blocked-uri that is just the scheme) -- a DataCloneError is a real error."""
+    caplog.set_level(logging.WARNING, logger="app.client_events")
+    async with _client() as client:
+        await client.post(
+            "/client-events",
+            json={"kind": "app_error", "message": "DataCloneError: Failed to execute 'postMessage'"},
+        )
+        await client.post("/client-events", json={"kind": "app_error", "message": "AbortError: aborted", "detail": "about the queue"})
+        await client.post("/client-events", json={"kind": "app_error", "message": "data:text/html,<x> failed"})
+    messages = [r.getMessage() for r in caplog.records if r.name == "app.client_events"]
+    assert any("DataCloneError" in m for m in messages)
+    assert any("AbortError" in m for m in messages)
+    assert not any("data:text/html" in m for m in messages)
+
+
+@pytest.mark.asyncio
 async def test_a_repeat_is_logged_once_and_glitchtip_is_capped(caplog, monkeypatch):
     caplog.set_level(logging.WARNING, logger="app.client_events")
     sent = []
