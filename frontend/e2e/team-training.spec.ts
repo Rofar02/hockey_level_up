@@ -459,22 +459,26 @@ test('"not going" gives the day back, "going" takes it again', async () => {
   expect(day.session_type).toBe('on_ice')
 })
 
-test('after the start the home card leads to the report, which grants the team reward', async ({ page }) => {
+test('after the ice the home card leads to the report, which grants the team reward', async ({ page }) => {
   const now = localNow()
-  test.skip(now.hour === 0 && now.minute < 20, 'needs a start time earlier today')
-  // Start moved to a few minutes ago -- the takeover follows the event.
-  const minutesAgo = Math.max(0, now.hour * 60 + now.minute - 10)
+  test.skip(now.hour * 60 + now.minute < 110, 'needs a start time earlier today')
+  // Start moved to 100 minutes ago: the takeover follows the event, and the
+  // report only opens once the ice is over (a team training lasts 90 min,
+  // TEAM_EVENT_LENGTH) -- a few minutes ago got «Отчёт откроется после льда».
+  const minutesAgo = now.hour * 60 + now.minute - 100
   await api('PUT', `/teams/${setup.teamId}/events/${eventId}/schedule`, {
     token: setup.captain.token,
     body: { starts_at: localIso(today, Math.floor(minutesAgo / 60), minutesAgo % 60) },
   })
 
   await loginAs(page, setup.player)
+  // The "Путь новичка" card pays its steps on load -- let it settle first
+  // (not networkidle: the live refresh never lets the network go quiet).
+  const onboardingSynced = page.waitForResponse((response) => response.url().includes('/users/me/onboarding/sync'))
   await page.goto('/')
   await expect(page.getByText(/Началась в/)).toBeVisible()
-  // The "Путь новичка" card pays its steps on load -- let it settle first.
   await expect(page.getByText('Путь новичка')).toBeVisible()
-  await page.waitForLoadState('networkidle')
+  await onboardingSynced
   const before = await api<{ xp: number; level: number }>('GET', '/auth/me', { token: setup.player.token })
   await page.getByRole('button', { name: 'Отчёт после тренировки' }).click()
   // The ordinary personal diary's report -- there is no separate team diary.
