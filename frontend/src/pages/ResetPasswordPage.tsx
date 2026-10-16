@@ -9,6 +9,7 @@ import { TextField } from '../components/ui/TextField'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
 import { linkToken } from '../utils/linkToken'
+import { firstInvalidMessage } from '../utils/formValidation'
 
 export function ResetPasswordPage() {
   const location = useLocation()
@@ -20,8 +21,13 @@ export function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const invalid = firstInvalidMessage(event.currentTarget)
+    if (invalid !== null) {
+      setError(invalid)
+      return
+    }
     if (token === null) {
       return
     }
@@ -33,6 +39,8 @@ export function ResetPasswordPage() {
     setIsSubmitting(true)
     try {
       const result = await authApi.confirmPasswordReset(token, newPassword)
+      // Spent: out of the address bar and the history (А11).
+      window.history.replaceState(window.history.state, '', location.pathname)
       setSuccessMessage(result.detail)
     } catch (err) {
       if (err instanceof ApiError && err.status === 410) {
@@ -62,7 +70,7 @@ export function ResetPasswordPage() {
         )}
 
         {token !== null && successMessage === null && (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
             <TextField
               label="Новый пароль"
               name="new-password"

@@ -104,6 +104,8 @@ export interface DayPlanRead {
 
 // GET /schedule/features
 export interface ScheduleFeaturesRead {
+  // Б2: workout writes go through the offline queue.
+  offline_queue?: boolean
   double_days: boolean
 }
 

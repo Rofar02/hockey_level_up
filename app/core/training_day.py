@@ -2,7 +2,7 @@
 next days can be looked at, not started -- a session ticked off ahead of
 time would credit stats, the streak and the block's progress for work
 that hasn't happened."""
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
@@ -23,3 +23,47 @@ def require_day_started(day: date, user: User) -> None:
     """409 for a day still ahead in the player's own time zone."""
     if day > user_today(user):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=NOT_YET_DETAIL)
+
+
+# Б2 (2026-10-13): the offline queue sends when the phone is back online,
+# so a write carries when the set was really done. Trusted only within
+# reason -- a phone clock a bit ahead, a queue at most two days old;
+# anything else is server time.
+PERFORMED_AT_FUTURE_SLACK = timedelta(minutes=5)
+PERFORMED_AT_MAX_AGE = timedelta(hours=48)
+
+
+def day_start(day: date, user: User) -> datetime:
+    """00:00 of `day` in the player's own time zone."""
+    try:
+        zone = ZoneInfo(user.timezone or "UTC")
+    except Exception:
+        zone = timezone.utc
+    return datetime.combine(day, time.min, zone)
+
+
+def effective_performed_at(
+    performed_at: datetime | None, now: datetime | None = None, not_before: datetime | None = None
+) -> datetime:
+    """`not_before` (review 14.10, 13): the start of the plan's own day --
+    a set of today's workout can't be dated yesterday, which would let a
+    queue (or anyone) back-fill a missed day and keep the streak alive."""
+    now = now or datetime.now(timezone.utc)
+    if performed_at is None:
+        return now
+    if performed_at.tzinfo is None:
+        performed_at = performed_at.replace(tzinfo=timezone.utc)
+    if performed_at > now + PERFORMED_AT_FUTURE_SLACK or performed_at < now - PERFORMED_AT_MAX_AGE:
+        return now
+    trusted = min(performed_at, now)
+    if not_before is not None and trusted < not_before:
+        return min(not_before, now)
+    return trusted
+
+
+def local_date(moment: datetime, user: User) -> date:
+    """The player's calendar day a moment falls on -- what the streak counts."""
+    try:
+        return moment.astimezone(ZoneInfo(user.timezone or "UTC")).date()
+    except Exception:
+        return moment.astimezone(timezone.utc).date()

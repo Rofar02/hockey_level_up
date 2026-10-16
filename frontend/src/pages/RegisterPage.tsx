@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthWizardShell } from '../components/AuthWizardShell'
+import { isOnline } from '../utils/networkStatus'
 import * as authApi from '../api/auth'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
@@ -10,6 +11,7 @@ import { AccountStep } from './register/AccountStep'
 import { PhysicalStep } from './register/PhysicalStep'
 import { PlayerStep } from './register/PlayerStep'
 import type { Position } from '../types/user'
+import { firstInvalidMessage } from '../utils/formValidation'
 
 const STEP_LABELS = ['Аккаунт', 'Игрок', 'Физические данные']
 const TOTAL_STEPS = STEP_LABELS.length
@@ -51,9 +53,18 @@ export function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    const invalid = firstInvalidMessage(event.currentTarget)
+    if (invalid !== null) {
+      setError(invalid)
+      return
+    }
+    if (!isOnline()) {
+      setError('Нужна связь: регистрация работает только онлайн.')
+      return
+    }
 
     const parsedJerseyNumber = Number(jerseyNumber.trim())
     if (

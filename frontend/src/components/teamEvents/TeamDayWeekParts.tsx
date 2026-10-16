@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/Button'
 import { FullScreenSheet } from '../ui/FullScreenSheet'
-import { BoardPlanView } from './BoardPlanView'
+import { PlanCover } from './PlanCover'
 import { useTeamEvent, type LoadedTeamEvent } from '../../hooks/useTeamEvent'
 import { formatMinutes, pluralRu, boardTotalMinutes } from '../../utils/boardPlan'
 import { formatTime } from '../../utils/date'
@@ -69,7 +69,13 @@ export function TeamDayPlanModal({
           <>
             <p className="text-sm text-[#8A94A6]">Начало в {formatTime(new Date(loaded.event.starts_at))}</p>
             {sections.length > 0 ? (
-              <BoardPlanView sections={sections} />
+              <PlanCover
+                sections={sections}
+                compact
+                onOpen={() =>
+                  navigate(`/teams/${loaded.teamId}/events/${loaded.event.id}?reel=1`, { state: { reelInApp: true } })
+                }
+              />
             ) : (
               <p className="rounded-xl border border-dashed border-white/15 p-4 text-sm text-[#8A94A6]">
                 Тренер ещё не опубликовал план. Он появится здесь, как только будет готов.

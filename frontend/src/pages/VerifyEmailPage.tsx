@@ -27,6 +27,10 @@ export function VerifyEmailPage() {
     }
     hasConfirmed.current = true
 
+    // The link is single-use either way -- out of the address bar and the
+    // history it goes, so a shared screenshot or a back-swipe never shows it
+    // (А11, 2026-10-13).
+    window.history.replaceState(window.history.state, '', location.pathname)
     authApi
       .confirmEmailVerification(token)
       .then((result) => {

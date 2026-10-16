@@ -12,15 +12,14 @@ class SetCompletionRepository:
         self._session = session
 
     async def get_last_for_user_exercise(
-        self, user_id: uuid.UUID, exercise_id: uuid.UUID
+        self, user_id: uuid.UUID, exercise_id: uuid.UUID, exclude_session_id: uuid.UUID | None = None
     ) -> SetCompletion | None:
-        """Most recent set logged for this user+exercise, across any session."""
-        result = await self._session.execute(
-            select(SetCompletion)
-            .where(SetCompletion.user_id == user_id, SetCompletion.exercise_id == exercise_id)
-            .order_by(SetCompletion.completed_at.desc())
-            .limit(1)
-        )
+        """Most recent set logged for this user+exercise, across any session
+        (but `exclude_session_id`, when given)."""
+        query = select(SetCompletion).where(SetCompletion.user_id == user_id, SetCompletion.exercise_id == exercise_id)
+        if exclude_session_id is not None:
+            query = query.where(SetCompletion.training_session_id != exclude_session_id)
+        result = await self._session.execute(query.order_by(SetCompletion.completed_at.desc()).limit(1))
         return result.scalar_one_or_none()
 
     async def get_last_for_user_exercise_outside_block(

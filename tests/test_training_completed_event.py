@@ -133,8 +133,9 @@ async def test_completing_an_already_completed_session_never_reachable_twice(db_
     """Once every block is done, there's no remaining incomplete block left
     to complete -- so there is no code path that could re-fire the event for
     the same session. Documented here as a regression guard: re-completing
-    the *last* block again 409s (already-completed) before the training-
-    completed check ever runs a second time.
+    the *last* block again (Б2, 2026-10-13: a resend from the offline queue)
+    answers with the block as it is, before the training-completed check
+    ever runs a second time.
     """
     user = _make_user()
     db_session.add(user)
@@ -144,13 +145,10 @@ async def test_completing_an_already_completed_session_never_reachable_twice(db_
     )
 
     service = SessionBlockService(db_session)
-    await service.complete_block(blocks[0].id, user)
+    first = await service.complete_block(blocks[0].id, user)
     assert len(await _training_completed_events(db_session, training_session.id)) == 1
 
-    from fastapi import HTTPException
-
-    with pytest.raises(HTTPException) as exc_info:
-        await service.complete_block(blocks[0].id, user)
-    assert exc_info.value.status_code == 409
+    again = await service.complete_block(blocks[0].id, user)
+    assert again.completed_at == first.completed_at
     # Still exactly one -- the repeat call never reached the outbox write.
     assert len(await _training_completed_events(db_session, training_session.id)) == 1

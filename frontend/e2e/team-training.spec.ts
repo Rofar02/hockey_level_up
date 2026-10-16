@@ -75,7 +75,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
 
   await expect(page).toHaveURL(new RegExp(`/events/${eventId}\\?tab=board`))
   await expect(page.getByRole('heading', { name: 'План тренировки' })).toBeVisible()
-  await expect(page.getByText('Собери тренировку из разделов')).toBeVisible()
+  await expect(page.getByText('Соберите тренировку из разделов')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Опубликовать для команды' })).toBeDisabled()
   await shot(page, '02-board-empty')
   await expectNoHorizontalOverflow(page)
@@ -102,7 +102,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await plays.getByRole('button', { name: 'Добавить упражнение' }).click()
   // Empty title: the button still reacts and says what's missing.
   await page.getByRole('dialog').getByRole('button', { name: 'Добавить и нарисовать схему' }).click()
-  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Сначала напиши название упражнения')
+  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Сначала напишите название упражнения')
   await expect(page.getByRole('dialog').getByLabel('Название')).toBeFocused()
   await page.getByRole('dialog').getByLabel('Название').fill('2 в 1 через центр')
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveCount(0)
@@ -118,7 +118,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await editor.getByRole('button', { name: 'Пропустить' }).click()
   await expect(editor.getByText('Расставьте игроков')).toBeHidden()
   // Empty rink: a hint, and "Сохранить" explains instead of closing.
-  await expect(editor.getByText('Добавь игрока кнопкой «Свой» внизу')).toBeVisible()
+  await expect(editor.getByText('Добавьте игрока кнопкой «Свой» внизу')).toBeVisible()
   await editor.getByRole('button', { name: 'Сохранить' }).click()
   await expect(editor.getByText(/Схема пустая/)).toBeVisible()
   await expect(editor).toBeVisible()
@@ -126,7 +126,7 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await editor.getByPlaceholder('17').fill('17')
   await editor.getByRole('button', { name: 'Поставить на каток' }).click()
   const rink = await rinkBox(page)
-  const start = rink.at(0.4, 0.5)
+  const start = rink.at(0.5, 0.5)
   const dropped = rink.at(0.3, 0.75)
   await page.mouse.move(start.x, start.y)
   await page.mouse.down()
@@ -204,14 +204,14 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   // Кадры: the chain went into frames 1..5 on its own (each arrow
   // continues the last). The shot is selected -- move it to frame 3, the
   // same moment as the skate; the frame strip follows it.
-  const frameChips = editor.getByRole('group', { name: 'Кадры' }).getByRole('button', { name: /^Кадр \d+$/ })
+  const frameChips = editor.getByRole('group', { name: 'Такты' }).getByRole('button', { name: /^Такт \d+$/ })
   await expect(frameChips).toHaveCount(5)
   await expect(editor.getByTestId('arrow-step')).toHaveText('5')
-  await editor.getByRole('button', { name: 'Кадр раньше' }).click()
-  await editor.getByRole('button', { name: 'Кадр раньше' }).click()
+  await editor.getByRole('button', { name: 'Такт раньше' }).click()
+  await editor.getByRole('button', { name: 'Такт раньше' }).click()
   await expect(editor.getByTestId('arrow-step')).toHaveText('3')
   await expect(frameChips).toHaveCount(4)
-  await expect(editor.getByRole('button', { name: 'Кадр 3', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Такт 3', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(editor.locator('g[data-frame-state="current"]')).toHaveCount(2)
   await shot(page, '04a-diagram-frames')
 
@@ -228,14 +228,14 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
       )
       .toBeLessThan(10)
   }
-  await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 1', exact: true }).click()
   await standsAt(0.3, 0.75)
   await expect(editor.locator('g[data-ghost]')).toHaveCount(0)
   // "Дальше отсюда" on the selected player jumps to the frame after his
   // last move: he stands at its end, a faint copy marks where he started.
   await editor.locator('g[data-token="own"]').click()
   await editor.getByRole('button', { name: 'Дальше отсюда' }).click()
-  await expect(editor.getByRole('button', { name: 'Кадр 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Такт 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await standsAt(0.35, 0.37)
   await expect(editor.locator('g[data-ghost="own"]')).toHaveCount(1)
   await expect(editor.getByRole('button', { name: 'Дальше отсюда' })).toHaveCount(0)
@@ -246,13 +246,13 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   const onward = rink.at(0.2, 0.3)
   await page.mouse.click(onward.x, onward.y)
   await expect(editor.getByTestId('arrow-step')).toHaveText('2')
-  await editor.getByRole('button', { name: 'Кадр 3', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 3', exact: true }).click()
   await standsAt(0.2, 0.3)
   await editor.getByRole('button', { name: 'Отменить' }).click()
 
   // Dragging him in frame 2 moves the end of frame 1's skate (he skates
   // there instead), and the pass chained from that end follows. Undone.
-  await editor.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 2', exact: true }).click()
   await standsAt(0.35, 0.37)
   const grabbed = await editor.locator('g[data-token="own"] circle[r="10"]').boundingBox()
   const dropAt = rink.at(0.25, 0.45)
@@ -262,25 +262,50 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await page.mouse.up()
   const draggedTo = { x: Number(await forward.getAttribute('cx')), y: Number(await forward.getAttribute('cy')) }
   expect(Math.hypot(draggedTo.x - 0.35 * 200, draggedTo.y - 0.37 * 360), 'moved off the old end').toBeGreaterThan(20)
-  await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 1', exact: true }).click()
   await standsAt(0.3, 0.75)
   // Frame 1's skate now ends exactly where he was dropped.
   const skatePath = (await editor.locator('g[data-frame="1"] path').first().getAttribute('d')) ?? ''
   const [endX, endY] = skatePath.trim().split(/\s+/).slice(-2).map(Number)
   expect(Math.hypot(endX - draggedTo.x, endY - draggedTo.y)).toBeLessThan(0.5)
   await editor.getByRole('button', { name: 'Отменить' }).click()
-  await editor.getByRole('button', { name: 'Кадр 2', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 2', exact: true }).click()
   await standsAt(0.35, 0.37)
 
   // ▶ in the editor plays the frames through and comes back to frame 2.
   await editor.getByRole('button', { name: 'Проиграть схему' }).click()
   await expect(editor.getByRole('button', { name: 'Остановить' })).toBeVisible()
-  await expect(editor.getByRole('button', { name: 'Кадр 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Такт 1', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await expect(editor.getByRole('button', { name: 'Проиграть схему' })).toBeVisible({ timeout: 15_000 })
-  await expect(editor.getByRole('button', { name: 'Кадр 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor.getByRole('button', { name: 'Такт 2', exact: true })).toHaveAttribute('aria-pressed', 'true')
 
   await editor.getByRole('button', { name: 'Соперник' }).click()
   await editor.getByRole('button', { name: 'Соперник' }).click()
+  // 15.10 follow-up: new pieces never land on each other, and the arrow
+  // palette never covers the selected one.
+  const pieces = await editor
+    .locator('g[data-token="own"] > circle[r="10"], g[data-token="opponent"] > circle[r="9"]')
+    .evaluateAll((circles) =>
+      circles.map((circle) => {
+        const box = circle.getBoundingClientRect()
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2, r: box.width / 2 }
+      }),
+    )
+  expect(pieces).toHaveLength(3)
+  for (const [i, a] of pieces.entries()) {
+    for (const b of pieces.slice(i + 1)) {
+      expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(a.r + b.r)
+    }
+  }
+  const palette = await editor.locator('[data-palette]').boundingBox()
+  const selected = pieces[pieces.length - 1]
+  expect(palette).not.toBeNull()
+  if (palette !== null) {
+    const overlaps =
+      selected.x + selected.r > palette.x && selected.x - selected.r < palette.x + palette.width &&
+      selected.y + selected.r > palette.y && selected.y - selected.r < palette.y + palette.height
+    expect(overlaps).toBe(false)
+  }
   await editor.getByRole('button', { name: 'Отменить' }).click()
   await shot(page, '04-diagram-editor')
   await expectNoHorizontalOverflow(page)
@@ -337,14 +362,13 @@ test('coach finds the plan from the team page and builds it', async ({ page }) =
   await expect(header.getByText('25', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Опубликовать для команды' }).click()
   await expect(page.getByText('Опубликован — команда видит план')).toBeVisible()
-  // "Как видит игрок" is the player's own plan modal: tapping a drill
-  // shows its scheme right away, not somewhere below the fold.
+  // "Как видит игрок" is exactly what the players get: the reel.
   await page.getByRole('button', { name: 'Как видит игрок' }).click()
   const preview = page.getByRole('dialog', { name: 'План тренировки' })
-  await preview.getByRole('button', { name: /2 в 1 через центр/ }).click()
-  await expect(preview.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeInViewport()
+  await expect(preview.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
   await shot(page, '06-board-published-preview')
-  await preview.getByRole('button', { name: 'Закрыть' }).click()
+  await preview.getByRole('button', { name: 'Закрыть', exact: true }).click()
+  await expect(preview).toBeHidden()
   await shot(page, '07-board-editor')
   await expectNoHorizontalOverflow(page)
 
@@ -364,7 +388,7 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await loginAs(page, setup.player)
   await page.goto(`/teams/${setup.teamId}/events/${eventId}?tab=attendance`)
   await page.getByRole('button', { name: 'Отметиться' }).click()
-  await page.getByText('Буду', { exact: true }).click()
+  await page.getByText('Иду', { exact: true }).click()
   await page.getByRole('button', { name: 'Сохранить' }).click()
   await expect(page.getByRole('button', { name: 'Изменить' })).toBeVisible()
 
@@ -381,40 +405,20 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await shot(page, '09-home-team-card')
   await expectNoHorizontalOverflow(page)
 
+  // "Смотреть план": the reel (2026-10-14) -- the drill without a scheme as a
+  // card, the one with a scheme playing by itself. «Назад» comes home.
   await page.getByRole('button', { name: 'Смотреть план' }).click()
-  const modal = page.getByRole('dialog', { name: 'План тренировки' })
-  await expect(modal.getByText('Разминка')).toBeVisible()
-  // The scheme is visible right in the list, before opening the drill.
-  const schemeRow = modal.getByRole('button', { name: /2 в 1 через центр/ })
-  await expect(schemeRow.getByTestId('scheme-thumbnail')).toBeVisible()
-  await expect(schemeRow.getByText('схема')).toBeVisible()
-  await expect(modal.getByRole('button', { name: /Катание по кругам/ }).getByTestId('scheme-thumbnail')).toHaveCount(0)
-  await shot(page, '10a-plan-modal-list')
-  await schemeRow.click()
-  await expect(modal.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeVisible()
-  // Frames: "Всё" at rest; a frame shows only what happens then; ▶ plays
-  // them through and comes back to the whole scheme.
-  const frames = modal.getByRole('group', { name: 'Кадры' })
-  await expect(frames.getByRole('button', { name: 'Всё' })).toHaveAttribute('aria-pressed', 'true')
-  const player = modal.locator('g[data-token="own"] circle').first()
-  const restX = Number(await player.getAttribute('cx'))
-  await frames.getByRole('button', { name: 'Кадр 2', exact: true }).click()
-  await expect(modal.locator('g[data-frame-state="current"]')).toHaveCount(1)
-  // Frame 2 begins after frame 1's skate: the player stands at its end.
-  expect(Number(await player.getAttribute('cx'))).not.toBeCloseTo(restX, 0)
-  await shot(page, '10b-plan-drill-frame-2')
-  await modal.getByRole('button', { name: 'Проиграть' }).click()
-  await expect(modal.getByRole('button', { name: 'Пауза' })).toBeVisible()
-  await expect(modal.getByRole('button', { name: 'Проиграть' })).toBeVisible({ timeout: 15_000 })
-  await expect(frames.getByRole('button', { name: 'Всё' })).toHaveAttribute('aria-pressed', 'true')
-  await shot(page, '10-plan-modal-drill-scheme')
+  const reel = page.getByRole('dialog', { name: 'План тренировки' })
+  await expect(reel.getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
+  await shot(page, '10a-plan-reel-first')
+  await reel.getByRole('button', { name: 'Следующее упражнение' }).click()
+  await expect(reel.getByText('УПРАЖНЕНИЕ 2 / 2')).toBeVisible()
+  await expect(reel.getByText(/ТАКТ 1 \//)).toBeVisible({ timeout: 6000 })
+  await shot(page, '10-plan-reel-scheme')
   await expectNoHorizontalOverflow(page)
-  await modal.getByRole('button', { name: 'Весь план' }).click()
-  await expect(modal.getByRole('button', { name: /Катание по кругам/ })).toBeVisible()
-  await modal.getByRole('button', { name: 'Закрыть' }).click()
-  // Let the modal finish closing (it restores the page's scroll) before
-  // tapping the tab bar -- tapping mid-close occasionally went nowhere.
-  await expect(modal).toBeHidden()
+  await page.goBack()
+  await expect(reel).toBeHidden()
+  await expect(page.getByText('Командная тренировка')).toBeVisible()
 
   // The week screen shows the team day and the same plan.
   await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('link', { name: 'План', exact: true }).click()
@@ -427,10 +431,13 @@ test('player says "going": the day becomes team ice and the home card shows the 
   await page.getByRole('button', { name: 'План тренировки' }).click()
   const weekModal = page.getByRole('dialog', { name: /командная тренировка/ })
   await expect(weekModal.getByRole('button', { name: 'Разминка до выхода на лёд' })).toBeVisible()
-  await weekModal.getByRole('button', { name: /2 в 1 через центр/ }).click()
-  await expect(weekModal.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeInViewport()
-  await shot(page, '13-week-team-plan-drill')
-  await weekModal.getByRole('button', { name: 'Весь план' }).click()
+  await expect(weekModal.getByRole('region', { name: 'План тренировки' })).toBeVisible()
+  await shot(page, '13-week-team-plan-cover')
+  await weekModal.getByRole('button', { name: 'Смотреть план' }).click()
+  await expect(page.getByRole('dialog', { name: 'План тренировки' }).getByText('УПРАЖНЕНИЕ 1 / 2')).toBeVisible()
+  await page.goBack()
+  await expect(page).toHaveURL(/\/schedule\/new$/)
+  await page.getByRole('button', { name: 'План тренировки' }).click()
   await weekModal.getByRole('button', { name: 'Разминка до выхода на лёд' }).click()
   await expect(page.getByRole('dialog', { name: /— Лёд/ })).toBeVisible()
 })
@@ -452,22 +459,26 @@ test('"not going" gives the day back, "going" takes it again', async () => {
   expect(day.session_type).toBe('on_ice')
 })
 
-test('after the start the home card leads to the report, which grants the team reward', async ({ page }) => {
+test('after the ice the home card leads to the report, which grants the team reward', async ({ page }) => {
   const now = localNow()
-  test.skip(now.hour === 0 && now.minute < 20, 'needs a start time earlier today')
-  // Start moved to a few minutes ago -- the takeover follows the event.
-  const minutesAgo = Math.max(0, now.hour * 60 + now.minute - 10)
+  test.skip(now.hour * 60 + now.minute < 110, 'needs a start time earlier today')
+  // Start moved to 100 minutes ago: the takeover follows the event, and the
+  // report only opens once the ice is over (a team training lasts 90 min,
+  // TEAM_EVENT_LENGTH) -- a few minutes ago got «Отчёт откроется после льда».
+  const minutesAgo = now.hour * 60 + now.minute - 100
   await api('PUT', `/teams/${setup.teamId}/events/${eventId}/schedule`, {
     token: setup.captain.token,
     body: { starts_at: localIso(today, Math.floor(minutesAgo / 60), minutesAgo % 60) },
   })
 
   await loginAs(page, setup.player)
+  // The "Путь новичка" card pays its steps on load -- let it settle first
+  // (not networkidle: the live refresh never lets the network go quiet).
+  const onboardingSynced = page.waitForResponse((response) => response.url().includes('/users/me/onboarding/sync'))
   await page.goto('/')
   await expect(page.getByText(/Началась в/)).toBeVisible()
-  // The "Путь новичка" card pays its steps on load -- let it settle first.
   await expect(page.getByText('Путь новичка')).toBeVisible()
-  await page.waitForLoadState('networkidle')
+  await onboardingSynced
   const before = await api<{ xp: number; level: number }>('GET', '/auth/me', { token: setup.player.token })
   await page.getByRole('button', { name: 'Отчёт после тренировки' }).click()
   // The ordinary personal diary's report -- there is no separate team diary.

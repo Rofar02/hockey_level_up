@@ -25,9 +25,11 @@ import * as sessionBlocksApi from '../api/sessionBlocks'
 import * as skillsApi from '../api/skills'
 import * as trainingBlockApi from '../api/trainingBlock'
 import * as trainingSessionsApi from '../api/trainingSessions'
+import type { SessionRewardsRead } from '../types/setCompletion'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { formatElapsed, useSessionClock } from '../hooks/useSessionClock'
+import { usePendingWrites } from '../hooks/useWriteQueue'
 import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import { TARGET_STAT_LABELS } from '../types/exercise'
 import type { ExerciseRead, TargetStat } from '../types/exercise'
@@ -436,7 +438,7 @@ export function TrainingSessionPage() {
       .getWeeklyPlan(toIsoDate(monday), accessToken)
       .then((plan) => {
         if (!cancelled) {
-          setSibling(plan.day_plans.find((other) => other.date === day.date && other.id !== day.id) ?? null)
+          setSibling(plan?.day_plans.find((other) => other.date === day.date && other.id !== day.id) ?? null)
         }
       })
       .catch(() => {
@@ -592,7 +594,7 @@ export function TrainingSessionPage() {
     setActionError(null)
     setPendingIds((previous) => new Set(previous).add(block.id))
     try {
-      const updated = await sessionBlocksApi.completeSessionBlock(block.id, accessToken)
+      const updated = await sessionBlocksApi.completeSessionBlock(block.id, accessToken, block)
       const mergedBlocks = blocks.map((b) => (b.id === updated.id ? updated : b))
       setBlocks(mergedBlocks)
 
@@ -653,7 +655,7 @@ export function TrainingSessionPage() {
     setActionError(null)
     setPendingIds((previous) => new Set(previous).add(block.id))
     try {
-      const updated = await sessionBlocksApi.skipSessionBlock(block.id, accessToken)
+      const updated = await sessionBlocksApi.skipSessionBlock(block.id, accessToken, block)
       const mergedBlocks = blocks.map((b) => (b.id === updated.id ? updated : b))
       setBlocks(mergedBlocks)
 
@@ -1012,7 +1014,7 @@ export function TrainingSessionPage() {
             // skip is already universal (skipped_at/handleSkip below). This
             // just tells the player the whole thing is optional so it
             // doesn't read as a full mandatory workout before a game.
-            <p className="text-sm text-text-secondary">Необязательная активация — выбери, что подходит</p>
+            <p className="text-sm text-text-secondary">Необязательная активация — выберите, что подходит</p>
           )}
       </div>
 
@@ -1228,7 +1230,7 @@ export function TrainingSessionPage() {
                     className="w-full"
                   >
                     <span className="flex items-center justify-center gap-2">
-                      <i className="ti ti-player-play-filled" aria-hidden="true" />
+                      <i className="ti ti-player-play" aria-hidden="true" />
                       Начать тренировку
                     </span>
                   </Button>
@@ -1539,6 +1541,7 @@ export function TrainingSessionPage() {
           escalations={sessionComplete.escalations}
           levelBeforeSession={levelBeforeSession}
           accessToken={accessToken}
+          trainingSessionId={trainingSessionId}
           // ON_ICE/GAME only: the one diary entry per such session is written
           // on TrainingDiaryPage, offered right here so the player doesn't
           // have to find it again from the home screen afterwards. Not on a
@@ -1896,7 +1899,8 @@ function ExerciseRow({
 // confidence instead of trusting a single fetch -- stops early once the
 // streak shows today's activity, which only happens after its event has
 // actually been consumed.
-const SERVER_STATE_POLL_DELAYS_MS = [1600, 1200, 1200]
+// The last two only if the stat gains aren't credited yet (15.10).
+const SERVER_STATE_POLL_DELAYS_MS = [1600, 1200, 1200, 2000, 3000]
 
 const STATS_INTRO_KEY = 'stats-intro-seen'
 
@@ -1906,6 +1910,7 @@ function SessionCompleteModal({
   escalations,
   levelBeforeSession,
   accessToken,
+  trainingSessionId,
   diaryDayPlanId,
   diaryKind,
 }: {
@@ -1914,6 +1919,7 @@ function SessionCompleteModal({
   escalations: CeilingEscalationRead[]
   levelBeforeSession: number | null
   accessToken: string
+  trainingSessionId: string | null
   // Set (to the day plan's id) only for ON_ICE/GAME, null otherwise --
   // drives the report button below ("Отчёт после льда" / "Как сыграли?").
   diaryDayPlanId: string | null
@@ -1925,23 +1931,38 @@ function SessionCompleteModal({
   const [freshLevel, setFreshLevel] = useState<number | null>(null)
   const [isLoadingServerState, setIsLoadingServerState] = useState(true)
   const [serverStateError, setServerStateError] = useState<string | null>(null)
+  // 15.10: what the server really credited -- diminishing returns and the
+  // skill bonus make it differ from the estimate above, and the day report
+  // shows the credited numbers. Until they're in, the estimate is shown «≈».
+  const [credited, setCredited] = useState<SessionRewardsRead | null>(null)
   // Same reasoning as Modal.tsx's own -- this covers the whole page too.
   useSuppressCoachmarks(true)
+  // Б2: finished offline -- the server hasn't seen the workout yet, so XP,
+  // the streak and a level-up wait until the queue has gone through.
+  const pendingWrites = usePendingWrites()
+  const synced = pendingWrites === 0
 
   useEffect(() => {
+    if (!synced) {
+      return
+    }
     let cancelled = false
     const todayIso = toIsoDate(new Date())
 
     async function pollServerState() {
-      for (const delayMs of SERVER_STATE_POLL_DELAYS_MS) {
+      let rewardsIn = trainingSessionId === null
+      for (const [attempt, delayMs] of SERVER_STATE_POLL_DELAYS_MS.entries()) {
         await new Promise((resolve) => setTimeout(resolve, delayMs))
         if (cancelled) {
           return
         }
         try {
-          const [streakResult, userResult] = await Promise.all([
+          const [streakResult, userResult, rewards] = await Promise.all([
             progressApi.getMyStreak(accessToken),
             authApi.getCurrentUser(accessToken),
+            rewardsIn || trainingSessionId === null
+              ? Promise.resolve(null)
+              : trainingSessionsApi.getSessionRewards(trainingSessionId, accessToken).catch(() => null),
           ])
           if (cancelled) {
             return
@@ -1949,8 +1970,16 @@ function SessionCompleteModal({
           setStreak(streakResult)
           setFreshLevel(userResult.level)
           setServerStateError(null)
-          if (streakResult.last_activity_date === todayIso) {
+          if (rewards !== null && rewards.credited) {
+            setCredited(rewards)
+            rewardsIn = true
+          }
+          const streakIn = streakResult.last_activity_date === todayIso
+          if (streakIn && (rewardsIn || attempt >= 2)) {
             break
+          }
+          if (streakIn) {
+            setIsLoadingServerState(false)
           }
         } catch (err) {
           if (!cancelled) {
@@ -1969,7 +1998,7 @@ function SessionCompleteModal({
     return () => {
       cancelled = true
     }
-  }, [accessToken])
+  }, [accessToken, synced, trainingSessionId])
 
   // 2026-10-08: the first finished workout explains the stats once (per
   // device -- a convenience, not something to sync).
@@ -2003,16 +2032,32 @@ function SessionCompleteModal({
           <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
             Прирост характеристик
           </p>
-          {Object.entries(statTotals).map(([stat, value]) => (
+          {/* The credited gains come rounded from the server and are shown as
+              they are -- the day report shows the same number (16.10); the
+              estimate is rounded here, and under 0.05 shown nowhere. */}
+          {(credited !== null
+            ? credited.stats.map(({ stat, gain }) => [stat, String(gain)] as const)
+            : Object.entries(statTotals)
+                .filter(([, value]) => value >= 0.05)
+                .map(([stat, value]) => [stat, formatStatGain(value)] as const)
+          ).map(([stat, value]) => (
             <div key={stat} className="flex items-center justify-between text-sm">
               <span className="text-text-primary">{TARGET_STAT_LABELS[stat as TargetStat]}</span>
-              <span className="font-mono text-accent-ice">+{formatStatGain(value)}</span>
+              <span className="font-mono text-accent-ice" title={credited === null ? 'Примерно — считается' : undefined}>
+                {credited === null ? '≈' : ''}+{value}
+              </span>
             </div>
           ))}
           <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-2 text-sm">
             <span className="text-text-secondary">XP за тренировку</span>
-            <span className="font-mono text-text-primary">+{xpTotal}</span>
+            <span className="font-mono text-text-primary">+{credited?.xp ?? xpTotal}</span>
           </div>
+          {!synced && (
+            <p className="flex items-center gap-1.5 text-xs text-text-secondary">
+              <i className="ti ti-cloud-upload" aria-hidden="true" />
+              Начислится, когда появится связь
+            </p>
+          )}
         </div>
 
         {showStatsIntro && (
@@ -2043,7 +2088,8 @@ function SessionCompleteModal({
           <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
             Серия тренировок
           </p>
-          {isLoadingServerState && <p className="text-sm text-text-secondary">Загрузка...</p>}
+          {!synced && <p className="text-sm text-text-secondary">Обновится, когда появится связь</p>}
+          {synced && isLoadingServerState && <p className="text-sm text-text-secondary">Загрузка...</p>}
           <FormError message={serverStateError} />
           {!isLoadingServerState && streak !== null && (
             <div className="flex items-center gap-2">

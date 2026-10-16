@@ -10,17 +10,26 @@ forever -- ~40% of all database growth in a year-long simulation
 - processed_events: the consumer's "already handled" marks. They guard
   against a redelivered message, which happens within minutes of the
   original, not weeks later.
+- refresh_sessions (2026-10-13, А11): a device session past its expires_at
+  can never refresh again; login only tidies up the player's own.
+- idempotency_keys (Б2): a resend from the offline queue comes within hours
+  (48 h at most, see training_day.PERFORMED_AT_MAX_AGE); kept a week.
 """
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.db.session import AsyncSessionLocal
+from app.core.idempotency import RETENTION_DAYS as IDEMPOTENCY_RETENTION_DAYS
+from app.models.coach_chat import CoachChatMessage, CoachChatRole
+from app.models.idempotency_key import IdempotencyKey
 from app.models.outbox import OutboxEvent
 from app.models.processed_event import ProcessedEvent
+from app.models.refresh_session import RefreshSession
 from app.services.friend_activity_service import FEED_EVENT_TYPES
 
 logger = logging.getLogger(__name__)
@@ -43,14 +52,60 @@ async def purge_old_events(session: AsyncSession, now_utc: datetime) -> tuple[in
     return outbox.rowcount, processed.rowcount
 
 
+async def purge_expired_sessions(session: AsyncSession, now_utc: datetime) -> int:
+    result = await session.execute(delete(RefreshSession).where(RefreshSession.expires_at <= now_utc))
+    return result.rowcount
+
+
+async def purge_old_idempotency_keys(session: AsyncSession, now_utc: datetime) -> int:
+    cutoff = now_utc - timedelta(days=IDEMPOTENCY_RETENTION_DAYS)
+    result = await session.execute(delete(IdempotencyKey).where(IdempotencyKey.created_at < cutoff))
+    return result.rowcount
+
+
+# A player's message with no reply after this long never got one: the
+# request died mid-answer (process killed, cancelled before the cleanup ran).
+# It must not keep counting against the monthly quota (review 14.10, 7).
+UNANSWERED_COACH_MESSAGE_AFTER = timedelta(minutes=10)
+
+
+async def purge_unanswered_coach_messages(session: AsyncSession, now_utc: datetime) -> int:
+    reply = aliased(CoachChatMessage)
+    answered = (
+        select(reply.id)
+        .where(
+            reply.user_id == CoachChatMessage.user_id,
+            reply.role == CoachChatRole.ASSISTANT,
+            reply.created_at >= CoachChatMessage.created_at,
+        )
+        .exists()
+    )
+    result = await session.execute(
+        delete(CoachChatMessage).where(
+            CoachChatMessage.role == CoachChatRole.USER,
+            CoachChatMessage.created_at < now_utc - UNANSWERED_COACH_MESSAGE_AFTER,
+            ~answered,
+        )
+    )
+    return result.rowcount
+
+
 async def _retention_tick() -> None:
+    now_utc = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as session, session.begin():
-        outbox_deleted, processed_deleted = await purge_old_events(session, datetime.now(timezone.utc))
+        outbox_deleted, processed_deleted = await purge_old_events(session, now_utc)
+        sessions_deleted = await purge_expired_sessions(session, now_utc)
+        keys_deleted = await purge_old_idempotency_keys(session, now_utc)
+        unanswered_deleted = await purge_unanswered_coach_messages(session, now_utc)
     logger.info(
-        "Event retention: deleted %s outbox_events, %s processed_events older than %s days",
+        "Event retention: deleted %s outbox_events, %s processed_events older than %s days, "
+        "%s expired refresh sessions, %s idempotency keys, %s unanswered coach messages",
         outbox_deleted,
         processed_deleted,
         RETENTION_DAYS,
+        sessions_deleted,
+        keys_deleted,
+        unanswered_deleted,
     )
 
 

@@ -70,15 +70,15 @@ class TeamService:
     def _apply_league(team: Team, fields: TeamLeagueFields) -> None:
         league = leagues.LEAGUES_BY_CODE.get(fields.league_code)
         if league is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown league")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Unknown league")
         division_code = fields.division_code or None
         if division_code is not None and division_code not in {d.code for d in league.divisions}:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown division")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Unknown division")
         other_name = leagues.normalize_text(fields.league_other_name)
         if league.code == leagues.LEAGUE_OTHER:
             if other_name is None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="League name is required"
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="League name is required"
                 )
         else:
             other_name = None
@@ -224,7 +224,7 @@ class TeamService:
         if team.owner_id == user.id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Captain can't leave -- disband the team instead",
+                detail="Капитан не может выйти — передайте капитанство или распустите команду",
             )
         await self._teams.delete_membership(membership)
         await self._session.commit()
@@ -240,7 +240,7 @@ class TeamService:
         if target_user_id == team.owner_id:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Captain can't kick themselves -- transfer captaincy or disband instead",
+                detail="Капитан не может исключить себя — передайте капитанство или распустите команду",
             )
         membership = await self._teams.get_membership(team_id, target_user_id)
         if membership is None:

@@ -21,7 +21,7 @@ test('the Команда tab shows what is waiting and leads straight to it', as
   await loginAs(page, me)
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Основная навигация' })
-  const teamTab = nav.getByRole('link', { name: 'Команда: есть новое' })
+  const teamTab = nav.getByRole('link', { name: 'Команда: новых — 1' })
   await expect(teamTab).toBeVisible()
   await teamTab.click()
   await expect(page).toHaveURL(/\/team$/)

@@ -5,6 +5,7 @@
 // written by vite.config.ts) and reloads when it differs -- or when the app
 // was away so long that a fresh start is better anyway.
 import { reloadForStaleChunk } from './staleChunkReload.ts'
+import { activateWaitingServiceWorker, checkForServiceWorkerUpdate } from './serviceWorker.ts'
 
 // Shorter background stays aren't worth a request.
 const CHECK_AFTER_HIDDEN_MS = 2 * 60 * 1000
@@ -59,6 +60,11 @@ export function installAppUpdateCheck() {
   let pendingReload = false
 
   const onVisible = async (hiddenFor: number) => {
+    // Offline there's nothing newer to fetch -- a reload would only drop
+    // what's on screen (Б0: the cached app would come back, unchanged).
+    if (navigator.onLine === false) {
+      return
+    }
     let shouldReload = pendingReload || hiddenFor >= RELOAD_AFTER_HIDDEN_MS
     if (!shouldReload) {
       const serverBuild = await fetchServerBuild()
@@ -67,7 +73,11 @@ export function installAppUpdateCheck() {
     if (!shouldReload) {
       return
     }
+    // The new build's service worker starts installing now, in the
+    // background; it takes over right before the reload below.
+    void checkForServiceWorkerUpdate()
     if (canReloadNow()) {
+      await activateWaitingServiceWorker()
       reloadForStaleChunk()
     } else {
       pendingReload = true

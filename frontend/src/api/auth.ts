@@ -52,9 +52,10 @@ export function confirmEmailVerification(token: string): Promise<DetailResponse>
   return apiPost<DetailResponse>('/auth/verify-email/confirm', { token })
 }
 
-// Ends this device's session on the server; the caller forgets the tokens.
-export function logout(refreshToken: string): Promise<void> {
-  return apiPost<void>('/auth/logout', { refresh_token: refreshToken })
+// Ends this device's session on the server (and its push subscription,
+// when there is one); the caller forgets the tokens.
+export function logout(refreshToken: string, pushEndpoint: string | null = null): Promise<void> {
+  return apiPost<void>('/auth/logout', { refresh_token: refreshToken, push_endpoint: pushEndpoint })
 }
 
 // «Выйти на всех устройствах» -- this device included.
@@ -62,15 +63,17 @@ export function logoutAll(accessToken: string): Promise<void> {
   return apiPostAuth<void>('/auth/logout-all', {}, accessToken)
 }
 
-// Other devices are signed out; this one continues on the returned pair.
+// Other devices are signed out and lose their push subscriptions; this one
+// continues on the returned pair and keeps its own (`pushEndpoint`).
 export function changePassword(
   currentPassword: string,
   newPassword: string,
   accessToken: string,
+  pushEndpoint: string | null = null,
 ): Promise<TokenPair> {
   return apiPostAuth<TokenPair>(
     '/auth/change-password',
-    { current_password: currentPassword, new_password: newPassword },
+    { current_password: currentPassword, new_password: newPassword, push_endpoint: pushEndpoint },
     accessToken,
   )
 }

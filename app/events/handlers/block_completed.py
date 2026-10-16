@@ -1,12 +1,12 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 
-from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, MAX_INTENSITY, get_effective_muscle_load
+from app.core.muscle_load import GAIN_PER_DIFFICULTY_LEVEL, MAX_INTENSITY, decayed_gain, get_effective_muscle_load
 from app.db.session import AsyncSessionLocal
 from app.events.idempotency import try_claim
 from app.events.registry import register_handler
@@ -59,6 +59,20 @@ STAT_CONSUMER_HANDLER_NAME = "stat_consumer"
 STREAK_CONSUMER_HANDLER_NAME = "streak_consumer"
 XP_CONSUMER_HANDLER_NAME = "xp_consumer"
 MUSCLE_LOAD_CONSUMER_HANDLER_NAME = "muscle_load_consumer"
+
+
+def quest_reward_reason(exercise_id: str, session_block_id: str | None = None) -> str:
+    """StatHistory reason of a completed gym block. Since 15.10 it names the
+    block too, so a training's real gains can be read back exactly (the
+    workout's finish screen and the day report show the same numbers); an
+    event queued before that has no block id and keeps the old form."""
+    if session_block_id is None:
+        return f"quest_completed:{exercise_id}"
+    return f"quest_completed:{exercise_id}:{session_block_id}"
+
+
+def xp_for_difficulty(difficulty_level: int) -> int:
+    return difficulty_level * 10
 
 
 def xp_to_next_level(level: int) -> int:
@@ -182,7 +196,7 @@ async def stat_consumer(payload: dict, event_id: uuid.UUID) -> None:
                     user_id=user_id,
                     stat_type=stat_type,
                     value=new_value,
-                    reason=f"quest_completed:{exercise_id}",
+                    reason=quest_reward_reason(exercise_id, payload.get("session_block_id")),
                 )
             )
 
@@ -230,6 +244,10 @@ async def muscle_load_consumer(payload: dict, event_id: uuid.UUID) -> None:
 
         now = datetime.now(timezone.utc)
         base_gain = difficulty_level * GAIN_PER_DIFFICULTY_LEVEL
+        # When the work was done (the offline queue may send it much later);
+        # events from before 2026-10-14 carry no performed_at.
+        if payload.get("performed_at"):
+            base_gain = decayed_gain(base_gain, datetime.fromisoformat(payload["performed_at"]), now)
 
         # Sorted for the same lock-ordering-deadlock reason stat_consumer's
         # stat_types sort exists: two concurrent block_completed events for
@@ -289,6 +307,12 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
             await session.execute(select(User.timezone).where(User.id == user_id))
         ).scalar_one_or_none()
         today = datetime.now(ZoneInfo(user_timezone or "UTC")).date()
+        # Б2 (2026-10-13): the day the work was actually done on, sent by
+        # complete_block -- a workout finished at 23:50 and synced from the
+        # offline queue at 00:10 belongs to the day before. Older events
+        # carry no activity_date and keep the clock's day.
+        if payload.get("activity_date"):
+            today = date.fromisoformat(payload["activity_date"])
 
         result = await session.execute(
             select(TrainingStreak).where(TrainingStreak.user_id == user_id).with_for_update()
@@ -350,8 +374,10 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
             await session.commit()
             return
 
-        if streak.last_activity_date == today:
-            pass  # already counted today, don't touch the streak
+        if streak.last_activity_date is not None and streak.last_activity_date >= today:
+            # Already counted today -- or a late, out-of-order sync of an
+            # earlier day (a second device's queue): never moves it back.
+            pass
         elif streak.last_activity_date is not None and not await has_missed_training_day(
             session, user_id, streak.last_activity_date, today
         ):
@@ -362,7 +388,8 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
 
         if streak.current_streak > streak.longest_streak:
             streak.longest_streak = streak.current_streak
-        streak.last_activity_date = today
+        if streak.last_activity_date is None or today > streak.last_activity_date:
+            streak.last_activity_date = today
 
         await session.commit()
 
@@ -371,7 +398,7 @@ async def streak_consumer(payload: dict, event_id: uuid.UUID) -> None:
 async def xp_consumer(payload: dict, event_id: uuid.UUID) -> None:
     user_id = uuid.UUID(payload["user_id"])
     difficulty_level = payload["difficulty_level"]
-    gain = difficulty_level * 10
+    gain = xp_for_difficulty(difficulty_level)
 
     async with AsyncSessionLocal() as session:
         if not await try_claim(session, event_id, XP_CONSUMER_HANDLER_NAME):

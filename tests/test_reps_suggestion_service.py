@@ -61,7 +61,8 @@ async def _make_set_history(
     *,
     reps_per_set: list[int | None],
     last_set_feedback: SetFeedback | None,
-) -> None:
+    week_offset_days: int = 0,
+) -> uuid.UUID:
     """One prior TrainingSession's worth of SetCompletion rows for
     user+exercise -- feedback only ever lands on the last row, matching
     SetCompletionService.save_feedback's real behavior."""
@@ -70,12 +71,15 @@ async def _make_set_history(
     ]
     day_plan = DayPlan(
         id=uuid.uuid4(),
-        date=utc_today(),
+        date=utc_today() + timedelta(days=week_offset_days),
         session_type=DaySessionType.OFF_ICE,
         training_session=TrainingSession(id=uuid.uuid4(), blocks=blocks),
     )
     weekly_plan = WeeklyPlan(
-        id=uuid.uuid4(), user_id=user.id, week_start_date=utc_today(), day_plans=[day_plan]
+        id=uuid.uuid4(),
+        user_id=user.id,
+        week_start_date=utc_today() + timedelta(days=week_offset_days),
+        day_plans=[day_plan],
     )
     db_session.add(weekly_plan)
     await db_session.flush()
@@ -87,7 +91,7 @@ async def _make_set_history(
     # making "last" ambiguous. Strictly increasing timestamps guarantee
     # set_number order matches completed_at order, same intent as
     # test_training_block_progression.py's _Clock helper.
-    base = datetime.now(timezone.utc)
+    base = datetime.now(timezone.utc) + timedelta(days=week_offset_days)
     for index, reps in enumerate(reps_per_set, start=1):
         is_last = index == len(reps_per_set)
         db_session.add(
@@ -103,6 +107,7 @@ async def _make_set_history(
             )
         )
     await db_session.flush()
+    return training_session_id
 
 
 async def _make_active_block(
@@ -343,3 +348,24 @@ async def test_non_macrocycle_deload_block_is_unaffected(db_session) -> None:
 
     # Normal bump path: 11 + 2 = 13, clamped to rep_range_max=12
     assert result == 12
+
+
+@pytest.mark.asyncio
+async def test_sets_of_the_workout_in_progress_do_not_raise_the_target(db_session) -> None:
+    """15.10: the target comes from the previous workout and stays for every
+    set of today's -- easy sets today used to push it +2 per set."""
+    user = _make_user()
+    exercise = _make_exercise(rep_range_min=6, rep_range_max=12)
+    db_session.add_all([user, exercise])
+    await db_session.flush()
+    await _make_set_history(db_session, user, exercise, reps_per_set=[8, 8, 8], last_set_feedback=SetFeedback.NORMAL)
+    service = RepsSuggestionService(db_session)
+    at_start = await service.suggest_reps(user, exercise)
+    assert at_start == 10
+
+    today = await _make_set_history(
+        db_session, user, exercise, reps_per_set=[10, 10], last_set_feedback=SetFeedback.EASY, week_offset_days=7
+    )
+    assert await service.suggest_reps(user, exercise, exclude_session_id=today) == at_start
+    # Without the workout in progress named (the next workout): it moves on.
+    assert await service.suggest_reps(user, exercise) == 12

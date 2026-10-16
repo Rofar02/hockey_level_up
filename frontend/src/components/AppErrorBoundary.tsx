@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
+import { reportClientEvent } from '../utils/clientEvents'
 import { isChunkLoadError, reloadForStaleChunk } from '../utils/staleChunkReload'
 
 // Last line of defence around the routes: without it any render error --
@@ -17,6 +18,11 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { error
       return
     }
     console.error('Unhandled render error', error, info.componentStack)
+    reportClientEvent(
+      'app_error',
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      info.componentStack ?? null,
+    )
   }
 
   render() {

@@ -6,8 +6,13 @@ import { CoachmarkProvider } from './CoachmarkProvider'
 import { AppLoadingScreen } from './ui/AppLoadingScreen'
 import { useAuth } from '../hooks/useAuth'
 import { warmApiCache } from '../api/client'
+import { MY_LEADERBOARD_PATH } from '../api/leaderboard'
+import { warmOfflineData } from '../utils/offlineWarm'
+import { setQueueEnabled } from '../utils/writeQueue'
+import { getScheduleFeatures } from '../api/schedule'
 import { prefetchPages } from '../utils/prefetchPages'
 import { recordRoute } from '../utils/routeHistory'
+import { CURRENT_BLOCK_PATH } from '../api/trainingBlock'
 
 // A layout route (rendered once via App.tsx's <Route element={<ProtectedRoute />}>
 // wrapping every protected page as a child route, matched through <Outlet/>)
@@ -31,18 +36,19 @@ const WARM_PATHS = [
   '/users/me/stats',
   '/users/me/streak',
   '/skills',
-  '/training-block/current',
+  CURRENT_BLOCK_PATH,
   '/quests/status',
   '/teams/me',
   '/friends',
-  '/leaderboard/me',
+  MY_LEADERBOARD_PATH,
   '/users/me/equipment-items',
   '/exercises/equipment-requirements',
   '/users/me/restrictions',
 ]
 
 export function ProtectedRoute() {
-  const { isAuthenticated, hasAssessment, isInitializing, accessToken } = useAuth()
+  const { isAuthenticated, hasAssessment, isInitializing, accessToken, user } = useAuth()
+  const timeZone = user?.timezone
   // The training diary is a full-screen notebook (2026-09-21) -- no
   // BottomNav and no space reserved for it, so nothing competes with the
   // text box. Matched here (not inside the page) because BottomNav lives in
@@ -54,7 +60,7 @@ export function ProtectedRoute() {
   const isCoachChat = useMatch('/coach') !== null
   const isFullScreenRoute = isDiary || isCoachChat
   // Recent screens, attached to feedback messages (utils/routeHistory).
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   useEffect(() => recordRoute(pathname), [pathname])
   // Once logged in, quietly fetch the other pages' code (utils/prefetchPages)
   // and the main tabs' data (api/client's GET cache), so a first visit to a
@@ -66,8 +72,15 @@ export function ProtectedRoute() {
     const timer = window.setTimeout(() => {
       prefetchPages()
       warmApiCache(WARM_PATHS, accessToken)
+      void warmOfflineData(accessToken, timeZone)
+      // Б2: whether workout writes go through the offline queue -- kept
+      // in localStorage so an offline start knows it too.
+      getScheduleFeatures(accessToken)
+        .then((features) => setQueueEnabled(features.offline_queue === true))
+        .catch(() => undefined)
     }, 1500)
     return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, accessToken])
 
   // Hold off on any redirect while a reload is still trying to restore the
@@ -79,7 +92,9 @@ export function ProtectedRoute() {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    // Review 14.10 (23): a push link (the plan's ?reel=1, an event, a
+    // friend) opened while signed out leads back to itself after the login.
+    return <Navigate to="/login" replace state={{ from: `${pathname}${search}` }} />
   }
 
   if (hasAssessment === false) {

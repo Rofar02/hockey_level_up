@@ -38,7 +38,7 @@ const GROUPS: SettingsGroup[] = [
       {
         icon: 'ti-brain',
         label: 'Что помнит тренер',
-        description: 'Заметки ИИ-тренера о тебе',
+        description: 'Заметки ИИ-тренера о вас',
         to: '/settings/coach-memory',
       },
       {
@@ -61,7 +61,7 @@ const GROUPS: SettingsGroup[] = [
       {
         icon: 'ti-lock',
         label: 'Приватность',
-        description: 'Кто может найти тебя по имени',
+        description: 'Кто может найти вас по имени',
         to: '/settings/privacy',
       },
       {

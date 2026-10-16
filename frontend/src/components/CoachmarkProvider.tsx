@@ -76,12 +76,33 @@ export function CoachmarkProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const contextValue = useMemo(
-    () => ({ registerStep, unregisterStep, setSuppressed }),
-    [registerStep, unregisterStep, setSuppressed],
+  const dismissHints = useCallback(
+    (hintIds: readonly string[]) => {
+      setSeenIds((previous) => new Set([...(previous ?? []), ...hintIds]))
+      if (accessToken !== null) {
+        for (const hintId of hintIds) {
+          // Best-effort, same as handleAdvance below.
+          usersApi.markCoachmarkSeen(hintId, accessToken).catch(() => {})
+        }
+      }
+    },
+    [accessToken],
   )
 
-  const unseenSteps = seenIds !== null ? steps.filter((step) => !seenIds.has(step.hintId)) : []
+  const contextValue = useMemo(
+    () => ({ registerStep, unregisterStep, setSuppressed, dismissHints }),
+    [registerStep, unregisterStep, setSuppressed, dismissHints],
+  )
+
+  // A hint on the nav bar goes after the page's own (15.10): it covers the
+  // nav, so while it's up the tabs can't be tapped -- the page's hints keep
+  // the nav usable.
+  const unseenSteps =
+    seenIds !== null
+      ? steps
+          .filter((step) => !seenIds.has(step.hintId))
+          .sort((a, b) => Number(isInNav(a.element)) - Number(isInNav(b.element)))
+      : []
   const activeStep = suppressedBy.size === 0 ? (unseenSteps[0] ?? null) : null
 
   async function handleAdvance() {
@@ -124,6 +145,40 @@ const TOOLTIP_GAP = 12
 // Kept clear of the very top of the screen (status bar / notch territory)
 // and, combined with the measured BottomNav height, off the nav bar too.
 const TOP_BOTTOM_SAFE_MARGIN = 16
+// Below this much room on either side of the target the card goes to the
+// middle of the screen instead -- a card squeezed to a sliver (or to 0, the
+// 15.10 blocker: a tall target left no room, maxHeight hit 0, the card
+// vanished while the backdrop kept swallowing every tap) is worse than one
+// that covers part of the target.
+const MIN_TOOLTIP_ROOM = 140
+
+interface OverlayLayout {
+  // null: the target can't be pointed at right now (detached, display:none,
+  // zero size) -- the card is centred.
+  rect: DOMRect | null
+  bottomNavHeight: number
+  viewportHeight: number
+}
+
+function usableRect(target: HTMLElement): DOMRect | null {
+  if (!target.isConnected) {
+    return null
+  }
+  const rect = target.getBoundingClientRect()
+  return rect.width > 0 && rect.height > 0 ? rect : null
+}
+
+function isInNav(element: HTMLElement): boolean {
+  return element.closest('[data-app-bottom-nav]') !== null
+}
+
+function bottomNavHeightNow(): number {
+  const nav = document.querySelector<HTMLElement>('[data-app-bottom-nav]')
+  if (nav === null || nav.dataset.navState === 'hidden') {
+    return 0
+  }
+  return nav.getBoundingClientRect().height
+}
 
 function CoachmarkOverlay({
   target,
@@ -138,116 +193,179 @@ function CoachmarkOverlay({
   totalUnseen: number
   onAdvance: () => void
 }) {
-  const [rect, setRect] = useState<DOMRect | null>(null)
-  // How much of the viewport's bottom edge BottomNav actually occupies --
-  // measured, not guessed, so this stays correct regardless of safe-area
-  // inset on a given phone. 0 on any screen without it mounted (falls back
-  // to no reservation rather than crashing).
-  const [bottomNavHeight, setBottomNavHeight] = useState(0)
+  const [layout, setLayout] = useState<OverlayLayout | null>(null)
   // Fades the whole overlay in instead of it snapping to full darkness the
-  // instant `rect` resolves -- found live-testing, 2026-08-30 ("надо чтобы
-  // плавно показывалось, а то сейчас он сам экран как будто переводит"): a
-  // hard cut landing at the same moment as the page's own scroll read as
-  // one jarring jump rather than two separate, gentler motions.
+  // instant the layout resolves -- found live-testing, 2026-08-30 ("надо
+  // чтобы плавно показывалось, а то сейчас он сам экран как будто
+  // переводит").
   const [entered, setEntered] = useState(false)
 
+  // Re-measured for as long as the hint is up, not just while the first
+  // scroll settles (15.10): a page that is still loading (a card appearing
+  // above the target, images, the week arriving) moves the target long
+  // after the first half-second. Every layout change also brings the target
+  // back into view if it slid out.
+  // A tab of the nav itself (15.10): the overlay covers the nav too, with
+  // the spotlight on the tab -- otherwise the target sat outside the overlay
+  // and the card floated in the middle, pointing at nothing.
+  const onNav = isInNav(target)
+
   useLayoutEffect(() => {
+    let frame = 0
     function measure() {
-      setRect(target.getBoundingClientRect())
-      const nav = document.querySelector('[data-app-bottom-nav]')
-      setBottomNavHeight(nav?.getBoundingClientRect().height ?? 0)
+      setLayout({
+        rect: usableRect(target),
+        bottomNavHeight: onNav ? 0 : bottomNavHeightNow(),
+        viewportHeight: window.innerHeight,
+      })
+    }
+    function scheduleMeasure() {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    }
+    function bringIntoView() {
+      const rect = usableRect(target)
+      if (rect === null) {
+        return
+      }
+      const bandTop = TOP_BOTTOM_SAFE_MARGIN
+      const bandBottom = window.innerHeight - (onNav ? 0 : bottomNavHeightNow()) - TOP_BOTTOM_SAFE_MARGIN
+      if (rect.top >= bandTop && rect.bottom <= bandBottom) {
+        return
+      }
+      // A target taller than the band: its top edge, so the card can sit
+      // under the part that's visible. Otherwise as little scrolling as it
+      // takes ('nearest' -- the hint is about the current screen).
+      const tall = rect.height > bandBottom - bandTop
+      target.scrollIntoView({ behavior: 'smooth', block: tall ? 'start' : 'nearest' })
     }
     measure()
-    // 'nearest', not 'center' -- the target is very often already fully or
-    // mostly visible (this is a hint about something on the current
-    // screen, not a distant one), so this only scrolls the small amount
-    // actually needed instead of always recentering the whole page.
-    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    bringIntoView()
     const enterFrame = requestAnimationFrame(() => setEntered(true))
-    // scrollIntoView animates -- re-measure a few times as it settles
-    // instead of only once before the scroll has actually happened.
-    const timers = [50, 150, 300, 500].map((delay) => setTimeout(measure, delay))
-    window.addEventListener('resize', measure)
+    // scrollIntoView animates -- re-measure as it settles.
+    const timers = [50, 150, 300, 500, 1000].map((delay) => setTimeout(measure, delay))
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(() => {
+            bringIntoView()
+            scheduleMeasure()
+          })
+    observer?.observe(target)
+    observer?.observe(document.body)
+    const nav = document.querySelector('[data-app-bottom-nav]')
+    if (nav !== null) {
+      observer?.observe(nav)
+    }
+    window.addEventListener('resize', scheduleMeasure)
+    window.visualViewport?.addEventListener('resize', scheduleMeasure)
     // capture: true -- a scroll inside a nested scroll container (e.g. a
     // long exercise list) doesn't bubble to window otherwise.
-    window.addEventListener('scroll', measure, true)
+    window.addEventListener('scroll', scheduleMeasure, true)
     return () => {
+      cancelAnimationFrame(frame)
       cancelAnimationFrame(enterFrame)
       timers.forEach(clearTimeout)
-      window.removeEventListener('resize', measure)
-      window.removeEventListener('scroll', measure, true)
+      observer?.disconnect()
+      window.removeEventListener('resize', scheduleMeasure)
+      window.visualViewport?.removeEventListener('resize', scheduleMeasure)
+      window.removeEventListener('scroll', scheduleMeasure, true)
     }
-  }, [target])
+  }, [target, onNav])
 
-  if (rect === null) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onAdvance()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onAdvance])
+
+  if (layout === null) {
     return null
   }
 
-  const viewportHeight = window.innerHeight
+  const { bottomNavHeight, viewportHeight } = layout
   // The usable band excludes BottomNav's real footprint and a small top
-  // margin -- without this, a target sitting low on a short phone screen
-  // (the exact case found live, 2026-08-30: "маленько не симпатично
-  // смотрится" on mobile) could place the tooltip right on top of the nav
-  // bar instead of respecting it.
+  // margin -- the card never lands on the nav bar.
   const safeBottom = viewportHeight - bottomNavHeight - TOP_BOTTOM_SAFE_MARGIN
   const safeTop = TOP_BOTTOM_SAFE_MARGIN
-  const spaceBelow = safeBottom - (rect.bottom + SPOTLIGHT_PADDING + TOOLTIP_GAP)
-  const spaceAbove = rect.top - SPOTLIGHT_PADDING - TOOLTIP_GAP - safeTop
-  const placeBelow = spaceBelow >= spaceAbove
+  // Still off screen (mid-scroll, or the page can't scroll that far) =
+  // nothing to point at yet.
+  const rect =
+    layout.rect !== null && layout.rect.bottom > safeTop && layout.rect.top < viewportHeight - bottomNavHeight
+      ? layout.rect
+      : null
+  const spaceBelow = rect !== null ? safeBottom - (rect.bottom + SPOTLIGHT_PADDING + TOOLTIP_GAP) : 0
+  const spaceAbove = rect !== null ? rect.top - SPOTLIGHT_PADDING - TOOLTIP_GAP - safeTop : 0
+  const placement: 'below' | 'above' | 'center' =
+    rect === null || Math.max(spaceBelow, spaceAbove) < MIN_TOOLTIP_ROOM
+      ? 'center'
+      : spaceBelow >= spaceAbove
+        ? 'below'
+        : 'above'
+  const tooltipStyle =
+    placement === 'below' && rect !== null
+      ? { top: rect.bottom + SPOTLIGHT_PADDING + TOOLTIP_GAP, maxHeight: spaceBelow }
+      : placement === 'above' && rect !== null
+        ? { bottom: viewportHeight - rect.top + SPOTLIGHT_PADDING + TOOLTIP_GAP, maxHeight: spaceAbove }
+        : {
+            top: '50%',
+            transform: 'translateY(-50%)',
+            maxHeight: Math.max(safeBottom - safeTop, MIN_TOOLTIP_ROOM),
+          }
+  const isLast = totalUnseen <= 1
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[100] transition-opacity duration-300 ease-out ${
+      data-coachmark-overlay
+      data-coachmark-placement={placement}
+      className={`fixed inset-x-0 top-0 z-[100] overflow-hidden transition-opacity duration-300 ease-out ${
         entered ? 'opacity-100' : 'opacity-0'
       }`}
-      // Swallow every tap on the dimmed page behind the tour -- same "read
-      // it, then tap Далее" intent as a modal backdrop that doesn't
-      // dismiss on its own tap (see Modal.tsx's own click-through guard).
-      onClick={(event) => event.stopPropagation()}
+      // Stops above BottomNav: the nav stays visible and tappable while a
+      // hint is up -- a hint never traps the player on a screen.
+      style={{ bottom: bottomNavHeight }}
+      // A tap on the dimmed page closes the hint (marks it seen) -- the tap
+      // itself never reaches the page underneath.
+      onClick={(event) => {
+        event.stopPropagation()
+        onAdvance()
+      }}
       role="presentation"
     >
+      {rect !== null ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed rounded-lg transition-all duration-200 ease-out"
+          style={{
+            top: rect.top - SPOTLIGHT_PADDING,
+            left: rect.left - SPOTLIGHT_PADDING,
+            width: rect.width + SPOTLIGHT_PADDING * 2,
+            height: rect.height + SPOTLIGHT_PADDING * 2,
+            boxShadow: '0 0 0 9999px rgba(6,10,18,0.86)',
+          }}
+        />
+      ) : (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[rgba(6,10,18,0.86)]" />
+      )}
       <div
-        aria-hidden="true"
-        className="pointer-events-none fixed rounded-lg transition-all duration-200 ease-out"
-        style={{
-          top: rect.top - SPOTLIGHT_PADDING,
-          left: rect.left - SPOTLIGHT_PADDING,
-          width: rect.width + SPOTLIGHT_PADDING * 2,
-          height: rect.height + SPOTLIGHT_PADDING * 2,
-          boxShadow: '0 0 0 9999px rgba(6,10,18,0.86)',
-        }}
-      />
-      <div
-        role="tooltip"
+        role="dialog"
+        aria-label="Подсказка"
         className="fixed inset-x-4 flex flex-col gap-3 overflow-y-auto rounded-md border-t border-accent-ice/40 bg-dark-card p-4 shadow-xl transition-all duration-200 ease-out"
-        style={
-          placeBelow
-            ? {
-                top: rect.bottom + SPOTLIGHT_PADDING + TOOLTIP_GAP,
-                // Safety net, not the primary layout mechanism -- caps the
-                // card at whatever room is actually left above BottomNav so
-                // it scrolls internally in the pathological case (very long
-                // hint text) instead of ever visually overlapping the nav.
-                maxHeight: Math.max(spaceBelow, 0),
-              }
-            : {
-                bottom: viewportHeight - rect.top + SPOTLIGHT_PADDING + TOOLTIP_GAP,
-                maxHeight: Math.max(spaceAbove, 0),
-              }
-        }
+        style={tooltipStyle}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start gap-3">
           <i className={`ti ${icon} mt-0.5 shrink-0 text-lg text-accent-ice`} aria-hidden="true" />
           <p className="min-w-0 flex-1 text-sm leading-relaxed text-[#F5F7FA]">{text}</p>
         </div>
         <div className="flex items-center justify-between gap-3">
-          {totalUnseen > 1 ? (
-            <span className="text-xs text-text-secondary">Шаг 1 из {totalUnseen}</span>
-          ) : (
-            <span />
-          )}
-          <Button onClick={onAdvance} className="px-4 py-1.5 text-sm">
-            {totalUnseen > 1 ? 'Далее' : 'Понятно'}
+          {!isLast ? <span className="text-xs text-text-secondary">Шаг 1 из {totalUnseen}</span> : <span />}
+          <Button onClick={onAdvance} className="shrink-0 px-4 py-1.5 text-sm">
+            {isLast ? 'Понятно' : 'Далее'}
           </Button>
         </div>
       </div>

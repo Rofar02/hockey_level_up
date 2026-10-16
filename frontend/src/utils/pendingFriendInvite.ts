@@ -47,10 +47,10 @@ export function takePendingTeamCode(): string | null {
 // The server's English 409s for joining a team, in Russian.
 export function teamJoinErrorText(message: string): string {
   if (message === 'Already a member of a team -- leave it first') {
-    return 'Ты уже в команде — сначала выйди из неё'
+    return 'Вы уже в команде — сначала выйдите из неё'
   }
   if (message === 'Already a member of this team') {
-    return 'Ты уже в этой команде'
+    return 'Вы уже в этой команде'
   }
   if (message === 'A join request for this team is already pending') {
     return 'Заявка в эту команду уже отправлена'
@@ -70,7 +70,7 @@ export function friendRequestErrorText(message: string): string {
     return 'Заявка уже отправлена'
   }
   if (message === "Can't send a friend request to yourself") {
-    return 'Это твоя собственная ссылка'
+    return 'Это ваша собственная ссылка'
   }
   if (message === 'Invalid friend code') {
     return 'Приглашение не найдено'

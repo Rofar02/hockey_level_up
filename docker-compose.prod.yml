@@ -111,6 +111,12 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Stated here, not only in .env (А5): the production-only safety checks
+      # in app/core/config.py must never depend on a line someone can delete.
+      ENVIRONMENT: production
+      # Migrations never talk to RabbitMQ, but those checks read every URL
+      # -- without this the default guest:guest one fails them.
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
     depends_on:
       postgres:
         condition: service_healthy
@@ -128,6 +134,7 @@ services:
       # services reach each other by service name, not localhost -- this
       # overrides whatever .env has for a non-Docker local run.
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ENVIRONMENT: production
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
       # GLITCHTIP_DSN itself is NOT restated here -- unlike the two
       # above, it needs no docker-network rewrite, so it flows straight
@@ -184,6 +191,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ENVIRONMENT: production
       RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
     depends_on:
       # Same hard requirement as backend: the consumer's first connect

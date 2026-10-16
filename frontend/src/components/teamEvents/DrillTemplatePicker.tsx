@@ -58,7 +58,7 @@ export function DrillTemplatePicker({
       <FormError message={error} />
       {templates.length === 0 ? (
         <p className="rounded-xl border border-dashed border-white/15 p-4 text-sm text-[#8A94A6]">
-          Шаблонов пока нет. Открой любое упражнение и нажми «Сохранить как шаблон».
+          Шаблонов пока нет. Откройте любое упражнение и нажмите «Сохранить как шаблон».
         </p>
       ) : (
         <ul className="flex flex-col gap-2" aria-label="Мои шаблоны">

@@ -20,6 +20,7 @@ from app.core.security import (
     verify_password_async,
 )
 from app.models.auth_token import AuthTokenPurpose
+from app.models.push_subscription import PushSubscription
 from app.models.refresh_session import RefreshSession
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -43,11 +44,16 @@ _USERNAME_GENERATION_ATTEMPTS = 10
 # one friend_code per user rather than one invite_code per team.
 _FRIEND_CODE_GENERATION_ATTEMPTS = 10
 
-# How long the refresh token just swapped out still works (step 8, security,
-# 2): two tabs refreshing at once, or a retry after the answer got lost on a
-# bad network, send the same token twice. Past it, a used token ends the
-# device's session -- someone else has it.
-REFRESH_REUSE_GRACE = timedelta(seconds=30)
+# The refresh token just swapped out keeps working until the device uses
+# the new one (review 14.10, 4; was 30 s): two tabs refreshing at once, or a
+# retry after the answer got lost on a bad network, send the old token again
+# -- maybe minutes later, the phone in a tunnel. Once the new token has been
+# used, the old one is a stolen copy and ends the device's session.
+# 2026-10-13 (А7): refresh tokens from before step 8 (deployed 2026-10-12)
+# carry no device session, so a copy of one could mint new sessions over and
+# over. They expire on their own within refresh_token_expire_days (30) of
+# being issued; past this date none can be genuine, whatever exp says.
+LEGACY_REFRESH_CUTOFF = datetime(2026, 11, 12, tzinfo=timezone.utc)
 
 
 def _new_jti() -> str:
@@ -75,11 +81,11 @@ class AuthService:
         if not user_in.privacy_consent:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Privacy policy consent is required",
+                detail="Нужно согласие с политикой обработки персональных данных",
             )
         if await self._users.get_by_email(user_in.email):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+                status_code=status.HTTP_409_CONFLICT, detail="Этот email уже зарегистрирован — попробуйте войти"
             )
 
         username = await self._generate_username(user_in.email)
@@ -174,21 +180,46 @@ class AuthService:
     async def confirm_password_reset(self, raw_token: str, new_password: str) -> None:
         user = await self._tokens.consume_token(raw_token, AuthTokenPurpose.PASSWORD_RESET)
         user.password_hash = await hash_password_async(new_password)
-        # Whoever knew the old password is signed out everywhere.
+        # Whoever knew the old password is signed out everywhere, and no
+        # other reset link sent earlier still works (А8).
         await self._end_all_sessions(user)
+        await self._tokens.spend_unused(user.id, AuthTokenPurpose.PASSWORD_RESET)
+        # Review 14.10 (5): no device keeps getting the player's pushes --
+        # the one that knew the old password among them.
+        await self._session.execute(delete(PushSubscription).where(PushSubscription.user_id == user.id))
         await self._session.commit()
+        await self._notify_password_changed(user)
 
-    async def change_password(self, user: User, current_password: str, new_password: str) -> TokenPair:
-        """Signs out every other device; this one gets a fresh pair."""
+    async def _notify_password_changed(self, user: User) -> None:
+        # After the commit and best-effort: the password is changed either
+        # way, a Resend outage must not turn that into an error.
+        try:
+            await self._email.send_password_changed_email(user)
+        except Exception:
+            logger.exception("Failed to send password changed email for user_id=%s", user.id)
+
+    async def change_password(
+        self, user: User, current_password: str, new_password: str, push_endpoint: str | None = None
+    ) -> TokenPair:
+        """Signs out every other device; this one gets a fresh pair and keeps
+        its push subscription (`push_endpoint`), the others lose theirs."""
         if not await verify_password_async(current_password, user.password_hash):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный текущий пароль")
         user.password_hash = await hash_password_async(new_password)
         await self._end_all_sessions(user)
-        return await self._start_session(user)
+        others = delete(PushSubscription).where(PushSubscription.user_id == user.id)
+        if push_endpoint:
+            others = others.where(PushSubscription.endpoint != push_endpoint)
+        await self._session.execute(others)
+        await self._tokens.spend_unused(user.id, AuthTokenPurpose.PASSWORD_RESET)
+        pair = await self._start_session(user)
+        await self._notify_password_changed(user)
+        return pair
 
-    async def logout(self, refresh_token: str) -> None:
-        """Ends this device's session. Quiet on a bad or expired token --
-        the client forgets its tokens either way."""
+    async def logout(self, refresh_token: str, push_endpoint: str | None = None) -> None:
+        """Ends this device's session and its push subscription (А10). Quiet
+        on a bad or expired token -- the client forgets its tokens either
+        way."""
         try:
             claims = decode_claims(refresh_token, TokenType.REFRESH)
             session_id = uuid.UUID(str(claims.get("sid")))
@@ -198,12 +229,20 @@ class AuthService:
         await self._session.execute(
             delete(RefreshSession).where(RefreshSession.id == session_id, RefreshSession.user_id == user_id)
         )
+        if push_endpoint:
+            await self._session.execute(
+                delete(PushSubscription).where(
+                    PushSubscription.user_id == user_id, PushSubscription.endpoint == push_endpoint
+                )
+            )
         await self._session.commit()
 
     async def logout_all(self, user: User) -> None:
         """«Выйти на всех устройствах»: every token issued so far, access
-        ones included, stops working."""
+        ones included, stops working -- and no device keeps getting the
+        player's pushes (А10)."""
         await self._end_all_sessions(user)
+        await self._session.execute(delete(PushSubscription).where(PushSubscription.user_id == user.id))
         await self._session.commit()
 
     async def _end_all_sessions(self, user: User) -> None:
@@ -219,7 +258,7 @@ class AuthService:
                 return candidate
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not generate a unique username",
+            detail="Не удалось создать аккаунт. Попробуйте ещё раз.",
         )
 
     async def _generate_friend_code(self) -> str:
@@ -229,7 +268,7 @@ class AuthService:
                 return candidate
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not generate a unique friend code",
+            detail="Не удалось создать аккаунт. Попробуйте ещё раз.",
         )
 
     async def authenticate(self, identifier: str, password: str) -> User:
@@ -244,7 +283,7 @@ class AuthService:
         if user is None or not await verify_password_async(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username/email or password",
+                detail="Неверный email или пароль",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return user
@@ -270,6 +309,8 @@ class AuthService:
         if "sid" not in claims:
             # Issued before step 8 -- moves to a device session once; the
             # next version bump ends it like any other.
+            if datetime.now(timezone.utc) >= LEGACY_REFRESH_CUTOFF:
+                raise invalid
             return await self._start_session(user)
         try:
             session_id = uuid.UUID(str(claims["sid"]))
@@ -292,12 +333,10 @@ class AuthService:
             device.current_jti = _new_jti()
             device.rotated_at = now
             device.expires_at = now + self._refresh_lifetime()
-        elif not (
-            jti is not None
-            and jti == device.previous_jti
-            and device.rotated_at is not None
-            and now - device.rotated_at <= REFRESH_REUSE_GRACE
-        ):
+        elif jti is None or jti != device.previous_jti:
+            # previous_jti is the token right before the current one: still
+            # good while the current one was never used (using it moves
+            # previous_jti along).
             # A refresh token used twice: whoever holds the other copy
             # loses this device's session along with the player.
             logger.warning("Refresh token reuse, session %s ended (user_id=%s)", device.id, user.id)

@@ -65,3 +65,24 @@ async def test_purge_drops_old_processed_marks_only(db_session) -> None:
         ).scalars()
     )
     assert remaining == {recent_mark.event_id}
+
+
+@pytest.mark.asyncio
+async def test_purge_drops_expired_refresh_sessions_only(db_session) -> None:
+    from app.models.refresh_session import RefreshSession
+    from app.models.user import User
+    from app.services.event_retention import purge_expired_sessions
+
+    now = datetime.now(timezone.utc)
+    user = User(id=uuid.uuid4(), username=f"ret_{uuid.uuid4().hex[:8]}", email=f"ret_{uuid.uuid4().hex[:8]}@example.com", password_hash="x")
+    db_session.add(user)
+    await db_session.flush()
+    expired = RefreshSession(id=uuid.uuid4(), user_id=user.id, current_jti="a", expires_at=now - timedelta(minutes=1))
+    alive = RefreshSession(id=uuid.uuid4(), user_id=user.id, current_jti="b", expires_at=now + timedelta(days=1))
+    db_session.add_all([expired, alive])
+    await db_session.flush()
+
+    await purge_expired_sessions(db_session, now)
+
+    left = set(await db_session.scalars(select(RefreshSession.id).where(RefreshSession.user_id == user.id)))
+    assert left == {alive.id}

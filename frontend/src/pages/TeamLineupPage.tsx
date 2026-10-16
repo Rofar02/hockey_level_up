@@ -194,7 +194,7 @@ export function TeamLineupPage() {
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm text-[#F5F7FA]">
                       {player.last_name || player.first_name}
-                      {player.user_id === user?.id && <span className="ml-1.5 text-xs text-accent-persimmon">ты</span>}
+                      {player.user_id === user?.id && <span className="ml-1.5 text-xs text-accent-persimmon">вы</span>}
                     </span>
                     <span className="truncate text-xs text-[#8A94A6]">{group.name ?? ''}</span>
                     <span className="w-7 text-right font-display text-sm font-semibold text-[#F5F7FA]">{player.rating ?? '—'}</span>

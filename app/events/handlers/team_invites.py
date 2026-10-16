@@ -80,7 +80,7 @@ async def push_team_join_approved(payload: dict, event_id: uuid.UUID) -> None:
         team = await session.get(Team, request.team_id)
         if team is None:
             return None
-        return (request.user_id, "Ты в команде", f"Капитан принял тебя в «{team.name}»", f"/teams/{team.id}")
+        return (request.user_id, "Вы в команде", f"Капитан принял вас в «{team.name}»", f"/teams/{team.id}")
 
     await _handle(event_id, "team_join_approved_push", build)
 
@@ -95,7 +95,7 @@ async def push_team_invited(payload: dict, event_id: uuid.UUID) -> None:
         if team is None:
             return None
         captain = await session.get(User, invitation.invited_by_id)
-        return (invitation.user_id, "Приглашение в команду", f"{_name(captain)} зовёт тебя в «{team.name}»", "/team")
+        return (invitation.user_id, "Приглашение в команду", f"{_name(captain)} зовёт вас в «{team.name}»", "/team")
 
     await _handle(event_id, "team_invited_push", build)
 

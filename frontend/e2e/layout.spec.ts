@@ -117,7 +117,7 @@ test('coach screens fit the phone', async ({ page }) => {
   // Tapping a player shows the arrow palette -- every button on screen.
   // Frame 1: the editor opens on the last frame, where the defender has
   // already skated up the rink.
-  await editor.getByRole('button', { name: 'Кадр 1', exact: true }).click()
+  await editor.getByRole('button', { name: 'Такт 1', exact: true }).click()
   const box = await editor.getByRole('img', { name: 'Схема упражнения на площадке' }).boundingBox()
   await page.mouse.click(box!.x + box!.width * 0.7, box!.y + box!.height * 0.8)
   for (const name of ['Пас', 'Перепас', 'Бросок', 'Кат с шайбой', 'Кат без шайбы', 'Убрать фишку']) {
@@ -176,19 +176,20 @@ test('player screens fit the phone', async ({ page }) => {
   await expectNoHorizontalOverflow(page)
   await shot(page, 'layout-home-card')
 
+  // The plan is the reel (2026-10-14), on the event's address: ✕ comes back.
   await page.getByRole('button', { name: 'Смотреть план' }).click()
-  const modal = page.getByRole('dialog', { name: 'План тренировки' })
-  await expect(modal.getByText('Броски и завершение атаки после розыгрыша')).toBeVisible()
+  const reel = page.getByRole('dialog', { name: 'План тренировки' })
+  await expect(reel.getByRole('heading', { name: 'ПЛАН ТРЕНИРОВКИ' })).toBeVisible()
   await expectNoHorizontalOverflow(page)
-  await shot(page, 'layout-plan-modal')
-  await modal.getByRole('button', { name: /Бросок с кистей от синей/ }).click()
-  await expect(modal.getByRole('img', { name: 'Схема упражнения на площадке' })).toBeVisible()
-  await expectNoHorizontalOverflow(page)
-  await shot(page, 'layout-plan-drill')
-  await modal.getByRole('button', { name: 'Закрыть' }).click()
+  await shot(page, 'layout-plan-reel')
+  await reel.getByRole('button', { name: 'Закрыть', exact: true }).click()
+  await expect(page.getByText('Командная тренировка')).toBeVisible()
 
+  // The event's plan tab: the cover, the reel's look, every drill listed.
   await page.goto(`/teams/${setup.teamId}/events/${eventId}?tab=board`)
-  await expect(page.getByRole('button', { name: /Добивание у пятака/ })).toBeVisible()
+  const cover = page.getByRole('region', { name: 'План тренировки' })
+  await expect(cover.getByText(/Добивание у пятака/i)).toBeVisible()
   await expectNoHorizontalOverflow(page)
+  await shot(page, 'layout-plan-cover')
   await expectBottomNotHiddenByNav(page)
 })

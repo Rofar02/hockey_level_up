@@ -8,7 +8,7 @@ import { FormError } from '../ui/FormError'
 import { Modal } from '../ui/Modal'
 import { SelectField } from '../ui/SelectField'
 import { TextField } from '../ui/TextField'
-import { BoardPlanModal, BoardPlanView } from './BoardPlanView'
+import { PlanCover } from './PlanCover'
 import { DrillTemplatePicker } from './DrillTemplatePicker'
 import { DiagramEditor } from './diagram/DiagramEditor'
 import { RinkDiagram } from './diagram/RinkDiagram'
@@ -18,13 +18,26 @@ import { useAuth } from '../../hooks/useAuth'
 import { useDrillTemplates } from '../../hooks/useDrillTemplates'
 import { DRILL_SECTION_PRESETS } from '../../types/teamEvent'
 import type { DrillTemplateRead, TeamEventDrillRead, TeamEventDrillSectionRead, TeamEventRead } from '../../types/teamEvent'
-import { boardStats, formatMinutes, pluralRu, totalMinutes } from '../../utils/boardPlan'
+import {
+  MAX_DRILL_KEYWORDS,
+  MAX_DRILL_KEYWORD_LENGTH,
+  boardStats,
+  formatMinutes,
+  keywordCount,
+  keywordsWereTrimmed,
+  parseKeywords,
+  pluralRu,
+  totalMinutes,
+} from '../../utils/boardPlan'
 
 interface EventBoardPanelProps {
   teamId: string
   event: TeamEventRead
   isCaptain: boolean
   onEventChange: (event: TeamEventRead) => void
+  // Opens the plan as the players watch it (TrainingReel) -- the player's
+  // «Смотреть план», the captain's «Как видит игрок».
+  onOpenReel: () => void
 }
 
 interface DrillFormValues {
@@ -32,6 +45,7 @@ interface DrillFormValues {
   title: string
   description: string
   minutes: string
+  keywords: string
 }
 
 // What the drill sheet is showing: a new drill for a section, or an
@@ -60,12 +74,11 @@ function findDrill(sections: TeamEventDrillSectionRead[], drillId: string): Foun
   return null
 }
 
-export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: EventBoardPanelProps) {
+export function EventBoardPanel({ teamId, event, isCaptain, onEventChange, onOpenReel }: EventBoardPanelProps) {
   const { accessToken } = useAuth()
   const [actionError, setActionError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
-  const [isPreview, setIsPreview] = useState(false)
   const [drillSheet, setDrillSheet] = useState<DrillSheet>(null)
   const [sectionMenuId, setSectionMenuId] = useState<string | null>(null)
   const [diagramDrillId, setDiagramDrillId] = useState<string | null>(null)
@@ -119,11 +132,11 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
         <EmptyState
           icon="ti-clipboard-off"
           title="Тренер ещё готовит план"
-          hint="Как только план будет опубликован, ты увидишь все упражнения."
+          hint="Как только план будет опубликован, вы увидите все упражнения."
         />
       )
     }
-    return <BoardPlanView sections={event.sections} />
+    return <PlanCover sections={event.sections} onOpen={onOpenReel} />
   }
 
   const sections = event.sections ?? []
@@ -141,6 +154,7 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
       title: values.title.trim(),
       description: values.description.trim() || null,
       duration_minutes: parseMinutes(values.minutes),
+      keywords: parseKeywords(values.keywords),
     }
     if (drillSheet?.mode === 'edit') {
       const drillId = drillSheet.drillId
@@ -174,16 +188,11 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
         sections={sections}
         isPublishing={isPublishing}
         onPublish={handlePublish}
-        onOpenPreview={() => setIsPreview(true)}
+        onOpenPreview={onOpenReel}
       />
 
       <FormError message={actionError} />
 
-      {isPreview && (
-        // The same modal the player opens from the home card -- an honest
-        // preview, with the scheme right at the top of a tapped drill.
-        <BoardPlanModal sections={sections} onClose={() => setIsPreview(false)} />
-      )}
 
       <>
           {sections.length === 0 ? (
@@ -227,6 +236,7 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
                   description: template.description,
                   duration_minutes: template.duration_minutes,
                   diagram: template.diagram,
+                  keywords: template.keywords ?? [],
                 },
                 token,
               ),
@@ -245,6 +255,7 @@ export function EventBoardPanel({ teamId, event, isCaptain, onEventChange }: Eve
                 description: values.description.trim() || null,
                 duration_minutes: parseMinutes(values.minutes),
                 diagram: editing.drill.diagram,
+                keywords: parseKeywords(values.keywords),
               },
               accessToken,
             )
@@ -394,7 +405,7 @@ function BoardHeader({
         )}
       </div>
       {!isPublished && stats.drills === 0 && (
-        <p className="relative -mt-2 text-xs text-[#8A94A6]">Добавь хотя бы одно упражнение, чтобы опубликовать.</p>
+        <p className="relative -mt-2 text-xs text-[#8A94A6]">Добавьте хотя бы одно упражнение, чтобы опубликовать.</p>
       )}
     </section>
   )
@@ -407,9 +418,9 @@ function StartCard({ busy, onAdd }: { busy: boolean; onAdd: (name: string) => Pr
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-ice/10">
           <i className="ti ti-layout-list text-2xl text-accent-ice" aria-hidden="true" />
         </span>
-        <h3 className="text-base font-semibold text-[#F5F7FA]">Собери тренировку из разделов</h3>
+        <h3 className="text-base font-semibold text-[#F5F7FA]">Соберите тренировку из разделов</h3>
         <p className="max-w-xs text-sm text-[#8A94A6]">
-          Выбери первый раздел — например, разминку. Упражнения и схемы добавляются внутрь раздела.
+          Выберите первый раздел — например, разминку. Упражнения и схемы добавляются внутрь раздела.
         </p>
       </div>
       <SectionPresetPicker existingNames={[]} busy={busy} onAdd={onAdd} />
@@ -590,7 +601,7 @@ function DrillCard({
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-sm font-medium text-[#F5F7FA]">{drill.title}</span>
-          <span className="truncate text-xs text-[#8A94A6]">{meta || 'Нажми, чтобы добавить описание и минуты'}</span>
+          <span className="truncate text-xs text-[#8A94A6]">{meta || 'Нажмите, чтобы добавить описание и минуты'}</span>
         </span>
       </button>
       <button
@@ -644,6 +655,7 @@ function DrillSheetModal({
     title: drill?.title ?? '',
     description: drill?.description ?? '',
     minutes: drill?.duration_minutes?.toString() ?? '',
+    keywords: (drill?.keywords ?? []).join(', '),
   })
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [titleError, setTitleError] = useState<string | null>(null)
@@ -673,7 +685,7 @@ function DrillSheetModal({
       return
     }
     if (values.title.trim() === '') {
-      setTitleError('Сначала напиши название упражнения')
+      setTitleError('Сначала напишите название упражнения')
       document.getElementById(titleId)?.focus()
       return
     }
@@ -762,6 +774,28 @@ function DrillSheetModal({
           )}
         </div>
 
+        <div className="flex flex-col gap-1">
+          <TextField
+            label="Ключевые слова (через запятую)"
+            value={values.keywords}
+            onChange={(e) => setValues({ ...values, keywords: e.target.value })}
+            placeholder="Пас в крюк, Скорость, Голова поднята"
+            maxLength={70}
+          />
+          {keywordsWereTrimmed(values.keywords) ? (
+            <p className="text-xs text-[#FFCF5C]" role="status">
+              {keywordCount(values.keywords) > MAX_DRILL_KEYWORDS
+                ? `Больше ${MAX_DRILL_KEYWORDS} не поместится — лишнее отрежется.`
+                : `Слово длиннее ${MAX_DRILL_KEYWORD_LENGTH} символов обрежется.`}{' '}
+              Игроки увидят: {parseKeywords(values.keywords).join(' / ')}
+            </p>
+          ) : (
+            <p className="text-xs text-text-secondary">
+              До {MAX_DRILL_KEYWORDS}, коротко — игроки увидят их под названием в плане.
+            </p>
+          )}
+        </div>
+
         {drill !== null && <SchemeBlock drill={drill} onDraw={onDrawDiagram} />}
 
         <Button type="submit" isLoading={busy} className="w-full">
@@ -832,7 +866,7 @@ function SchemeBlock({ drill, onDraw }: { drill: TeamEventDrillRead; onDraw: () 
           {drill.diagram !== null ? 'Схема на площадке' : 'Нарисовать схему'}
         </span>
         <span className="text-xs text-[#8A94A6]">
-          {drill.diagram !== null ? 'Нажми, чтобы изменить' : 'Игроки, стрелки паса и ката'}
+          {drill.diagram !== null ? 'Нажмите, чтобы изменить' : 'Игроки, стрелки паса и ката'}
         </span>
       </span>
       <i className="ti ti-chevron-right text-[#8A94A6]" aria-hidden="true" />

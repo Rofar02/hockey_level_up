@@ -90,3 +90,27 @@ class EmailService:
                 "текущий пароль останется действующим."
             ),
         )
+
+    async def send_password_changed_email(self, user: User) -> None:
+        """2026-10-13 (А8): if it wasn't the player, they learn at once --
+        and know where to go."""
+        settings = get_settings()
+        if not settings.resend_api_key:
+            logger.warning(
+                "RESEND_API_KEY not configured -- skipping password changed email for user_id=%s",
+                user.id,
+            )
+            return
+        await _send_email(
+            settings.resend_api_key,
+            settings.email_from_address,
+            to=user.email,
+            subject="Пароль IceLevel изменён",
+            text=(
+                f"Здравствуйте, {user.first_name}!\n\n"
+                "Пароль от вашего аккаунта IceLevel только что изменён, "
+                "на всех остальных устройствах выполнен выход.\n\n"
+                "Если это были не вы, восстановите доступ: "
+                f"{settings.frontend_url}/forgot-password"
+            ),
+        )

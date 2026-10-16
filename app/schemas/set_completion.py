@@ -17,6 +17,9 @@ class SetCompletionCreate(BaseModel):
     weight_kg: float | None = None
     reps_completed: int | None = Field(default=None, ge=0)
     duration_seconds_completed: int | None = Field(default=None, ge=0)
+    # Б2: when the set was really done (the offline queue sends later);
+    # see app/core/training_day.effective_performed_at for what's trusted.
+    performed_at: datetime | None = None
 
 
 class SetCompletionRead(BaseModel):

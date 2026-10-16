@@ -170,10 +170,10 @@ class TeamEventService:
         """The captain enters the final score of a played game (2026-10-09)."""
         event = await self._require_captain_and_event(user, team_id, event_id)
         if event.event_type != TeamEventType.GAME:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Счёт бывает только у игры")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Счёт бывает только у игры")
         self._require_scheduled(event)
         if (our is None) != (opponent is None):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Нужны оба числа счёта")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Нужны оба числа счёта")
         if our is not None and event.starts_at > datetime.now(timezone.utc):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Игра ещё не началась")
         event.our_score = our
@@ -196,14 +196,14 @@ class TeamEventService:
                 status_code=status.HTTP_409_CONFLICT, detail="Event is already cancelled"
             )
 
-    async def _push_team(self, team_id: uuid.UUID, title: str, body: str) -> None:
+    async def _push_team(self, team_id: uuid.UUID, title: str, body: str, url: str | None = None) -> None:
         members = await self._teams.list_members(team_id)
         for member in members:
             result = await self._session.execute(
                 select(PushSubscription).where(PushSubscription.user_id == member.id)
             )
             for subscription in result.scalars().all():
-                await send_push(self._session, subscription, title, body)
+                await send_push(self._session, subscription, title, body, url)
         # send_push flushes (not commits) a dead-subscription delete on a
         # 410 -- persist that here, same as the scheduler ticks below.
         await self._session.commit()
@@ -314,6 +314,7 @@ class TeamEventService:
         description: str | None,
         duration_minutes: int | None,
         diagram: DrillDiagram | None = None,
+        keywords: list[str] | None = None,
     ) -> TeamEventDrillRead:
         event = await self._require_captain_and_training_event(user, team_id, event_id)
         section = await self._get_section_or_404(section_id, event.id)
@@ -326,6 +327,7 @@ class TeamEventService:
             description,
             duration_minutes,
             diagram.model_dump() if diagram is not None else None,
+            keywords,
         )
         await self._session.commit()
         return self._to_drill_read(drill)
@@ -340,9 +342,13 @@ class TeamEventService:
         title: str,
         description: str | None,
         duration_minutes: int | None,
+        keywords: list[str] | None = None,
+        *,
+        update_keywords: bool = True,
     ) -> TeamEventDrillRead:
         """A different section_id moves the drill to the end of that
-        section, closing the gap it left in the old one."""
+        section, closing the gap it left in the old one. update_keywords
+        False (the field wasn't sent) keeps the drill's keywords."""
         event = await self._require_captain_and_training_event(user, team_id, event_id)
         drill = await self._get_drill_or_404(drill_id, event.id)
         if section_id != drill.section_id:
@@ -355,6 +361,8 @@ class TeamEventService:
         drill.title = title
         drill.description = description
         drill.duration_minutes = duration_minutes
+        if update_keywords:
+            drill.keywords = keywords or None
         await self._session.commit()
         await self._session.refresh(drill)
         return self._to_drill_read(drill)
@@ -426,7 +434,13 @@ class TeamEventService:
         await self._session.refresh(event)
         if not already_published:
             for event_team_id in await event_team_ids(self._session, event):
-                await self._push_team(event_team_id, "План тренировки готов", "Доска тренировки опубликована")
+                # 2026-10-13 (В): a tap opens the plan reel straight away.
+                await self._push_team(
+                    event_team_id,
+                    "План тренировки готов",
+                    "Тренер выложил план — посмотри упражнения",
+                    f"/teams/{event_team_id}/events/{event.id}?reel=1",
+                )
         sections = await self._visible_sections(event, viewer_is_captain=True)
         return self._to_event_read(event, sections, viewer_is_captain=True)
 
@@ -565,7 +579,7 @@ class TeamEventService:
         if self._is_attendance_locked(event):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Attendance is locked -- the 2h deadline has passed",
+                detail="Явка закрыта — до события меньше 2 часов",
             )
 
     @staticmethod
@@ -664,7 +678,7 @@ class TeamEventService:
         # moves (the unique constraint on (team_event_id, user_id) is what
         # enforces "at most one group at a time", not this check).
         if slot is not None and slot not in LINEUP_SLOTS:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown slot")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Unknown slot")
         placed = await self._events.upsert_lineup_slot(event.id, group.id, target_user_id)
         if slot is not None and slot != "G":
             # One player per spot in a line: whoever held it stays in the
@@ -1038,6 +1052,7 @@ class TeamEventService:
             description=drill.description,
             duration_minutes=drill.duration_minutes,
             diagram=DrillDiagram.model_validate(drill.diagram) if drill.diagram is not None else None,
+            keywords=drill.keywords or [],
         )
 
     @classmethod

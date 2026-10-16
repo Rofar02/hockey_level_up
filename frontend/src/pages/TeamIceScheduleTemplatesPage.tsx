@@ -130,7 +130,7 @@ export function TeamIceScheduleTemplatesPage() {
         <BackLink />
         <h1 className="text-lg font-semibold text-[#F5F7FA]">Расписание льда</h1>
         <p className="text-sm text-[#8A94A6]">
-          Повторяющиеся тренировки по дням недели -- система сама создаёт события на несколько недель вперёд.
+          Повторяющиеся тренировки по дням недели — система сама создаёт события на несколько недель вперёд.
         </p>
 
         <FormError message={loadError} />

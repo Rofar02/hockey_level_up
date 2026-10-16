@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { FormError } from '../components/ui/FormError'
@@ -8,23 +8,36 @@ import { ShieldIcon } from '../components/ui/ShieldIcon'
 import { TextField } from '../components/ui/TextField'
 import { ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../components/OfflineBanner'
+import { firstInvalidMessage } from '../utils/formValidation'
 
 export function LoginPage() {
   const { login } = useAuth()
+  const online = useOnline()
   const navigate = useNavigate()
+  // Where the player was headed when the app sent them here (ProtectedRoute)
+  // -- an in-app path only.
+  const from = (useLocation().state as { from?: unknown } | null)?.from
+  const returnTo = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/'
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    const invalid = firstInvalidMessage(event.currentTarget)
+    if (invalid !== null) {
+      setError(invalid)
+      return
+    }
     setIsSubmitting(true)
     try {
       await login(username, password)
-      navigate('/', { replace: true })
+      navigate(returnTo, { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Не удалось войти. Попробуйте ещё раз.')
     } finally {
@@ -46,7 +59,7 @@ export function LoginPage() {
           <ShieldIcon />
           Вход
         </h1>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
           <TextField
             label="Email"
             name="username"
@@ -68,9 +81,10 @@ export function LoginPage() {
             Забыли пароль?
           </Link>
           <FormError message={error} />
-          <Button type="submit" isLoading={isSubmitting}>
+          <Button type="submit" isLoading={isSubmitting} disabled={!online}>
             Войти
           </Button>
+          <NeedsNetworkHint className="justify-center" />
         </form>
         <p className="mt-6 text-sm text-text-secondary">
           Нет аккаунта?{' '}

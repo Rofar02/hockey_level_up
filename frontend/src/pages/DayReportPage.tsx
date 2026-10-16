@@ -126,15 +126,14 @@ export function DayReportPage() {
               <div className={`flex flex-col gap-2 p-4 ${CARD_CLASS}`}>
                 <span className="text-xs font-medium uppercase tracking-wide text-text-secondary">Прирост характеристик</span>
                 {report.stats.map((stat) => {
-                  const delta = stat.after - stat.before
                   return (
                     <div key={stat.stat} className="flex items-center justify-between text-sm">
                       <span>{TARGET_STAT_LABELS[stat.stat as TargetStat] ?? stat.stat}</span>
                       <span className="font-mono text-xs text-text-secondary">
                         {stat.before} → <span className="text-text-primary">{stat.after}</span>{' '}
-                        <span className={delta >= 0 ? 'text-accent-ice' : 'text-accent-persimmon'}>
-                          {delta >= 0 ? '+' : ''}
-                          {delta.toFixed(1)}
+                        <span className={stat.gain >= 0 ? 'text-accent-ice' : 'text-accent-persimmon'}>
+                          {stat.gain >= 0 ? '+' : ''}
+                          {stat.gain}
                         </span>
                       </span>
                     </div>
@@ -243,13 +242,20 @@ function TrainingCard({ training }: { training: DayReportTrainingRead }) {
           </div>
           {extra.length > 0 && (
             <p className="text-xs text-text-secondary">
-              Разминка и заминка: {extra.filter((exercise) => exercise.done || exercise.skipped).length} из {extra.length}
+              Разминка и заминка: {formatDoneOf(extra)}
             </p>
           )}
         </>
       )}
     </div>
   )
+}
+
+// A skipped warm-up isn't a done one (15.10): «8 из 9, 1 пропущено».
+function formatDoneOf(exercises: DayReportExerciseRead[]): string {
+  const done = exercises.filter((exercise) => exercise.done).length
+  const skipped = exercises.filter((exercise) => exercise.skipped).length
+  return `${done} из ${exercises.length}${skipped > 0 ? `, ${skipped} пропущено` : ''}`
 }
 
 function IceTile({ value, label }: { value: string; label: string }) {

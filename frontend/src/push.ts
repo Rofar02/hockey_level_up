@@ -1,4 +1,5 @@
 import * as pushApi from './api/push'
+import { registerAppServiceWorker } from './utils/serviceWorker'
 
 export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
@@ -21,19 +22,11 @@ export function isStandalone(): boolean {
   )
 }
 
-// Called once at app startup so the worker is already active by the time
-// the user opens Settings and toggles notifications on -- register() is
-// idempotent (the browser reuses the existing registration when the script
-// hasn't changed), so calling it again lazily from getRegistration() below
-// is harmless.
+// Called once at app startup: the worker is what lets the app open without
+// a connection (Б0), and it's already active by the time the user opens
+// Settings and toggles notifications on.
 export function registerServiceWorker(): void {
-  if (!('serviceWorker' in navigator)) {
-    return
-  }
-  navigator.serviceWorker.register('/sw.js').catch(() => {
-    // Best-effort -- push notifications are an enhancement, not something
-    // the rest of the app depends on (e.g. blocked on a plain-HTTP LAN IP).
-  })
+  void registerAppServiceWorker()
 }
 
 function urlBase64ToUint8Array(base64Url: string): Uint8Array<ArrayBuffer> {
@@ -51,11 +44,7 @@ async function getRegistration(): Promise<ServiceWorkerRegistration | null> {
   if (!isPushSupported()) {
     return null
   }
-  try {
-    return await navigator.serviceWorker.register('/sw.js')
-  } catch {
-    return null
-  }
+  return registerAppServiceWorker()
 }
 
 export async function getActivePushSubscription(): Promise<PushSubscription | null> {
@@ -97,19 +86,25 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<PushSubsc
 // subscription silently stops receiving pushes. On each sign-in the
 // browser's subscription is checked against the server key and, if it was
 // made with another one, replaced -- the player never has to notice.
-export async function resyncPushSubscription(accessToken: string): Promise<void> {
+//
+// 15.10 follow-up: signing out (or the session ending) drops this phone's
+// subscription. Signed in again, a player who had pushes on (`wantsPush`:
+// reminder_preference isn't 'none' -- turning them off in Settings sets it)
+// and whose browser still allows notifications is subscribed again without
+// a question; before, pushes stayed off until they found the switch.
+export async function resyncPushSubscription(accessToken: string, wantsPush: boolean): Promise<void> {
   if (!isPushSupported() || Notification.permission !== 'granted') {
     return
   }
   const existing = await getActivePushSubscription()
-  if (existing === null) {
+  if (existing === null && !wantsPush) {
     return
   }
   const { public_key: vapidPublicKey } = await pushApi.getVapidPublicKey(accessToken)
-  if (sameKey(existing, vapidPublicKey)) {
+  if (existing !== null && sameKey(existing, vapidPublicKey)) {
     return
   }
-  const oldEndpoint = existing.endpoint
+  const oldEndpoint = existing?.endpoint ?? null
   const subscription = await subscribeToPush(vapidPublicKey)
   const json = subscription.toJSON()
   if (json.endpoint === undefined || json.keys === undefined) {
@@ -119,7 +114,26 @@ export async function resyncPushSubscription(accessToken: string): Promise<void>
     { endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth } },
     accessToken,
   )
-  if (oldEndpoint !== json.endpoint) {
+  if (oldEndpoint !== null && oldEndpoint !== json.endpoint) {
     await pushApi.deletePushSubscription(oldEndpoint, accessToken).catch(() => undefined)
   }
+}
+
+// On sign-out (А10, 2026-10-13): this browser stops receiving the player's
+// pushes -- the server row goes with the logout call, the browser's own
+// subscription here, so whoever signs in next on this phone starts clean
+// and Settings doesn't show notifications as on when the server has none.
+// Returns the endpoint for the logout call. Never registers a worker.
+export async function dropLocalPushSubscription(): Promise<string | null> {
+  if (!isPushSupported()) {
+    return null
+  }
+  const registration = await navigator.serviceWorker.getRegistration()
+  const subscription = registration ? await registration.pushManager.getSubscription() : null
+  if (subscription === null) {
+    return null
+  }
+  const endpoint = subscription.endpoint
+  await subscription.unsubscribe().catch(() => false)
+  return endpoint
 }

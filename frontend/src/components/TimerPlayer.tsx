@@ -835,6 +835,19 @@ export function TimerPlayer({
             }}
           />
           <LastTimeHint history={history} setNumber={completedRounds + 1} tracksWeight={false} />
+          {manualSeconds === null && running && (
+            // 15.10: finishing a round early used to be hidden behind
+            // "tap the ring to pause". This pauses too and opens the same
+            // "how many seconds" confirm, prefilled with what's been done.
+            <button
+              type="button"
+              onClick={() => setWorkRunning(false)}
+              className="flex min-h-11 items-center gap-1.5 rounded-full border border-white/15 px-4 text-sm font-medium text-text-primary hover:border-accent-ice"
+            >
+              <i className="ti ti-player-stop text-base" aria-hidden="true" />
+              Закончить раньше
+            </button>
+          )}
           {manualSeconds !== null && (
             <div className="flex flex-col items-center gap-2">
               <span className="text-xs text-text-secondary">Сколько сек. реально сделали</span>

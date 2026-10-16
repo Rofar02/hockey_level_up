@@ -43,6 +43,7 @@ class DrillTemplateService:
             description=body.description,
             duration_minutes=body.duration_minutes,
             diagram=body.diagram.model_dump() if body.diagram is not None else None,
+            keywords=body.keywords or None,
         )
         self._session.add(template)
         await self._session.commit()
@@ -77,6 +78,7 @@ class DrillTemplateService:
             description=template.description,
             duration_minutes=template.duration_minutes,
             diagram=DrillDiagram.model_validate(template.diagram) if template.diagram is not None else None,
+            keywords=template.keywords or [],
             created_at=template.created_at,
             updated_at=template.updated_at,
         )

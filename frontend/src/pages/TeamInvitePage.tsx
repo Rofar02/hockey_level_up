@@ -8,6 +8,8 @@ import { IceGlowBackground } from '../components/ui/IceGlowBackground'
 import { useAuth } from '../hooks/useAuth'
 import type { TeamInvitePreviewRead } from '../types/team'
 import { savePendingTeamCode, teamJoinErrorText } from '../utils/pendingFriendInvite'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../components/OfflineBanner'
 
 // /t/:code -- a team's invite link (2026-10-08). Open to anyone: the team
 // and one button. "Вступить" is the usual join request the captain
@@ -17,6 +19,7 @@ export function TeamInvitePage() {
   const { code = '' } = useParams<{ code: string }>()
   const navigate = useNavigate()
   const { isAuthenticated, isInitializing, accessToken } = useAuth()
+  const online = useOnline()
   const [team, setTeam] = useState<TeamInvitePreviewRead | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isSending, setIsSending] = useState(false)
@@ -77,7 +80,7 @@ export function TeamInvitePage() {
                   <i className="ti ti-shield text-5xl" aria-hidden="true" />
                 )}
               </span>
-              <p className="text-sm text-text-secondary">Тебя зовут в команду</p>
+              <p className="text-sm text-text-secondary">Вас зовут в команду</p>
               <h1 className="text-balance font-display text-3xl font-bold uppercase tracking-wide">{team.name}</h1>
               <p className="text-sm text-text-secondary">
                 Капитан {team.captain_first_name} {team.captain_last_name} · {team.member_count} участн.
@@ -87,7 +90,7 @@ export function TeamInvitePage() {
             <ul className="flex w-full flex-col gap-2 rounded-2xl bg-dark-card p-4 text-[13px] leading-relaxed text-text-secondary">
               <li className="flex gap-2.5">
                 <i className="ti ti-calendar-event mt-0.5 text-accent-ice" aria-hidden="true" />
-                Тренировки и игры команды встают в твой план сами
+                Тренировки и игры команды встают в ваш план сами
               </li>
               <li className="flex gap-2.5">
                 <i className="ti ti-chalkboard mt-0.5 text-accent-ice" aria-hidden="true" />
@@ -112,16 +115,20 @@ export function TeamInvitePage() {
                   </>
                 ) : (
                   <>
-                    <Button type="button" onClick={() => void join()} isLoading={isSending} className="w-full">
-                      Вступить в команду
+                    <NeedsNetworkHint className="justify-center" />
+                    <Button type="button" onClick={() => void join()} isLoading={isSending} disabled={!online} className="w-full">
+                      Отправить заявку
                     </Button>
+                    <p className="text-center text-xs leading-relaxed text-text-secondary">
+                      Капитан получит заявку и примет вас в команду.
+                    </p>
                     <FormError message={sendError} />
                   </>
                 )
               ) : (
                 <>
                   <Button type="button" onClick={() => goWithAccount('/register')} className="w-full">
-                    Создать аккаунт и вступить
+                    Создать аккаунт и подать заявку
                   </Button>
                   <Button type="button" variant="neutral" onClick={() => goWithAccount('/login')} className="w-full">
                     У меня есть аккаунт — войти

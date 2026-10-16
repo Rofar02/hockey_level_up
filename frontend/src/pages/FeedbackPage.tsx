@@ -71,7 +71,7 @@ export function FeedbackPage() {
       )
       setIsSent(true)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Не удалось отправить. Попробуй ещё раз.')
+      setError(err instanceof ApiError ? err.message : 'Не удалось отправить. Попробуйте ещё раз.')
     } finally {
       setIsSending(false)
     }
@@ -85,7 +85,7 @@ export function FeedbackPage() {
           <BackLink />
           <h1 className="text-xl font-semibold">Обратная связь</h1>
           <p className="text-sm leading-relaxed text-text-secondary">
-            Нашёл ошибку или есть идея? Напиши — сообщение придёт напрямую разработчику.
+            Нашли ошибку или есть идея? Напишите — сообщение придёт напрямую разработчику.
           </p>
         </div>
 
@@ -198,7 +198,7 @@ export function FeedbackPage() {
               Отправить
             </Button>
             <p className="text-center text-xs text-text-secondary">
-              Вместе с сообщением отправится, на каком экране ты был и с какого устройства — это помогает найти ошибку.
+              Вместе с сообщением отправится, на каком экране вы были и с какого устройства — это помогает найти ошибку.
             </p>
           </>
         )}

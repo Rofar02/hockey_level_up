@@ -12,6 +12,7 @@ from app.schemas.auth import (
     DetailResponse,
     EmailAvailabilityRead,
     EmailVerifyConfirm,
+    LogoutRequest,
     PasswordChange,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -56,9 +57,10 @@ async def refresh(body: RefreshRequest, session: Annotated[AsyncSession, Depends
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(body: RefreshRequest, session: Annotated[AsyncSession, Depends(get_db)]):
-    """Ends this device's session (its refresh token stops working)."""
-    await AuthService(session).logout(body.refresh_token)
+async def logout(body: LogoutRequest, session: Annotated[AsyncSession, Depends(get_db)]):
+    """Ends this device's session (its refresh token stops working) and
+    drops its push subscription."""
+    await AuthService(session).logout(body.refresh_token, body.push_endpoint)
 
 
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
@@ -66,7 +68,7 @@ async def logout_all(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """«Выйти на всех устройствах» -- this one included."""
+    """«Выйти на всех устройствах» -- this one included, pushes too."""
     await AuthService(session).logout_all(current_user)
 
 
@@ -77,7 +79,9 @@ async def change_password(
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
     """Other devices are signed out; this one continues on the returned pair."""
-    return await AuthService(session).change_password(current_user, body.current_password, body.new_password)
+    return await AuthService(session).change_password(
+        current_user, body.current_password, body.new_password, body.push_endpoint
+    )
 
 
 @router.get("/me", response_model=UserRead)

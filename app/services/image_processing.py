@@ -56,8 +56,8 @@ async def read_limited(file: UploadFile, max_bytes: int) -> bytes:
             # than reading the rest of a huge upload into memory just to
             # reject it afterwards.
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large -- max {max_bytes // (1024 * 1024)}MB",
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Файл слишком большой — максимум {max_bytes // (1024 * 1024)} МБ",
             )
         chunks.append(chunk)
 
@@ -99,7 +99,7 @@ def detect_image_extension(content: bytes) -> str:
         )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported image type -- only JPEG, PNG, or WEBP are allowed",
+            detail="Этот формат не подходит — загрузите JPEG, PNG или WEBP",
         )
     return extension
 

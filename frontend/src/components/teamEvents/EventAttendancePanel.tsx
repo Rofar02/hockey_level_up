@@ -17,6 +17,8 @@ import type {
   TeamEventRead,
 } from '../../types/teamEvent'
 import { getDisplayName } from '../../utils/displayName'
+import { useOnline } from '../../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../OfflineBanner'
 
 interface EventAttendancePanelProps {
   teamId: string
@@ -71,6 +73,7 @@ function RosterSection({
 
 export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendancePanelProps) {
   const { accessToken, user } = useAuth()
+  const online = useOnline()
   const [roster, setRoster] = useState<TeamEventAttendanceRosterRead | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -178,16 +181,16 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
     <div className="flex flex-col gap-4">
       {roster.is_locked && (
         <div className={`p-3 text-sm text-[#8A94A6] ${CARD_CLASS}`}>
-          Явка закрыта -- до события меньше 2 часов. Изменить ответ уже нельзя.
+          Явка закрыта — до события меньше 2 часов. Изменить ответ уже нельзя.
         </div>
       )}
 
       {!roster.is_locked && !isEditing && (
         <div className={`flex items-center justify-between gap-3 p-3 ${CARD_CLASS}`}>
           <span className="text-sm text-[#F5F7FA]">
-            {myStatus === 'going' && 'Ты отметился: буду'}
-            {myStatus === 'not_going' && 'Ты отметился: не буду'}
-            {myStatus === 'unmarked' && 'Ты ещё не отметился'}
+            {myStatus === 'going' && 'Вы отметились: иду'}
+            {myStatus === 'not_going' && 'Вы отметились: не иду'}
+            {myStatus === 'unmarked' && 'Вы ещё не отметились'}
           </span>
           <Button type="button" variant="neutral" className="!px-3 !py-1.5 !text-xs" onClick={startEditing}>
             {myStatus === 'unmarked' ? 'Отметиться' : 'Изменить'}
@@ -199,13 +202,13 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
         <div className={`flex flex-col gap-3 p-3 ${CARD_CLASS}`}>
           <div className="flex gap-2">
             <ChoiceCard
-              title="Буду"
+              title="Иду"
               description="Приду на событие"
               selected={choice === 'going'}
               onClick={() => setChoice('going')}
             />
             <ChoiceCard
-              title="Не буду"
+              title="Не иду"
               description="Не смогу прийти"
               selected={choice === 'not_going'}
               onClick={() => setChoice('not_going')}
@@ -231,10 +234,11 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
             <Button type="button" variant="neutral" className="flex-1" onClick={() => setIsEditing(false)}>
               Отмена
             </Button>
-            <Button type="button" className="flex-1" disabled={choice === null} isLoading={isSaving} onClick={handleSave}>
+            <Button type="button" className="flex-1" disabled={choice === null || !online} isLoading={isSaving} onClick={handleSave}>
               Сохранить
             </Button>
           </div>
+          <NeedsNetworkHint className="justify-end" />
         </div>
       )}
 
@@ -260,8 +264,8 @@ export function EventAttendancePanel({ teamId, event, isCaptain }: EventAttendan
       )}
 
       <div className={`flex flex-col gap-4 p-3 ${CARD_CLASS}`}>
-        <RosterSection title="Буду" members={roster.going} />
-        <RosterSection title="Не буду" members={roster.not_going} showReason />
+        <RosterSection title="Идут" members={roster.going} />
+        <RosterSection title="Не идут" members={roster.not_going} showReason />
         <RosterSection title="Не отметились" members={roster.unmarked} />
       </div>
     </div>

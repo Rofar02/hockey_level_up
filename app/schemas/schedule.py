@@ -111,6 +111,8 @@ class ScheduleFeaturesRead(BaseModel):
     """GET /schedule/features -- optional week features switched on."""
 
     double_days: bool
+    # The offline workout queue (Б2) -- the client keeps the last answer.
+    offline_queue: bool = False
 
 
 class WeeklyPlanRead(BaseModel):
@@ -129,3 +131,10 @@ class ScheduleConflictRead(BaseModel):
 class WeeklyPlanPatchResult(BaseModel):
     weekly_plan: WeeklyPlanRead
     conflicts: list[ScheduleConflictRead]
+
+
+class BlockResolveIn(BaseModel):
+    """Optional body of /session-blocks/{id}/complete and /skip (Б2): when
+    it was really done -- the offline queue sends later."""
+
+    performed_at: datetime | None = None

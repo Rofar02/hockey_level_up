@@ -38,12 +38,12 @@ export function PhysicalStep({
   setPrivacyConsent: (value: boolean) => void
   error: string | null
   isSubmitting: boolean
-  onSubmit: (event: FormEvent) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onBack: () => void
 }) {
   const todayIso = toIsoDate(new Date())
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Физические данные</h2>
       <p className="text-sm text-text-secondary">Необязательно — можно пропустить и заполнить позже в настройках.</p>
 

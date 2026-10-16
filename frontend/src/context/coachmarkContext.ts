@@ -23,7 +23,18 @@ export interface CoachmarkContextValue {
   // caller-owned key (e.g. from useId()) so multiple overlays suppressing
   // at once compose correctly instead of one's cleanup undoing another's.
   setSuppressed: (id: string, suppressed: boolean) => void
+  // Marks these hints seen without showing them -- «Пропустить» on the
+  // welcome screen turns off the whole first-day tour (15.10).
+  dismissHints: (hintIds: readonly string[]) => void
 }
+
+// Every hint of the first-day tour (each screen's useCoachmarkStep id).
+export const FIRST_DAY_HINTS = [
+  'home-skill-milestones',
+  'schedule-week-day-tap',
+  'profile-stat-unlocks',
+  'nav-team-tab',
+] as const
 
 // null outside a CoachmarkProvider -- useCoachmarkStep degrades to a no-op
 // ref rather than throwing, since a missing tour overlay should never break

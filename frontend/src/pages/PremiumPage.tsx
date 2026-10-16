@@ -11,6 +11,8 @@ import { API_BASE_URL } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
 import { useMyTeam } from '../hooks/useMyTeam'
 import type { UserStatRead } from '../types/progress'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../components/OfflineBanner'
 
 // The premium sales page (2026-10-04, mockup variant A: the player's own card
 // in gold on top). No prices yet and no payment provider wired (YooKassa is
@@ -31,7 +33,7 @@ const BENEFITS: { icon: string; title: string; text: string }[] = [
   },
   {
     icon: 'ti-brain',
-    title: 'Тренер тебя помнит',
+    title: 'Тренер вас помнит',
     text: 'Травмы, цели, турниры — не нужно повторять каждый раз.',
   },
   {
@@ -53,6 +55,7 @@ const PLANS: { id: Plan; title: string; note: string; badge?: string }[] = [
 
 export function PremiumPage() {
   const { user, accessToken } = useAuth()
+  const online = useOnline()
   const myTeam = useMyTeam()
   const hasPremium = user?.has_premium === true
   const [plan, setPlan] = useState<Plan>('year')
@@ -107,7 +110,7 @@ export function PremiumPage() {
             Играй на уровень выше
           </h2>
           <p className="text-[15px] leading-relaxed text-text-secondary">
-            Личный тренер, который помнит тебя, разбор каждой недели и аналитика роста.
+            Личный тренер, который помнит вас, разбор каждой недели и аналитика роста.
           </p>
         </div>
 
@@ -169,9 +172,10 @@ export function PremiumPage() {
             </div>
 
             <div className="flex flex-col gap-3">
-              <Button type="button" className="h-14 text-base font-bold" onClick={() => setIsCheckoutOpen(true)}>
+              <Button type="button" className="h-14 text-base font-bold" disabled={!online} onClick={() => setIsCheckoutOpen(true)}>
                 {plan === 'year' ? 'Оформить на год' : 'Оформить на месяц'}
               </Button>
+              <NeedsNetworkHint className="justify-center" />
               <p className="text-center text-xs leading-relaxed text-text-secondary">
                 Оплата картой или через СБП. Отменить можно в любой момент.
                 <br />

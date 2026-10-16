@@ -111,7 +111,7 @@ async def test_a_join_request_pushes_the_captain_and_approval_the_player(db_sess
 
     assert [(p["title"], p["body"], p["url"]) for p in sent] == [
         ("Заявка в команду", "Иван Петров хочет в «Шторм 2010»", f"/teams/{team.id}"),
-        ("Ты в команде", "Капитан принял тебя в «Шторм 2010»", f"/teams/{team.id}"),
+        ("Вы в команде", "Капитан принял вас в «Шторм 2010»", f"/teams/{team.id}"),
     ]
 
 
@@ -142,7 +142,7 @@ async def test_the_captain_invites_and_accepting_joins_the_team(db_session, sent
     )
     assert membership is not None
     assert [(p["title"], p["body"]) for p in sent] == [
-        ("Приглашение в команду", "Тренер Иванов зовёт тебя в «Шторм 2010»"),
+        ("Приглашение в команду", "Тренер Иванов зовёт вас в «Шторм 2010»"),
         ("Новый игрок", "Иван Петров принял приглашение в «Шторм 2010»"),
     ]
 

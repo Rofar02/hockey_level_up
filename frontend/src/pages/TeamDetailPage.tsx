@@ -19,6 +19,8 @@ import { TabButton } from '../components/ui/TabButton'
 import * as teamsApi from '../api/teams'
 import { API_BASE_URL, ApiError } from '../api/client'
 import { useAuth } from '../hooks/useAuth'
+import { useLiveRefresh } from '../hooks/useLiveRefresh'
+import { formatTeamScore } from '../utils/teamScore'
 import type { LeaderboardEntryRead } from '../types/leaderboard'
 import type { TeamJoinRequestRead, TeamMemberRead, TeamRead, TeamScoreRead } from '../types/team'
 import { POSITION_LABELS } from '../types/user'
@@ -42,10 +44,6 @@ function teamLocationLine(team: TeamRead): string | null {
     (part): part is string => part !== null && part !== '',
   )
   return parts.length > 0 ? parts.join(' · ') : null
-}
-
-function formatTeamScore(value: number): string {
-  return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
 }
 
 export function TeamDetailPage() {
@@ -119,6 +117,24 @@ export function TeamDetailPage() {
       cancelled = true
     }
   }, [accessToken, teamId])
+
+  // A new join request shows up while the captain has the page open (a push,
+  // back to the foreground, or every 30 s) -- 15.10: it used to need a reload.
+  const isCaptain = team?.is_captain === true
+  useLiveRefresh(
+    () => {
+      if (accessToken === null || teamId === undefined) {
+        return
+      }
+      teamsApi
+        .listTeamJoinRequests(teamId, accessToken, { live: true })
+        .then(setPendingRequests)
+        .catch(() => {
+          // Best-effort: the list on screen stays as it was.
+        })
+    },
+    { enabled: isCaptain, intervalMs: 30_000 },
+  )
 
   async function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -385,9 +401,11 @@ export function TeamDetailPage() {
                 </span>
               </div>
               <span className="relative text-xs text-[#8A94A6]">
-                Сумма XP {teamScore.sum_xp} × бонус за активность{' '}
-                {(teamScore.activity_bonus * 100).toFixed(1)}% (
-                {teamScore.avg_trainings_per_member_per_week.toFixed(1)} трен./нед на чел.)
+                {/* 15.10: in words, not the raw formula ("Сумма XP … × бонус …%"). */}
+                Опыт игроков — {teamScore.sum_xp.toLocaleString('ru-RU')} XP. В среднем{' '}
+                {teamScore.avg_trainings_per_member_per_week.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}{' '}
+                трен. в неделю на игрока
+                {teamScore.activity_bonus > 0 ? ` — это +${Math.round(teamScore.activity_bonus * 100)}% к рейтингу.` : '.'}
               </span>
               {teamScore.league_place != null && teamScore.league_team_count != null && (
                 <span className="relative text-xs font-medium text-[#F5F7FA]">

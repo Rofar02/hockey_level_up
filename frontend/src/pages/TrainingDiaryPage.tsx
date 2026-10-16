@@ -81,6 +81,7 @@ export function TrainingDiaryPage() {
   const [shareWithCoach, setShareWithCoach] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [queuedNotice, setQueuedNotice] = useState(false)
   const [earned, setEarned] = useState<Earned | null>(null)
   // The level before saving, so the reward screen can tell a level-up.
   const levelBeforeRef = useRef<number | null>(null)
@@ -167,6 +168,11 @@ export function TrainingDiaryPage() {
     try {
       const entry = await trainingDiaryApi.saveDiaryEntry(trainingSessionId, { note: noteValue, report }, accessToken)
       savedNoteRef.current = note
+      if (entry.queued) {
+        // Б2: no signal -- kept on the phone, sent (and rewarded) later.
+        setQueuedNotice(true)
+        return
+      }
       setSaved(entry)
       if (Object.keys(entry.stat_rewards).length > 0) {
         setEarned({
@@ -442,6 +448,12 @@ export function TrainingDiaryPage() {
 
         <div className="mt-auto flex flex-col gap-2 pt-6">
           <FormError message={saveError} />
+          {queuedNotice && (
+            <p role="status" className="flex items-start gap-2 rounded-md border border-accent-ice/25 bg-accent-ice/[0.06] p-3 text-sm text-text-primary">
+              <i className="ti ti-cloud-upload mt-0.5 text-accent-ice" aria-hidden="true" />
+              Отчёт сохранён на телефоне и уйдёт, когда появится связь. Награда начислится тогда же.
+            </p>
+          )}
           <Button onClick={submitReport} disabled={!complete || isSaving || isFuture || notOpenYet} className="w-full">
             {isSaving
               ? 'Сохраняем...'

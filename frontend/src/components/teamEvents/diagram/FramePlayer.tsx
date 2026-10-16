@@ -75,13 +75,13 @@ export function FramePlayer({ diagram, className = '' }: { diagram: DrillDiagram
             )}
           </svg>
         </button>
-        <div role="group" aria-label="Кадры" className="flex flex-wrap items-center gap-1 rounded-full bg-white/5 p-1">
+        <div role="group" aria-label="Такты" className="flex flex-wrap items-center gap-1 rounded-full bg-white/5 p-1">
           <FrameChip label="Всё" active={frame === null && !isPlaying} onClick={() => pick(null)} />
           {frames.map((value) => (
             <FrameChip
               key={value}
               label={String(value)}
-              ariaLabel={`Кадр ${value}`}
+              ariaLabel={`Такт ${value}`}
               active={frame === value}
               onClick={() => pick(value)}
             />
@@ -89,7 +89,7 @@ export function FramePlayer({ diagram, className = '' }: { diagram: DrillDiagram
         </div>
       </div>
       <p className="text-center text-[11px] text-[#8A94A6]">
-        Кадр — что происходит одновременно. Листай по порядку или нажми ▶ — игроки поедут по своим линиям.
+        Такт — что происходит одновременно. Листайте по порядку или нажмите ▶ — игроки поедут по своим линиям.
       </p>
     </div>
   )

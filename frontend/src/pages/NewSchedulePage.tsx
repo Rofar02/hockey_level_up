@@ -13,8 +13,12 @@ import { clearTeamEventCache } from '../hooks/useTeamEvent'
 import { ExerciseTechnique } from '../components/ExerciseTechnique'
 import * as scheduleApi from '../api/schedule'
 import { ApiError } from '../api/client'
+import { NeedsNetworkHint } from '../components/OfflineBanner'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { isNetworkError } from '../utils/networkStatus'
 import { useAuth } from '../hooks/useAuth'
 import { useCoachmarkStep } from '../hooks/useCoachmarkStep'
+import { useSuppressCoachmarks } from '../hooks/useSuppressCoachmarks'
 import type { ExerciseRead } from '../types/exercise'
 import {
   DAY_SESSION_TYPE_LABELS,
@@ -78,6 +82,9 @@ type WeekStatus = 'loading' | 'view' | 'plan'
 // Computed once at module load (same as the pre-existing behavior this
 // replaces) -- doesn't track a real midnight rollover while the page stays
 // open, which was already true before this change.
+// Saving a week is server-side planning, the offline queue doesn't take it.
+const NEEDS_NETWORK = 'Нужна связь: неделю можно изменить, когда появится интернет.'
+
 const THIS_MONDAY = getMondayOfCurrentWeek()
 const NEXT_MONDAY = addDays(THIS_MONDAY, 7)
 const WEEK_START_DATES: Record<WeekSlot, Date> = { current: THIS_MONDAY, next: NEXT_MONDAY }
@@ -140,6 +147,9 @@ interface DayRow {
   // Double day (step 6): a separate gym training on this ice/game day.
   extraGym: ExtraGymTime | null
   extraDay: DayPlanRead | null
+  // The ice / game's own half of a double day (the team's real start time
+  // when it's a team event -- 15.10), null on a single day.
+  timeOfDay: string | null
 }
 
 const EXTRA_CAPABLE: DaySessionType[] = ['on_ice', 'game']
@@ -174,6 +184,7 @@ function rowsFromPlan(plan: WeeklyPlanRead): DayRow[] {
     replacedSessionType: day.replaced_session_type ?? null,
     extraGym: extras.get(day.date)?.time_of_day ?? null,
     extraDay: extras.get(day.date) ?? null,
+    timeOfDay: day.time_of_day ?? null,
   }))
 }
 
@@ -188,6 +199,7 @@ function rowsForWeek(dates: Date[]): DayRow[] {
     replacedSessionType: null,
     extraGym: null,
     extraDay: null,
+    timeOfDay: null,
   }))
 }
 
@@ -204,6 +216,7 @@ export function NewSchedulePage() {
   const [doubleDays, setDoubleDays] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const online = useOnline()
   const [isSubmitting, setIsSubmitting] = useState(false)
   // Read-only day-plan preview modal -- stores the isoDate (not an index)
   // so it stays correct even if `rows` gets replaced (e.g. after
@@ -229,6 +242,10 @@ export function NewSchedulePage() {
   // in edit mode is every changed day, since edit mode only exists for an
   // already-generated week. Holds the exact rows to submit if confirmed.
   const [pendingRegeneration, setPendingRegeneration] = useState<DayRow[] | null>(null)
+  // No hint while the player is choosing the week's days (a new week or an
+  // edit): the first hints of a new account used to land right on top of
+  // the planner (15.10). They show once the week is there to look at.
+  useSuppressCoachmarks(weekStatus !== 'view' || editSnapshot !== null)
   // A started day expands inline (not a modal) to list its exercises --
   // accordion, one day at a time. Not-started days keep using
   // previewIsoDate/DayPreviewModal instead; the two are mutually exclusive
@@ -406,7 +423,12 @@ export function NewSchedulePage() {
     // Only "Ещё и зал" changed: the days themselves are kept as they are
     // (the backend leaves a day of the same type alone), nothing to warn
     // about.
-    const retyped = changed.filter((row) => editSnapshot.get(row.isoDate)?.sessionType !== row.sessionType)
+    // A rest day has no exercises to lose -- turning it into a workout day
+    // just builds one, nothing to confirm (15.10).
+    const retyped = changed.filter((row) => {
+      const original = editSnapshot.get(row.isoDate)?.sessionType
+      return original !== row.sessionType && original !== 'rest'
+    })
     if (retyped.length === 0) {
       void performSaveChanges(changed)
       return
@@ -464,7 +486,11 @@ export function NewSchedulePage() {
       setEditSnapshot(null)
     } catch (err) {
       setSubmitError(
-        err instanceof ApiError ? err.message : 'Не удалось сохранить изменения. Попробуйте ещё раз.',
+        isNetworkError(err)
+          ? NEEDS_NETWORK
+          : err instanceof ApiError
+            ? err.message
+            : 'Не удалось сохранить изменения. Попробуйте ещё раз.',
       )
     } finally {
       setIsSubmitting(false)
@@ -616,7 +642,7 @@ export function NewSchedulePage() {
                 const extraStatus = extra !== null ? completionStatusFromBlocks(extra.training_session?.blocks) : null
                 const mainSlot = (
                   <DaySlot
-                    label={extra !== null ? (extra.time_of_day === 'morning' ? 'вечер' : 'утро') : null}
+                    label={extra !== null ? ((row.timeOfDay ?? (extra.time_of_day === 'morning' ? 'evening' : 'morning')) === 'morning' ? 'утро' : 'вечер') : null}
                     icon={mainIcon}
                     colorClass={SESSION_TYPE_COLORS[row.sessionType]}
                     title={mainTitle}
@@ -725,12 +751,13 @@ export function NewSchedulePage() {
               })}
             </div>
             <FormError message={submitError} />
-            <Button variant="neutral" onClick={handleStartEditing} className="w-full">
+            <Button variant="neutral" onClick={handleStartEditing} className="w-full" disabled={!online}>
               <span className="flex items-center justify-center gap-2">
                 <i className="ti ti-pencil" aria-hidden="true" />
                 Изменить неделю
               </span>
             </Button>
+            <NeedsNetworkHint className="justify-center" />
           </>
         )}
 
@@ -757,10 +784,11 @@ export function NewSchedulePage() {
               <Button variant="neutral" onClick={handleCancelEditing}>
                 Отмена
               </Button>
-              <Button onClick={handleSaveChanges} isLoading={isSubmitting}>
+              <Button onClick={handleSaveChanges} isLoading={isSubmitting} disabled={!online}>
                 Сохранить
               </Button>
             </div>
+            <NeedsNetworkHint className="justify-center" />
           </>
         )}
 
@@ -773,7 +801,10 @@ export function NewSchedulePage() {
               </p>
               <ul className="flex flex-col gap-1 text-sm text-[#F5F7FA]">
                 {pendingRegeneration
-                  .filter((row) => editSnapshot?.get(row.isoDate)?.sessionType !== row.sessionType)
+                  .filter((row) => {
+                    const original = editSnapshot?.get(row.isoDate)?.sessionType
+                    return original !== row.sessionType && original !== 'rest'
+                  })
                   .map((row) => (
                   <li key={row.isoDate}>
                     {formatShortDate(row.date)} — {DAY_SESSION_TYPE_LABELS[row.sessionType]}
@@ -1185,9 +1216,10 @@ function StartedDayPhaseSection({
   onSelectExercise: (block: SessionBlockRead) => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  // Skipped counts as resolved here too (media-player redesign, 2026-08-28)
-  // -- same reasoning as completionStatusFromBlocks above.
-  const doneCount = blocks.filter((block) => block.completed_at !== null || block.skipped_at !== null).length
+  // Done, not resolved: a skipped warm-up isn't counted as done (15.10), it
+  // is named next to the count.
+  const doneCount = blocks.filter((block) => block.completed_at !== null).length
+  const skippedCount = blocks.filter((block) => block.skipped_at !== null).length
 
   return (
     <div className={`overflow-hidden rounded-md ${CARD_BORDER} bg-dark-bg/40`}>
@@ -1200,6 +1232,7 @@ function StartedDayPhaseSection({
         <p className="text-xs font-medium uppercase tracking-wide text-[#8A94A6]">{PHASE_LABELS[phase]}</p>
         <span className="ml-auto font-mono text-[11px] text-[#8A94A6]">
           {doneCount}/{blocks.length}
+          {skippedCount > 0 && `, пропущено ${skippedCount}`}
         </span>
         <i
           className={`ti ti-chevron-down text-xs text-[#8A94A6] transition-transform ${expanded ? 'rotate-180' : ''}`}

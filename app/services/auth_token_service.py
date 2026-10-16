@@ -51,6 +51,9 @@ class AuthTokenService:
         await self._tokens.create(user_id, _hash_token(raw_token), purpose, expires_at)
         return raw_token
 
+    async def spend_unused(self, user_id: uuid.UUID, purpose: AuthTokenPurpose) -> None:
+        await self._tokens.spend_unused(user_id, purpose, datetime.now(timezone.utc))
+
     async def consume_token(self, raw_token: str, expected_purpose: AuthTokenPurpose) -> User:
         """Validates raw_token for expected_purpose, marks it used, and
         returns the owning User -- or raises a specific HTTPException:
@@ -65,7 +68,7 @@ class AuthTokenService:
             valid", not "invalid").
           - 400 if it's past expires_at.
         """
-        token = await self._tokens.get_by_hash(_hash_token(raw_token))
+        token = await self._tokens.get_by_hash(_hash_token(raw_token), for_update=True)
         if token is None or token.purpose != expected_purpose:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Ссылка недействительна"

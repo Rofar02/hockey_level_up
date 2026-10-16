@@ -202,6 +202,7 @@ async def add_drill(
         body.description,
         body.duration_minutes,
         body.diagram,
+        body.keywords,
     )
 
 
@@ -241,6 +242,8 @@ async def update_drill(
         body.title,
         body.description,
         body.duration_minutes,
+        body.keywords,
+        update_keywords="keywords" in body.model_fields_set,
     )
 
 

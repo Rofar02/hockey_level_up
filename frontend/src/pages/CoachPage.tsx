@@ -19,6 +19,8 @@ import { COACH_CHAT_OPENED_HINT } from '../types/coachChat'
 import type { CoachAttentionReason, CoachChatMessageRead, ProposedActionRead } from '../types/coachChat'
 import type { CoachPersonality } from '../types/user'
 import { ChatSkeleton } from '../components/ui/Skeleton'
+import { useOnline } from '../hooks/useNetworkStatus'
+import { NeedsNetworkHint } from '../components/OfflineBanner'
 
 export function CoachPage() {
   const { user, accessToken } = useAuth()
@@ -156,6 +158,7 @@ function CoachChatContent({
   coachPersonality: CoachPersonality
 }) {
   const { updateUser } = useAuth()
+  const online = useOnline()
   const [messages, setMessages] = useState<CoachChatMessageRead[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   // Optimistic by default: we only learn the feature is switched off (503)
@@ -352,10 +355,11 @@ function CoachChatContent({
           // 2026-08-31: "когда пишу тренеру приближается".
           className="flex-1 resize-none rounded-md border border-white/10 bg-dark-bg px-3 py-2 text-base text-text-primary placeholder:text-text-secondary/60 focus:border-accent-ice focus:outline-none"
         />
-        <Button type="submit" isLoading={isSending} disabled={input.trim() === ''}>
+        <Button type="submit" isLoading={isSending} disabled={input.trim() === '' || !online}>
           Отправить
         </Button>
       </form>
+      <NeedsNetworkHint className="mt-2 justify-end" />
     </div>
   )
 }
@@ -522,16 +526,16 @@ const THINKING_PHRASES: Record<CoachPersonality, string[]> = {
   calm: [
     'Думаю над ответом...',
     'Собираю мысли...',
-    'Читаю твою сводку...',
+    'Читаю вашу сводку...',
     'Подбираю слова...',
     'Минутку, соображаю...',
     'Взвешиваю варианты...',
-    'Смотрю на твой прогресс...',
+    'Смотрю на ваш прогресс...',
   ],
   strict: [
     'Анализирую...',
     'Формулирую...',
-    'Сверяюсь с твоими данными...',
+    'Сверяюсь с вашими данными...',
     'Собираюсь с мыслями...',
     'Просчитываю...',
     'Готовлю ответ по делу...',

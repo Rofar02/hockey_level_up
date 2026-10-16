@@ -1,4 +1,6 @@
 from functools import lru_cache
+from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -7,13 +9,19 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEV_JWT_SECRET_KEY = "change-me"
 DEV_VAPID_PRIVATE_KEY = "fmVrz4YsbsIibjJcNvHVpUGLkDuAHvcO-2CQwsveCy0"
 MIN_JWT_SECRET_LENGTH = 32
+# 2026-10-13 (А5): .env.prod.example's placeholder, and passwords that ship
+# as somebody's default (ours in docker-compose.yml, Postgres', RabbitMQ's).
+PLACEHOLDER = "__CHANGE_ME__"
+DEFAULT_SERVICE_PASSWORDS = {"", "hockey", "postgres", "password", "guest", "changeme", "change-me", PLACEHOLDER}
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "IceLevel"
-    environment: str = "local"
+    # A typo ("prod", "Production") used to silently mean "not production"
+    # and skip every check below -- now it doesn't start at all (А5).
+    environment: Literal["local", "test", "production"] = "local"
 
     database_url: str = "postgresql+asyncpg://hockey:hockey@localhost:5432/hockey_level_up"
 
@@ -140,6 +148,10 @@ class Settings(BaseSettings):
     # ordinary extra gym ran clean (0 errors, 0 empty sessions); the week
     # page hides "+ зал" when it is off.
     double_days_enabled: bool = True
+    # Б2 (2026-10-13): the phone queues workout writes and sends them when
+    # it can (offline workouts). Off until checked on real phones; turned on
+    # per environment with OFFLINE_QUEUE_ENABLED=true.
+    offline_queue_enabled: bool = False
 
     @model_validator(mode="after")
     def _no_dev_secrets_in_production(self) -> "Settings":
@@ -153,6 +165,14 @@ class Settings(BaseSettings):
             problems.append(f"JWT_SECRET_KEY must be a random string of {MIN_JWT_SECRET_LENGTH}+ characters")
         if self.vapid_private_key == DEV_VAPID_PRIVATE_KEY:
             problems.append("VAPID_PRIVATE_KEY is the committed dev key")
+        for name, url in (("DATABASE_URL", self.database_url), ("RABBITMQ_URL", self.rabbitmq_url)):
+            if (urlsplit(url).password or "") in DEFAULT_SERVICE_PASSWORDS:
+                problems.append(f"{name} uses a default or empty password")
+        placeholders = sorted(
+            name.upper() for name, value in self.model_dump().items() if isinstance(value, str) and PLACEHOLDER in value
+        )
+        if placeholders:
+            problems.append(f"still {PLACEHOLDER}: {', '.join(placeholders)}")
         if problems:
             raise ValueError("Unsafe production settings: " + "; ".join(problems))
         return self

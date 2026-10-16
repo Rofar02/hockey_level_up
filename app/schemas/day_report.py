@@ -63,6 +63,8 @@ class DayReportStatRead(BaseModel):
     stat: str
     before: float
     after: float
+    # Already rounded to 0.1 (after - before in floats isn't).
+    gain: float
 
 
 class DayReportRead(BaseModel):
@@ -73,3 +75,18 @@ class DayReportRead(BaseModel):
     sets_total: int
     tonnage_kg: float
     exercises_done: int
+
+
+class SessionStatGainRead(BaseModel):
+    stat: str
+    gain: float
+
+
+class SessionRewardsRead(BaseModel):
+    """What a workout really credited (15.10) -- the finish screen's numbers,
+    read from the same rows as the day report's."""
+
+    stats: list[SessionStatGainRead]
+    xp: int
+    # False while the event pipeline hasn't credited every completed block yet.
+    credited: bool

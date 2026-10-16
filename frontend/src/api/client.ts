@@ -1,17 +1,99 @@
 import {
   clearStoredTokens,
   getStoredRefreshToken,
+  isAuthRejection,
   persistTokens,
   SESSION_EXPIRED_EVENT,
   TOKENS_REFRESHED_EVENT,
 } from './tokenStorage'
 
+import { isNetworkError, isOnline, markOffline, markOnline } from '../utils/networkStatus'
+import { notifyAfterWrite } from '../hooks/useLiveRefresh'
+import { getOfflineUser, isOfflinePath, noteSavedDataShown } from '../utils/offlineData'
+import { readSaved, writeSaved } from '../utils/offlineStore'
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+
+// Every API call goes through here, so the "Нет связи" banner (Б0) learns
+// about a dropped connection from the first request that hits it, and about
+// its return from the first answer.
+async function trackedFetch(input: string, init: RequestInit): Promise<Response> {
+  try {
+    const response = await fetch(input, init)
+    markOnline()
+    return response
+  } catch (err) {
+    if (isNetworkError(err)) {
+      markOffline()
+    }
+    throw err
+  }
+}
 
 interface FastApiValidationError {
   loc: (string | number)[]
   msg: string
   type: string
+  ctx?: Record<string, unknown>
+}
+
+// 15.10: pydantic's own messages are English ("String should have at least
+// 8 characters") and went straight into the form. The common ones in
+// Russian, with the field's name; a message our validators already wrote in
+// Russian is kept as it is.
+const FIELD_LABELS: Record<string, string> = {
+  email: 'Email',
+  username: 'Email',
+  password: 'Пароль',
+  new_password: 'Новый пароль',
+  current_password: 'Текущий пароль',
+  first_name: 'Имя',
+  last_name: 'Фамилия',
+  patronymic: 'Отчество',
+  jersey_number: 'Номер',
+  birth_date: 'Дата рождения',
+  age: 'Возраст',
+  height: 'Рост',
+  weight: 'Вес',
+  hockey_since_year: 'С какого года играете',
+  name: 'Название',
+  code: 'Код',
+}
+
+function validationErrorText(error: FastApiValidationError): string {
+  const key = String(error.loc[error.loc.length - 1] ?? '')
+  const field = FIELD_LABELS[key] ?? 'Поле'
+  const ctx = error.ctx ?? {}
+  const msg = error.msg.replace(/^Value error, /, '')
+  if (/[А-Яа-яЁё]/.test(msg)) {
+    return msg
+  }
+  switch (error.type) {
+    case 'missing':
+      return `${field}: заполните поле`
+    case 'string_too_short':
+      return ctx.min_length === 1 ? `${field}: заполните поле` : `${field}: минимум ${String(ctx.min_length)} символов`
+    case 'string_too_long':
+      return `${field}: не больше ${String(ctx.max_length)} символов`
+    case 'greater_than_equal':
+    case 'greater_than':
+      return `${field}: не меньше ${String(ctx.ge ?? ctx.gt)}`
+    case 'less_than_equal':
+    case 'less_than':
+      return `${field}: не больше ${String(ctx.le ?? ctx.lt)}`
+    case 'int_parsing':
+    case 'float_parsing':
+    case 'int_type':
+    case 'float_type':
+      return `${field}: нужно число`
+    case 'date_parsing':
+    case 'date_from_datetime_parsing':
+      return `${field}: проверьте дату`
+  }
+  if (key === 'email' || /email/i.test(msg)) {
+    return 'Проверьте email: в нём должны быть @ и домен, например name@mail.ru'
+  }
+  return `Проверьте поле «${field}»`
 }
 
 export class ApiError extends Error {
@@ -52,9 +134,7 @@ function extractErrorMessage(body: unknown, status: number): string {
       return detail
     }
     if (Array.isArray(detail)) {
-      return (detail as FastApiValidationError[])
-        .map((error) => error.msg)
-        .join('; ')
+      return [...new Set((detail as FastApiValidationError[]).map(validationErrorText))].join('; ')
     }
   }
   return fallbackErrorMessage(status)
@@ -81,6 +161,7 @@ interface RequestOptions {
   form?: Record<string, string>
   formData?: FormData
   accessToken?: string
+  headers?: Record<string, string>
 }
 
 interface RawTokenPair {
@@ -103,7 +184,7 @@ async function refreshAccessToken(): Promise<string> {
       if (storedRefreshToken === null) {
         throw new ApiError(401, 'No refresh token')
       }
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      const response = await trackedFetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: storedRefreshToken }),
@@ -124,8 +205,13 @@ async function refreshAccessToken(): Promise<string> {
   try {
     return await refreshInFlight
   } catch (err) {
-    clearStoredTokens()
-    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
+    // Only the server's own "no" ends the session (А1, 2026-10-13). No
+    // signal, a 5xx or nginx's 429 leave the tokens alone -- the next
+    // request (or the next app start) tries again.
+    if (isAuthRejection(err)) {
+      clearStoredTokens()
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
+    }
     throw err
   }
 }
@@ -150,7 +236,7 @@ function buildRequestInit(method: string, options: RequestOptions, accessToken: 
     headers.Authorization = `Bearer ${accessToken}`
   }
 
-  return { method, headers, body: requestBody }
+  return { method, headers: { ...headers, ...options.headers }, body: requestBody }
 }
 
 // -- GET cache (2026-10-04): "открываю вкладку ещё раз -- всё уже на месте" --
@@ -192,10 +278,14 @@ function fetchAndStore<T>(path: string, accessToken: string): Promise<T> {
     return pending as Promise<T>
   }
   const generation = cacheGeneration
+  const userId = getOfflineUser()
   const promise = request<T>(path, 'GET', { accessToken })
     .then((data) => {
       if (generation === cacheGeneration) {
         getCache.set(path, { data, storedAt: Date.now() })
+      }
+      if (userId !== null && userId === getOfflineUser() && isOfflinePath(path)) {
+        void writeSaved(userId, path, data)
       }
       return data
     })
@@ -220,7 +310,80 @@ async function cachedGet<T>(path: string, accessToken: string): Promise<T> {
     }
     return entry.data as T
   }
-  return fetchAndStore<T>(path, accessToken)
+  return withOfflineFallback(path, fetchAndStore<T>(path, accessToken))
+}
+
+// -- offline fallback (Б1, 2026-10-13) --
+// For the screens a player needs at the rink (utils/offlineData.ts), the
+// last good answer is kept in IndexedDB. It is shown when there is no
+// connection, when the request fails at the network/server level, or when
+// the network hangs for longer than SAVED_AFTER_MS -- the live request
+// carries on in the background and refreshes both caches when it lands.
+const SAVED_AFTER_MS = 4000
+
+function canFallBack(err: unknown): boolean {
+  return isNetworkError(err) || (err instanceof ApiError && (err.status >= 500 || err.status === 429))
+}
+
+// For a read the server serves as POST (the ice focus): its answer is kept
+// under `key` and shown offline the same way.
+export function readWithOfflineCopy<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const userId = getOfflineUser()
+  const live = load().then((data) => {
+    if (userId !== null && userId === getOfflineUser()) {
+      void writeSaved(userId, key, data)
+    }
+    return data
+  })
+  return userId === null ? live : withSaved(userId, key, live)
+}
+
+function withOfflineFallback<T>(path: string, live: Promise<T>): Promise<T> {
+  const userId = getOfflineUser()
+  if (userId === null || !isOfflinePath(path)) {
+    return live
+  }
+  return withSaved(userId, path, live)
+}
+
+function withSaved<T>(userId: string, path: string, live: Promise<T>): Promise<T> {
+  const saved = readSaved(userId, path)
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    const useSaved = async (): Promise<boolean> => {
+      const entry = await saved
+      if (settled || entry === null) {
+        return false
+      }
+      settled = true
+      noteSavedDataShown(entry.storedAt)
+      resolve(entry.data as T)
+      return true
+    }
+    const timer = setTimeout(() => void useSaved(), isOnline() ? SAVED_AFTER_MS : 0)
+    live.then(
+      (data) => {
+        clearTimeout(timer)
+        if (!settled) {
+          settled = true
+          resolve(data)
+        }
+      },
+      async (err: unknown) => {
+        clearTimeout(timer)
+        if (settled) {
+          return
+        }
+        if (canFallBack(err) && (await useSaved())) {
+          return
+        }
+        if (!settled) {
+          settled = true
+          reject(err)
+        }
+      },
+    )
+  })
 }
 
 // Warms the cache for screens the player hasn't opened yet (used after login
@@ -236,22 +399,31 @@ export function warmApiCache(paths: string[], accessToken: string): void {
 async function request<T>(path: string, method: string, options: RequestOptions = {}): Promise<T> {
   const isAuthedRequest = options.accessToken !== undefined
 
-  let response = await fetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, options.accessToken))
+  let response = await trackedFetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, options.accessToken))
 
   if (response.status === 401 && isAuthedRequest) {
+    let freshAccessToken: string | null = null
     try {
-      const freshAccessToken = await refreshAccessToken()
-      response = await fetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, freshAccessToken))
-    } catch {
-      // Refresh failed (or there was no refresh token left) -- fall through
-      // and let the original 401 response produce the usual ApiError below.
-      // SESSION_EXPIRED_EVENT has already been dispatched by refreshAccessToken.
+      freshAccessToken = await refreshAccessToken()
+    } catch (err) {
+      // Refresh rejected (or no refresh token left) -- fall through and let
+      // the original 401 produce the usual ApiError below;
+      // SESSION_EXPIRED_EVENT has already been dispatched. Any other failure
+      // (offline, 5xx, 429) is what the caller sees instead, so nobody
+      // mistakes a dropped connection for an expired session.
+      if (!isAuthRejection(err)) {
+        throw err
+      }
+    }
+    if (freshAccessToken !== null) {
+      response = await trackedFetch(`${API_BASE_URL}${path}`, buildRequestInit(method, options, freshAccessToken))
     }
   }
 
   const result = await handleResponse<T>(response)
   if (method !== 'GET') {
     clearApiCache()
+    notifyAfterWrite(path)
   }
   return result
 }
@@ -262,6 +434,14 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 export function apiGet<T>(path: string, accessToken: string): Promise<T> {
   return cachedGet<T>(path, accessToken)
+}
+
+// Always asks the server (the answer still refreshes the cache) -- for a
+// re-check that must see what changed since the last look (useLiveRefresh),
+// where the cache's "show the old answer, refresh in the background" would
+// show the change only one check late.
+export function apiGetLive<T>(path: string, accessToken: string): Promise<T> {
+  return isCacheable(path) ? fetchAndStore<T>(path, accessToken) : request<T>(path, 'GET', { accessToken })
 }
 
 // Unauthenticated GET -- only for endpoints that don't need a logged-in
@@ -303,4 +483,16 @@ export function apiPostMultipartAuth<T>(
   accessToken: string,
 ): Promise<T> {
   return request<T>(path, 'POST', { formData, accessToken })
+}
+
+// The offline write queue's sender (Б2, utils/writeQueue.ts): one queued
+// workout action, with its Idempotency-Key so a resend is never applied twice.
+export function apiSendQueued<T>(
+  method: string,
+  path: string,
+  body: unknown,
+  accessToken: string,
+  idempotencyKey: string,
+): Promise<T> {
+  return request<T>(path, method, { body, accessToken, headers: { 'Idempotency-Key': idempotencyKey } })
 }

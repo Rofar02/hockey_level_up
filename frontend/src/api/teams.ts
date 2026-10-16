@@ -1,4 +1,4 @@
-import { apiDeleteAuth, apiGet, apiGetPublic, apiPatchAuth, apiPostAuth, apiPostMultipartAuth } from './client'
+import { apiDeleteAuth, apiGet, apiGetLive, apiGetPublic, apiPatchAuth, apiPostAuth, apiPostMultipartAuth } from './client'
 import type {
   LeagueRead,
   OtherLeagueNameRead,
@@ -75,8 +75,9 @@ export function cancelJoinRequest(requestId: string, accessToken: string): Promi
 export function listTeamJoinRequests(
   teamId: string,
   accessToken: string,
+  { live = false }: { live?: boolean } = {},
 ): Promise<TeamJoinRequestRead[]> {
-  return apiGet<TeamJoinRequestRead[]>(`/teams/${teamId}/join-requests`, accessToken)
+  return (live ? apiGetLive : apiGet)<TeamJoinRequestRead[]>(`/teams/${teamId}/join-requests`, accessToken)
 }
 
 export function approveJoinRequest(

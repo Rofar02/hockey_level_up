@@ -213,6 +213,9 @@ class TeamEventDrill(Base):
     # 0..1) -- validated on write by schemas.team_event.DrillDiagram, a
     # couple of KB even for a busy drill. None = no scheme.
     diagram: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # 2026-10-13 (В): up to 3 short cues ("Пас в крюк", "Голова поднята")
+    # shown under the drill's title in the players' reel. None = none.
+    keywords: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -402,6 +405,8 @@ class DrillTemplate(Base):
     # Same shape as TeamEventDrill.diagram, validated by
     # schemas.team_event.DrillDiagram on write.
     diagram: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # The drill's reel cues travel with it (review 14.10, 24).
+    keywords: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

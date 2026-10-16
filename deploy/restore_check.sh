@@ -42,6 +42,20 @@ if [[ "$DUMP" == *.gpg ]]; then
   DUMP="$WORK/dump.sql.gz"
 fi
 
+# 2026-10-13 (А6): the file itself first -- a truncated or corrupt gzip, or
+# a dump pg_dump never finished, fails here, before anything is restored.
+echo "==> Checking $(basename "$DUMP")"
+if ! gzip -t "$DUMP" 2>"$WORK/gzip.log"; then
+  echo "!! Restore check FAILED -- not a valid gzip file:" >&2
+  head -n 3 "$WORK/gzip.log" >&2
+  exit 1
+fi
+if ! gunzip -c "$DUMP" | tail -n 5 | grep -q 'PostgreSQL database dump complete'; then
+  echo "!! Restore check FAILED -- the dump has no 'dump complete' trailer (pg_dump was cut off)" >&2
+  exit 1
+fi
+EXPECTED_TABLES="$(gunzip -c "$DUMP" | grep -c '^CREATE TABLE public\.' || true)"
+
 echo "==> Starting a throwaway $PG_IMAGE"
 docker run -d --name "$CONTAINER" -e POSTGRES_PASSWORD=check -e POSTGRES_DB=restore "$PG_IMAGE" >/dev/null
 for _ in $(seq 1 60); do
@@ -54,15 +68,22 @@ done
 echo "==> Restoring $(basename "$DUMP")"
 # The dump names the prod role as owner; it doesn't exist here -- the
 # ownership errors are expected, ON_ERROR_STOP stays off for them.
-gunzip -c "$DUMP" | docker exec -i "$CONTAINER" psql -q -U postgres -d restore >/dev/null 2>"$WORK/restore.log" || true
+# psql itself still exits 0 on those; a non-zero exit means it could not run
+# the dump at all (connection lost, out of disk) -- that fails the check.
+if ! gunzip -c "$DUMP" | docker exec -i "$CONTAINER" psql -q -U postgres -d restore >/dev/null 2>"$WORK/restore.log"; then
+  echo "!! Restore check FAILED -- psql could not load the dump:" >&2
+  tail -n 10 "$WORK/restore.log" >&2
+  exit 1
+fi
 
 USERS="$(docker exec "$CONTAINER" psql -tA -U postgres -d restore -c 'SELECT count(*) FROM users' 2>/dev/null || echo 0)"
 HEAD="$(docker exec "$CONTAINER" psql -tA -U postgres -d restore -c 'SELECT version_num FROM alembic_version' 2>/dev/null || echo '?')"
 ERRORS="$(grep -c 'ERROR' "$WORK/restore.log" || true)"
 ROLE_ERRORS="$(grep -c 'role .* does not exist' "$WORK/restore.log" || true)"
+TABLES="$(docker exec "$CONTAINER" psql -tA -U postgres -d restore -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'" 2>/dev/null || echo 0)"
 
-echo "    users: $USERS, alembic head: $HEAD, errors: $ERRORS (of them missing-role: $ROLE_ERRORS)"
-if [ "${USERS:-0}" -gt 0 ] && [ "$ERRORS" -eq "$ROLE_ERRORS" ]; then
+echo "    users: $USERS, alembic head: $HEAD, tables: $TABLES of $EXPECTED_TABLES, errors: $ERRORS (of them missing-role: $ROLE_ERRORS)"
+if [ "${USERS:-0}" -gt 0 ] && [ "$ERRORS" -eq "$ROLE_ERRORS" ] && [ "$EXPECTED_TABLES" -gt 0 ] && [ "$TABLES" -eq "$EXPECTED_TABLES" ]; then
   echo "==> OK: the dump restores"
 else
   echo "!! Restore check FAILED -- first errors:" >&2

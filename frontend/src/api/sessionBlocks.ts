@@ -1,10 +1,23 @@
 import { apiPostAuth } from './client'
 import type { SessionBlockRead } from '../types/schedule'
+import { enqueueWrite, isQueueEnabled } from '../utils/writeQueue'
 
+// Б2: with the offline queue on, `current` (the block as on screen) is what
+// the optimistic answer is built from.
 export function completeSessionBlock(
   blockId: string,
   accessToken: string,
+  current?: SessionBlockRead,
 ): Promise<SessionBlockRead> {
+  if (isQueueEnabled() && current !== undefined) {
+    return enqueueWrite({
+      method: 'POST',
+      path: `/session-blocks/${blockId}/complete`,
+      body: {},
+      label: current.exercise.name,
+      optimistic: (performedAt) => ({ ...current, completed_at: performedAt, ceiling_escalations: [] }),
+    })
+  }
   return apiPostAuth<SessionBlockRead>(`/session-blocks/${blockId}/complete`, undefined, accessToken)
 }
 
@@ -13,7 +26,17 @@ export function completeSessionBlock(
 export function skipSessionBlock(
   blockId: string,
   accessToken: string,
+  current?: SessionBlockRead,
 ): Promise<SessionBlockRead> {
+  if (isQueueEnabled() && current !== undefined) {
+    return enqueueWrite({
+      method: 'POST',
+      path: `/session-blocks/${blockId}/skip`,
+      body: {},
+      label: `${current.exercise.name} (пропуск)`,
+      optimistic: (performedAt) => ({ ...current, skipped_at: performedAt }),
+    })
+  }
   return apiPostAuth<SessionBlockRead>(`/session-blocks/${blockId}/skip`, undefined, accessToken)
 }
 

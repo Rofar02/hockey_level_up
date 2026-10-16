@@ -19,6 +19,7 @@ from app.models.exercise import (
 )
 from app.models.friend import FriendRequest, FriendRequestStatus
 from app.models.outbox import OutboxEvent
+from app.models.idempotency_key import IdempotencyKey
 from app.models.processed_event import ProcessedEvent
 from app.models.progress import IceLoadCharge, StatHistory, TrainingStreak, UserStat
 from app.models.push_subscription import PushSubscription
@@ -95,6 +96,7 @@ __all__ = [
     "FriendRequest",
     "FriendRequestStatus",
     "OutboxEvent",
+    "IdempotencyKey",
     "ProcessedEvent",
     "PushSubscription",
     "ReferenceArticle",

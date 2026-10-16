@@ -4,7 +4,6 @@ import { IceFocusCard } from '../IceFocusCard'
 import { Button } from '../ui/Button'
 import { CardGlow } from '../ui/CardGlow'
 import { CARD_CLASS } from '../ui/cardStyle'
-import { BoardPlanModal } from './BoardPlanView'
 import * as teamEventsApi from '../../api/teamEvents'
 import * as teamsApi from '../../api/teams'
 import { useAuth } from '../../hooks/useAuth'
@@ -133,7 +132,7 @@ export function TeamDayCard({
 
         {!hasStarted && (
           <div className="flex flex-col gap-3">
-            {isTraining && <BoardSummary event={event} />}
+            {isTraining && <BoardSummary teamId={teamId} event={event} />}
             {isTraining && day.training_session !== null && (
               <IceFocusCard trainingSessionId={day.training_session.id} />
             )}
@@ -175,9 +174,10 @@ function SummaryRow({ icon, label, children }: { icon: string; label: string; ch
 }
 
 // One line per section ("Разминка · 2 · 10 мин") -- stays short however
-// many drills the coach adds; the full plan opens in BoardPlanModal.
-function BoardSummary({ event }: { event: TeamEventRead }) {
-  const [isPlanOpen, setIsPlanOpen] = useState(false)
+// many drills the coach adds. «Смотреть план» opens the reel on the event's
+// own address (?reel=1), a step in the history: «Назад» comes back here.
+function BoardSummary({ teamId, event }: { teamId: string; event: TeamEventRead }) {
+  const navigate = useNavigate()
   // sections is null for a non-captain while the board is still a draft.
   const sections =
     event.board_status === 'published'
@@ -216,13 +216,12 @@ function BoardSummary({ event }: { event: TeamEventRead }) {
       })}
       <button
         type="button"
-        onClick={() => setIsPlanOpen(true)}
-        className="mt-1 flex items-center gap-1 text-sm font-medium text-accent-ice transition-opacity hover:opacity-80"
+        onClick={() => navigate(`/teams/${teamId}/events/${event.id}?reel=1`, { state: { reelInApp: true } })}
+        className="mt-1 flex min-h-11 items-center gap-1 text-sm font-medium text-accent-ice transition-opacity hover:opacity-80"
       >
+        <i className="ti ti-player-play" aria-hidden="true" />
         Смотреть план
-        <i className="ti ti-chevron-right" aria-hidden="true" />
       </button>
-      {isPlanOpen && <BoardPlanModal sections={sections} onClose={() => setIsPlanOpen(false)} />}
     </SummaryRow>
   )
 }
@@ -244,7 +243,7 @@ function LineupSummary({
   if (groups === null) {
     content = <span className="text-[#8A94A6]">Состав ещё не опубликован</span>
   } else if (group === null) {
-    content = <span className="text-[#8A94A6]">Тебя пока нет в составе</span>
+    content = <span className="text-[#8A94A6]">Вас пока нет в составе</span>
   } else {
     content = (
       <span className="flex items-center gap-2">

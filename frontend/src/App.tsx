@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppErrorBoundary } from './components/AppErrorBoundary'
 import { AdminRoute } from './components/AdminRoute'
+import { OfflineBanner } from './components/OfflineBanner'
+import { WriteQueueNotice } from './components/WriteQueueNotice'
 import { OnboardingRoute } from './components/OnboardingRoute'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ScrollToTop } from './components/ScrollToTop'
@@ -163,6 +165,8 @@ function App() {
   return (
     <AppErrorBoundary>
       <ScrollToTop />
+      <OfflineBanner />
+      <WriteQueueNotice />
       <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.user import User
 from app.routers.deps import get_current_user
+from app.routers.optional import OptionalFlag, or_none
 from app.core.config import get_settings
 from app.schemas.schedule import (
     ScheduleFeaturesRead,
@@ -36,15 +37,19 @@ async def get_schedule_features(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     """Optional week features switched on (release plan step 6)."""
-    return ScheduleFeaturesRead(double_days=get_settings().double_days_enabled)
+    settings = get_settings()
+    return ScheduleFeaturesRead(
+        double_days=settings.double_days_enabled, offline_queue=settings.offline_queue_enabled
+    )
 
 
-@router.get("/weekly/current", response_model=WeeklyPlanRead)
+@router.get("/weekly/current", response_model=WeeklyPlanRead | None)
 async def get_current_weekly_plan(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
+    optional: OptionalFlag = False,
 ):
-    return await ScheduleService(session).get_current_weekly_plan(current_user)
+    return await or_none(ScheduleService(session).get_current_weekly_plan(current_user), optional)
 
 
 @router.patch("/weekly/current", response_model=WeeklyPlanPatchResult)
@@ -62,13 +67,14 @@ async def patch_current_weekly_plan(
 # are strict supersets of /weekly/current -- existing clients that only know
 # about /current keep working unmodified, new callers (e.g. "plan/view next
 # week") use these instead.
-@router.get("/weekly", response_model=WeeklyPlanRead)
+@router.get("/weekly", response_model=WeeklyPlanRead | None)
 async def get_weekly_plan(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
     week_start_date: Annotated[date | None, Query()] = None,
+    optional: OptionalFlag = False,
 ):
-    return await ScheduleService(session).get_weekly_plan(current_user, week_start_date)
+    return await or_none(ScheduleService(session).get_weekly_plan(current_user, week_start_date), optional)
 
 
 @router.patch("/weekly", response_model=WeeklyPlanPatchResult)
@@ -85,13 +91,14 @@ async def patch_weekly_plan(
 # -- backs HomePage's activity-calendar day-detail modal, which otherwise can
 # only show block-by-block detail for a day inside the currently-loaded
 # WeeklyPlan (see ScheduleService.get_day_plan_for_date's own docstring).
-@router.get("/day-plan", response_model=DayPlanRead)
+@router.get("/day-plan", response_model=DayPlanRead | None)
 async def get_day_plan(
     current_user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
     date_: Annotated[date, Query(alias="date")],
+    optional: OptionalFlag = False,
 ):
-    return await ScheduleService(session).get_day_plan_for_date(current_user, date_)
+    return await or_none(ScheduleService(session).get_day_plan_for_date(current_user, date_), optional)
 
 
 # A single day by id, from any week -- TrainingSessionPage/TrainingDiaryPage

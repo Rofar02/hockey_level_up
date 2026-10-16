@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { BackLink } from '../components/ui/BackLink'
 import { Button } from '../components/ui/Button'
 import { CARD_CLASS } from '../components/ui/cardStyle'
@@ -10,6 +10,7 @@ import { Modal } from '../components/ui/Modal'
 import { TabButton } from '../components/ui/TabButton'
 import { TextField } from '../components/ui/TextField'
 import { EventBoardPanel } from '../components/teamEvents/EventBoardPanel'
+import { TrainingReel } from '../components/teamEvents/TrainingReel'
 import { EventAttendancePanel } from '../components/teamEvents/EventAttendancePanel'
 import { GameScoreBlock } from '../components/teamEvents/GameScoreBlock'
 import { JointTrainingBlock } from '../components/teamEvents/JointTrainingBlock'
@@ -30,8 +31,35 @@ export function TeamEventDetailPage() {
   // ?tab=board|attendance|lineup -- e.g. the team page's "Ближайшее" card
   // links straight to the board. (No diary tab: after a team training
   // players and the coach use their ordinary personal diary.)
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = searchParams.get('tab')
+  // ?reel=1 (the push about a published plan): the plan reel opens at once.
+  // Opened from inside the app (here, the home card, the week) it's a step
+  // in the history -- Android's «Назад» closes it, and so does ✕ (review
+  // 14.10, 22). Opened straight from a push there's nothing to go back to:
+  // ✕ just drops ?reel and stays on the event.
+  const isReelOpen = searchParams.get('reel') === '1'
+  const location = useLocation()
+  const navigate = useNavigate()
+  const reelOpenedInApp = (location.state as { reelInApp?: boolean } | null)?.reelInApp === true
+  function setReelOpen(open: boolean) {
+    if (!open && reelOpenedInApp) {
+      navigate(-1)
+      return
+    }
+    setSearchParams(
+      (params) => {
+        const next = new URLSearchParams(params)
+        if (open) {
+          next.set('reel', '1')
+        } else {
+          next.delete('reel')
+        }
+        return next
+      },
+      { replace: !open, state: open ? { reelInApp: true } : null },
+    )
+  }
 
   const [team, setTeam] = useState<TeamRead | null>(null)
   const [event, setEvent] = useState<TeamEventRead | null>(null)
@@ -158,6 +186,16 @@ export function TeamEventDetailPage() {
   // captain sees it like a player (and can take the team out in its block).
   const isHostCaptain = team !== null && event !== null && team.is_captain && event.team_id === teamId
 
+  // В (2026-10-13): a published plan with at least one drill can be watched
+  // as a reel -- what the team sees, the captain too; the captain also
+  // before publishing («Как видит игрок»).
+  const hasDrills =
+    event !== null &&
+    event.event_type === 'training' &&
+    (event.sections ?? []).some((section) => section.drills.length > 0)
+  const hasPlan = hasDrills && event?.board_status === 'published'
+  const canWatchPlan = hasPlan || (hasDrills && isHostCaptain)
+
   return (
     <div className="relative min-h-svh overflow-hidden">
       <IceGlowBackground />
@@ -183,6 +221,14 @@ export function TeamEventDetailPage() {
                 </div>
               </div>
               <GameScoreBlock teamId={teamId!} event={event} isCaptain={isHostCaptain} onEventChange={setEvent} />
+              {hasPlan && (
+                <Button type="button" className="w-full" onClick={() => setReelOpen(true)}>
+                  <span className="flex items-center justify-center gap-2">
+                    <i className="ti ti-player-play" aria-hidden="true" />
+                    Смотреть план
+                  </span>
+                </Button>
+              )}
               {isHostCaptain && (
                 <div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">
                   <Button type="button" variant="neutral" className="!px-3 !py-1.5 !text-xs" onClick={openReschedule}>
@@ -223,6 +269,7 @@ export function TeamEventDetailPage() {
                 event={event}
                 isCaptain={isHostCaptain}
                 onEventChange={setEvent}
+                onOpenReel={() => setReelOpen(true)}
               />
             )}
             {activeTab === 'attendance' && (
@@ -270,6 +317,10 @@ export function TeamEventDetailPage() {
             </div>
           </div>
         </Modal>
+      )}
+
+      {isReelOpen && canWatchPlan && team !== null && event !== null && (
+        <TrainingReel teamId={teamId!} teamName={team.name} event={event} onClose={() => setReelOpen(false)} />
       )}
     </div>
   )

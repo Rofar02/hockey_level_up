@@ -5,8 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class PushSubscriptionKeys(BaseModel):
-    p256dh: str = Field(min_length=1)
-    auth: str = Field(min_length=1)
+    p256dh: str = Field(min_length=1, repr=False)
+    auth: str = Field(min_length=1, repr=False)
 
 
 # Shape matches the browser's own PushSubscription.toJSON() from

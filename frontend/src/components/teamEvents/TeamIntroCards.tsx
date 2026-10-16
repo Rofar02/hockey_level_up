@@ -21,7 +21,7 @@ function writeFlag(key: string) {
 
 const PLAYER_POINTS: { icon: string; title: string; text: string }[] = [
   { icon: 'ti-calendar', title: 'Расписание встаёт в ваш план', text: 'Отметьтесь «Иду» — командный лёд или игра заменят то, что было в этот день.' },
-  { icon: 'ti-presentation', title: 'План тренировки — заранее', text: 'Упражнения и схемы на площадке от тренера. Схемы проигрываются по кадрам.' },
+  { icon: 'ti-presentation', title: 'План тренировки — заранее', text: '«Смотреть план»: упражнения по одному, ключевые слова тренера под названием, схемы проигрываются по тактам.' },
   { icon: 'ti-list-numbers', title: 'Ваше звено', text: 'Тренер публикует составы — вы видите, с кем играете.' },
   { icon: 'ti-trophy', title: 'Рейтинг и статистика', text: 'После игры отметьте голы и передачи — они попадут к тренеру.' },
 ]
@@ -123,7 +123,7 @@ export function TeamCaptainSetupCard({ teamId, memberCount }: { teamId: string; 
     { title: 'Пригласите игроков', hint: 'Отправьте код команды выше в общий чат', done: memberCount > 1, to: null },
     { title: 'Задайте расписание льда', hint: 'Один раз — повторяется каждую неделю', done: state.templates, to: `/teams/${teamId}/ice-schedule-templates` },
     { title: 'Соберите план тренировки', hint: 'Разделы и минуты — и опубликуйте', done: state.board, to: `/teams/${teamId}/events` },
-    { title: 'Нарисуйте схему упражнения', hint: 'Игроки, катание, пасы, броски — по кадрам', done: state.diagram, to: `/teams/${teamId}/events` },
+    { title: 'Нарисуйте схему упражнения', hint: 'Игроки, катание, пасы, броски — по тактам', done: state.diagram, to: `/teams/${teamId}/events` },
   ]
   if (steps.every((step) => step.done)) {
     return null

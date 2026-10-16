@@ -76,7 +76,7 @@ class FeedbackService:
         if (sent_today or 0) >= DAILY_LIMIT:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Сегодня ты уже отправил несколько сообщений — спасибо! Попробуй завтра.",
+                detail="Сегодня вы уже отправили несколько сообщений — спасибо! Попробуйте завтра.",
             )
 
         screenshot_path = None

@@ -139,7 +139,7 @@ export function QuestsPage() {
             {coachTasks.map((task) => (
               <div key={task.id} className={`flex flex-col gap-2 p-4 ${CARD_CLASS} ${task.claimed ? 'opacity-70' : ''}`}>
                 <div className="flex items-start gap-3">
-                  <i className="ti ti-whistle mt-0.5 text-lg text-accent-persimmon" aria-hidden="true" />
+                  <i className="ti ti-speakerphone mt-0.5 text-lg text-accent-persimmon" aria-hidden="true" />
                   <span className="flex-1 text-sm font-medium text-[#F5F7FA]">{task.title}</span>
                   <span className="shrink-0 font-display text-sm text-[#8A94A6]">
                     {task.progress}/{task.target}

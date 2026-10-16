@@ -273,7 +273,7 @@ async def _greet_birthday(session: AsyncSession, user: User, now_local: datetime
     gift = user.birthday_gift_year == now_local.year
     title = f"С днём рождения{', ' + name if name else ''}! 🎂"
     body = (
-        f"Команда IceLevel поздравляет! В подарок +{BIRTHDAY_XP} XP, а тренер оставил тебе пару слов в чате."
+        f"Команда IceLevel поздравляет! В подарок +{BIRTHDAY_XP} XP, а тренер оставил вам пару слов в чате."
         if gift
         else "Команда IceLevel поздравляет! Пусть этот год принесёт быстрые ноги, точные броски и много побед."
     )

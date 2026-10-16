@@ -85,7 +85,7 @@ async def test_a_request_pushes_the_receiver_once(db_session, sent) -> None:
     await push_friend_request_sent(event.payload, event.id)  # redelivery
 
     assert [(p["title"], p["body"], p["url"]) for p in sent] == [
-        ("Заявка в друзья", "Иван Петров хочет добавить тебя в друзья", "/friends")
+        ("Заявка в друзья", "Иван Петров хочет добавить вас в друзья", "/friends")
     ]
 
 

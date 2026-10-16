@@ -5,11 +5,13 @@ import { useAuth } from '../../hooks/useAuth'
 import type { TeamInvitationRead } from '../../types/team'
 import { Button } from '../ui/Button'
 import { FormError } from '../ui/FormError'
+import { useOnline } from '../../hooks/useNetworkStatus'
 
 // A captain's invitations to the player (2026-10-08), at the top of the
 // team hub: accept -- straight into the team -- or decline.
 export function TeamInvitationsCard({ onJoined }: { onJoined: (teamId: string) => void }) {
   const { accessToken } = useAuth()
+  const online = useOnline()
   const [invitations, setInvitations] = useState<TeamInvitationRead[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -71,7 +73,7 @@ export function TeamInvitationsCard({ onJoined }: { onJoined: (teamId: string) =
             </span>
             <span className="flex min-w-0 flex-col gap-0.5">
               <span className="text-[15px] font-semibold">
-                {invitation.invited_by_first_name} {invitation.invited_by_last_name} зовёт тебя в «{invitation.team_name}»
+                {invitation.invited_by_first_name} {invitation.invited_by_last_name} зовёт вас в «{invitation.team_name}»
               </span>
               <span className="text-xs text-text-secondary">{invitation.member_count} участн.</span>
             </span>
@@ -81,6 +83,7 @@ export function TeamInvitationsCard({ onJoined }: { onJoined: (teamId: string) =
               type="button"
               onClick={() => void respond(invitation, true)}
               isLoading={busyId === invitation.id}
+              disabled={!online}
               className="flex-1"
             >
               Вступить
