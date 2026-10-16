@@ -80,23 +80,28 @@ export function SettingsNotificationsPage() {
     setIsPushBusy(true)
     try {
       if (pushSubscribed) {
+        // 'none' is saved first (16.10): it's what tells the next sign-in
+        // not to subscribe this phone again (see resyncPushSubscription). If
+        // the save fails the subscription stays and the error shows --
+        // otherwise pushes would quietly come back after a re-login.
+        const updated = await usersApi.updateProfile(
+          { reminder_preference: 'none' },
+          accessToken,
+        )
+        updateUser(updated)
         const subscription = await getActivePushSubscription()
         if (subscription !== null) {
-          await pushApi.deletePushSubscription(subscription.endpoint, accessToken)
+          try {
+            await pushApi.deletePushSubscription(subscription.endpoint, accessToken)
+          } catch (err) {
+            // 404: the server had already dropped it -- off is off.
+            if (!(err instanceof ApiError && err.status === 404)) {
+              throw err
+            }
+          }
           await subscription.unsubscribe()
         }
         setPushSubscribed(false)
-        try {
-          const updated = await usersApi.updateProfile(
-            { reminder_preference: 'none' },
-            accessToken,
-          )
-          updateUser(updated)
-        } catch {
-          // Best-effort -- the browser subscription is already gone either
-          // way, so a stale server-side preference is harmless until the
-          // next successful save.
-        }
         return
       }
 
