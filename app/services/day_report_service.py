@@ -42,6 +42,13 @@ from app.schemas.day_report import (
 from app.services.training_diary_service import diary_reward_reason
 
 
+def shown_gain(gain: float) -> float | None:
+    """A stat gain as both the finish screen and the day report show it
+    (16.10): rounded to 0.1 here, once -- the app shows the number as it
+    comes -- and none at all under 0.05."""
+    return round(gain, 1) if abs(gain) >= 0.05 else None
+
+
 def _local_zone(user: User) -> ZoneInfo:
     try:
         return ZoneInfo(user.timezone or "UTC")
@@ -227,11 +234,13 @@ class DayReportService:
             before.setdefault(key, prior)
             gains[key] += value - prior
         result = [
-            # after - before is the gain rounded on its own -- the same
-            # «+N» the workout's finish screen showed (15.10).
-            DayReportStatRead(stat=stat, before=round(before[stat], 1), after=round(round(before[stat], 1) + round(gain, 1), 1))
+            # `gain` is the same «+N» the workout's finish screen showed
+            # (15.10, 16.10); after = before + gain.
+            DayReportStatRead(
+                stat=stat, before=round(before[stat], 1), after=round(round(before[stat], 1) + shown, 1), gain=shown
+            )
             for stat, gain in gains.items()
-            if abs(gain) >= 0.05
+            if (shown := shown_gain(gain)) is not None
         ]
         return sorted(result, key=lambda item: item.before - item.after)
 
@@ -313,9 +322,9 @@ class DayReportService:
         expected = {reason for reason, block in reasons.items() if block.exercise_id in with_stats}
         return SessionRewardsRead(
             stats=[
-                SessionStatGainRead(stat=stat, gain=round(gain, 2))
+                SessionStatGainRead(stat=stat, gain=shown)
                 for stat, gain in sorted(gains.items(), key=lambda item: -item[1])
-                if gain > 0
+                if gain > 0 and (shown := shown_gain(gain)) is not None
             ],
             xp=sum(xp_for_difficulty(block.exercise.difficulty_level) for block in done),
             credited=expected <= credited_blocks,

@@ -46,7 +46,7 @@ export interface DayReportRead {
   date: string
   trainings: DayReportTrainingRead[]
   muscles: { muscle_group: string; intensity: number }[]
-  stats: { stat: string; before: number; after: number }[]
+  stats: { stat: string; before: number; after: number; gain: number }[]
   sets_total: number
   tonnage_kg: number
   exercises_done: number

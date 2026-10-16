@@ -63,6 +63,8 @@ class DayReportStatRead(BaseModel):
     stat: str
     before: float
     after: float
+    # Already rounded to 0.1 (after - before in floats isn't).
+    gain: float
 
 
 class DayReportRead(BaseModel):

@@ -180,3 +180,14 @@ async def test_finish_screen_rewards_are_the_day_reports(db_session) -> None:
     assert [(g.stat, g.gain) for g in rewards.stats] == [("strength", 3.3)]
     day = {s.stat: s for s in report.stats}
     assert day["strength"].after - day["strength"].before == pytest.approx(3.3)
+    assert day["strength"].gain == 3.3
+
+
+def test_shown_gain_is_rounded_once_and_tiny_ones_hidden():
+    """16.10: the server rounds to 0.1 for both screens; under 0.05 neither shows it."""
+    from app.services.day_report_service import shown_gain
+
+    assert shown_gain(1.2345) == 1.2
+    assert shown_gain(0.0999) == 0.1
+    assert shown_gain(0.049) is None
+    assert shown_gain(-0.3) == -0.3

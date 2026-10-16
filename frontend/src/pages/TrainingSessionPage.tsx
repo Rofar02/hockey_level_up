@@ -2032,14 +2032,19 @@ function SessionCompleteModal({
           <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
             Прирост характеристик
           </p>
+          {/* The credited gains come rounded from the server and are shown as
+              they are -- the day report shows the same number (16.10); the
+              estimate is rounded here, and under 0.05 shown nowhere. */}
           {(credited !== null
-            ? credited.stats.map(({ stat, gain }) => [stat, gain] as const)
+            ? credited.stats.map(({ stat, gain }) => [stat, String(gain)] as const)
             : Object.entries(statTotals)
+                .filter(([, value]) => value >= 0.05)
+                .map(([stat, value]) => [stat, formatStatGain(value)] as const)
           ).map(([stat, value]) => (
             <div key={stat} className="flex items-center justify-between text-sm">
               <span className="text-text-primary">{TARGET_STAT_LABELS[stat as TargetStat]}</span>
               <span className="font-mono text-accent-ice" title={credited === null ? 'Примерно — считается' : undefined}>
-                {credited === null ? '≈' : ''}+{formatStatGain(value)}
+                {credited === null ? '≈' : ''}+{value}
               </span>
             </div>
           ))}
